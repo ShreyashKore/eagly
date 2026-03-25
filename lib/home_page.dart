@@ -27,7 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool isPaused = false;
   String searchQuery = '';
-  Set<String> levelFilter = {'E', 'W', 'I', 'D', 'V'};
+  String selectedLogLevel = 'V'; // V shows everything, E shows only errors
 
   @override
   void dispose() {
@@ -72,8 +72,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<LogEntry> get filteredLogs {
+    // Define log level hierarchy: E > W > I > D > V
+    const levelHierarchy = {'E': 0, 'W': 1, 'I': 2, 'D': 3, 'V': 4};
+    final selectedLevelValue = levelHierarchy[selectedLogLevel] ?? 4;
+
     return logs.where((log) {
-      if (!levelFilter.contains(log.level)) return false;
+      // Include logs at the selected level or higher priority
+      final logLevelValue = levelHierarchy[log.level] ?? 4;
+      if (logLevelValue > selectedLevelValue) return false;
 
       if (searchQuery.isEmpty) return true;
 
@@ -83,15 +89,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList();
   }
 
-  void toggleLevel(String level) {
-    setState(() {
-      if (levelFilter.contains(level)) {
-        levelFilter.remove(level);
-      } else {
-        levelFilter.add(level);
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -135,25 +132,35 @@ class _HomeScreenState extends State<HomeScreen> {
 
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              decoration: const InputDecoration(
-                hintText: 'Search logs...',
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (v) => setState(() => searchQuery = v),
-            ),
-          ),
-
-          Wrap(
-            children: ['E', 'W', 'I', 'D', 'V']
-                .map(
-                  (l) => FilterChip(
-                    label: Text(l),
-                    selected: levelFilter.contains(l),
-                    onSelected: (_) => toggleLevel(l),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Search logs...',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (v) => setState(() => searchQuery = v),
                   ),
-                )
-                .toList(),
+                ),
+                const SizedBox(width: 10),
+                DropdownButton<String>(
+                  value: selectedLogLevel,
+                  items: const [
+                    DropdownMenuItem(value: 'E', child: Text('Error (E)')),
+                    DropdownMenuItem(value: 'W', child: Text('Warning (W)')),
+                    DropdownMenuItem(value: 'I', child: Text('Info (I)')),
+                    DropdownMenuItem(value: 'D', child: Text('Debug (D)')),
+                    DropdownMenuItem(value: 'V', child: Text('Verbose (V)')),
+                  ],
+                  onChanged: (level) {
+                    if (level != null) {
+                      setState(() => selectedLogLevel = level);
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
 
           const Divider(),
@@ -164,7 +171,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 itemCount: filteredLogs.length,
                 itemBuilder: (_, i) {
                   final log = filteredLogs[i];
-
                   return Text(
                     '${log.timestamp} ${log.pid}/${log.tid} ${log.level} ${log.tag}: ${log.message}',
                     style: TextStyle(
@@ -193,7 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'D':
         return Colors.blue;
       default:
-        return Colors.white;
+        return Colors.grey[400]!;
     }
   }
 }
