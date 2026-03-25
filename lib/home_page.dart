@@ -1,33 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-class Device {
-  final String id;
-  final String status;
-
-  Device(this.id, this.status);
-}
-
-class LogEntry {
-  final String timestamp;
-  final String pid;
-  final String tid;
-  final String level;
-  final String tag;
-  final String message;
-
-  LogEntry({
-    required this.timestamp,
-    required this.pid,
-    required this.tid,
-    required this.level,
-    required this.tag,
-    required this.message,
-  });
-}
+import 'data/device.dart';
+import 'data/log_entry.dart';
+import 'services/adb_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -37,7 +14,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final String adbPath = 'adb'; // Replace with bundled path
+  final AdbService adbService = AdbService();
 
   List<Device> devices = [];
   Device? selectedDevice;
@@ -60,14 +37,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> loadDevices() async {
-    final result = await Process.run(adbPath, ['devices']);
-    final lines = (result.stdout as String).split('\n');
+    final fetchedDevices = await adbService.getDevices();
 
     setState(() {
-      devices = lines.skip(1).where((l) => l.trim().isNotEmpty).map((l) {
-        final parts = l.split('\t');
-        return Device(parts[0], parts.length > 1 ? parts[1] : 'unknown');
-      }).toList();
+      devices = fetchedDevices;
     });
   }
 
@@ -78,28 +51,10 @@ class _HomeScreenState extends State<HomeScreen> {
     logs.clear();
     buffer.clear();
 
-    final process = await Process.start(adbPath, [
-      '-s',
-      selectedDevice!.id,
-      'logcat',
-      '-v',
-      'threadtime',
-    ]);
-
-    logSub = process.stdout
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .listen((line) {
-          debugPrint('RRRR --> $line');
-          if (isPaused) return;
-          debugPrint('RRRR aaa --> $line');
-
-          final parsed = parseLog(line);
-          debugPrint('RRRR -- Buffer --> $isPaused $parsed');
-          if (parsed != null) {
-            buffer.add(parsed);
-          }
-        });
+    logSub = adbService.startLogcat(selectedDevice!.id).listen((logEntry) {
+      if (isPaused) return;
+      buffer.add(logEntry);
+    });
 
     flushTimer?.cancel();
     flushTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
@@ -114,25 +69,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       });
     });
-  }
-
-  LogEntry? parseLog(String line) {
-    final regex = RegExp(
-        r'^(\d\d-\d\d\s+\d\d:\d\d:\d\d\.\d+)\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+):\s+(.*)'
-    );
-
-    final match = regex.firstMatch(line);
-    debugPrint('MMMMMM $match');
-    if (match == null) return null;
-
-    return LogEntry(
-      timestamp: match.group(1)!,
-      pid: match.group(2)!,
-      tid: match.group(3)!,
-      level: match.group(4)!,
-      tag: match.group(5)!,
-      message: match.group(6)!,
-    );
   }
 
   List<LogEntry> get filteredLogs {
@@ -223,19 +159,22 @@ class _HomeScreenState extends State<HomeScreen> {
           const Divider(),
 
           Expanded(
-            child: ListView.builder(
-              itemCount: filteredLogs.length,
-              itemBuilder: (_, i) {
-                final log = filteredLogs[i];
+            child: SelectionArea(
+              child: ListView.builder(
+                itemCount: filteredLogs.length,
+                itemBuilder: (_, i) {
+                  final log = filteredLogs[i];
 
-                return Text(
-                  '${log.timestamp} ${log.pid}/${log.tid} ${log.level} ${log.tag}: ${log.message}',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: _colorForLevel(log.level),
-                  ),
-                );
-              },
+                  return Text(
+                    '${log.timestamp} ${log.pid}/${log.tid} ${log.level} ${log.tag}: ${log.message}',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontFamilyFallback: <String>["Courier"],
+                      color: _colorForLevel(log.level),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ],
