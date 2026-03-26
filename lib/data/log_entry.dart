@@ -5,6 +5,7 @@ class LogEntry {
   final String level;
   final String tag;
   final String message;
+  final String lowercaseSearchable;
 
   LogEntry({
     required this.timestamp,
@@ -13,7 +14,8 @@ class LogEntry {
     required this.level,
     required this.tag,
     required this.message,
-  });
+  }) : lowercaseSearchable = '$tag $message'.toLowerCase();
+
 
   static LogEntry? parse(String line) {
     final regex = RegExp(

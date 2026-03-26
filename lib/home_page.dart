@@ -116,14 +116,15 @@ class _HomeScreenState extends State<HomeScreen> {
     _lastSearchQuery = _appliedSearchQuery;
     _lastLogLevel = selectedLogLevel;
 
+    final searchQuery = _appliedSearchQuery.toLowerCase();
     _cachedFilteredLogs = logs.where((log) {
       final logLevelValue = LogUtils.levelHierarchy[log.level] ?? 4;
       if (logLevelValue > selectedLevelValue) return false;
 
       if (_appliedSearchQuery.isEmpty) return true;
 
-      return (log.message + log.tag).toLowerCase().contains(
-        _appliedSearchQuery.toLowerCase(),
+      return log.lowercaseSearchable.contains(
+        searchQuery,
       );
     }).toList();
 
