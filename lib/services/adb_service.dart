@@ -14,13 +14,38 @@ class AdbService {
 
   /// Fetches the list of connected devices
   Future<List<Device>> getDevices() async {
-    final result = await Process.run(adbPath, ['devices']);
+    final result = await Process.run(adbPath, ['devices', '-l']);
     final lines = (result.stdout as String).split('\n');
 
-    return lines.skip(1).where((l) => l.trim().isNotEmpty).map((l) {
-      final parts = l.split('\t');
-      return Device(parts[0], parts.length > 1 ? parts[1] : 'unknown');
-    }).toList();
+    final deviceList = <Device>[];
+
+    for (final line in lines.skip(1)) {
+      if (line.trim().isEmpty) continue;
+
+      // Parse output format: ID status usb:X-Y product:PRODUCT model:MODEL device:DEVICE transport_id:N
+      final parts = line.trim().split(RegExp(r'\s+'));
+      if (parts.length < 2) continue;
+
+      final deviceId = parts[0];
+      final status = parts[1];
+
+      // Parse optional attributes
+      String? model;
+      String? product;
+
+      for (int i = 2; i < parts.length; i++) {
+        if (parts[i].startsWith('model:')) {
+          model = parts[i].substring('model:'.length);
+        } else if (parts[i].startsWith('product:')) {
+          product = parts[i].substring('product:'.length);
+        }
+      }
+
+      // Use product as name if available
+      deviceList.add(Device(deviceId, status, model: model, name: product));
+    }
+
+    return deviceList;
   }
 
   /// Refresh the PID to package name mapping

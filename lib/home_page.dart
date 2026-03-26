@@ -243,7 +243,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 items: devices
                     .map((d) => DropdownMenuItem(
                           value: d,
-                          child: Text('${d.id} (${d.status})'),
+                          child: Text('${d.displayName} - ${d.status}'),
                         ))
                     .toList(),
                 onChanged: (d) => setState(() => selectedDevice = d),
