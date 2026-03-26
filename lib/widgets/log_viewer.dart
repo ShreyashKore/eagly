@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../data/log_entry.dart';
 import '../utils/log_utils.dart';
@@ -37,12 +38,26 @@ class LogViewer extends StatelessWidget {
   }
 
   Widget _buildLogLine(LogEntry log) {
-    return Text(
-      '${log.timestamp} ${log.pid}/${log.tid} ${log.level} ${log.tag}: ${log.message}',
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: '${log.timestamp} '),
+          TextSpan(text: '${log.pid}/${log.tid} '.padLeft(12)),
+          TextSpan(
+            text: ' ${log.level} ',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              backgroundColor: LogUtils.colorForLevel(log.level),
+              color: Colors.black,
+            ),
+          ),
+          TextSpan(text: ' ${log.tag}'),
+          TextSpan(text: ' ${log.message}'),
+          TextSpan(text: '\n ', style: TextStyle(fontSize: 0, height: 0)),
+        ],
+      ),
       softWrap: wrapText,
-      style: TextStyle(
-        fontFamily: 'monospace',
-        fontFamilyFallback: const <String>["Courier"],
+      style: GoogleFonts.notoSansMono(
         color: LogUtils.colorForLevel(log.level),
         height: 1.2,
       ),
