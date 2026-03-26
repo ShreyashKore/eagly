@@ -30,17 +30,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   StreamSubscription? logSub;
   Timer? flushTimer;
+  Timer? _debounceTimer;
 
   bool isPaused = false;
   String searchQuery = '';
+  String _appliedSearchQuery = ''; // The actual query used for filtering
   String selectedLogLevel = 'V'; // V shows everything, E shows only errors
   bool wrapText = false;
   bool autoScroll = true;
+
+  // Cached filtered logs
+  List<LogEntry>? _cachedFilteredLogs;
+  int _lastLogsLength = 0;
+  String _lastSearchQuery = '';
+  String _lastLogLevel = 'V';
 
   @override
   void dispose() {
     logSub?.cancel();
     flushTimer?.cancel();
+    _debounceTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -94,22 +103,52 @@ class _HomeScreenState extends State<HomeScreen> {
   List<LogEntry> get filteredLogs {
     final selectedLevelValue = LogUtils.levelHierarchy[selectedLogLevel] ?? 4;
 
-    return logs.where((log) {
+    // Check if we can use cached result
+    if (_cachedFilteredLogs != null &&
+        _lastLogsLength == logs.length &&
+        _lastSearchQuery == _appliedSearchQuery &&
+        _lastLogLevel == selectedLogLevel) {
+      return _cachedFilteredLogs!;
+    }
+
+    // Update cache tracking
+    _lastLogsLength = logs.length;
+    _lastSearchQuery = _appliedSearchQuery;
+    _lastLogLevel = selectedLogLevel;
+
+    _cachedFilteredLogs = logs.where((log) {
       final logLevelValue = LogUtils.levelHierarchy[log.level] ?? 4;
       if (logLevelValue > selectedLevelValue) return false;
 
-      if (searchQuery.isEmpty) return true;
+      if (_appliedSearchQuery.isEmpty) return true;
 
       return (log.message + log.tag).toLowerCase().contains(
-        searchQuery.toLowerCase(),
+        _appliedSearchQuery.toLowerCase(),
       );
     }).toList();
+
+    return _cachedFilteredLogs!;
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {
+      searchQuery = value;
+    });
+
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      setState(() {
+        _appliedSearchQuery = value;
+        _cachedFilteredLogs = null; // Invalidate cache
+      });
+    });
   }
 
   void clearLogs() {
     setState(() {
       logs.clear();
       buffer.clear();
+      _cachedFilteredLogs = null; // Invalidate cache
     });
   }
 
@@ -122,6 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (importedLogs != null) {
       setState(() {
         logs = importedLogs;
+        _cachedFilteredLogs = null; // Invalidate cache
       });
     }
   }
@@ -189,10 +229,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           FilterBar(
             searchQuery: searchQuery,
-            onSearchChanged: (v) => setState(() => searchQuery = v),
+            onSearchChanged: _onSearchChanged,
             selectedLogLevel: selectedLogLevel,
             onLogLevelChanged: (level) {
-              if (level != null) setState(() => selectedLogLevel = level);
+              if (level != null) {
+                setState(() {
+                  selectedLogLevel = level;
+                  _cachedFilteredLogs = null; // Invalidate cache
+                });
+              }
             },
           ),
           const Divider(),
