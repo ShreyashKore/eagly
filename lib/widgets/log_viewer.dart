@@ -38,11 +38,14 @@ class LogViewer extends StatelessWidget {
   }
 
   Widget _buildLogLine(LogEntry log) {
+    // Display package name if available, otherwise show PID
+    final displayId = log.packageName ?? log.pid;
+
     return Text.rich(
       TextSpan(
         children: [
           TextSpan(text: '${log.timestamp} '),
-          TextSpan(text: '${log.pid}/${log.tid} '.padLeft(12)),
+          TextSpan(text: '${displayId.padLeft(12)}/${log.tid.padLeft(5)} '),
           TextSpan(
             text: ' ${log.level} ',
             style: TextStyle(

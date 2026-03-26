@@ -11,6 +11,12 @@ import 'widgets/action_toolbar.dart';
 import 'widgets/filter_bar.dart';
 import 'widgets/log_viewer.dart';
 
+enum LogcatState {
+  stopped,
+  running,
+  paused,
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -32,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? flushTimer;
   Timer? _debounceTimer;
 
-  bool isPaused = false;
+  LogcatState logcatState = LogcatState.stopped;
   String searchQuery = '';
   String _appliedSearchQuery = ''; // The actual query used for filtering
   String selectedLogLevel = 'V'; // V shows everything, E shows only errors
@@ -44,6 +50,22 @@ class _HomeScreenState extends State<HomeScreen> {
   int _lastLogsLength = 0;
   String _lastSearchQuery = '';
   String _lastLogLevel = 'V';
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  void init() async {
+    await loadDevices();
+    if (devices.isNotEmpty) {
+      setState(() {
+        selectedDevice = devices.first;
+      });
+    }
+    startLogcat();
+  }
+
 
   @override
   void dispose() {
@@ -62,15 +84,19 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void startLogcat() async {
+  Future<void> startLogcat() async {
     if (selectedDevice == null) return;
 
     await logSub?.cancel();
     logs.clear();
     buffer.clear();
 
+    setState(() {
+      logcatState = LogcatState.running;
+    });
+
     logSub = adbService.startLogcat(selectedDevice!.id).listen((logEntry) {
-      if (isPaused) return;
+      if (logcatState == LogcatState.paused) return;
       buffer.add(logEntry);
     });
 
@@ -99,6 +125,27 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
   }
+
+  void stopLogcat() {
+    logSub?.cancel();
+    flushTimer?.cancel();
+    setState(() {
+      logcatState = LogcatState.stopped;
+    });
+  }
+
+  void togglePauseResume() {
+    setState(() {
+      if (logcatState == LogcatState.running) {
+        logcatState = LogcatState.paused;
+      } else if (logcatState == LogcatState.paused) {
+        logcatState = LogcatState.running;
+      }
+    });
+  }
+
+  bool get isRunning => logcatState != LogcatState.stopped;
+  bool get isPaused => logcatState == LogcatState.paused;
 
   List<LogEntry> get filteredLogs {
     final selectedLevelValue = LogUtils.levelHierarchy[selectedLogLevel] ?? 4;
@@ -204,11 +251,11 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 10),
               ElevatedButton(
                 onPressed: startLogcat,
-                child: const Text('Start'),
+                child: Text(isRunning ? 'Restart' : 'Start'),
               ),
               const SizedBox(width: 10),
               ElevatedButton(
-                onPressed: () => setState(() => isPaused = !isPaused),
+                onPressed: isRunning ? togglePauseResume : null,
                 child: Text(isPaused ? 'Resume' : 'Pause'),
               ),
               const SizedBox(width: 10),
