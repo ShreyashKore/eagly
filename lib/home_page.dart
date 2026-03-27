@@ -10,6 +10,8 @@ import 'utils/log_utils.dart';
 import 'widgets/action_toolbar.dart';
 import 'widgets/filter_bar.dart';
 import 'widgets/log_viewer.dart';
+import 'widgets/log_viewer_table.dart';
+import 'widgets/log_viewer_worksheet.dart';
 
 enum LogcatState {
   stopped,
@@ -44,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String selectedLogLevel = 'V'; // V shows everything, E shows only errors
   bool wrapText = false;
   bool autoScroll = true;
+  LogViewMode viewMode = LogViewMode.text; // Current view mode (text, dataTable, worksheet)
 
   // Cached filtered logs
   List<LogEntry>? _cachedFilteredLogs;
@@ -224,6 +227,28 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Builds the appropriate log viewer based on the current view mode
+  Widget _buildLogViewer() {
+    switch (viewMode) {
+      case LogViewMode.text:
+        return LogViewer(
+          logs: filteredLogs,
+          scrollController: _scrollController,
+          wrapText: wrapText,
+        );
+      case LogViewMode.dataTable:
+        return LogViewerTable(
+          logs: filteredLogs,
+          scrollController: _scrollController,
+        );
+      case LogViewMode.worksheet:
+        return LogViewerWorksheet(
+          logs: filteredLogs,
+          scrollController: _scrollController,
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -272,6 +297,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 autoScroll: autoScroll,
                 onToggleAutoScroll: () => setState(() => autoScroll = !autoScroll),
                 onScrollToEnd: scrollToEnd,
+                viewMode: viewMode,
+                onCycleViewMode: () => setState(() {
+                  // Cycle through view modes: text -> dataTable -> worksheet -> text
+                  viewMode = LogViewMode.values[(viewMode.index + 1) % LogViewMode.values.length];
+                }),
               ),
             ],
           ),
@@ -290,11 +320,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const Divider(),
           Expanded(
-            child: LogViewer(
-              logs: filteredLogs,
-              scrollController: _scrollController,
-              wrapText: wrapText,
-            ),
+            child: _buildLogViewer(),
           ),
         ],
       ),
