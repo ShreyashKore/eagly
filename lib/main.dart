@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:logview/home_page.dart';
+import 'package:logview/services/preferences_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await PreferencesService.init();
   runApp(const MyApp());
 }
 

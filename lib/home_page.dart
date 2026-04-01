@@ -6,6 +6,7 @@ import 'data/device.dart';
 import 'data/log_entry.dart';
 import 'services/adb_service.dart';
 import 'services/log_file_service.dart';
+import 'services/preferences_service.dart';
 import 'utils/log_utils.dart';
 import 'widgets/action_toolbar.dart';
 import 'widgets/filter_bar.dart';
@@ -43,10 +44,10 @@ class _HomeScreenState extends State<HomeScreen> {
   LogcatState logcatState = LogcatState.stopped;
   String searchQuery = '';
   String _appliedSearchQuery = ''; // The actual query used for filtering
-  String selectedLogLevel = 'V'; // V shows everything, E shows only errors
-  bool wrapText = false;
-  bool autoScroll = true;
-  LogViewMode viewMode = LogViewMode.text; // Current view mode (text, dataTable, worksheet)
+  String selectedLogLevel = PreferencesService.selectedLogLevel;
+  bool wrapText = PreferencesService.wrapText;
+  bool autoScroll = PreferencesService.autoScroll;
+  LogViewMode viewMode = LogViewMode.values[PreferencesService.viewMode];
 
   // Cached filtered logs
   List<LogEntry>? _cachedFilteredLogs;
@@ -293,14 +294,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 onImport: importLogs,
                 onExport: exportLogs,
                 wrapText: wrapText,
-                onToggleWrap: () => setState(() => wrapText = !wrapText),
+                onToggleWrap: () => setState(() {
+                  wrapText = !wrapText;
+                  PreferencesService.wrapText = wrapText;
+                }),
                 autoScroll: autoScroll,
-                onToggleAutoScroll: () => setState(() => autoScroll = !autoScroll),
+                onToggleAutoScroll: () => setState(() {
+                  autoScroll = !autoScroll;
+                  PreferencesService.autoScroll = autoScroll;
+                }),
                 onScrollToEnd: scrollToEnd,
                 viewMode: viewMode,
                 onCycleViewMode: () => setState(() {
                   // Cycle through view modes: text -> dataTable -> worksheet -> text
                   viewMode = LogViewMode.values[(viewMode.index + 1) % LogViewMode.values.length];
+                  PreferencesService.viewMode = viewMode.index;
                 }),
               ),
             ],
@@ -314,6 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() {
                   selectedLogLevel = level;
                   _cachedFilteredLogs = null; // Invalidate cache
+                  PreferencesService.selectedLogLevel = level;
                 });
               }
             },
