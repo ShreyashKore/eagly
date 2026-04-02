@@ -32,6 +32,7 @@ class PreferencesService {
   static const _keySelectedLogLevel = 'selectedLogLevel';
   static const _keyColumnWidths = 'columnWidths';
   static const _keyHiddenColumns = 'hiddenColumns';
+  static const _keyLogLinesLimit = 'logLinesLimit';
 
   // --- Home page preferences ---
 
@@ -48,6 +49,9 @@ class PreferencesService {
       _prefs.getString(_keySelectedLogLevel) ?? 'V';
   static set selectedLogLevel(String v) =>
       _prefs.setString(_keySelectedLogLevel, v);
+
+  static int get logLinesLimit => _prefs.getInt(_keyLogLinesLimit) ?? 10000;
+  static set logLinesLimit(int v) => _prefs.setInt(_keyLogLinesLimit, v);
 
   // --- Column widths (stored as single JSON object) ---
 

@@ -17,6 +17,8 @@ class ActionToolbar extends StatelessWidget {
   final VoidCallback onScrollToEnd;
   final LogViewMode viewMode;
   final VoidCallback onCycleViewMode;
+  final int logLinesLimit;
+  final ValueChanged<int> onLogLinesLimitChanged;
 
   const ActionToolbar({
     super.key,
@@ -29,6 +31,8 @@ class ActionToolbar extends StatelessWidget {
     required this.onScrollToEnd,
     required this.viewMode,
     required this.onCycleViewMode,
+    required this.logLinesLimit,
+    required this.onLogLinesLimitChanged,
   });
 
   // IconData _getViewModeIcon() {
@@ -88,6 +92,32 @@ class ActionToolbar extends StatelessWidget {
         //   icon: Icon(_getViewModeIcon()),
         //   tooltip: _getViewModeTooltip(),
         // ),
+        const SizedBox(width: 16),
+        Row(
+          children: [
+            const Text('Log lines:', style: TextStyle(fontSize: 13)),
+            const SizedBox(width: 4),
+            SizedBox(
+              width: 72,
+              child: TextField(
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  border: OutlineInputBorder(),
+                ),
+                style: const TextStyle(fontSize: 13),
+                controller: TextEditingController(text: logLinesLimit.toString()),
+                onSubmitted: (value) {
+                  final parsed = int.tryParse(value);
+                  if (parsed != null && parsed > 1000) {
+                    onLogLinesLimitChanged(parsed);
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }

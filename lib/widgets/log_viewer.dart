@@ -90,7 +90,6 @@ class _LogViewerState extends State<LogViewer> {
           position.dx, position.dy, position.dx, position.dy),
       items: LogColumn.values.where((c) => !c.isExpandable).map((col) {
         return PopupMenuItem<LogColumn>(
-          padding: EdgeInsets.zero,
           value: col,
           child: StatefulBuilder(
             builder: (context, setMenuState) {
@@ -98,8 +97,10 @@ class _LogViewerState extends State<LogViewer> {
               return CheckboxListTile.adaptive(
                 dense: true,
                 value: visible,
-                title: Text(col.label, style: const TextStyle(fontSize: 13)),
+                title: Text(col.label, style: const TextStyle(fontSize: 12)),
                 visualDensity: VisualDensity.compact,
+                contentPadding: EdgeInsets.zero,
+                minVerticalPadding: 0,
                 onChanged: (_) {
                   setState(() {
                     if (visible) {

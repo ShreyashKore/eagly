@@ -56,6 +56,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String _lastSearchQuery = '';
   String _lastLogLevel = 'V';
 
+  int logLinesLimit = PreferencesService.logLinesLimit;
+
   final _dropdownButtonKey = GlobalKey(debugLabel: 'DeviceDropdown');
 
   @override
@@ -124,6 +126,13 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _onLogLinesLimitChanged(int value) {
+    setState(() {
+      logLinesLimit = value;
+    });
+    PreferencesService.logLinesLimit = value;
+  }
+
   Future<void> startLogcat() async {
     if (selectedDevice == null) return;
 
@@ -148,8 +157,10 @@ class _HomeScreenState extends State<HomeScreen> {
         logs.addAll(buffer);
         buffer.clear();
 
-        if (logs.length > 10000) {
-          logs = logs.sublist(logs.length - 8000);
+        if (logs.length > logLinesLimit * 1.2) {
+          // Delete logs when reach over 120% of the limit to avoid trimming every flush
+          final keep = (logLinesLimit).floor();
+          logs = logs.sublist(logs.length - keep);
         }
       });
 
@@ -358,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? (isPaused ? 'Resume' : 'Pause')
                     : 'Not running',
                 onPressed: isRunning ? togglePauseResume : null,
-              ),
+          ),
               // Clear button
               IconButton(
                 icon: const Icon(Icons.delete),
@@ -387,6 +398,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       .values[(viewMode.index + 1) % LogViewMode.values.length];
                   PreferencesService.viewMode = viewMode.index;
                 }),
+                logLinesLimit: logLinesLimit,
+                onLogLinesLimitChanged: _onLogLinesLimitChanged,
               ),
             ],
           ),
