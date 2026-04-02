@@ -241,6 +241,7 @@
 				33CC110E2044A8840003C045 /* Bundle Framework */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
 				D3E03DA57770D6485C340C5A /* [CP] Embed Pods Frameworks */,
+				E1A2B3C4D5E6F7A8B9C0D1E2 /* Copy ADB Binary */,
 			);
 			buildRules = (
 			);
@@ -404,6 +405,25 @@
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
+		};
+		E1A2B3C4D5E6F7A8B9C0D1E2 /* Copy ADB Binary */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Copy ADB Binary";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "ADB_SRC=\"${PROJECT_DIR}/../platform-tools/macos/adb\"\nADB_DST=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/MacOS/adb\"\nif [ -f \"$ADB_SRC\" ]; then\n  cp \"$ADB_SRC\" \"$ADB_DST\"\n  chmod +x \"$ADB_DST\"\n  codesign --force --sign - \"$ADB_DST\"\n  echo \"Copied and signed bundled adb\"\nelse\n  echo \"warning: ADB binary not found at $ADB_SRC. Run scripts/download_platform_tools.sh first.\"\nfi\n";
 		};
 		D3E03DA57770D6485C340C5A /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;

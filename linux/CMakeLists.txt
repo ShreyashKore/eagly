@@ -126,3 +126,12 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# Copy bundled adb binary into the app bundle.
+set(ADB_BINARY "${CMAKE_CURRENT_SOURCE_DIR}/../platform-tools/linux/adb")
+if(EXISTS "${ADB_BINARY}")
+  install(PROGRAMS "${ADB_BINARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
+    COMPONENT Runtime)
+else()
+  message(WARNING "ADB binary not found at ${ADB_BINARY}. Run scripts/download_platform_tools.sh first.")
+endif()

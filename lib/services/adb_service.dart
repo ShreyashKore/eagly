@@ -4,13 +4,14 @@ import 'dart:io';
 
 import '../data/device.dart';
 import '../data/log_entry.dart';
+import '../utils/adb_path.dart';
 
 class AdbService {
   final String adbPath;
   final Map<String, String> _pidToPackageCache = {};
   Timer? _cacheRefreshTimer;
 
-  AdbService({this.adbPath = 'adb'});
+  AdbService({String? adbPath}) : adbPath = adbPath ?? resolveBundledAdbPath() ?? 'adb';
 
   /// Fetches the list of connected devices
   Future<List<Device>> getDevices() async {
