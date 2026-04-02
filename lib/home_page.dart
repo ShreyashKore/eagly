@@ -40,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription? logSub;
   Timer? flushTimer;
   Timer? _debounceTimer;
+  Timer? _devicePollTimer;
 
   LogcatState logcatState = LogcatState.stopped;
   String searchQuery = '';
@@ -64,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    init();
   }
 
   void init() async {
@@ -81,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
     logSub?.cancel();
     flushTimer?.cancel();
     _debounceTimer?.cancel();
+    _devicePollTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -92,9 +95,11 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         devices = [];
       });
+      _startDevicePolling();
       return;
     }
 
+    _stopDevicePolling();
     setState(() {
       devices = fetchedDevices;
     });
@@ -117,6 +122,18 @@ class _HomeScreenState extends State<HomeScreen> {
         _openDevicesDropdown();
       });
     }
+  }
+
+  void _startDevicePolling() {
+    if (_devicePollTimer?.isActive ?? false) return;
+    _devicePollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      loadDevices();
+    });
+  }
+
+  void _stopDevicePolling() {
+    _devicePollTimer?.cancel();
+    _devicePollTimer = null;
   }
 
   void _selectFirstDevice(List<Device> fetchedDevices) {
