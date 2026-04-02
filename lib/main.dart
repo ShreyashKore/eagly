@@ -14,9 +14,30 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'ADB Logcat',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        // Applies to Material buttons
+        textButtonTheme: TextButtonThemeData(
+          style: ButtonStyle(
+            mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ButtonStyle(
+            mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: ButtonStyle(
+            mouseCursor:WidgetStatePropertyAll(SystemMouseCursors.click),
+          ),
+        ),
+        iconButtonTheme: IconButtonThemeData(
+          style: ButtonStyle(
+            mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
+          ),
+        ),
       ),
       home: const HomeScreen(),
     );

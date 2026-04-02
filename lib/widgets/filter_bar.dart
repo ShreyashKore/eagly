@@ -38,6 +38,9 @@ class FilterBar extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           DropdownButton<String>(
+                  isDense: true,
+                  mouseCursor: SystemMouseCursors.click,
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                   value: selectedLogLevel,
                   items: const [
                     DropdownMenuItem(value: 'E', child: Text('Error (E)')),

@@ -50,7 +50,7 @@ class PreferencesService {
   static set selectedLogLevel(String v) =>
       _prefs.setString(_keySelectedLogLevel, v);
 
-  static int get logLinesLimit => _prefs.getInt(_keyLogLinesLimit) ?? 10000;
+  static int get logLinesLimit => _prefs.getInt(_keyLogLinesLimit) ?? 50000;
   static set logLinesLimit(int v) => _prefs.setInt(_keyLogLinesLimit, v);
 
   // --- Column widths (stored as single JSON object) ---

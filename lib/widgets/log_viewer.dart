@@ -169,7 +169,7 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   Widget _buildHeader() {
-    final headerStyle = _monoStyle.copyWith(fontWeight: FontWeight.bold);
+    final headerStyle = TextStyle();
     final visible = _visibleFixedColumns;
 
     return GestureDetector(

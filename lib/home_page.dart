@@ -18,7 +18,6 @@ import 'widgets/log_viewer_table.dart';
 import 'widgets/log_viewer_worksheet.dart';
 import 'package:collection/collection.dart';
 
-
 enum LogcatState { stopped, running, paused }
 
 class HomeScreen extends StatefulWidget {
@@ -57,6 +56,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String _lastLogLevel = 'V';
 
   int logLinesLimit = PreferencesService.logLinesLimit;
+  bool _editingLogLinesLimit = false;
+  final TextEditingController _logLinesController = TextEditingController();
 
   final _dropdownButtonKey = GlobalKey(debugLabel: 'DeviceDropdown');
 
@@ -129,6 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onLogLinesLimitChanged(int value) {
     setState(() {
       logLinesLimit = value;
+      _editingLogLinesLimit = false;
     });
     PreferencesService.logLinesLimit = value;
   }
@@ -324,21 +326,27 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ADB Logcat')),
+      appBar: AppBar(
+        title: const Text('ADB Logcat'),
+        scrolledUnderElevation: 0,
+        elevation: 0,
+        backgroundColor: Colors.white,
+      ),
+      backgroundColor: Colors.white,
       body: Column(
         children: [
           Row(
             children: [
               Gap(8),
-              FilledButton(
-                onPressed: loadDevices,
-                child: const Text('Load Devices'),
-              ),
-              const SizedBox(width: 10),
               DropdownButton<Device>(
                 key: _dropdownButtonKey,
                 hint: const Text('Select Device'),
-                value: devices.firstWhereOrNull((d) => d.id == selectedDevice?.id),
+                value: devices.firstWhereOrNull(
+                  (d) => d.id == selectedDevice?.id,
+                ),
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                mouseCursor: SystemMouseCursors.click,
+                isDense: true,
                 items: devices
                     .map(
                       (d) => DropdownMenuItem(
@@ -349,6 +357,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     .toList(),
                 onChanged: (d) => setState(() => selectedDevice = d),
               ),
+              if (devices.isNotEmpty)
+                IconButton(onPressed: loadDevices, icon: Icon(Icons.refresh))
+              else ...[
+                Gap(10),
+                FilledButton(
+                  onPressed: loadDevices,
+                  child: const Text('Load Devices'),
+                ),
+              ],
               const SizedBox(width: 10),
               // Start button (play icon)
               IconButton(
@@ -369,7 +386,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? (isPaused ? 'Resume' : 'Pause')
                     : 'Not running',
                 onPressed: isRunning ? togglePauseResume : null,
-          ),
+              ),
               // Clear button
               IconButton(
                 icon: const Icon(Icons.delete),
@@ -398,8 +415,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       .values[(viewMode.index + 1) % LogViewMode.values.length];
                   PreferencesService.viewMode = viewMode.index;
                 }),
-                logLinesLimit: logLinesLimit,
-                onLogLinesLimitChanged: _onLogLinesLimitChanged,
               ),
             ],
           ),
@@ -417,7 +432,6 @@ class _HomeScreenState extends State<HomeScreen> {
               }
             },
           ),
-          const Divider(),
           Expanded(
             child: Stack(
               children: [
@@ -460,10 +474,115 @@ class _HomeScreenState extends State<HomeScreen> {
                   'Logs: ${logs.length}',
                   style: const TextStyle(fontSize: 13),
                 ),
-                const SizedBox(width: 16),
+                Gap(16),
                 Text(
                   'Filtered: ${filteredLogs.length}',
                   style: const TextStyle(fontSize: 13),
+                ),
+                Gap(16),
+                Container(
+                  width: _editingLogLinesLimit ? 200 : null,
+                  height: 28,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: _editingLogLinesLimit
+                      ? null
+                      : BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                  child: !_editingLogLinesLimit
+                      ? InkWell(
+                          mouseCursor: SystemMouseCursors.click,
+                          onTap: () {
+                            setState(() {
+                              _editingLogLinesLimit = true;
+                              _logLinesController.text = logLinesLimit
+                                  .toString();
+                            });
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4.0,
+                            ),
+                            child: Text(
+                              'Max lines: $logLinesLimit',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                decoration: TextDecoration.underline,
+                                decorationStyle: TextDecorationStyle.dotted,
+                                color: Colors.blue,
+                              ),
+                            ),
+                          ),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IntrinsicWidth(
+                              child: TextField(
+                                onTapOutside: (_) {
+                                  setState(() {
+                                    _editingLogLinesLimit = false;
+                                  });
+                                },
+                                controller: _logLinesController,
+                                autofocus: true,
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(fontSize: 13),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    vertical: 4,
+                                    horizontal: 4,
+                                  ),
+                                  prefixText: "Max lines: ",
+                                  border: OutlineInputBorder(),
+                                ),
+                                onSubmitted: (value) {
+                                  final parsed = int.tryParse(value);
+                                  if (parsed != null && parsed > 1000) {
+                                    _onLogLinesLimitChanged(parsed);
+                                  } else {
+                                    setState(() {
+                                      _editingLogLinesLimit = false;
+                                    });
+                                  }
+                                },
+                                onEditingComplete: () {
+                                  setState(() {
+                                    _editingLogLinesLimit = false;
+                                  });
+                                },
+                              ),
+                            ),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              onPressed: () {
+                                print('submitted');
+                                print(
+                                  'Submitted log lines limit: ${_logLinesController.text}',
+                                );
+                                final parsed = int.tryParse(
+                                  _logLinesController.text,
+                                );
+                                if (parsed != null && parsed > 1000) {
+                                  _onLogLinesLimitChanged(parsed);
+                                } else {
+                                  setState(() {
+                                    _editingLogLinesLimit = false;
+                                  });
+                                }
+                              },
+                              icon: Icon(Icons.check, size: 14),
+                            ),
+                          ],
+                        ),
                 ),
                 const Spacer(),
                 if (isRunning)
