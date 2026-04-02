@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'dart:io' show Platform;
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 
 import 'data/device.dart';
+import 'data/log_column.dart';
 import 'data/log_entry.dart';
 import 'services/adb_service.dart';
 import 'services/log_file_service.dart';
@@ -13,12 +13,18 @@ import 'services/preferences_service.dart';
 import 'utils/log_utils.dart';
 import 'widgets/action_toolbar.dart';
 import 'widgets/filter_bar.dart';
+import 'widgets/log_search_bar.dart';
 import 'widgets/log_viewer.dart';
 import 'widgets/log_viewer_table.dart';
 import 'widgets/log_viewer_worksheet.dart';
 import 'package:collection/collection.dart';
 
 enum LogcatState { stopped, running, paused }
+
+/// Intent fired by the Ctrl+F / Cmd+F keyboard shortcut.
+class _ActivateSearchIntent extends Intent {
+  const _ActivateSearchIntent();
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -53,8 +59,23 @@ class _HomeScreenState extends State<HomeScreen> {
   // Cached filtered logs
   List<LogEntry>? _cachedFilteredLogs;
   int _lastLogsLength = 0;
-  String _lastSearchQuery = '';
+  String _lastFilterQuery = '';
   String _lastLogLevel = 'V';
+
+  // ── Inline search (the Ctrl+F search bar) ──────────────────────────────
+  bool _searchBarVisible = false;
+  String _inlineSearchQuery = '';
+  bool _searchCaseSensitive = false;
+  int _searchCurrentMatchIndex = 0;
+  Set<String> _hiddenColumns = {};
+  final TextEditingController _searchController = TextEditingController();
+
+  // Cache for search match indices so we don't re-scan on every build.
+  List<int>? _cachedSearchMatchIndices;
+  String _smCacheQuery = '';
+  bool _smCacheCaseSensitive = false;
+  Set<String> _smCacheHiddenCols = {};
+  int _smCacheFilteredLen = -1;
 
   int logLinesLimit = PreferencesService.logLinesLimit;
   bool _editingLogLinesLimit = false;
@@ -65,6 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _hiddenColumns = Set.of(PreferencesService.hiddenColumns);
     init();
   }
 
@@ -85,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _debounceTimer?.cancel();
     _devicePollTimer?.cancel();
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -237,14 +260,14 @@ class _HomeScreenState extends State<HomeScreen> {
     // Check if we can use cached result
     if (_cachedFilteredLogs != null &&
         _lastLogsLength == logs.length &&
-        _lastSearchQuery == _appliedSearchQuery &&
+        _lastFilterQuery == _appliedSearchQuery &&
         _lastLogLevel == selectedLogLevel) {
       return _cachedFilteredLogs!;
     }
 
     // Update cache tracking
     _lastLogsLength = logs.length;
-    _lastSearchQuery = _appliedSearchQuery;
+    _lastFilterQuery = _appliedSearchQuery;
     _lastLogLevel = selectedLogLevel;
 
     final searchQuery = _appliedSearchQuery.toLowerCase();
@@ -271,6 +294,106 @@ class _HomeScreenState extends State<HomeScreen> {
         _appliedSearchQuery = value;
         _cachedFilteredLogs = null; // Invalidate cache
       });
+    });
+  }
+
+  // ── Inline search (Ctrl+F) ────────────────────────────────────────────────
+
+  /// Returns the list of [filteredLogs] indices that contain [_inlineSearchQuery]
+  /// in at least one visible column.  Result is cached and only recomputed when
+  /// the query, case-sensitivity, visible columns, or filtered-log list change.
+  List<int> get _searchMatchIndices {
+    final fl = filteredLogs;
+    if (_cachedSearchMatchIndices != null &&
+        _smCacheQuery == _inlineSearchQuery &&
+        _smCacheCaseSensitive == _searchCaseSensitive &&
+        _smCacheHiddenCols.length == _hiddenColumns.length &&
+        _smCacheHiddenCols.containsAll(_hiddenColumns) &&
+        _smCacheFilteredLen == fl.length) {
+      return _cachedSearchMatchIndices!;
+    }
+    _smCacheQuery = _inlineSearchQuery;
+    _smCacheCaseSensitive = _searchCaseSensitive;
+    _smCacheHiddenCols = Set.of(_hiddenColumns);
+    _smCacheFilteredLen = fl.length;
+    _cachedSearchMatchIndices = _computeSearchMatches(fl);
+    return _cachedSearchMatchIndices!;
+  }
+
+  String _logColumnValue(LogEntry log, LogColumn col) => switch (col) {
+        LogColumn.timestamp => log.timestamp,
+        LogColumn.pid => log.packageName ?? log.pid,
+        LogColumn.tid => log.tid,
+        LogColumn.level => log.level,
+        LogColumn.tag => log.tag,
+        LogColumn.message => log.message,
+      };
+
+  List<int> _computeSearchMatches(List<LogEntry> logs) {
+    if (_inlineSearchQuery.isEmpty) return [];
+    final query = _searchCaseSensitive
+        ? _inlineSearchQuery
+        : _inlineSearchQuery.toLowerCase();
+    final visibleCols =
+        LogColumn.values.where((c) => !_hiddenColumns.contains(c.name)).toList();
+    final result = <int>[];
+    for (int i = 0; i < logs.length; i++) {
+      final log = logs[i];
+      for (final col in visibleCols) {
+        final text = _searchCaseSensitive
+            ? _logColumnValue(log, col)
+            : _logColumnValue(log, col).toLowerCase();
+        if (text.contains(query)) {
+          result.add(i);
+          break;
+        }
+      }
+    }
+    return result;
+  }
+
+  void _toggleSearchBar() {
+    setState(() {
+      _searchBarVisible = !_searchBarVisible;
+      if (!_searchBarVisible) {
+        _inlineSearchQuery = '';
+        _searchController.clear();
+        _cachedSearchMatchIndices = null;
+        _searchCurrentMatchIndex = 0;
+      }
+    });
+  }
+
+  void _onInlineSearchChanged(String value) {
+    setState(() {
+      _inlineSearchQuery = value;
+      _cachedSearchMatchIndices = null;
+      _searchCurrentMatchIndex = 0;
+    });
+  }
+
+  void _onSearchNext() {
+    final matches = _searchMatchIndices;
+    if (matches.isEmpty) return;
+    setState(() {
+      _searchCurrentMatchIndex =
+          (_searchCurrentMatchIndex + 1) % matches.length;
+    });
+  }
+
+  void _onSearchPrev() {
+    final matches = _searchMatchIndices;
+    if (matches.isEmpty) return;
+    setState(() {
+      _searchCurrentMatchIndex =
+          (_searchCurrentMatchIndex - 1 + matches.length) % matches.length;
+    });
+  }
+
+  void _onHiddenColumnsChanged(Set<String> cols) {
+    setState(() {
+      _hiddenColumns = cols;
+      _cachedSearchMatchIndices = null;
     });
   }
 
@@ -317,6 +440,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Builds the appropriate log viewer based on the current view mode
   Widget _buildLogViewer() {
+    final matches = _searchMatchIndices;
+    final safeIndex = matches.isEmpty
+        ? null
+        : matches[_searchCurrentMatchIndex.clamp(0, matches.length - 1)];
+
     switch (viewMode) {
       case LogViewMode.text:
         return LogViewer(
@@ -324,6 +452,13 @@ class _HomeScreenState extends State<HomeScreen> {
           scrollController: _scrollController,
           wrapText: wrapText,
           onLogRowTap: _disableAutoScroll,
+          searchQuery: _inlineSearchQuery,
+          caseSensitive: _searchCaseSensitive,
+          currentMatchLogIndex:
+              _searchBarVisible && _inlineSearchQuery.isNotEmpty
+                  ? safeIndex
+                  : null,
+          onHiddenColumnsChanged: _onHiddenColumnsChanged,
         );
       case LogViewMode.dataTable:
         return LogViewerTable(
@@ -342,7 +477,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return Shortcuts(
+      shortcuts: <ShortcutActivator, Intent>{
+        SingleActivator(LogicalKeyboardKey.keyF, control: true):
+            const _ActivateSearchIntent(),
+        SingleActivator(LogicalKeyboardKey.keyF, meta: true):
+            const _ActivateSearchIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          _ActivateSearchIntent: CallbackAction<_ActivateSearchIntent>(
+            onInvoke: (_) {
+              _toggleSearchBar();
+              return null;
+            },
+          ),
+        },
+        child: Focus(
+          autofocus: true,
+          child: Scaffold(
       appBar: AppBar(
         title: const Text('ADB Logcat'),
         scrolledUnderElevation: 0,
@@ -410,6 +563,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 tooltip: logs.isNotEmpty ? 'Clear Logs' : 'No logs to clear',
                 onPressed: logs.isNotEmpty ? clearLogs : null,
               ),
+              // Search toggle button
+              IconButton(
+                icon: Icon(
+                  Icons.search,
+                  color: _searchBarVisible
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                ),
+                tooltip: _searchBarVisible
+                    ? 'Close search'
+                    : 'Search in logs (Ctrl+F / Cmd+F)',
+                onPressed: _toggleSearchBar,
+              ),
               Spacer(),
               ActionToolbar(
                 onImport: importLogs,
@@ -475,6 +641,31 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ),
+                    ),
+                  ),
+                // Floating inline search bar — bottom-right corner
+                if (_searchBarVisible)
+                  Positioned(
+                    bottom: 12,
+                    right: 12,
+                    child: LogSearchBar(
+                      controller: _searchController,
+                      caseSensitive: _searchCaseSensitive,
+                      onQueryChanged: _onInlineSearchChanged,
+                      onCaseSensitiveChanged: (v) {
+                        setState(() {
+                          _searchCaseSensitive = v;
+                          _cachedSearchMatchIndices = null;
+                          _searchCurrentMatchIndex = 0;
+                        });
+                      },
+                      onNext: _onSearchNext,
+                      onPrevious: _onSearchPrev,
+                      onClose: _toggleSearchBar,
+                      totalMatches: _searchMatchIndices.length,
+                      currentMatch: _searchMatchIndices.isEmpty
+                          ? 0
+                          : _searchCurrentMatchIndex + 1,
                     ),
                   ),
               ],
@@ -630,6 +821,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
+      ),
+          ),
+        ),
       ),
     );
   }

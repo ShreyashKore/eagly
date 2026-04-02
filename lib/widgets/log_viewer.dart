@@ -14,12 +14,30 @@ class LogViewer extends StatefulWidget {
   final bool wrapText;
   final VoidCallback? onLogRowTap;
 
+  /// The active inline search query (separate from the filter bar query).
+  final String searchQuery;
+
+  /// Whether the search is case-sensitive.
+  final bool caseSensitive;
+
+  /// Index (into [logs]) of the row that should be highlighted as the
+  /// currently focused match. `null` means no focused match.
+  final int? currentMatchLogIndex;
+
+  /// Called whenever the user toggles column visibility so the parent can
+  /// update its hidden-columns set used for search-match computation.
+  final ValueChanged<Set<String>>? onHiddenColumnsChanged;
+
   const LogViewer({
     super.key,
     required this.logs,
     required this.scrollController,
     required this.wrapText,
     this.onLogRowTap,
+    this.searchQuery = '',
+    this.caseSensitive = false,
+    this.currentMatchLogIndex,
+    this.onHiddenColumnsChanged,
   });
 
   @override
@@ -32,6 +50,9 @@ class _LogViewerState extends State<LogViewer> {
   Timer? _saveWidthsTimer;
 
   late TextStyle _monoStyle;
+
+  /// Key placed on the currently-focused match row so we can scroll to it.
+  final GlobalKey _currentMatchKey = GlobalKey();
 
   @override
   void initState() {
@@ -47,10 +68,113 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   @override
+  void didUpdateWidget(LogViewer old) {
+    super.didUpdateWidget(old);
+    if (widget.currentMatchLogIndex != old.currentMatchLogIndex &&
+        widget.currentMatchLogIndex != null) {
+      _scrollToMatch(widget.currentMatchLogIndex!);
+    }
+  }
+
+  @override
   void dispose() {
     _flushWidths();
     _saveWidthsTimer?.cancel();
     super.dispose();
+  }
+
+  /// Scrolls so the matched row is visible, centering it in the viewport.
+  ///
+  /// Step 1: jump to an approximate pixel offset (20 px per row estimate)
+  ///         so the row is close to the viewport even if not yet built.
+  /// Step 2: wait one frame for ListView to build the row, then use
+  ///         [Scrollable.ensureVisible] for pixel-perfect positioning.
+  Future<void> _scrollToMatch(int index) async {
+    if (!widget.scrollController.hasClients) return;
+    const approxRowHeight = 20.0;
+    final approxOffset = index * approxRowHeight;
+    final maxScroll = widget.scrollController.position.maxScrollExtent;
+    widget.scrollController.jumpTo(approxOffset.clamp(0.0, maxScroll));
+
+    await Future.delayed(const Duration(milliseconds: 50));
+    if (!mounted) return;
+
+    // ignore: use_build_context_synchronously
+    final ctx = _currentMatchKey.currentContext;
+    if (ctx != null) {
+      await Scrollable.ensureVisible(
+        ctx, // ignore: use_build_context_synchronously
+        duration: const Duration(milliseconds: 200),
+        alignment: 0.4,
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  /// Builds a [RichText] that highlights every occurrence of [widget.searchQuery]
+  /// inside [text] using [highlightColor].  When the search query is empty, or
+  /// there is no match in this cell, a plain [Text] is returned instead.
+  Widget _buildHighlightedText(
+    String text,
+    TextStyle style, {
+    required Color highlightColor,
+    TextOverflow overflow = TextOverflow.ellipsis,
+    int? maxLines = 1,
+    bool softWrap = false,
+  }) {
+    final query = widget.searchQuery;
+    if (query.isEmpty) {
+      return Text(
+        text,
+        style: style,
+        overflow: overflow,
+        maxLines: maxLines,
+        softWrap: softWrap,
+      );
+    }
+
+    final searchIn =
+        widget.caseSensitive ? text : text.toLowerCase();
+    final queryNorm =
+        widget.caseSensitive ? query : query.toLowerCase();
+
+    if (!searchIn.contains(queryNorm)) {
+      return Text(
+        text,
+        style: style,
+        overflow: overflow,
+        maxLines: maxLines,
+        softWrap: softWrap,
+      );
+    }
+
+    final spans = <TextSpan>[];
+    int start = 0;
+    int idx = searchIn.indexOf(queryNorm, start);
+    while (idx != -1) {
+      if (idx > start) {
+        spans.add(TextSpan(text: text.substring(start, idx), style: style));
+      }
+      spans.add(TextSpan(
+        text: text.substring(idx, idx + queryNorm.length),
+        style: style.copyWith(
+          backgroundColor: highlightColor,
+          color: Colors.black,
+        ),
+      ));
+      start = idx + queryNorm.length;
+      idx = searchIn.indexOf(queryNorm, start);
+    }
+    if (start < text.length) {
+      spans.add(TextSpan(text: text.substring(start), style: style));
+    }
+
+    return RichText(
+      text: TextSpan(children: spans),
+      overflow: overflow,
+      maxLines: maxLines,
+      softWrap: softWrap,
+    );
   }
 
   void _flushWidths() {
@@ -110,6 +234,7 @@ class _LogViewerState extends State<LogViewer> {
                     }
                     PreferencesService.hiddenColumns = _hiddenColumns;
                   });
+                  widget.onHiddenColumnsChanged?.call(Set.of(_hiddenColumns));
                   setMenuState(() {});
                 },
                 controlAffinity: ListTileControlAffinity.leading,
@@ -129,6 +254,7 @@ class _LogViewerState extends State<LogViewer> {
         }
         PreferencesService.hiddenColumns = _hiddenColumns;
       });
+      widget.onHiddenColumnsChanged?.call(Set.of(_hiddenColumns));
     }
   }
 
@@ -158,7 +284,7 @@ class _LogViewerState extends State<LogViewer> {
                 child: ListView.builder(
                   controller: widget.scrollController,
                   itemCount: widget.logs.length,
-                  itemBuilder: (_, i) => _buildLogRow(widget.logs[i]),
+                  itemBuilder: (_, i) => _buildLogRow(widget.logs[i], i),
                 ),
               ),
             ),
@@ -232,37 +358,68 @@ class _LogViewerState extends State<LogViewer> {
     );
   }
 
-  Widget _buildLogRow(LogEntry log) {
+  Widget _buildLogRow(LogEntry log, int index) {
     final levelColor = LogUtils.colorForLevel(log.level);
     final rowStyle = _monoStyle.copyWith(color: levelColor);
     final visible = _visibleFixedColumns;
 
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final col in visible) ...[
-            if (col == LogColumn.level)
-              _levelCell(log.level, levelColor)
-            else
-              _fixedCell(_cellValue(col, log), _widthOf(col), rowStyle),
-            const SizedBox(width: 8),
-          ],
-          if (_isVisible(LogColumn.message))
-            Expanded(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                child: Text(
-                  log.message,
-                  style: rowStyle,
-                  softWrap: widget.wrapText,
-                  overflow: widget.wrapText ? null : TextOverflow.ellipsis,
-                  maxLines: widget.wrapText ? null : 1,
+    final isCurrentMatch = widget.currentMatchLogIndex == index;
+
+    // Determine highlight colour for search matches in this row.
+    // Current match → orange; other matching rows → yellow.
+    final Color? highlightColor = widget.searchQuery.isEmpty
+        ? null
+        : (isCurrentMatch ? Colors.orange[400] : Colors.yellow[400]);
+
+    return Container(
+      key: isCurrentMatch ? _currentMatchKey : null,
+      color: isCurrentMatch
+          ? Colors.orange.withValues(alpha: 0.12)
+          : null,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final col in visible) ...[
+              if (col == LogColumn.level)
+                _levelCell(log.level, levelColor)
+              else
+                _fixedCell(
+                  _cellValue(col, log),
+                  _widthOf(col),
+                  rowStyle,
+                  highlightColor: highlightColor,
+                ),
+              const SizedBox(width: 8),
+            ],
+            if (_isVisible(LogColumn.message))
+              Expanded(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  child: highlightColor != null
+                      ? _buildHighlightedText(
+                          log.message,
+                          rowStyle,
+                          highlightColor: highlightColor,
+                          overflow: widget.wrapText
+                              ? TextOverflow.clip
+                              : TextOverflow.ellipsis,
+                          maxLines: widget.wrapText ? null : 1,
+                          softWrap: widget.wrapText,
+                        )
+                      : Text(
+                          log.message,
+                          style: rowStyle,
+                          softWrap: widget.wrapText,
+                          overflow:
+                              widget.wrapText ? null : TextOverflow.ellipsis,
+                          maxLines: widget.wrapText ? null : 1,
+                        ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -291,17 +448,20 @@ class _LogViewerState extends State<LogViewer> {
     );
   }
 
-  Widget _fixedCell(String text, double width, TextStyle style) {
+  Widget _fixedCell(String text, double width, TextStyle style,
+      {Color? highlightColor}) {
     return SizedBox(
       width: width,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        child: Text(
-          text,
-          style: style,
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
-        ),
+        child: highlightColor != null
+            ? _buildHighlightedText(text, style, highlightColor: highlightColor)
+            : Text(
+                text,
+                style: style,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
       ),
     );
   }
