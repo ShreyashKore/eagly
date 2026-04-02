@@ -31,38 +31,27 @@ class ActionToolbar extends StatelessWidget {
     required this.onCycleViewMode,
   });
 
-  IconData _getViewModeIcon() {
-    switch (viewMode) {
-      case LogViewMode.text:
-        return Icons.view_list;
-      case LogViewMode.dataTable:
-        return Icons.table_chart;
-      case LogViewMode.worksheet:
-        return Icons.grid_on;
-    }
-  }
+  // IconData _getViewModeIcon() {
+  //   switch (viewMode) {
+  //     case LogViewMode.text:
+  //       return Icons.view_list;
+  //     case LogViewMode.dataTable:
+  //       return Icons.table_chart;
+  //     case LogViewMode.worksheet:
+  //       return Icons.grid_on;
+  //   }
+  // }
 
-  String _getViewModeTooltip() {
-    switch (viewMode) {
-      case LogViewMode.text:
-        return 'Text View (click for DataTable)';
-      case LogViewMode.dataTable:
-        return 'DataTable View (click for Worksheet)';
-      case LogViewMode.worksheet:
-        return 'Worksheet View (click for Text)';
-    }
-  }
-
-  Color? _getViewModeColor() {
-    switch (viewMode) {
-      case LogViewMode.text:
-        return null;
-      case LogViewMode.dataTable:
-        return Colors.green;
-      case LogViewMode.worksheet:
-        return Colors.blue;
-    }
-  }
+  // String _getViewModeTooltip() {
+  //   switch (viewMode) {
+  //     case LogViewMode.text:
+  //       return 'Text View (click for DataTable)';
+  //     case LogViewMode.dataTable:
+  //       return 'DataTable View (click for Worksheet)';
+  //     case LogViewMode.worksheet:
+  //       return 'Worksheet View (click for Text)';
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +74,7 @@ class ActionToolbar extends StatelessWidget {
         ),
         IconButton(
           onPressed: onToggleAutoScroll,
-          icon: Icon(autoScroll ? Icons.vertical_align_bottom : Icons.vertical_align_center),
+          icon: Icon(autoScroll ? Icons.vertical_align_bottom : Icons.swipe_down),
           tooltip: autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF',
           color: autoScroll ? Colors.blue : null,
         ),
@@ -94,12 +83,11 @@ class ActionToolbar extends StatelessWidget {
           icon: const Icon(Icons.arrow_downward),
           tooltip: 'Scroll to End',
         ),
-        IconButton(
-          onPressed: onCycleViewMode,
-          icon: Icon(_getViewModeIcon()),
-          tooltip: _getViewModeTooltip(),
-          color: _getViewModeColor(),
-        ),
+        // IconButton(
+        //   onPressed: onCycleViewMode,
+        //   icon: Icon(_getViewModeIcon()),
+        //   tooltip: _getViewModeTooltip(),
+        // ),
       ],
     );
   }

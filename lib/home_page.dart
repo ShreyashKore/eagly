@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/cupertino.dart';
+import 'package:gap/gap.dart';
 
 import 'data/device.dart';
 import 'data/log_entry.dart';
@@ -13,12 +16,10 @@ import 'widgets/filter_bar.dart';
 import 'widgets/log_viewer.dart';
 import 'widgets/log_viewer_table.dart';
 import 'widgets/log_viewer_worksheet.dart';
+import 'package:collection/collection.dart';
 
-enum LogcatState {
-  stopped,
-  running,
-  paused,
-}
+
+enum LogcatState { stopped, running, paused }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -55,6 +56,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String _lastSearchQuery = '';
   String _lastLogLevel = 'V';
 
+  final _dropdownButtonKey = GlobalKey(debugLabel: 'DeviceDropdown');
+
   @override
   void initState() {
     super.initState();
@@ -70,7 +73,6 @@ class _HomeScreenState extends State<HomeScreen> {
     startLogcat();
   }
 
-
   @override
   void dispose() {
     logSub?.cancel();
@@ -83,8 +85,42 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> loadDevices() async {
     final fetchedDevices = await adbService.getDevices();
 
+    if (fetchedDevices.isEmpty) {
+      setState(() {
+        devices = [];
+      });
+      return;
+    }
+
     setState(() {
       devices = fetchedDevices;
+    });
+    _selectFirstDevice(fetchedDevices);
+    // 2. If single device, select and start logging
+    if (fetchedDevices.length == 1) {
+      setState(() {
+        devices = fetchedDevices;
+      });
+      startLogcat();
+      return;
+    }
+
+    // 3. If multiple devices, open dropdown (focus the dropdown)
+
+    // Try to open the dropdown programmatically (not natively supported in Flutter)
+    // Instead, show a dialog for device selection
+    if (devices.length > 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openDevicesDropdown();
+      });
+    }
+  }
+
+  void _selectFirstDevice(List<Device> fetchedDevices) {
+    // 1. If logging is already in progress and device is already selected, do nothing
+    if (isRunning && selectedDevice != null) return;
+    setState(() {
+      selectedDevice = fetchedDevices.first;
     });
   }
 
@@ -148,6 +184,20 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _openDevicesDropdown() {
+    _dropdownButtonKey.currentContext?.visitChildElements((element) {
+      if (element.widget is Semantics) {
+        element.visitChildElements((element) {
+          if (element.widget is Actions) {
+            element.visitChildElements((element) {
+              Actions.invoke(element, ActivateIntent());
+            });
+          }
+        });
+      }
+    });
+  }
+
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;
 
@@ -174,9 +224,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (_appliedSearchQuery.isEmpty) return true;
 
-      return log.lowercaseSearchable.contains(
-        searchQuery,
-      );
+      return log.lowercaseSearchable.contains(searchQuery);
     }).toList();
 
     return _cachedFilteredLogs!;
@@ -228,6 +276,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _disableAutoScroll() {
+    if (autoScroll) {
+      setState(() {
+        autoScroll = false;
+      });
+      PreferencesService.autoScroll = false;
+    }
+  }
+
   /// Builds the appropriate log viewer based on the current view mode
   Widget _buildLogViewer() {
     switch (viewMode) {
@@ -236,16 +293,19 @@ class _HomeScreenState extends State<HomeScreen> {
           logs: filteredLogs,
           scrollController: _scrollController,
           wrapText: wrapText,
+          onLogRowTap: _disableAutoScroll,
         );
       case LogViewMode.dataTable:
         return LogViewerTable(
           logs: filteredLogs,
           scrollController: _scrollController,
+          onLogRowTap: _disableAutoScroll,
         );
       case LogViewMode.worksheet:
         return LogViewerWorksheet(
           logs: filteredLogs,
           scrollController: _scrollController,
+          onLogRowTap: _disableAutoScroll,
         );
     }
   }
@@ -258,36 +318,52 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Row(
             children: [
-              ElevatedButton(
+              Gap(8),
+              FilledButton(
                 onPressed: loadDevices,
                 child: const Text('Load Devices'),
               ),
               const SizedBox(width: 10),
               DropdownButton<Device>(
+                key: _dropdownButtonKey,
                 hint: const Text('Select Device'),
-                value: selectedDevice,
+                value: devices.firstWhereOrNull((d) => d.id == selectedDevice?.id),
                 items: devices
-                    .map((d) => DropdownMenuItem(
-                          value: d,
-                          child: Text('${d.displayName} - ${d.status}'),
-                        ))
+                    .map(
+                      (d) => DropdownMenuItem(
+                        value: d,
+                        child: Text('${d.displayName} - ${d.status}'),
+                      ),
+                    )
                     .toList(),
                 onChanged: (d) => setState(() => selectedDevice = d),
               ),
               const SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: startLogcat,
-                child: Text(isRunning ? 'Restart' : 'Start'),
+              // Start button (play icon)
+              IconButton(
+                icon: Icon(
+                  Icons.play_arrow,
+                  color: selectedDevice != null ? Colors.green : Colors.grey,
+                ),
+                tooltip: isRunning ? 'Restart' : 'Start',
+                onPressed: selectedDevice == null ? null : startLogcat,
               ),
-              const SizedBox(width: 10),
-              ElevatedButton(
+              // Pause/Resume button (pause/play icons)
+              IconButton(
+                icon: Icon(
+                  isPaused ? Icons.play_arrow : Icons.pause,
+                  color: isRunning ? Colors.orange : Colors.grey,
+                ),
+                tooltip: isRunning
+                    ? (isPaused ? 'Resume' : 'Pause')
+                    : 'Not running',
                 onPressed: isRunning ? togglePauseResume : null,
-                child: Text(isPaused ? 'Resume' : 'Pause'),
               ),
-              const SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: clearLogs,
-                child: const Text('Clear'),
+              // Clear button
+              IconButton(
+                icon: const Icon(Icons.delete),
+                tooltip: logs.isNotEmpty ? 'Clear Logs' : 'No logs to clear',
+                onPressed: logs.isNotEmpty ? clearLogs : null,
               ),
               Spacer(),
               ActionToolbar(
@@ -307,7 +383,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 viewMode: viewMode,
                 onCycleViewMode: () => setState(() {
                   // Cycle through view modes: text -> dataTable -> worksheet -> text
-                  viewMode = LogViewMode.values[(viewMode.index + 1) % LogViewMode.values.length];
+                  viewMode = LogViewMode
+                      .values[(viewMode.index + 1) % LogViewMode.values.length];
                   PreferencesService.viewMode = viewMode.index;
                 }),
               ),
@@ -329,7 +406,79 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const Divider(),
           Expanded(
-            child: _buildLogViewer(),
+            child: Stack(
+              children: [
+                _buildLogViewer(),
+                if (logs.isNotEmpty && filteredLogs.isEmpty)
+                  Align(
+                    alignment: Alignment.topCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Material(
+                        color: Colors.yellow[100],
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Text(
+                            'No logs match your filter/search, but logs are being generated.',
+                            style: const TextStyle(
+                              color: Colors.black87,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // Status bar
+          Container(
+            width: double.infinity,
+            color: Theme.of(context).colorScheme.surfaceVariant,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                Text(
+                  'Logs: ${logs.length}',
+                  style: const TextStyle(fontSize: 13),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  'Filtered: ${filteredLogs.length}',
+                  style: const TextStyle(fontSize: 13),
+                ),
+                const Spacer(),
+                if (isRunning)
+                  Text(
+                    'Live',
+                    style: TextStyle(
+                      color: Colors.green[700],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                if (isPaused)
+                  Text(
+                    'Paused',
+                    style: TextStyle(
+                      color: Colors.orange[700],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                if (!isRunning)
+                  Text(
+                    'Stopped',
+                    style: TextStyle(
+                      color: Colors.red[700],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ],
       ),

@@ -45,11 +45,13 @@ import '../data/log_entry.dart';
 class LogViewerWorksheet extends StatefulWidget {
   final List<LogEntry> logs;
   final ScrollController scrollController;
+  final VoidCallback? onLogRowTap;
 
   const LogViewerWorksheet({
     super.key,
     required this.logs,
     required this.scrollController,
+    this.onLogRowTap,
   });
 
   @override
@@ -153,6 +155,13 @@ class _LogViewerWorksheetState extends State<LogViewerWorksheet> {
         readOnly: true,
         customColumnWidths: {0: 100, 1: 100, 3: 50, 4: 200, 5: 1000},
         columnCount: 6,
+        onCellTap: (cell) {
+          // Cell tap is triggered when user taps on any cell, including header
+          // We want to disable auto-scroll when user taps on any cell in the log rows (not just header)
+          if (cell.row > 0 && widget.onLogRowTap != null) {
+            widget.onLogRowTap!();
+          }
+        }
       ),
     );
   }

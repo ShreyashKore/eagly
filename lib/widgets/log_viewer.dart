@@ -12,12 +12,14 @@ class LogViewer extends StatefulWidget {
   final List<LogEntry> logs;
   final ScrollController scrollController;
   final bool wrapText;
+  final VoidCallback? onLogRowTap;
 
   const LogViewer({
     super.key,
     required this.logs,
     required this.scrollController,
     required this.wrapText,
+    this.onLogRowTap,
   });
 
   @override
@@ -150,10 +152,13 @@ class _LogViewerState extends State<LogViewer> {
           child: SelectionArea(
             child: Scrollbar(
               controller: widget.scrollController,
-              child: ListView.builder(
-                controller: widget.scrollController,
-                itemCount: widget.logs.length,
-                itemBuilder: (_, i) => _buildLogRow(widget.logs[i]),
+              child: GestureDetector(
+                onTap: widget.onLogRowTap,
+                child: ListView.builder(
+                  controller: widget.scrollController,
+                  itemCount: widget.logs.length,
+                  itemBuilder: (_, i) => _buildLogRow(widget.logs[i]),
+                ),
               ),
             ),
           ),
@@ -177,7 +182,6 @@ class _LogViewerState extends State<LogViewer> {
             for (final col in visible) ...[
               _headerCell(col.label, _widthOf(col), headerStyle),
               _columnDragHandle((dx) {
-                print('Dragging ${col.name}, dx=$dx'); 
                 _updateWidth(col, dx);
               }),
             ],

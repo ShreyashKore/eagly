@@ -25,11 +25,13 @@ import '../utils/log_utils.dart';
 class LogViewerTable extends StatelessWidget {
   final List<LogEntry> logs;
   final ScrollController scrollController;
+  final VoidCallback? onLogRowTap;
 
   const LogViewerTable({
     super.key,
     required this.logs,
     required this.scrollController,
+    this.onLogRowTap,
   });
 
   @override
@@ -81,6 +83,7 @@ class LogViewerTable extends StatelessWidget {
           final levelColor = LogUtils.colorForLevel(log.level);
 
           return DataRow2(
+            onTap: onLogRowTap,
             cells: [
               DataCell(
                 Text(

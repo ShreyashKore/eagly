@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/cupertino.dart';
 
 class FilterBar extends StatelessWidget {
   final String searchQuery;
@@ -21,26 +23,31 @@ class FilterBar extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: TextField(
-              decoration: const InputDecoration(
-                hintText: 'Search logs...',
-                border: OutlineInputBorder(),
-              ),
-              onChanged: onSearchChanged,
-            ),
+            child: !Platform.isAndroid
+                ? CupertinoTextField(
+                    placeholder: 'Search logs...',
+                    onChanged: onSearchChanged,
+                  )
+                : TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Search logs...',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: onSearchChanged,
+                  ),
           ),
           const SizedBox(width: 10),
           DropdownButton<String>(
-            value: selectedLogLevel,
-            items: const [
-              DropdownMenuItem(value: 'E', child: Text('Error (E)')),
-              DropdownMenuItem(value: 'W', child: Text('Warning (W)')),
-              DropdownMenuItem(value: 'I', child: Text('Info (I)')),
-              DropdownMenuItem(value: 'D', child: Text('Debug (D)')),
-              DropdownMenuItem(value: 'V', child: Text('Verbose (V)')),
-            ],
-            onChanged: onLogLevelChanged,
-          ),
+                  value: selectedLogLevel,
+                  items: const [
+                    DropdownMenuItem(value: 'E', child: Text('Error (E)')),
+                    DropdownMenuItem(value: 'W', child: Text('Warning (W)')),
+                    DropdownMenuItem(value: 'I', child: Text('Info (I)')),
+                    DropdownMenuItem(value: 'D', child: Text('Debug (D)')),
+                    DropdownMenuItem(value: 'V', child: Text('Verbose (V)')),
+                  ],
+                  onChanged: onLogLevelChanged,
+                ),
         ],
       ),
     );
