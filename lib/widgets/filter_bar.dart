@@ -3,15 +3,15 @@ import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 
 class FilterBar extends StatelessWidget {
-  final String searchQuery;
-  final ValueChanged<String> onSearchChanged;
+  final String filterQuery;
+  final ValueChanged<String> onFilterChanged;
   final String selectedLogLevel;
   final ValueChanged<String?> onLogLevelChanged;
 
   const FilterBar({
     super.key,
-    required this.searchQuery,
-    required this.onSearchChanged,
+    required this.filterQuery,
+    required this.onFilterChanged,
     required this.selectedLogLevel,
     required this.onLogLevelChanged,
   });
@@ -25,15 +25,15 @@ class FilterBar extends StatelessWidget {
           Expanded(
             child: !Platform.isAndroid
                 ? CupertinoTextField(
-                    placeholder: 'Search logs...',
-                    onChanged: onSearchChanged,
+                    placeholder: 'Filter logs...',
+                    onChanged: onFilterChanged,
                   )
                 : TextField(
                     decoration: const InputDecoration(
-                      hintText: 'Search logs...',
+                      hintText: 'Filter logs...',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: onSearchChanged,
+                    onChanged: onFilterChanged,
                   ),
           ),
           const SizedBox(width: 10),

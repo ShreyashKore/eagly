@@ -64,7 +64,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Inline search (the Ctrl+F search bar) ──────────────────────────────
   bool _searchBarVisible = false;
+  /// Raw value of the search text field (updates on every keystroke).
   String _inlineSearchQuery = '';
+  /// Debounced value — used for actual match computation and highlighting.
+  String _appliedInlineSearchQuery = '';
+  Timer? _inlineSearchDebounce;
   bool _searchCaseSensitive = false;
   int _searchCurrentMatchIndex = 0;
   Set<String> _hiddenColumns = {};
@@ -108,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _devicePollTimer?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
+    _inlineSearchDebounce?.cancel();
     super.dispose();
   }
 
@@ -305,14 +310,14 @@ class _HomeScreenState extends State<HomeScreen> {
   List<int> get _searchMatchIndices {
     final fl = filteredLogs;
     if (_cachedSearchMatchIndices != null &&
-        _smCacheQuery == _inlineSearchQuery &&
+        _smCacheQuery == _appliedInlineSearchQuery &&
         _smCacheCaseSensitive == _searchCaseSensitive &&
         _smCacheHiddenCols.length == _hiddenColumns.length &&
         _smCacheHiddenCols.containsAll(_hiddenColumns) &&
         _smCacheFilteredLen == fl.length) {
       return _cachedSearchMatchIndices!;
     }
-    _smCacheQuery = _inlineSearchQuery;
+    _smCacheQuery = _appliedInlineSearchQuery;
     _smCacheCaseSensitive = _searchCaseSensitive;
     _smCacheHiddenCols = Set.of(_hiddenColumns);
     _smCacheFilteredLen = fl.length;
@@ -330,10 +335,10 @@ class _HomeScreenState extends State<HomeScreen> {
       };
 
   List<int> _computeSearchMatches(List<LogEntry> logs) {
-    if (_inlineSearchQuery.isEmpty) return [];
+    if (_appliedInlineSearchQuery.isEmpty) return [];
     final query = _searchCaseSensitive
-        ? _inlineSearchQuery
-        : _inlineSearchQuery.toLowerCase();
+        ? _appliedInlineSearchQuery
+        : _appliedInlineSearchQuery.toLowerCase();
     final visibleCols =
         LogColumn.values.where((c) => !_hiddenColumns.contains(c.name)).toList();
     final result = <int>[];
@@ -353,10 +358,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _toggleSearchBar() {
+    _inlineSearchDebounce?.cancel();
     setState(() {
       _searchBarVisible = !_searchBarVisible;
       if (!_searchBarVisible) {
         _inlineSearchQuery = '';
+        _appliedInlineSearchQuery = '';
         _searchController.clear();
         _cachedSearchMatchIndices = null;
         _searchCurrentMatchIndex = 0;
@@ -365,10 +372,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onInlineSearchChanged(String value) {
+    // Update the raw query immediately (keeps UI responsive during typing).
     setState(() {
       _inlineSearchQuery = value;
-      _cachedSearchMatchIndices = null;
       _searchCurrentMatchIndex = 0;
+    });
+
+    // Debounce the expensive match computation.
+    _inlineSearchDebounce?.cancel();
+    _inlineSearchDebounce = Timer(const Duration(milliseconds: 300), () {
+      setState(() {
+        _appliedInlineSearchQuery = value;
+        _cachedSearchMatchIndices = null;
+      });
     });
   }
 
@@ -452,10 +468,10 @@ class _HomeScreenState extends State<HomeScreen> {
           scrollController: _scrollController,
           wrapText: wrapText,
           onLogRowTap: _disableAutoScroll,
-          searchQuery: _inlineSearchQuery,
+          searchQuery: _appliedInlineSearchQuery,
           caseSensitive: _searchCaseSensitive,
           currentMatchLogIndex:
-              _searchBarVisible && _inlineSearchQuery.isNotEmpty
+              _searchBarVisible && _appliedInlineSearchQuery.isNotEmpty
                   ? safeIndex
                   : null,
           onHiddenColumnsChanged: _onHiddenColumnsChanged,
@@ -602,8 +618,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           FilterBar(
-            searchQuery: searchQuery,
-            onSearchChanged: _onSearchChanged,
+            filterQuery: searchQuery,
+            onFilterChanged: _onSearchChanged,
             selectedLogLevel: selectedLogLevel,
             onLogLevelChanged: (level) {
               if (level != null) {
@@ -653,8 +669,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       caseSensitive: _searchCaseSensitive,
                       onQueryChanged: _onInlineSearchChanged,
                       onCaseSensitiveChanged: (v) {
+                        _inlineSearchDebounce?.cancel();
                         setState(() {
                           _searchCaseSensitive = v;
+                          _appliedInlineSearchQuery = _inlineSearchQuery;
                           _cachedSearchMatchIndices = null;
                           _searchCurrentMatchIndex = 0;
                         });
