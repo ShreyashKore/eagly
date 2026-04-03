@@ -83,32 +83,84 @@ class _LogViewerState extends State<LogViewer> {
     super.dispose();
   }
 
-  /// Scrolls so the matched row is visible, centering it in the viewport.
+  /// The log-list index of the row that was last successfully scrolled to.
+  int? _lastScrolledIndex;
+
+  /// Scrolls so the matched row is visible.
   ///
-  /// Step 1: jump to an approximate pixel offset (20 px per row estimate)
-  ///         so the row is close to the viewport even if not yet built.
-  /// Step 2: wait one frame for ListView to build the row, then use
-  ///         [Scrollable.ensureVisible] for pixel-perfect positioning.
+  /// **Strategy**: First check if the target row is already built (common
+  /// when the next match is close to the current one). If so, just use
+  /// [Scrollable.ensureVisible] — no jumping required.
+  ///
+  /// If the row isn't built, estimate a scroll offset relative to the last
+  /// known position (proportional jump based on index delta). Only fall
+  /// back to a full fraction-based jump when we have no prior anchor.
+  /// Then retry up to a few frames until the key appears.
   Future<void> _scrollToMatch(int index) async {
     if (!widget.scrollController.hasClients) return;
-    const approxRowHeight = 20.0;
-    final approxOffset = index * approxRowHeight;
-    final maxScroll = widget.scrollController.position.maxScrollExtent;
-    widget.scrollController.jumpTo(approxOffset.clamp(0.0, maxScroll));
+    final totalItems = widget.logs.length;
+    if (totalItems == 0) return;
 
-    await Future.delayed(const Duration(milliseconds: 50));
+    final sc = widget.scrollController;
+    final maxScroll = sc.position.maxScrollExtent;
+
+    // 1. Fast path: row already on screen — no jump needed.
+    await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
-
-    // ignore: use_build_context_synchronously
-    final ctx = _currentMatchKey.currentContext;
-    if (ctx != null) {
+    final ctxFast = _currentMatchKey.currentContext;
+    if (ctxFast != null) {
+      // ignore: use_build_context_synchronously
       await Scrollable.ensureVisible(
-        ctx, // ignore: use_build_context_synchronously
-        duration: const Duration(milliseconds: 200),
+        ctxFast,
+        duration: const Duration(milliseconds: 150),
         alignment: 0.4,
         curve: Curves.easeOut,
       );
+      _lastScrolledIndex = index;
+      return;
     }
+
+    // 2. Row not built — estimate offset.
+    if (_lastScrolledIndex != null && _lastScrolledIndex != index) {
+      // Relative jump: use the delta between the old and new index,
+      // scaled by (maxScroll / totalItems) as an approximate row height.
+      final approxRowHeight = maxScroll / totalItems;
+      final delta = (index - _lastScrolledIndex!) * approxRowHeight;
+      sc.jumpTo((sc.offset + delta).clamp(0.0, maxScroll));
+    } else {
+      // No anchor — fraction-based jump.
+      final fraction = index / totalItems;
+      sc.jumpTo((fraction * maxScroll).clamp(0.0, maxScroll));
+    }
+
+    // 3. Retry loop until the key is built.
+    for (int attempt = 0; attempt < 10; attempt++) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+
+      final ctx = _currentMatchKey.currentContext;
+      if (ctx != null) {
+        // ignore: use_build_context_synchronously
+        await Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 150),
+          alignment: 0.4,
+          curve: Curves.easeOut,
+        );
+        _lastScrolledIndex = index;
+        return;
+      }
+
+      // Nudge by one viewport towards the target.
+      final viewportHeight = sc.position.viewportDimension;
+      final targetEstimate = (index / totalItems) * maxScroll;
+      final diff = targetEstimate - sc.offset;
+      if (diff.abs() < 1) break; // close enough, key just isn't there
+      final nudge = diff.clamp(-viewportHeight, viewportHeight);
+      sc.jumpTo((sc.offset + nudge).clamp(0.0, maxScroll));
+    }
+
+    _lastScrolledIndex = index;
   }
 
   /// Builds a [RichText] that highlights every occurrence of [widget.searchQuery]
