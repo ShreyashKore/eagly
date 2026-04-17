@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../data/log_column.dart';
 import '../data/log_entry.dart';
@@ -48,6 +49,7 @@ class _LogViewerState extends State<LogViewer> {
   late Map<String, double> _widths;
   late Set<String> _hiddenColumns;
   Timer? _saveWidthsTimer;
+  final ListController _listController = ListController();
 
   late TextStyle _monoStyle;
 
@@ -120,6 +122,8 @@ class _LogViewerState extends State<LogViewer> {
       return;
     }
 
+    _listController.jumpToItem(index: index, scrollController: sc, alignment: 0);
+    return;
     // 2. Row not built — estimate offset.
     if (_lastScrolledIndex != null && _lastScrolledIndex != index) {
       // Relative jump: use the delta between the old and new index,
@@ -333,8 +337,9 @@ class _LogViewerState extends State<LogViewer> {
               controller: widget.scrollController,
               child: GestureDetector(
                 onTap: widget.onLogRowTap,
-                child: ListView.builder(
+                child: SuperListView.builder(
                   controller: widget.scrollController,
+                  listController: _listController,
                   itemCount: widget.logs.length,
                   itemBuilder: (_, i) => _buildLogRow(widget.logs[i], i),
                 ),
@@ -423,14 +428,13 @@ class _LogViewerState extends State<LogViewer> {
         ? null
         : (isCurrentMatch ? Colors.orange[400] : Colors.yellow[400]);
 
-    return Container(
-      key: isCurrentMatch ? _currentMatchKey : null,
-      color: isCurrentMatch
-          ? Colors.orange.withValues(alpha: 0.12)
-          : null,
-      child: IntrinsicHeight(
+    return RepaintBoundary(
+      child: Container(
+        key: isCurrentMatch ? _currentMatchKey : null,
+        color: isCurrentMatch
+            ? Colors.orange.withValues(alpha: 0.12)
+            : null,
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             for (final col in visible) ...[
               if (col == LogColumn.level)

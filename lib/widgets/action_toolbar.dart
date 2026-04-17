@@ -14,7 +14,6 @@ class ActionToolbar extends StatelessWidget {
   final VoidCallback onToggleWrap;
   final bool autoScroll;
   final VoidCallback onToggleAutoScroll;
-  final VoidCallback onScrollToEnd;
   final LogViewMode viewMode;
   final VoidCallback onCycleViewMode;
 
@@ -26,7 +25,6 @@ class ActionToolbar extends StatelessWidget {
     required this.onToggleWrap,
     required this.autoScroll,
     required this.onToggleAutoScroll,
-    required this.onScrollToEnd,
     required this.viewMode,
     required this.onCycleViewMode,
   });
@@ -59,12 +57,12 @@ class ActionToolbar extends StatelessWidget {
       children: [
         IconButton(
           onPressed: onImport,
-          icon: const Icon(Icons.file_open),
+          icon: const Icon(Icons.file_download),
           tooltip: 'Import Logcat File',
         ),
         IconButton(
           onPressed: onExport,
-          icon: const Icon(Icons.save),
+          icon: const Icon(Icons.file_upload),
           tooltip: 'Export Logs',
         ),
         IconButton(
@@ -77,11 +75,6 @@ class ActionToolbar extends StatelessWidget {
           icon: Icon(autoScroll ? Icons.vertical_align_bottom : Icons.swipe_down),
           tooltip: autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF',
           color: autoScroll ? Colors.blue : null,
-        ),
-        IconButton(
-          onPressed: onScrollToEnd,
-          icon: const Icon(Icons.arrow_downward),
-          tooltip: 'Scroll to End',
         ),
         // IconButton(
         //   onPressed: onCycleViewMode,

@@ -41,6 +41,7 @@ dependencies:
   shared_preferences: ^2.5.5
   worksheet: ^3.9.2
   gap: ^3.0.1
+  super_sliver_list: ^0.4.1
 
 dev_dependencies:
   flutter_test:

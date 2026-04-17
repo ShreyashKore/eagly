@@ -17,6 +17,7 @@ import 'widgets/log_search_bar.dart';
 import 'widgets/log_viewer.dart';
 import 'widgets/log_viewer_table.dart';
 import 'widgets/log_viewer_worksheet.dart';
+import 'widgets/scroll_to_end_button.dart';
 import 'package:collection/collection.dart';
 
 enum LogcatState { stopped, running, paused }
@@ -64,8 +65,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Inline search (the Ctrl+F search bar) ──────────────────────────────
   bool _searchBarVisible = false;
+
   /// Raw value of the search text field (updates on every keystroke).
   String _inlineSearchQuery = '';
+
   /// Debounced value — used for actual match computation and highlighting.
   String _appliedInlineSearchQuery = '';
   Timer? _inlineSearchDebounce;
@@ -326,21 +329,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _logColumnValue(LogEntry log, LogColumn col) => switch (col) {
-        LogColumn.timestamp => log.timestamp,
-        LogColumn.pid => log.packageName ?? log.pid,
-        LogColumn.tid => log.tid,
-        LogColumn.level => log.level,
-        LogColumn.tag => log.tag,
-        LogColumn.message => log.message,
-      };
+    LogColumn.timestamp => log.timestamp,
+    LogColumn.pid => log.packageName ?? log.pid,
+    LogColumn.tid => log.tid,
+    LogColumn.level => log.level,
+    LogColumn.tag => log.tag,
+    LogColumn.message => log.message,
+  };
 
   List<int> _computeSearchMatches(List<LogEntry> logs) {
     if (_appliedInlineSearchQuery.isEmpty) return [];
     final query = _searchCaseSensitive
         ? _appliedInlineSearchQuery
         : _appliedInlineSearchQuery.toLowerCase();
-    final visibleCols =
-        LogColumn.values.where((c) => !_hiddenColumns.contains(c.name)).toList();
+    final visibleCols = LogColumn.values
+        .where((c) => !_hiddenColumns.contains(c.name))
+        .toList();
     final result = <int>[];
     for (int i = 0; i < logs.length; i++) {
       final log = logs[i];
@@ -455,8 +459,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Builds the appropriate log viewer based on the current view mode
-  Widget _buildLogViewer() {
-    final matches = _searchMatchIndices;
+  Widget _buildLogViewer(List<LogEntry> filtered, List<int> matches) {
     final safeIndex = matches.isEmpty
         ? null
         : matches[_searchCurrentMatchIndex.clamp(0, matches.length - 1)];
@@ -464,7 +467,7 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (viewMode) {
       case LogViewMode.text:
         return LogViewer(
-          logs: filteredLogs,
+          logs: filtered,
           scrollController: _scrollController,
           wrapText: wrapText,
           onLogRowTap: _disableAutoScroll,
@@ -472,19 +475,19 @@ class _HomeScreenState extends State<HomeScreen> {
           caseSensitive: _searchCaseSensitive,
           currentMatchLogIndex:
               _searchBarVisible && _appliedInlineSearchQuery.isNotEmpty
-                  ? safeIndex
-                  : null,
+              ? safeIndex
+              : null,
           onHiddenColumnsChanged: _onHiddenColumnsChanged,
         );
       case LogViewMode.dataTable:
         return LogViewerTable(
-          logs: filteredLogs,
+          logs: filtered,
           scrollController: _scrollController,
           onLogRowTap: _disableAutoScroll,
         );
       case LogViewMode.worksheet:
         return LogViewerWorksheet(
-          logs: filteredLogs,
+          logs: filtered,
           scrollController: _scrollController,
           onLogRowTap: _disableAutoScroll,
         );
@@ -512,334 +515,370 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Focus(
           autofocus: true,
           child: Scaffold(
-      appBar: AppBar(
-        title: const Text('ADB Logcat'),
-        scrolledUnderElevation: 0,
-        elevation: 0,
-        backgroundColor: Colors.white,
-      ),
-      backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          Row(
-            children: [
-              Gap(8),
-              DropdownButton<Device>(
-                key: _dropdownButtonKey,
-                hint: const Text('Select Device'),
-                value: devices.firstWhereOrNull(
-                  (d) => d.id == selectedDevice?.id,
-                ),
-                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                mouseCursor: SystemMouseCursors.click,
-                isDense: true,
-                items: devices
-                    .map(
-                      (d) => DropdownMenuItem(
-                        value: d,
-                        child: Text('${d.displayName} - ${d.status}'),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (d) => setState(() => selectedDevice = d),
-              ),
-              if (devices.isNotEmpty)
-                IconButton(onPressed: loadDevices, icon: Icon(Icons.refresh))
-              else ...[
-                Gap(10),
-                FilledButton(
-                  onPressed: loadDevices,
-                  child: const Text('Load Devices'),
-                ),
-              ],
-              const SizedBox(width: 10),
-              // Start button (play icon)
-              IconButton(
-                icon: Icon(
-                  Icons.play_arrow,
-                  color: selectedDevice != null ? Colors.green : Colors.grey,
-                ),
-                tooltip: isRunning ? 'Restart' : 'Start',
-                onPressed: selectedDevice == null ? null : startLogcat,
-              ),
-              // Pause/Resume button (pause/play icons)
-              IconButton(
-                icon: Icon(
-                  isPaused ? Icons.play_arrow : Icons.pause,
-                  color: isRunning ? Colors.orange : Colors.grey,
-                ),
-                tooltip: isRunning
-                    ? (isPaused ? 'Resume' : 'Pause')
-                    : 'Not running',
-                onPressed: isRunning ? togglePauseResume : null,
-              ),
-              // Clear button
-              IconButton(
-                icon: const Icon(Icons.delete),
-                tooltip: logs.isNotEmpty ? 'Clear Logs' : 'No logs to clear',
-                onPressed: logs.isNotEmpty ? clearLogs : null,
-              ),
-              // Search toggle button
-              IconButton(
-                icon: Icon(
-                  Icons.search,
-                  color: _searchBarVisible
-                      ? Theme.of(context).colorScheme.primary
-                      : null,
-                ),
-                tooltip: _searchBarVisible
-                    ? 'Close search'
-                    : 'Search in logs (Ctrl+F / Cmd+F)',
-                onPressed: _toggleSearchBar,
-              ),
-              Spacer(),
-              ActionToolbar(
-                onImport: importLogs,
-                onExport: exportLogs,
-                wrapText: wrapText,
-                onToggleWrap: () => setState(() {
-                  wrapText = !wrapText;
-                  PreferencesService.wrapText = wrapText;
-                }),
-                autoScroll: autoScroll,
-                onToggleAutoScroll: () => setState(() {
-                  autoScroll = !autoScroll;
-                  PreferencesService.autoScroll = autoScroll;
-                }),
-                onScrollToEnd: scrollToEnd,
-                viewMode: viewMode,
-                onCycleViewMode: () => setState(() {
-                  // Cycle through view modes: text -> dataTable -> worksheet -> text
-                  viewMode = LogViewMode
-                      .values[(viewMode.index + 1) % LogViewMode.values.length];
-                  PreferencesService.viewMode = viewMode.index;
-                }),
-              ),
-            ],
-          ),
-          FilterBar(
-            filterQuery: searchQuery,
-            onFilterChanged: _onSearchChanged,
-            selectedLogLevel: selectedLogLevel,
-            onLogLevelChanged: (level) {
-              if (level != null) {
-                setState(() {
-                  selectedLogLevel = level;
-                  _cachedFilteredLogs = null; // Invalidate cache
-                  PreferencesService.selectedLogLevel = level;
-                });
-              }
-            },
-          ),
-          Expanded(
-            child: Stack(
-              children: [
-                _buildLogViewer(),
-                if (logs.isNotEmpty && filteredLogs.isEmpty)
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Material(
-                        color: Colors.yellow[100],
-                        borderRadius: BorderRadius.circular(8),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          child: Text(
-                            'No logs match your filter/search, but logs are being generated.',
-                            style: const TextStyle(
-                              color: Colors.black87,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                // Floating inline search bar — bottom-right corner
-                if (_searchBarVisible)
-                  Positioned(
-                    bottom: 12,
-                    right: 12,
-                    child: LogSearchBar(
-                      controller: _searchController,
-                      caseSensitive: _searchCaseSensitive,
-                      onQueryChanged: _onInlineSearchChanged,
-                      onCaseSensitiveChanged: (v) {
-                        _inlineSearchDebounce?.cancel();
-                        setState(() {
-                          _searchCaseSensitive = v;
-                          _appliedInlineSearchQuery = _inlineSearchQuery;
-                          _cachedSearchMatchIndices = null;
-                          _searchCurrentMatchIndex = 0;
-                        });
-                      },
-                      onNext: _onSearchNext,
-                      onPrevious: _onSearchPrev,
-                      onClose: _toggleSearchBar,
-                      totalMatches: _searchMatchIndices.length,
-                      currentMatch: _searchMatchIndices.isEmpty
-                          ? 0
-                          : _searchCurrentMatchIndex + 1,
-                    ),
-                  ),
-              ],
+            appBar: AppBar(
+              title: const Text('ADB Logcat'),
+              scrolledUnderElevation: 0,
+              elevation: 0,
+              backgroundColor: Colors.white,
             ),
-          ),
-          // Status bar
-          Container(
-            width: double.infinity,
-            color: Theme.of(context).colorScheme.surfaceVariant,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Row(
+            backgroundColor: Colors.white,
+            body: Column(
               children: [
-                Text(
-                  'Logs: ${logs.length}',
-                  style: const TextStyle(fontSize: 13),
+                Row(
+                  children: [
+                    Gap(8),
+                    DropdownButton<Device>(
+                      key: _dropdownButtonKey,
+                      hint: const Text('Select Device'),
+                      value: devices.firstWhereOrNull(
+                        (d) => d.id == selectedDevice?.id,
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      mouseCursor: SystemMouseCursors.click,
+                      isDense: true,
+                      items: devices
+                          .map(
+                            (d) => DropdownMenuItem(
+                              value: d,
+                              child: Text('${d.displayName} - ${d.status}'),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (d) => setState(() => selectedDevice = d),
+                    ),
+                    if (devices.isNotEmpty)
+                      IconButton(
+                        onPressed: loadDevices,
+                        icon: Icon(Icons.refresh),
+                      )
+                    else ...[
+                      Gap(10),
+                      FilledButton(
+                        onPressed: loadDevices,
+                        child: const Text('Load Devices'),
+                      ),
+                    ],
+                    const SizedBox(width: 10),
+                    // Start button (play icon)
+                    IconButton(
+                      icon: Icon(
+                        Icons.play_arrow,
+                        color: selectedDevice != null
+                            ? Colors.green
+                            : Colors.grey,
+                      ),
+                      tooltip: isRunning ? 'Restart' : 'Start',
+                      onPressed: selectedDevice == null ? null : startLogcat,
+                    ),
+                    // Pause/Resume button (pause/play icons)
+                    IconButton(
+                      icon: Icon(
+                        isPaused ? Icons.play_arrow : Icons.pause,
+                        color: isRunning ? Colors.orange : Colors.grey,
+                      ),
+                      tooltip: isRunning
+                          ? (isPaused ? 'Resume' : 'Pause')
+                          : 'Not running',
+                      onPressed: isRunning ? togglePauseResume : null,
+                    ),
+                    // Clear button
+                    IconButton(
+                      icon: const Icon(Icons.delete),
+                      tooltip: logs.isNotEmpty
+                          ? 'Clear Logs'
+                          : 'No logs to clear',
+                      onPressed: logs.isNotEmpty ? clearLogs : null,
+                    ),
+                    // Search toggle button
+                    IconButton(
+                      icon: Icon(
+                        Icons.search,
+                        color: _searchBarVisible
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
+                      ),
+                      tooltip: _searchBarVisible
+                          ? 'Close search'
+                          : 'Search in logs (Ctrl+F / Cmd+F)',
+                      onPressed: _toggleSearchBar,
+                    ),
+                    Spacer(),
+                    ActionToolbar(
+                      onImport: importLogs,
+                      onExport: exportLogs,
+                      wrapText: wrapText,
+                      onToggleWrap: () => setState(() {
+                        wrapText = !wrapText;
+                        PreferencesService.wrapText = wrapText;
+                      }),
+                      autoScroll: autoScroll,
+                      onToggleAutoScroll: () => setState(() {
+                        autoScroll = !autoScroll;
+                        PreferencesService.autoScroll = autoScroll;
+                      }),
+                      viewMode: viewMode,
+                      onCycleViewMode: () => setState(() {
+                        // Cycle through view modes: text -> dataTable -> worksheet -> text
+                        viewMode =
+                            LogViewMode.values[(viewMode.index + 1) %
+                                LogViewMode.values.length];
+                        PreferencesService.viewMode = viewMode.index;
+                      }),
+                    ),
+                  ],
                 ),
-                Gap(16),
-                Text(
-                  'Filtered: ${filteredLogs.length}',
-                  style: const TextStyle(fontSize: 13),
+                FilterBar(
+                  filterQuery: searchQuery,
+                  onFilterChanged: _onSearchChanged,
+                  selectedLogLevel: selectedLogLevel,
+                  onLogLevelChanged: (level) {
+                    if (level != null) {
+                      setState(() {
+                        selectedLogLevel = level;
+                        _cachedFilteredLogs = null; // Invalidate cache
+                        PreferencesService.selectedLogLevel = level;
+                      });
+                    }
+                  },
                 ),
-                Gap(16),
+                Builder(
+                  builder: (context) {
+                    final filtered = filteredLogs;
+                    final matches = _searchMatchIndices;
+                    return Expanded(
+                      child: Stack(
+                        children: [
+                          _buildLogViewer(filtered, matches),
+                          if (logs.isNotEmpty && filtered.isEmpty)
+                            Align(
+                              alignment: Alignment.center,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Material(
+                                  color: Colors.yellow[100],
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 8,
+                                    ),
+                                    child: Text(
+                                      'No logs match your filter/search, but logs are being generated.',
+                                      style: const TextStyle(
+                                        color: Colors.black87,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          // Floating inline search bar — bottom-right corner
+                          if (_searchBarVisible)
+                            Positioned(
+                              top: 24,
+                              right: 12,
+                              child: LogSearchBar(
+                                controller: _searchController,
+                                caseSensitive: _searchCaseSensitive,
+                                onQueryChanged: _onInlineSearchChanged,
+                                onCaseSensitiveChanged: (v) {
+                                  _inlineSearchDebounce?.cancel();
+                                  setState(() {
+                                    _searchCaseSensitive = v;
+                                    _appliedInlineSearchQuery =
+                                        _inlineSearchQuery;
+                                    _cachedSearchMatchIndices = null;
+                                    _searchCurrentMatchIndex = 0;
+                                  });
+                                },
+                                onNext: _onSearchNext,
+                                onPrevious: _onSearchPrev,
+                                onClose: _toggleSearchBar,
+                                totalMatches: matches.length,
+                                currentMatch: matches.isEmpty
+                                    ? 0
+                                    : _searchCurrentMatchIndex + 1,
+                              ),
+                            ),
+                          // Floating scroll-to-end button
+                          ListenableBuilder(
+                            listenable: _scrollController,
+                            builder: (context, child) {
+                              return ScrollToEndButton(
+                                visible:
+                                    logs.isNotEmpty &&
+                                    (_scrollController.hasClients &&
+                                        _scrollController.offset <
+                                            (_scrollController
+                                                    .position
+                                                    .maxScrollExtent -
+                                                24)),
+                                onPressed: scrollToEnd,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                // Status bar
                 Container(
-                  width: _editingLogLinesLimit ? 200 : null,
-                  height: 28,
+                  width: double.infinity,
+                  color: Theme.of(context).colorScheme.surfaceVariant,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
+                    horizontal: 16,
                     vertical: 4,
                   ),
-                  decoration: _editingLogLinesLimit
-                      ? null
-                      : BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(4),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Logs: ${logs.length}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      Gap(16),
+                      Text(
+                        'Filtered: ${_cachedFilteredLogs?.length ?? filteredLogs.length}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      Gap(16),
+                      Container(
+                        width: _editingLogLinesLimit ? 200 : null,
+                        height: 28,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
                         ),
-                  child: !_editingLogLinesLimit
-                      ? InkWell(
-                          mouseCursor: SystemMouseCursors.click,
-                          onTap: () {
-                            setState(() {
-                              _editingLogLinesLimit = true;
-                              _logLinesController.text = logLinesLimit
-                                  .toString();
-                            });
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4.0,
-                            ),
-                            child: Text(
-                              'Max lines: $logLinesLimit',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                decoration: TextDecoration.underline,
-                                decorationStyle: TextDecorationStyle.dotted,
-                                color: Colors.blue,
+                        decoration: _editingLogLinesLimit
+                            ? null
+                            : BoxDecoration(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(4),
                               ),
-                            ),
-                          ),
-                        )
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IntrinsicWidth(
-                              child: TextField(
-                                onTapOutside: (_) {
+                        child: !_editingLogLinesLimit
+                            ? InkWell(
+                                mouseCursor: SystemMouseCursors.click,
+                                onTap: () {
                                   setState(() {
-                                    _editingLogLinesLimit = false;
+                                    _editingLogLinesLimit = true;
+                                    _logLinesController.text = logLinesLimit
+                                        .toString();
                                   });
                                 },
-                                controller: _logLinesController,
-                                autofocus: true,
-                                keyboardType: TextInputType.number,
-                                style: const TextStyle(fontSize: 13),
-                                decoration: InputDecoration(
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.symmetric(
-                                    vertical: 4,
-                                    horizontal: 4,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4.0,
                                   ),
-                                  prefixText: "Max lines: ",
-                                  border: OutlineInputBorder(),
+                                  child: Text(
+                                    'Max lines: $logLinesLimit',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      decoration: TextDecoration.underline,
+                                      decorationStyle:
+                                          TextDecorationStyle.dotted,
+                                      color: Colors.blue,
+                                    ),
+                                  ),
                                 ),
-                                onSubmitted: (value) {
-                                  final parsed = int.tryParse(value);
-                                  if (parsed != null && parsed > 1000) {
-                                    _onLogLinesLimitChanged(parsed);
-                                  } else {
-                                    setState(() {
-                                      _editingLogLinesLimit = false;
-                                    });
-                                  }
-                                },
-                                onEditingComplete: () {
-                                  setState(() {
-                                    _editingLogLinesLimit = false;
-                                  });
-                                },
+                              )
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IntrinsicWidth(
+                                    child: TextField(
+                                      onTapOutside: (_) {
+                                        setState(() {
+                                          _editingLogLinesLimit = false;
+                                        });
+                                      },
+                                      controller: _logLinesController,
+                                      autofocus: true,
+                                      keyboardType: TextInputType.number,
+                                      style: const TextStyle(fontSize: 13),
+                                      decoration: InputDecoration(
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          vertical: 4,
+                                          horizontal: 4,
+                                        ),
+                                        prefixText: "Max lines: ",
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      onSubmitted: (value) {
+                                        print('Submitted log lines limit:');
+                                        final parsed = int.tryParse(value);
+                                        if (parsed != null && parsed > 1000) {
+                                          _onLogLinesLimitChanged(parsed);
+                                        } else {
+                                          setState(() {
+                                            _editingLogLinesLimit = false;
+                                          });
+                                        }
+                                      },
+                                      onEditingComplete: () {
+                                        setState(() {
+                                          _editingLogLinesLimit = false;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    padding: EdgeInsets.zero,
+                                    onPressed: () {
+                                      final parsed = int.tryParse(
+                                        _logLinesController.text,
+                                      );
+                                      print(
+                                        'Submitted log lines limit: ${_logLinesController.text}',
+                                      );
+                                      _onLogLinesLimitChanged(parsed!);
+
+                                      if (parsed != null && parsed > 1000) {
+                                      } else {
+                                        setState(() {
+                                          _editingLogLinesLimit = false;
+                                        });
+                                      }
+                                    },
+                                    icon: Icon(Icons.check, size: 14),
+                                  ),
+                                ],
                               ),
-                            ),
-                            IconButton(
-                              visualDensity: VisualDensity.compact,
-                              padding: EdgeInsets.zero,
-                              onPressed: () {
-                                print('submitted');
-                                print(
-                                  'Submitted log lines limit: ${_logLinesController.text}',
-                                );
-                                final parsed = int.tryParse(
-                                  _logLinesController.text,
-                                );
-                                if (parsed != null && parsed > 1000) {
-                                  _onLogLinesLimitChanged(parsed);
-                                } else {
-                                  setState(() {
-                                    _editingLogLinesLimit = false;
-                                  });
-                                }
-                              },
-                              icon: Icon(Icons.check, size: 14),
-                            ),
-                          ],
+                      ),
+                      const Spacer(),
+                      if (isRunning)
+                        Text(
+                          'Live',
+                          style: TextStyle(
+                            color: Colors.green[700],
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
+                      if (isPaused)
+                        Text(
+                          'Paused',
+                          style: TextStyle(
+                            color: Colors.orange[700],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      if (!isRunning)
+                        Text(
+                          'Stopped',
+                          style: TextStyle(
+                            color: Colors.red[700],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-                const Spacer(),
-                if (isRunning)
-                  Text(
-                    'Live',
-                    style: TextStyle(
-                      color: Colors.green[700],
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                if (isPaused)
-                  Text(
-                    'Paused',
-                    style: TextStyle(
-                      color: Colors.orange[700],
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                if (!isRunning)
-                  Text(
-                    'Stopped',
-                    style: TextStyle(
-                      color: Colors.red[700],
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
               ],
             ),
-          ),
-        ],
-      ),
           ),
         ),
       ),
