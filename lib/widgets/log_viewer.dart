@@ -117,24 +117,26 @@ class _LogViewerState extends State<LogViewer> {
 
     final sc = widget.scrollController;
 
-    // 1. Fast path: row already on screen — no jump needed.
-    await WidgetsBinding.instance.endOfFrame;
-    if (!mounted) return;
-    final ctxFast = _currentMatchKey.currentContext;
-    if (ctxFast != null && ctxFast.mounted) {
-      await Scrollable.ensureVisible(
-        ctxFast,
-        duration: const Duration(milliseconds: 150),
-        alignment: 0.4,
-        curve: Curves.easeOut,
-      );
-      return;
-    }
+    // // 1. Fast path: row already on screen — no jump needed.
+    // await WidgetsBinding.instance.endOfFrame;
+    // if (!mounted) return;
+    // final ctxFast = _currentMatchKey.currentContext;
+    // if (ctxFast != null && ctxFast.mounted) {
+    //   await Scrollable.ensureVisible(
+    //     ctxFast,
+    //     duration: const Duration(milliseconds: 150),
+    //     alignment: 0.4,
+    //     curve: Curves.easeOut,
+    //   );
+    //   return;
+    // }
 
-    _listController.jumpToItem(
+    _listController.animateToItem(
       index: index,
       scrollController: sc,
-      alignment: 0,
+      curve: (d) => Curves.easeOut,
+      duration: (d) => Duration(milliseconds: 100),
+      alignment: 0.3,
     );
   }
 

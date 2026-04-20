@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -48,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? flushTimer;
   Timer? _debounceTimer;
   Timer? _devicePollTimer;
+  Timer? _memoryRefreshTimer;
 
   LogcatState logcatState = LogcatState.stopped;
   String searchQuery = '';
@@ -87,6 +89,9 @@ class _HomeScreenState extends State<HomeScreen> {
   int logLinesLimit = PreferencesService.logLinesLimit;
   bool _editingLogLinesLimit = false;
   final TextEditingController _logLinesController = TextEditingController();
+  int _logsMemoryBytes = 0;
+  int _bufferMemoryBytes = 0;
+  int _appMemoryBytes = 0;
 
   final _dropdownButtonKey = GlobalKey(debugLabel: 'DeviceDropdown');
 
@@ -98,6 +103,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void init() async {
+    _refreshAppMemory();
+    _memoryRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _refreshAppMemory();
+    });
     await loadDevices();
     if (devices.isNotEmpty) {
       setState(() {
@@ -113,11 +122,58 @@ class _HomeScreenState extends State<HomeScreen> {
     flushTimer?.cancel();
     _debounceTimer?.cancel();
     _devicePollTimer?.cancel();
+    _memoryRefreshTimer?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
     _inlineSearchDebounce?.cancel();
     super.dispose();
   }
+
+  int _estimateLogEntryBytes(LogEntry log) {
+    int stringBytes(String value) => value.length * 2;
+
+    return 128 +
+        stringBytes(log.timestamp) +
+        stringBytes(log.pid) +
+        stringBytes(log.tid) +
+        stringBytes(log.level) +
+        stringBytes(log.tag) +
+        stringBytes(log.message) +
+        stringBytes(log.lowercaseSearchable) +
+        (log.packageName == null ? 0 : stringBytes(log.packageName!));
+  }
+
+  int _estimateLogsBytes(Iterable<LogEntry> entries) {
+    var total = 0;
+    for (final entry in entries) {
+      total += _estimateLogEntryBytes(entry);
+    }
+    return total;
+  }
+
+  void _refreshAppMemory() {
+    final rss = ProcessInfo.currentRss;
+    if (!mounted || rss == _appMemoryBytes) return;
+    setState(() {
+      _appMemoryBytes = rss;
+    });
+  }
+
+  String _formatBytes(int bytes) {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    var value = bytes.toDouble();
+    var unitIndex = 0;
+
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex++;
+    }
+
+    final precision = value >= 100 || unitIndex == 0 ? 0 : 1;
+    return '${value.toStringAsFixed(precision)} ${units[unitIndex]}';
+  }
+
+  int get _totalLogsMemoryBytes => _logsMemoryBytes + _bufferMemoryBytes;
 
   Future<void> loadDevices() async {
     final fetchedDevices = await adbService.getDevices();
@@ -191,6 +247,8 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       logs.clear();
       buffer.clear();
+      _logsMemoryBytes = 0;
+      _bufferMemoryBytes = 0;
       _cachedFilteredLogs = null;
       logcatState = LogcatState.running;
     });
@@ -198,6 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
     logSub = adbService.startLogcat(selectedDevice!.id).listen((logEntry) {
       if (logcatState == LogcatState.paused) return;
       buffer.add(logEntry);
+      _bufferMemoryBytes += _estimateLogEntryBytes(logEntry);
     });
 
     flushTimer?.cancel();
@@ -206,12 +265,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         logs.addAll(buffer);
+        _logsMemoryBytes += _bufferMemoryBytes;
         buffer.clear();
+        _bufferMemoryBytes = 0;
 
         if (logs.length > logLinesLimit * 1.2) {
           // Delete logs when reach over 120% of the limit to avoid trimming every flush
           final keep = (logLinesLimit).floor();
           logs = logs.sublist(logs.length - keep);
+          _logsMemoryBytes = _estimateLogsBytes(logs);
         }
 
         _cachedFilteredLogs = null;
@@ -424,6 +486,8 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       logs.clear();
       buffer.clear();
+      _logsMemoryBytes = 0;
+      _bufferMemoryBytes = 0;
       _cachedFilteredLogs = null; // Invalidate cache
     });
   }
@@ -437,6 +501,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (importedLogs != null) {
       setState(() {
         logs = importedLogs;
+        _logsMemoryBytes = _estimateLogsBytes(logs);
+        _bufferMemoryBytes = 0;
         _cachedFilteredLogs = null; // Invalidate cache
       });
     }
@@ -666,7 +732,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       vertical: 8,
                                     ),
                                     child: Text(
-                                      'No logs match your filter/search, but logs are being generated.',
+                                      'No logs match your filter, but logs are being generated.',
                                       style: const TextStyle(
                                         color: Colors.black87,
                                         fontWeight: FontWeight.w500,
@@ -743,6 +809,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       Gap(16),
                       Text(
                         'Filtered: ${_cachedFilteredLogs?.length ?? filteredLogs.length}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      Gap(16),
+                      Text(
+                        'App mem: ${_formatBytes(_appMemoryBytes)}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      Gap(16),
+                      Text(
+                        'Logs mem: ${_formatBytes(_totalLogsMemoryBytes)}',
                         style: const TextStyle(fontSize: 13),
                       ),
                       Gap(16),
