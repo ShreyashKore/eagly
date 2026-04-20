@@ -37,8 +37,12 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const String _appVersion = '1.0.0+1';
+
   final AdbService adbService = AdbService();
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _filterController = TextEditingController();
+  final FocusNode _filterFocusNode = FocusNode();
 
   List<Device> devices = [];
   Device? selectedDevice;
@@ -58,7 +62,11 @@ class _HomeScreenState extends State<HomeScreen> {
   String selectedLogLevel = PreferencesService.selectedLogLevel;
   bool wrapText = PreferencesService.wrapText;
   bool autoScroll = PreferencesService.autoScroll;
-  LogViewMode viewMode = LogViewMode.values[PreferencesService.viewMode];
+  LogViewMode viewMode =
+      LogViewMode.values[PreferencesService.viewMode.clamp(
+        0,
+        LogViewMode.values.length - 1,
+      )];
 
   // Cached filtered logs
   List<LogEntry>? _cachedFilteredLogs;
@@ -93,6 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _logsMemoryBytes = 0;
   int _bufferMemoryBytes = 0;
   int _appMemoryBytes = 0;
+  int _logViewerRevision = 0;
 
   final _dropdownButtonKey = GlobalKey(debugLabel: 'DeviceDropdown');
 
@@ -100,6 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _hiddenColumns = Set.of(PreferencesService.hiddenColumns);
+    _filterController.text = searchQuery;
     init();
   }
 
@@ -125,6 +135,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _devicePollTimer?.cancel();
     _memoryRefreshTimer?.cancel();
     _scrollController.dispose();
+    _filterController.dispose();
+    _filterFocusNode.dispose();
     _searchController.dispose();
     _inlineSearchDebounce?.cancel();
     super.dispose();
@@ -175,6 +187,226 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   int get _totalLogsMemoryBytes => _logsMemoryBytes + _bufferMemoryBytes;
+
+  bool get _supportsDesktopMenuBar => Platform.isMacOS;
+
+  void _focusFilterInputs() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _filterFocusNode.requestFocus();
+      _filterController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _filterController.text.length,
+      );
+    });
+  }
+
+  void _clearFilter() {
+    _debounceTimer?.cancel();
+    _filterController.clear();
+    setState(() {
+      searchQuery = '';
+      _appliedSearchQuery = '';
+      _cachedFilteredLogs = null;
+    });
+    _focusFilterInputs();
+  }
+
+  void _setSelectedLogLevel(String level) {
+    setState(() {
+      selectedLogLevel = level;
+      _cachedFilteredLogs = null;
+      PreferencesService.selectedLogLevel = level;
+    });
+  }
+
+  void _toggleWrapText() {
+    setState(() {
+      wrapText = !wrapText;
+      _logViewerRevision++;
+      PreferencesService.wrapText = wrapText;
+    });
+  }
+
+  void _toggleAutoScroll() {
+    setState(() {
+      autoScroll = !autoScroll;
+      PreferencesService.autoScroll = autoScroll;
+    });
+  }
+
+  void _cycleViewMode() {
+    setState(() {
+      viewMode =
+          LogViewMode.values[(viewMode.index + 1) % LogViewMode.values.length];
+      PreferencesService.viewMode = viewMode.index;
+    });
+  }
+
+  void _reloadSettingsFromPreferences() {
+    setState(() {
+      wrapText = PreferencesService.wrapText;
+      autoScroll = PreferencesService.autoScroll;
+      selectedLogLevel = PreferencesService.selectedLogLevel;
+      logLinesLimit = PreferencesService.logLinesLimit;
+      viewMode =
+          LogViewMode.values[PreferencesService.viewMode.clamp(
+            0,
+            LogViewMode.values.length - 1,
+          )];
+      _hiddenColumns = Set.of(PreferencesService.hiddenColumns);
+      _cachedFilteredLogs = null;
+      _cachedSearchMatchIndices = null;
+      _logViewerRevision++;
+    });
+  }
+
+  Future<void> _openSettings() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const SettingsScreen(appVersion: _appVersion),
+      ),
+    );
+    if (!mounted) return;
+    _reloadSettingsFromPreferences();
+  }
+
+  void _showAboutApp() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'ADB Logcat',
+      applicationVersion: _appVersion,
+      children: const [Text('Desktop log viewer for ADB logcat output.')],
+    );
+  }
+
+  List<PlatformMenuItem> _logLevelFilterMenuItems() {
+    const levels = [
+      ('E', 'Error'),
+      ('W', 'Warning'),
+      ('I', 'Info'),
+      ('D', 'Debug'),
+      ('V', 'Verbose'),
+    ];
+
+    return [
+      for (final (value, label) in levels)
+        PlatformMenuItem(
+          label: '$label ($value)',
+          onSelected: () => _setSelectedLogLevel(value),
+        ),
+    ];
+  }
+
+  late final List<PlatformMenuItem> _desktopMenus = [
+    PlatformMenu(
+      label: 'File',
+      menus: [
+        PlatformMenuItemGroup(
+          members: [
+            PlatformMenuItem(label: 'Import Logs', onSelected: importLogs),
+            PlatformMenuItem(label: 'Export Logs', onSelected: exportLogs),
+          ],
+        ),
+        PlatformMenuItemGroup(
+          members: [
+            PlatformMenuItem(label: 'Settings', onSelected: _openSettings),
+          ],
+        ),
+      ],
+    ),
+    PlatformMenu(
+      label: 'Logs',
+      menus: [
+        PlatformMenuItemGroup(
+          members: [
+            PlatformMenuItem(label: 'Reload Devices', onSelected: loadDevices),
+            PlatformMenuItem(
+              label: 'Start / Restart Logcat',
+              onSelected: startLogcat,
+            ),
+            PlatformMenuItem(
+              label: 'Pause / Resume Logcat',
+              onSelected: togglePauseResume,
+            ),
+            PlatformMenuItem(label: 'Clear Logs', onSelected: clearLogs),
+          ],
+        ),
+        PlatformMenuItemGroup(
+          members: [
+            PlatformMenuItem(label: 'Scroll to End', onSelected: scrollToEnd),
+          ],
+        ),
+      ],
+    ),
+    PlatformMenu(
+      label: 'Search',
+      menus: [
+        PlatformMenuItemGroup(
+          members: [
+            PlatformMenuItem(
+              label: 'Toggle Search',
+              onSelected: _toggleSearchBar,
+            ),
+            PlatformMenuItem(
+              label: 'Previous Match',
+              onSelected: _onSearchPrev,
+            ),
+            PlatformMenuItem(label: 'Next Match', onSelected: _onSearchNext),
+          ],
+        ),
+      ],
+    ),
+    PlatformMenu(
+      label: 'Filter',
+      menus: [
+        PlatformMenuItemGroup(
+          members: [
+            PlatformMenuItem(
+              label: 'Focus Filter Input',
+              onSelected: _focusFilterInputs,
+            ),
+            PlatformMenuItem(label: 'Clear Filter', onSelected: _clearFilter),
+          ],
+        ),
+        PlatformMenuItemGroup(members: _logLevelFilterMenuItems()),
+      ],
+    ),
+    PlatformMenu(
+      label: 'View',
+      menus: [
+        PlatformMenuItemGroup(
+          members: [
+            PlatformMenuItem(
+              label: 'Toggle Wrap Text',
+              onSelected: _toggleWrapText,
+            ),
+            PlatformMenuItem(
+              label: 'Toggle Auto-scroll',
+              onSelected: _toggleAutoScroll,
+            ),
+            PlatformMenuItem(
+              label: 'Cycle View Mode',
+              onSelected: _cycleViewMode,
+            ),
+          ],
+        ),
+      ],
+    ),
+    PlatformMenu(
+      label: 'Help',
+      menus: [
+        PlatformMenuItemGroup(
+          members: [
+            PlatformMenuItem(
+              label: 'About / Version',
+              onSelected: _showAboutApp,
+            ),
+          ],
+        ),
+      ],
+    ),
+  ];
 
   Future<void> loadDevices() async {
     final fetchedDevices = await adbService.getDevices();
@@ -480,6 +712,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _hiddenColumns = cols;
       _cachedSearchMatchIndices = null;
+      _logViewerRevision++;
     });
   }
 
@@ -537,6 +770,7 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (viewMode) {
       case LogViewMode.text:
         return LogViewer(
+          key: ValueKey('log-viewer-$_logViewerRevision'),
           logs: filtered,
           scrollController: _scrollController,
           wrapText: wrapText,
@@ -566,7 +800,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Shortcuts(
+    final content = Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
         SingleActivator(LogicalKeyboardKey.keyF, control: true):
             const _ActivateSearchIntent(),
@@ -682,37 +916,23 @@ class _HomeScreenState extends State<HomeScreen> {
                       onImport: importLogs,
                       onExport: exportLogs,
                       wrapText: wrapText,
-                      onToggleWrap: () => setState(() {
-                        wrapText = !wrapText;
-                        PreferencesService.wrapText = wrapText;
-                      }),
+                      onToggleWrap: _toggleWrapText,
                       autoScroll: autoScroll,
-                      onToggleAutoScroll: () => setState(() {
-                        autoScroll = !autoScroll;
-                        PreferencesService.autoScroll = autoScroll;
-                      }),
+                      onToggleAutoScroll: _toggleAutoScroll,
                       viewMode: viewMode,
-                      onCycleViewMode: () => setState(() {
-                        // Cycle through view modes: text -> dataTable -> worksheet -> text
-                        viewMode =
-                            LogViewMode.values[(viewMode.index + 1) %
-                                LogViewMode.values.length];
-                        PreferencesService.viewMode = viewMode.index;
-                      }),
+                      onCycleViewMode: _cycleViewMode,
                     ),
                   ],
                 ),
                 FilterBar(
                   filterQuery: searchQuery,
+                  controller: _filterController,
+                  focusNode: _filterFocusNode,
                   onFilterChanged: _onSearchChanged,
                   selectedLogLevel: selectedLogLevel,
                   onLogLevelChanged: (level) {
                     if (level != null) {
-                      setState(() {
-                        selectedLogLevel = level;
-                        _cachedFilteredLogs = null; // Invalidate cache
-                        PreferencesService.selectedLogLevel = level;
-                      });
+                      _setSelectedLogLevel(level);
                     }
                   },
                 ),
@@ -801,7 +1021,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Status bar
                 Container(
                   width: double.infinity,
-                  color: Theme.of(context).colorScheme.surfaceVariant,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 4,
@@ -893,7 +1113,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                         border: OutlineInputBorder(),
                                       ),
                                       onSubmitted: (value) {
-                                        print('Submitted log lines limit:');
                                         final parsed = int.tryParse(value);
                                         if (parsed != null && parsed > 1000) {
                                           _onLogLinesLimitChanged(parsed);
@@ -917,12 +1136,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                       final parsed = int.tryParse(
                                         _logLinesController.text,
                                       );
-                                      print(
-                                        'Submitted log lines limit: ${_logLinesController.text}',
-                                      );
-                                      _onLogLinesLimitChanged(parsed!);
-
                                       if (parsed != null && parsed > 1000) {
+                                        _onLogLinesLimitChanged(parsed);
                                       } else {
                                         setState(() {
                                           _editingLogLinesLimit = false;
@@ -968,5 +1183,11 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+
+    if (_supportsDesktopMenuBar) {
+      return PlatformMenuBar(menus: _desktopMenus, child: content);
+    }
+
+    return content;
   }
 }

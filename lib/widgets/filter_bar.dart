@@ -4,6 +4,8 @@ import 'package:flutter/cupertino.dart';
 
 class FilterBar extends StatelessWidget {
   final String filterQuery;
+  final TextEditingController? controller;
+  final FocusNode? focusNode;
   final ValueChanged<String> onFilterChanged;
   final String selectedLogLevel;
   final ValueChanged<String?> onLogLevelChanged;
@@ -11,6 +13,8 @@ class FilterBar extends StatelessWidget {
   const FilterBar({
     super.key,
     required this.filterQuery,
+    this.controller,
+    this.focusNode,
     required this.onFilterChanged,
     required this.selectedLogLevel,
     required this.onLogLevelChanged,
@@ -25,10 +29,14 @@ class FilterBar extends StatelessWidget {
           Expanded(
             child: !Platform.isAndroid
                 ? CupertinoTextField(
+                    controller: controller,
+                    focusNode: focusNode,
                     placeholder: 'Filter logs...',
                     onChanged: onFilterChanged,
                   )
                 : TextField(
+                    controller: controller,
+                    focusNode: focusNode,
                     decoration: const InputDecoration(
                       hintText: 'Filter logs...',
                       border: OutlineInputBorder(),
@@ -38,19 +46,19 @@ class FilterBar extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           DropdownButton<String>(
-                  isDense: true,
-                  mouseCursor: SystemMouseCursors.click,
-                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  value: selectedLogLevel,
-                  items: const [
-                    DropdownMenuItem(value: 'E', child: Text('Error (E)')),
-                    DropdownMenuItem(value: 'W', child: Text('Warning (W)')),
-                    DropdownMenuItem(value: 'I', child: Text('Info (I)')),
-                    DropdownMenuItem(value: 'D', child: Text('Debug (D)')),
-                    DropdownMenuItem(value: 'V', child: Text('Verbose (V)')),
-                  ],
-                  onChanged: onLogLevelChanged,
-                ),
+            isDense: true,
+            mouseCursor: SystemMouseCursors.click,
+            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            value: selectedLogLevel,
+            items: const [
+              DropdownMenuItem(value: 'E', child: Text('Error (E)')),
+              DropdownMenuItem(value: 'W', child: Text('Warning (W)')),
+              DropdownMenuItem(value: 'I', child: Text('Info (I)')),
+              DropdownMenuItem(value: 'D', child: Text('Debug (D)')),
+              DropdownMenuItem(value: 'V', child: Text('Verbose (V)')),
+            ],
+            onChanged: onLogLevelChanged,
+          ),
         ],
       ),
     );
