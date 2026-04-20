@@ -11,6 +11,7 @@ import 'data/log_entry.dart';
 import 'services/adb_service.dart';
 import 'services/log_file_service.dart';
 import 'services/preferences_service.dart';
+import 'settings_screen.dart';
 import 'utils/log_utils.dart';
 import 'widgets/action_toolbar.dart';
 import 'widgets/filter_bar.dart';
@@ -670,6 +671,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           ? 'Close search'
                           : 'Search in logs (Ctrl+F / Cmd+F)',
                       onPressed: _toggleSearchBar,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.settings),
+                      tooltip: 'Settings',
+                      onPressed: _openSettings,
                     ),
                     Spacer(),
                     ActionToolbar(
