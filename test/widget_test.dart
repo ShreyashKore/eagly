@@ -7,24 +7,115 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:logview/main.dart';
+import 'package:logview/data/log_column.dart';
+import 'package:logview/data/log_entry.dart';
+import 'package:logview/services/preferences_service.dart';
+import 'package:logview/widgets/log_viewer.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  setUpAll(() {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    GoogleFonts.config.allowRuntimeFetching = false;
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await PreferencesService.init();
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  Future<void> pumpLogViewer(
+    WidgetTester tester, {
+    List<LogEntry>? logs,
+    required bool wrapText,
+  }) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 900,
+            height: 400,
+            child: LogViewer(
+              logs:
+                  logs ??
+                  [
+                    LogEntry(
+                      timestamp: '04-20 10:00:00.000',
+                      pid: '123',
+                      tid: '456',
+                      level: 'I',
+                      tag: 'Tag',
+                      message: 'short message',
+                    ),
+                  ],
+              scrollController: ScrollController(),
+              wrapText: wrapText,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  Iterable<double?> messageColumnWidths(WidgetTester tester) {
+    return tester
+        .widgetList<SizedBox>(
+          find.ancestor(
+            of: find.text('Message'),
+            matching: find.byType(SizedBox),
+          ),
+        )
+        .map((box) => box.width);
+  }
+
+  testWidgets('uses 4000px minimum width when wrapText is disabled', (
+    WidgetTester tester,
+  ) async {
+    await pumpLogViewer(tester, wrapText: false);
+
+    expect(
+      messageColumnWidths(tester),
+      contains(LogViewer.defaultUnwrappedMessageWidth),
+    );
+  });
+
+  testWidgets('uses a manually expanded message width when it exceeds 4000', (
+    WidgetTester tester,
+  ) async {
+    const largerWidth = 5321.5;
+    PreferencesService.columnWidths = {LogColumn.message.name: largerWidth};
+
+    await pumpLogViewer(tester, wrapText: false);
+
+    expect(messageColumnWidths(tester), contains(largerWidth));
+  });
+
+  testWidgets('grows beyond 4000 based on a built long message', (
+    WidgetTester tester,
+  ) async {
+    await pumpLogViewer(
+      tester,
+      wrapText: false,
+      logs: [
+        LogEntry(
+          timestamp: '04-20 10:00:00.000',
+          pid: '123',
+          tid: '456',
+          level: 'I',
+          tag: 'Tag',
+          message: List.filled(1000, 'W').join(),
+        ),
+      ],
+    );
+
+    expect(
+      messageColumnWidths(tester).whereType<double>().any(
+        (width) => width > LogViewer.defaultUnwrappedMessageWidth,
+      ),
+      isTrue,
+    );
   });
 }

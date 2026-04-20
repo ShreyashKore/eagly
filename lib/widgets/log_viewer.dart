@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,6 +11,8 @@ import '../services/preferences_service.dart';
 import '../utils/log_utils.dart';
 
 class LogViewer extends StatefulWidget {
+  static const double defaultUnwrappedMessageWidth = 1000;
+
   final List<LogEntry> logs;
   final ScrollController scrollController;
   final bool wrapText;
@@ -46,12 +49,26 @@ class LogViewer extends StatefulWidget {
 }
 
 class _LogViewerState extends State<LogViewer> {
+  static const double _columnSpacing = 8;
+  static const double _messageMinWidth = 320;
+  static const double _messageHorizontalPadding = 16;
+
   late Map<String, double> _widths;
   late Set<String> _hiddenColumns;
   Timer? _saveWidthsTimer;
   final ListController _listController = ListController();
+  final ScrollController _horizontalScrollController = ScrollController();
+  final TextPainter _messageWidthPainter = TextPainter(
+    textDirection: TextDirection.ltr,
+    maxLines: 1,
+  );
+  double _largestBuiltMessageWidth = 0;
+  bool _messageWidthRefreshScheduled = false;
 
-  late TextStyle _monoStyle;
+  late final TextStyle _monoStyle = GoogleFonts.notoSansMono(
+    fontSize: 12,
+    height: 1.2,
+  );
 
   /// Key placed on the currently-focused match row so we can scroll to it.
   final GlobalKey _currentMatchKey = GlobalKey();
@@ -64,17 +81,14 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _monoStyle = GoogleFonts.notoSansMono(fontSize: 12, height: 1.2);
-  }
-
-  @override
   void didUpdateWidget(LogViewer old) {
     super.didUpdateWidget(old);
     if (widget.currentMatchLogIndex != old.currentMatchLogIndex &&
         widget.currentMatchLogIndex != null) {
       _scrollToMatch(widget.currentMatchLogIndex!);
+    }
+    if (widget.logs.isEmpty && old.logs.isNotEmpty) {
+      _largestBuiltMessageWidth = 0;
     }
   }
 
@@ -82,11 +96,9 @@ class _LogViewerState extends State<LogViewer> {
   void dispose() {
     _flushWidths();
     _saveWidthsTimer?.cancel();
+    _horizontalScrollController.dispose();
     super.dispose();
   }
-
-  /// The log-list index of the row that was last successfully scrolled to.
-  int? _lastScrolledIndex;
 
   /// Scrolls so the matched row is visible.
   ///
@@ -104,131 +116,172 @@ class _LogViewerState extends State<LogViewer> {
     if (totalItems == 0) return;
 
     final sc = widget.scrollController;
-    final maxScroll = sc.position.maxScrollExtent;
 
     // 1. Fast path: row already on screen — no jump needed.
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
     final ctxFast = _currentMatchKey.currentContext;
-    if (ctxFast != null) {
-      // ignore: use_build_context_synchronously
+    if (ctxFast != null && ctxFast.mounted) {
       await Scrollable.ensureVisible(
         ctxFast,
         duration: const Duration(milliseconds: 150),
         alignment: 0.4,
         curve: Curves.easeOut,
       );
-      _lastScrolledIndex = index;
       return;
     }
 
-    _listController.jumpToItem(index: index, scrollController: sc, alignment: 0);
-    return;
-    // 2. Row not built — estimate offset.
-    if (_lastScrolledIndex != null && _lastScrolledIndex != index) {
-      // Relative jump: use the delta between the old and new index,
-      // scaled by (maxScroll / totalItems) as an approximate row height.
-      final approxRowHeight = maxScroll / totalItems;
-      final delta = (index - _lastScrolledIndex!) * approxRowHeight;
-      sc.jumpTo((sc.offset + delta).clamp(0.0, maxScroll));
-    } else {
-      // No anchor — fraction-based jump.
-      final fraction = index / totalItems;
-      sc.jumpTo((fraction * maxScroll).clamp(0.0, maxScroll));
-    }
-
-    // 3. Retry loop until the key is built.
-    for (int attempt = 0; attempt < 10; attempt++) {
-      await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) return;
-
-      final ctx = _currentMatchKey.currentContext;
-      if (ctx != null) {
-        // ignore: use_build_context_synchronously
-        await Scrollable.ensureVisible(
-          ctx,
-          duration: const Duration(milliseconds: 150),
-          alignment: 0.4,
-          curve: Curves.easeOut,
-        );
-        _lastScrolledIndex = index;
-        return;
-      }
-
-      // Nudge by one viewport towards the target.
-      final viewportHeight = sc.position.viewportDimension;
-      final targetEstimate = (index / totalItems) * maxScroll;
-      final diff = targetEstimate - sc.offset;
-      if (diff.abs() < 1) break; // close enough, key just isn't there
-      final nudge = diff.clamp(-viewportHeight, viewportHeight);
-      sc.jumpTo((sc.offset + nudge).clamp(0.0, maxScroll));
-    }
-
-    _lastScrolledIndex = index;
+    _listController.jumpToItem(
+      index: index,
+      scrollController: sc,
+      alignment: 0,
+    );
   }
 
-  /// Builds a [RichText] that highlights every occurrence of [widget.searchQuery]
-  /// inside [text] using [highlightColor].  When the search query is empty, or
-  /// there is no match in this cell, a plain [Text] is returned instead.
-  Widget _buildHighlightedText(
+  LogColumn? get _lastVisibleColumn {
+    for (final col in LogColumn.values.reversed) {
+      if (_isVisible(col)) {
+        return col;
+      }
+    }
+    return null;
+  }
+
+  double get _fixedColumnsExtent {
+    var width = 0.0;
+    for (final col in _visibleFixedColumns) {
+      width += _widthOf(col) + _columnSpacing;
+    }
+    return width;
+  }
+
+  double _messageColumnWidth(double viewportWidth) {
+    if (!_isVisible(LogColumn.message)) return 0;
+    if (widget.wrapText) {
+      return math.max(_messageMinWidth, viewportWidth - _fixedColumnsExtent);
+    }
+    return math.max(
+      LogViewer.defaultUnwrappedMessageWidth,
+      math.max(_largestBuiltMessageWidth, _widths[LogColumn.message.name] ?? 0),
+    );
+  }
+
+  double _measureMessageWidth(String message) {
+    var widestLine = 0.0;
+    for (final line in message.split('\n')) {
+      _messageWidthPainter.text = TextSpan(
+        text: line.isEmpty ? ' ' : line,
+        style: _monoStyle,
+      );
+      _messageWidthPainter.layout();
+      widestLine = math.max(widestLine, _messageWidthPainter.width);
+    }
+    return widestLine + _messageHorizontalPadding;
+  }
+
+  void _scheduleMessageWidthRefresh() {
+    if (_messageWidthRefreshScheduled) return;
+    _messageWidthRefreshScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _messageWidthRefreshScheduled = false;
+      if (!mounted) return;
+      setState(() {});
+    });
+  }
+
+  void _recordBuiltMessageWidth(String message) {
+    if (widget.wrapText || !_isVisible(LogColumn.message)) return;
+    final measuredWidth = _measureMessageWidth(message);
+    if (measuredWidth <= _largestBuiltMessageWidth) return;
+    _largestBuiltMessageWidth = measuredWidth;
+    _scheduleMessageWidthRefresh();
+  }
+
+  double _contentWidth(double viewportWidth) {
+    final width = _fixedColumnsExtent + _messageColumnWidth(viewportWidth);
+    return math.max(viewportWidth, width);
+  }
+
+  TextSpan _rowTerminatorSpan() {
+    return const TextSpan(
+      text: '\n ',
+      style: TextStyle(fontSize: 0, height: 0, color: Colors.transparent),
+    );
+  }
+
+  /// Builds selectable text and highlights every occurrence of
+  /// [widget.searchQuery] inside [text] using [highlightColor].
+  Widget _buildSelectableText(
     String text,
     TextStyle style, {
-    required Color highlightColor,
-    TextOverflow overflow = TextOverflow.ellipsis,
-    int? maxLines = 1,
+    Color? highlightColor,
+    TextOverflow? overflow,
     bool softWrap = false,
+    bool appendRowTerminator = false,
   }) {
     final query = widget.searchQuery;
-    if (query.isEmpty) {
-      return Text(
-        text,
+    final children = <InlineSpan>[];
+
+    if (query.isEmpty || highlightColor == null) {
+      children.add(TextSpan(text: text, style: style));
+      if (appendRowTerminator) {
+        children.add(_rowTerminatorSpan());
+      }
+
+      return Text.rich(
+        TextSpan(style: style, children: children),
         style: style,
         overflow: overflow,
-        maxLines: maxLines,
         softWrap: softWrap,
       );
     }
 
-    final searchIn =
-        widget.caseSensitive ? text : text.toLowerCase();
-    final queryNorm =
-        widget.caseSensitive ? query : query.toLowerCase();
+    final searchIn = widget.caseSensitive ? text : text.toLowerCase();
+    final queryNorm = widget.caseSensitive ? query : query.toLowerCase();
 
     if (!searchIn.contains(queryNorm)) {
-      return Text(
-        text,
+      children.add(TextSpan(text: text, style: style));
+      if (appendRowTerminator) {
+        children.add(_rowTerminatorSpan());
+      }
+
+      return Text.rich(
+        TextSpan(style: style, children: children),
         style: style,
         overflow: overflow,
-        maxLines: maxLines,
         softWrap: softWrap,
       );
     }
 
-    final spans = <TextSpan>[];
     int start = 0;
     int idx = searchIn.indexOf(queryNorm, start);
     while (idx != -1) {
       if (idx > start) {
-        spans.add(TextSpan(text: text.substring(start, idx), style: style));
+        children.add(TextSpan(text: text.substring(start, idx), style: style));
       }
-      spans.add(TextSpan(
-        text: text.substring(idx, idx + queryNorm.length),
-        style: style.copyWith(
-          backgroundColor: highlightColor,
-          color: Colors.black,
+      children.add(
+        TextSpan(
+          text: text.substring(idx, idx + queryNorm.length),
+          style: style.copyWith(
+            backgroundColor: highlightColor,
+            color: Colors.black,
+          ),
         ),
-      ));
+      );
       start = idx + queryNorm.length;
       idx = searchIn.indexOf(queryNorm, start);
     }
     if (start < text.length) {
-      spans.add(TextSpan(text: text.substring(start), style: style));
+      children.add(TextSpan(text: text.substring(start), style: style));
+    }
+    if (appendRowTerminator) {
+      children.add(_rowTerminatorSpan());
     }
 
-    return RichText(
-      text: TextSpan(children: spans),
+    return Text.rich(
+      TextSpan(style: style, children: children),
+      style: style,
       overflow: overflow,
-      maxLines: maxLines,
       softWrap: softWrap,
     );
   }
@@ -249,16 +302,27 @@ class _LogViewerState extends State<LogViewer> {
 
   bool _isVisible(LogColumn col) => !_hiddenColumns.contains(col.name);
 
-  List<LogColumn> get _visibleFixedColumns => LogColumn.values
-      .where((c) => !c.isExpandable && _isVisible(c))
-      .toList();
+  List<LogColumn> get _visibleFixedColumns =>
+      LogColumn.values.where((c) => !c.isExpandable && _isVisible(c)).toList();
 
   double _widthOf(LogColumn col) => _widths[col.name] ?? col.defaultWidth;
 
   void _updateWidth(LogColumn col, double dx) {
     setState(() {
-      _widths[col.name] =
-          (_widthOf(col) + dx).clamp(LogColumn.minWidth, col.maxWidth);
+      _widths[col.name] = (_widthOf(col) + dx).clamp(
+        LogColumn.minWidth,
+        col.maxWidth,
+      );
+    });
+    _debounceSaveWidths();
+  }
+
+  void _updateMessageWidth(double dx, double currentWidth) {
+    setState(() {
+      _widths[LogColumn.message.name] = math.max(
+        _messageMinWidth,
+        currentWidth + dx,
+      );
     });
     _debounceSaveWidths();
   }
@@ -267,7 +331,11 @@ class _LogViewerState extends State<LogViewer> {
     final result = await showMenu<LogColumn>(
       context: context,
       position: RelativeRect.fromLTRB(
-          position.dx, position.dy, position.dx, position.dy),
+        position.dx,
+        position.dy,
+        position.dx,
+        position.dy,
+      ),
       items: LogColumn.values.where((c) => !c.isExpandable).map((col) {
         return PopupMenuItem<LogColumn>(
           value: col,
@@ -327,31 +395,55 @@ class _LogViewerState extends State<LogViewer> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _buildHeader(),
-        const Divider(height: 1, thickness: 1),
-        Expanded(
-          child: SelectionArea(
-            child: Scrollbar(
-              controller: widget.scrollController,
-              child: GestureDetector(
-                onTap: widget.onLogRowTap,
-                child: SuperListView.builder(
-                  controller: widget.scrollController,
-                  listController: _listController,
-                  itemCount: widget.logs.length,
-                  itemBuilder: (_, i) => _buildLogRow(widget.logs[i], i),
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportWidth = constraints.maxWidth;
+        final messageWidth = _messageColumnWidth(viewportWidth);
+        final contentWidth = _contentWidth(viewportWidth);
+
+        return Scrollbar(
+          controller: _horizontalScrollController,
+          notificationPredicate: (notification) =>
+              notification.metrics.axis == Axis.horizontal,
+          child: SingleChildScrollView(
+            controller: _horizontalScrollController,
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: contentWidth,
+              child: Column(
+                children: [
+                  _buildHeader(messageWidth),
+                  const Divider(height: 1, thickness: 1),
+                  Expanded(
+                    child: SelectionArea(
+                      child: Scrollbar(
+                        controller: widget.scrollController,
+                        child: GestureDetector(
+                          onTap: widget.onLogRowTap,
+                          child: SuperListView.builder(
+                            controller: widget.scrollController,
+                            listController: _listController,
+                            itemCount: widget.logs.length,
+                            itemBuilder: (_, i) {
+                              final log = widget.logs[i];
+                              _recordBuiltMessageWidth(log.message);
+                              return _buildLogRow(log, i, messageWidth);
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(double messageWidth) {
     final headerStyle = TextStyle();
     final visible = _visibleFixedColumns;
 
@@ -370,11 +462,20 @@ class _LogViewerState extends State<LogViewer> {
               }),
             ],
             if (_isVisible(LogColumn.message))
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text(LogColumn.message.label, style: headerStyle),
-                ),
+              Row(
+                children: [
+                  SizedBox(
+                    width: messageWidth,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Text(LogColumn.message.label, style: headerStyle),
+                    ),
+                  ),
+                  if (!widget.wrapText)
+                    _columnDragHandle((dx) {
+                      _updateMessageWidth(dx, messageWidth);
+                    }),
+                ],
               ),
           ],
         ),
@@ -400,7 +501,8 @@ class _LogViewerState extends State<LogViewer> {
       cursor: SystemMouseCursors.resizeColumn,
       child: GestureDetector(
         onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
-        behavior: HitTestBehavior.opaque, // This ensures the entire area captures touches
+        behavior: HitTestBehavior.opaque,
+        // This ensures the entire area captures touches
         child: SizedBox(
           width: 8,
           child: Center(
@@ -415,10 +517,11 @@ class _LogViewerState extends State<LogViewer> {
     );
   }
 
-  Widget _buildLogRow(LogEntry log, int index) {
+  Widget _buildLogRow(LogEntry log, int index, double messageWidth) {
     final levelColor = LogUtils.colorForLevel(log.level);
     final rowStyle = _monoStyle.copyWith(color: levelColor);
     final visible = _visibleFixedColumns;
+    final lastVisibleColumn = _lastVisibleColumn;
 
     final isCurrentMatch = widget.currentMatchLogIndex == index;
 
@@ -428,59 +531,52 @@ class _LogViewerState extends State<LogViewer> {
         ? null
         : (isCurrentMatch ? Colors.orange[400] : Colors.yellow[400]);
 
-    return RepaintBoundary(
-      child: Container(
-        key: isCurrentMatch ? _currentMatchKey : null,
-        color: isCurrentMatch
-            ? Colors.orange.withValues(alpha: 0.12)
-            : null,
-        child: Row(
-          children: [
-            for (final col in visible) ...[
-              if (col == LogColumn.level)
-                _levelCell(log.level, levelColor)
-              else
-                _fixedCell(
-                  _cellValue(col, log),
-                  _widthOf(col),
+    return Container(
+      key: isCurrentMatch ? _currentMatchKey : null,
+      color: isCurrentMatch ? Colors.orange.withValues(alpha: 0.12) : null,
+      child: Row(
+        children: [
+          for (final col in visible) ...[
+            if (col == LogColumn.level)
+              _levelCell(
+                log.level,
+                levelColor,
+                appendRowTerminator: lastVisibleColumn == col,
+              )
+            else
+              _fixedCell(
+                _cellValue(col, log),
+                _widthOf(col),
+                rowStyle,
+                highlightColor: highlightColor,
+                appendRowTerminator: lastVisibleColumn == col,
+              ),
+            const SizedBox(width: _columnSpacing),
+          ],
+          if (_isVisible(LogColumn.message))
+            SizedBox(
+              width: messageWidth,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                child: _buildSelectableText(
+                  log.message,
                   rowStyle,
                   highlightColor: highlightColor,
-                ),
-              const SizedBox(width: 8),
-            ],
-            if (_isVisible(LogColumn.message))
-              Expanded(
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  child: highlightColor != null
-                      ? _buildHighlightedText(
-                          log.message,
-                          rowStyle,
-                          highlightColor: highlightColor,
-                          overflow: widget.wrapText
-                              ? TextOverflow.clip
-                              : TextOverflow.ellipsis,
-                          maxLines: widget.wrapText ? null : 1,
-                          softWrap: widget.wrapText,
-                        )
-                      : Text(
-                          log.message,
-                          style: rowStyle,
-                          softWrap: widget.wrapText,
-                          overflow:
-                              widget.wrapText ? null : TextOverflow.ellipsis,
-                          maxLines: widget.wrapText ? null : 1,
-                        ),
+                  softWrap: widget.wrapText,
+                  appendRowTerminator: lastVisibleColumn == LogColumn.message,
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
 
-  Widget _levelCell(String level, Color levelColor) {
+  Widget _levelCell(
+    String level,
+    Color levelColor, {
+    bool appendRowTerminator = false,
+  }) {
     return SizedBox(
       width: _widthOf(LogColumn.level),
       child: Padding(
@@ -491,33 +587,36 @@ class _LogViewerState extends State<LogViewer> {
             borderRadius: BorderRadius.circular(2),
           ),
           alignment: Alignment.center,
-          child: Text(
+          child: _buildSelectableText(
             level,
-            style: _monoStyle.copyWith(
+            _monoStyle.copyWith(
               color: Colors.black,
               fontWeight: FontWeight.bold,
             ),
-            maxLines: 1,
+            appendRowTerminator: appendRowTerminator,
           ),
         ),
       ),
     );
   }
 
-  Widget _fixedCell(String text, double width, TextStyle style,
-      {Color? highlightColor}) {
+  Widget _fixedCell(
+    String text,
+    double width,
+    TextStyle style, {
+    Color? highlightColor,
+    bool appendRowTerminator = false,
+  }) {
     return SizedBox(
       width: width,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        child: highlightColor != null
-            ? _buildHighlightedText(text, style, highlightColor: highlightColor)
-            : Text(
-                text,
-                style: style,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
+        child: _buildSelectableText(
+          text,
+          style,
+          highlightColor: highlightColor,
+          appendRowTerminator: appendRowTerminator,
+        ),
       ),
     );
   }

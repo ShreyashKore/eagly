@@ -187,10 +187,11 @@ class _HomeScreenState extends State<HomeScreen> {
     if (selectedDevice == null) return;
 
     await logSub?.cancel();
-    logs.clear();
-    buffer.clear();
 
     setState(() {
+      logs.clear();
+      buffer.clear();
+      _cachedFilteredLogs = null;
       logcatState = LogcatState.running;
     });
 
@@ -212,6 +213,8 @@ class _HomeScreenState extends State<HomeScreen> {
           final keep = (logLinesLimit).floor();
           logs = logs.sublist(logs.length - keep);
         }
+
+        _cachedFilteredLogs = null;
       });
 
       // Auto-scroll to bottom if enabled
