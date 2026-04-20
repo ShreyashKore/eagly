@@ -38,6 +38,7 @@ dependencies:
   data_table_2: ^2.7.2
   file_picker: ^8.0.0
   google_fonts: ^8.0.2
+  package_info_plus: ^8.3.0
   shared_preferences: ^2.5.5
   worksheet: ^3.9.2
   gap: ^3.0.1

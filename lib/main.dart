@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:logview/home_page.dart';
+import 'package:logview/services/app_info_service.dart';
 import 'package:logview/services/preferences_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await PreferencesService.init();
+  await AppInfoService.init();
   runApp(const MyApp());
 }
 
@@ -30,7 +32,7 @@ class MyApp extends StatelessWidget {
         ),
         filledButtonTheme: FilledButtonThemeData(
           style: ButtonStyle(
-            mouseCursor:WidgetStatePropertyAll(SystemMouseCursors.click),
+            mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
           ),
         ),
         iconButtonTheme: IconButtonThemeData(

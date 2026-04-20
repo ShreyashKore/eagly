@@ -9,6 +9,7 @@ import 'data/device.dart';
 import 'data/log_column.dart';
 import 'data/log_entry.dart';
 import 'services/adb_service.dart';
+import 'services/app_info_service.dart';
 import 'services/log_file_service.dart';
 import 'services/preferences_service.dart';
 import 'settings_screen.dart';
@@ -37,8 +38,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const String _appVersion = '1.0.0+1';
-
   final AdbService adbService = AdbService();
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _filterController = TextEditingController();
@@ -262,11 +261,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openSettings() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const SettingsScreen(appVersion: _appVersion),
-      ),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
     if (!mounted) return;
     _reloadSettingsFromPreferences();
   }
@@ -275,7 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showAboutDialog(
       context: context,
       applicationName: 'ADB Logcat',
-      applicationVersion: _appVersion,
+      applicationVersion: AppInfoService.appVersion,
       children: const [Text('Desktop log viewer for ADB logcat output.')],
     );
   }
@@ -558,6 +555,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   bool get isRunning => logcatState != LogcatState.stopped;
+
   bool get isPaused => logcatState == LogcatState.paused;
 
   List<LogEntry> get filteredLogs {

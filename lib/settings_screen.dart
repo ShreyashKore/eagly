@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 
+import 'services/app_info_service.dart';
 import 'services/preferences_service.dart';
 import 'widgets/action_toolbar.dart';
 
 class SettingsScreen extends StatefulWidget {
-  final String appVersion;
-
-  const SettingsScreen({super.key, required this.appVersion});
+  const SettingsScreen({super.key});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -217,7 +216,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(
             child: ListTile(
               title: const Text('Version'),
-              subtitle: Text(widget.appVersion),
+              subtitle: Text(AppInfoService.appVersion),
             ),
           ),
         ],
