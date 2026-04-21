@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/log_column.dart';
+import '../data/log_tab_settings.dart';
+import '../data/log_view_mode.dart';
 
 extension SharedPreferencesJson on SharedPreferences {
   /// Reads a JSON-encoded value from persistent storage and decodes it.
@@ -52,6 +54,19 @@ class PreferencesService {
 
   static int get logLinesLimit => _prefs.getInt(_keyLogLinesLimit) ?? 50000;
   static set logLinesLimit(int v) => _prefs.setInt(_keyLogLinesLimit, v);
+
+  static LogViewMode get defaultViewMode =>
+      LogViewMode.values[viewMode.clamp(0, LogViewMode.values.length - 1)];
+
+  static LogTabSettings get defaultTabSettings => LogTabSettings(
+        wrapText: wrapText,
+        autoScroll: autoScroll,
+        selectedLogLevel: selectedLogLevel,
+        viewMode: defaultViewMode,
+        logLinesLimit: logLinesLimit,
+        hiddenColumns: hiddenColumns,
+        columnWidths: columnWidths,
+      );
 
   // --- Column widths (stored as single JSON object) ---
 

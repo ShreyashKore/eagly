@@ -1,21 +1,16 @@
 import 'package:flutter/material.dart';
 
-/// View mode options for the log viewer
-enum LogViewMode {
-  text,       // Original text-based viewer
-  dataTable,  // DataTable2-based table viewer
-  worksheet,  // Worksheet-based spreadsheet viewer
-}
+import '../data/log_view_mode.dart';
 
 class ActionToolbar extends StatelessWidget {
-  final VoidCallback onImport;
-  final VoidCallback onExport;
+  final VoidCallback? onImport;
+  final VoidCallback? onExport;
   final bool wrapText;
-  final VoidCallback onToggleWrap;
+  final VoidCallback? onToggleWrap;
   final bool autoScroll;
-  final VoidCallback onToggleAutoScroll;
+  final VoidCallback? onToggleAutoScroll;
   final LogViewMode viewMode;
-  final VoidCallback onCycleViewMode;
+  final VoidCallback? onCycleViewMode;
 
   const ActionToolbar({
     super.key,
@@ -29,27 +24,27 @@ class ActionToolbar extends StatelessWidget {
     required this.onCycleViewMode,
   });
 
-  // IconData _getViewModeIcon() {
-  //   switch (viewMode) {
-  //     case LogViewMode.text:
-  //       return Icons.view_list;
-  //     case LogViewMode.dataTable:
-  //       return Icons.table_chart;
-  //     case LogViewMode.worksheet:
-  //       return Icons.grid_on;
-  //   }
-  // }
+  IconData _getViewModeIcon() {
+    switch (viewMode) {
+      case LogViewMode.text:
+        return Icons.view_list;
+      case LogViewMode.dataTable:
+        return Icons.table_chart;
+      case LogViewMode.worksheet:
+        return Icons.grid_on;
+    }
+  }
 
-  // String _getViewModeTooltip() {
-  //   switch (viewMode) {
-  //     case LogViewMode.text:
-  //       return 'Text View (click for DataTable)';
-  //     case LogViewMode.dataTable:
-  //       return 'DataTable View (click for Worksheet)';
-  //     case LogViewMode.worksheet:
-  //       return 'Worksheet View (click for Text)';
-  //   }
-  // }
+  String _getViewModeTooltip() {
+    switch (viewMode) {
+      case LogViewMode.text:
+        return 'Text view';
+      case LogViewMode.dataTable:
+        return 'Data table view';
+      case LogViewMode.worksheet:
+        return 'Worksheet view';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,11 +71,11 @@ class ActionToolbar extends StatelessWidget {
           tooltip: autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF',
           color: autoScroll ? Colors.blue : null,
         ),
-        // IconButton(
-        //   onPressed: onCycleViewMode,
-        //   icon: Icon(_getViewModeIcon()),
-        //   tooltip: _getViewModeTooltip(),
-        // ),
+        IconButton(
+          onPressed: onCycleViewMode,
+          icon: Icon(_getViewModeIcon()),
+          tooltip: _getViewModeTooltip(),
+        ),
       ],
     );
   }

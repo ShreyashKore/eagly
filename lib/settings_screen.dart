@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'data/log_view_mode.dart';
 import 'services/app_info_service.dart';
 import 'services/preferences_service.dart';
-import 'widgets/action_toolbar.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -89,11 +89,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final hiddenColumns = PreferencesService.hiddenColumns;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: const Text('Settings · New tab defaults')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('General', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Defaults for new tabs',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Open tabs keep their local configuration in memory. These values are used only when a new tab is created.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
           const SizedBox(height: 8),
           Card(
             child: Column(
@@ -182,14 +190,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Text('Layout', style: Theme.of(context).textTheme.titleMedium),
+          Text('Stored layout defaults', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Card(
             child: Column(
               children: [
                 ListTile(
-                  title: const Text('Hidden columns'),
-                  subtitle: Text('${hiddenColumns.length} columns hidden'),
+                  title: const Text('Default hidden columns'),
+                  subtitle: Text(
+                    '${hiddenColumns.length} columns hidden for newly created tabs',
+                  ),
                   trailing: TextButton(
                     onPressed: hiddenColumns.isEmpty
                         ? null
@@ -198,9 +208,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 ListTile(
-                  title: const Text('Stored column widths'),
+                  title: const Text('Default column widths'),
                   subtitle: const Text(
-                    'Reset the persisted widths for all columns.',
+                    'Reset the persisted widths used when new tabs are created.',
                   ),
                   trailing: TextButton(
                     onPressed: _resetColumnWidths,

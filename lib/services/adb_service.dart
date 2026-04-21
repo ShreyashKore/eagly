@@ -10,6 +10,8 @@ class AdbService {
   final String adbPath;
   final Map<String, String> _pidToPackageCache = {};
   Timer? _cacheRefreshTimer;
+  Process? _activeLogcatProcess;
+  String? _activeDeviceId;
 
   AdbService({String? adbPath}) : adbPath = adbPath ?? resolveBundledAdbPath() ?? 'adb';
 
@@ -74,8 +76,8 @@ class AdbService {
           _pidToPackageCache[pid] = packageName;
         }
       }
-    } catch (e) {
-      print('Error refreshing PID to package map: $e');
+    } catch (_) {
+      // Ignore PID/package refresh failures so log streaming can continue.
     }
   }
 
@@ -86,6 +88,8 @@ class AdbService {
 
   /// Starts logcat for a specific device and returns a stream of log entries
   Stream<LogEntry> startLogcat(String deviceId) async* {
+    await stopActiveLogcat();
+
     // Initial refresh of PID to package mapping
     await refreshPidToPackageMap(deviceId);
 
@@ -102,22 +106,57 @@ class AdbService {
       '-v',
       'threadtime',
     ]);
+    _activeLogcatProcess = process;
+    _activeDeviceId = deviceId;
 
-    await for (final line in process.stdout
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())) {
-      final parsed = LogEntry.parse(line);
-      if (parsed != null) {
-        parsed.packageName = getPackageNameFromPid(parsed.pid);
-        yield parsed;
+    try {
+      await for (final line in process.stdout
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())) {
+        final parsed = LogEntry.parse(line);
+        if (parsed != null) {
+          parsed.packageName = getPackageNameFromPid(parsed.pid);
+          yield parsed;
+        }
       }
+    } finally {
+      if (identical(_activeLogcatProcess, process)) {
+        _activeLogcatProcess = null;
+        _activeDeviceId = null;
+      }
+      _cacheRefreshTimer?.cancel();
+      _cacheRefreshTimer = null;
+      if (process.kill(ProcessSignal.sigterm)) {
+        try {
+          await process.exitCode.timeout(const Duration(seconds: 1));
+        } catch (_) {}
+      }
+    }
+  }
+
+  Future<void> stopActiveLogcat() async {
+    _cacheRefreshTimer?.cancel();
+    _cacheRefreshTimer = null;
+
+    final process = _activeLogcatProcess;
+    _activeLogcatProcess = null;
+    _activeDeviceId = null;
+
+    if (process == null) return;
+    if (process.kill(ProcessSignal.sigterm)) {
+      try {
+        await process.exitCode.timeout(const Duration(seconds: 1));
+      } catch (_) {}
     }
   }
 
   /// Stops logcat for a device (by killing the process)
   Future<void> stopLogcat(String deviceId) async {
-    // This is a simple implementation - in production you might want to track processes
-    // and kill them explicitly
+    if (_activeDeviceId == deviceId) {
+      await stopActiveLogcat();
+      return;
+    }
+
     await Process.run(adbPath, ['-s', deviceId, 'shell', 'pkill', 'logcat']);
   }
 
@@ -125,4 +164,6 @@ class AdbService {
   Future<void> clearLogcat(String deviceId) async {
     await Process.run(adbPath, ['-s', deviceId, 'logcat', '-c']);
   }
+
+  Future<void> dispose() => stopActiveLogcat();
 }

@@ -8,11 +8,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:logview/data/log_column.dart';
 import 'package:logview/data/log_entry.dart';
-import 'package:logview/services/preferences_service.dart';
 import 'package:logview/widgets/log_viewer.dart';
 
 void main() {
@@ -21,15 +19,11 @@ void main() {
     GoogleFonts.config.allowRuntimeFetching = false;
   });
 
-  setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-    await PreferencesService.init();
-  });
-
   Future<void> pumpLogViewer(
     WidgetTester tester, {
     List<LogEntry>? logs,
     required bool wrapText,
+    Map<String, double> columnWidths = const <String, double>{},
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -52,6 +46,7 @@ void main() {
                   ],
               scrollController: ScrollController(),
               wrapText: wrapText,
+                      columnWidths: columnWidths,
             ),
           ),
         ),
@@ -86,9 +81,12 @@ void main() {
     WidgetTester tester,
   ) async {
     const largerWidth = 5321.5;
-    PreferencesService.columnWidths = {LogColumn.message.name: largerWidth};
 
-    await pumpLogViewer(tester, wrapText: false);
+    await pumpLogViewer(
+      tester,
+      wrapText: false,
+      columnWidths: {LogColumn.message.name: largerWidth},
+    );
 
     expect(messageColumnWidths(tester), contains(largerWidth));
   });

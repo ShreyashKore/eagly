@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../data/log_column.dart';
 import '../data/log_entry.dart';
-import '../services/preferences_service.dart';
 import '../utils/log_utils.dart';
 
 class LogViewer extends StatefulWidget {
@@ -32,6 +32,16 @@ class LogViewer extends StatefulWidget {
   /// update its hidden-columns set used for search-match computation.
   final ValueChanged<Set<String>>? onHiddenColumnsChanged;
 
+  /// Current column width overrides for this tab.
+  final Map<String, double> columnWidths;
+
+  /// Current hidden columns for this tab.
+  final Set<String> hiddenColumns;
+
+  /// Called when the user resizes columns so the parent can persist them in
+  /// the active tab state.
+  final ValueChanged<Map<String, double>>? onColumnWidthsChanged;
+
   const LogViewer({
     super.key,
     required this.logs,
@@ -42,6 +52,9 @@ class LogViewer extends StatefulWidget {
     this.caseSensitive = false,
     this.currentMatchLogIndex,
     this.onHiddenColumnsChanged,
+    this.columnWidths = const <String, double>{},
+    this.hiddenColumns = const <String>{},
+    this.onColumnWidthsChanged,
   });
 
   @override
@@ -50,6 +63,7 @@ class LogViewer extends StatefulWidget {
 
 class _LogViewerState extends State<LogViewer> {
   static const double _columnSpacing = 8;
+  static const double _columnDragHandleWidth = 8;
   static const double _messageMinWidth = 320;
   static const double _messageHorizontalPadding = 16;
 
@@ -76,8 +90,8 @@ class _LogViewerState extends State<LogViewer> {
   @override
   void initState() {
     super.initState();
-    _widths = Map.of(PreferencesService.columnWidths);
-    _hiddenColumns = Set.of(PreferencesService.hiddenColumns);
+    _widths = Map.of(widget.columnWidths);
+    _hiddenColumns = Set.of(widget.hiddenColumns);
   }
 
   @override
@@ -89,6 +103,12 @@ class _LogViewerState extends State<LogViewer> {
     }
     if (widget.logs.isEmpty && old.logs.isNotEmpty) {
       _largestBuiltMessageWidth = 0;
+    }
+    if (!mapEquals(widget.columnWidths, old.columnWidths)) {
+      _widths = Map.of(widget.columnWidths);
+    }
+    if (!setEquals(widget.hiddenColumns, old.hiddenColumns)) {
+      _hiddenColumns = Set.of(widget.hiddenColumns);
     }
   }
 
@@ -200,7 +220,12 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   double _contentWidth(double viewportWidth) {
-    final width = _fixedColumnsExtent + _messageColumnWidth(viewportWidth);
+    final width =
+        _fixedColumnsExtent +
+        _messageColumnWidth(viewportWidth) +
+        (!_isVisible(LogColumn.message) || widget.wrapText
+            ? 0
+            : _columnDragHandleWidth);
     return math.max(viewportWidth, width);
   }
 
@@ -291,14 +316,14 @@ class _LogViewerState extends State<LogViewer> {
   void _flushWidths() {
     if (_saveWidthsTimer?.isActive ?? false) {
       _saveWidthsTimer!.cancel();
-      PreferencesService.columnWidths = _widths;
     }
+    widget.onColumnWidthsChanged?.call(Map.of(_widths));
   }
 
   void _debounceSaveWidths() {
     _saveWidthsTimer?.cancel();
     _saveWidthsTimer = Timer(const Duration(milliseconds: 500), () {
-      PreferencesService.columnWidths = _widths;
+      widget.onColumnWidthsChanged?.call(Map.of(_widths));
     });
   }
 
@@ -350,7 +375,6 @@ class _LogViewerState extends State<LogViewer> {
                 title: Text(col.label, style: const TextStyle(fontSize: 12)),
                 visualDensity: VisualDensity.compact,
                 contentPadding: EdgeInsets.zero,
-                minVerticalPadding: 0,
                 onChanged: (_) {
                   setState(() {
                     if (visible) {
@@ -358,7 +382,6 @@ class _LogViewerState extends State<LogViewer> {
                     } else {
                       _hiddenColumns.remove(col.name);
                     }
-                    PreferencesService.hiddenColumns = _hiddenColumns;
                   });
                   widget.onHiddenColumnsChanged?.call(Set.of(_hiddenColumns));
                   setMenuState(() {});
@@ -378,7 +401,6 @@ class _LogViewerState extends State<LogViewer> {
         } else {
           _hiddenColumns.remove(result.name);
         }
-        PreferencesService.hiddenColumns = _hiddenColumns;
       });
       widget.onHiddenColumnsChanged?.call(Set.of(_hiddenColumns));
     }
@@ -506,7 +528,7 @@ class _LogViewerState extends State<LogViewer> {
         behavior: HitTestBehavior.opaque,
         // This ensures the entire area captures touches
         child: SizedBox(
-          width: 8,
+          width: _columnDragHandleWidth,
           child: Center(
             child: VerticalDivider(
               width: 1,

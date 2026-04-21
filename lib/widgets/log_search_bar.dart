@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 /// - Enter to go to next match
 class LogSearchBar extends StatefulWidget {
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final bool caseSensitive;
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<bool> onCaseSensitiveChanged;
@@ -26,6 +27,7 @@ class LogSearchBar extends StatefulWidget {
   const LogSearchBar({
     super.key,
     required this.controller,
+    this.focusNode,
     required this.caseSensitive,
     required this.onQueryChanged,
     required this.onCaseSensitiveChanged,
@@ -41,7 +43,10 @@ class LogSearchBar extends StatefulWidget {
 }
 
 class _LogSearchBarState extends State<LogSearchBar> {
-  final FocusNode _focusNode = FocusNode();
+  late final FocusNode _internalFocusNode = FocusNode();
+
+  FocusNode get _focusNode => widget.focusNode ?? _internalFocusNode;
+  bool get _ownsFocusNode => widget.focusNode == null;
 
   @override
   void initState() {
@@ -61,7 +66,11 @@ class _LogSearchBarState extends State<LogSearchBar> {
 
   @override
   void dispose() {
-    _focusNode.dispose();
+    if (_ownsFocusNode) {
+      _focusNode.dispose();
+    } else {
+      _focusNode.onKeyEvent = null;
+    }
     super.dispose();
   }
 
