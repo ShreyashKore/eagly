@@ -20,10 +20,14 @@ class LogTabView extends StatefulWidget {
     super.key,
     required this.controller,
     required this.appMemoryBytesListenable,
+    required this.onOpenSettings,
+    required this.onShowAbout,
   });
 
   final LogTabController controller;
   final ValueListenable<int> appMemoryBytesListenable;
+  final VoidCallback onOpenSettings;
+  final VoidCallback onShowAbout;
 
   @override
   State<LogTabView> createState() => _LogTabViewState();
@@ -37,11 +41,16 @@ class _LogTabViewState extends State<LogTabView> {
   Future<void> _handleLoadDevices({bool openPickerWhenNeeded = false}) async {
     await controller.loadDevices();
     if (!mounted || !openPickerWhenNeeded) return;
+    if (controller.showGetStarted) return;
     if (controller.devices.length > 1 && controller.selectedDevice == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _openDevicesDropdown();
       });
     }
+  }
+
+  Future<void> _selectDevice(Device device) {
+    return controller.selectDeviceAndStart(device);
   }
 
   void _openDevicesDropdown() {
@@ -56,6 +65,46 @@ class _LogTabViewState extends State<LogTabView> {
         });
       }
     });
+  }
+
+  Widget _buildPrimaryActionButtons({bool compact = false}) {
+    return Wrap(
+      spacing: 16,
+      runSpacing: 16,
+      alignment: WrapAlignment.center,
+      children: [
+        _GetStartedActionCard(
+          icon: Icons.adb,
+          title: 'Select device / Load devices',
+          subtitle: 'Discover connected devices and open a live logcat session.',
+          onTap: () => _handleLoadDevices(openPickerWhenNeeded: compact),
+        ),
+        _GetStartedActionCard(
+          icon: Icons.file_download_outlined,
+          title: 'Import Logs',
+          subtitle: 'Open a previously exported logcat JSON file in this tab.',
+          onTap: controller.importLogs,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGetStartedSecondaryActions() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Settings',
+          onPressed: widget.onOpenSettings,
+          icon: const Icon(Icons.settings_outlined),
+        ),
+        IconButton(
+          tooltip: 'About',
+          onPressed: widget.onShowAbout,
+          icon: const Icon(Icons.info_outline),
+        ),
+      ],
+    );
   }
 
   Widget _buildLogViewer(List<LogEntry> filtered, List<int> matches) {
@@ -143,6 +192,10 @@ class _LogTabViewState extends State<LogTabView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: _buildGetStartedSecondaryActions(),
+            ),
             Icon(
               Icons.developer_board,
               size: 44,
@@ -150,38 +203,64 @@ class _LogTabViewState extends State<LogTabView> {
             ),
             const Gap(18),
             Text(
-              'Get started with ADB Logcat',
+              'ADB Logcat',
               style: theme.textTheme.headlineSmall,
               textAlign: TextAlign.center,
             ),
-            const Gap(8),
-            Text(
-              'Open a device session or import a saved log file. Once you pick an option, this tab becomes a regular workspace.',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
             const Gap(28),
-            Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              alignment: WrapAlignment.center,
-              children: [
-                _GetStartedActionCard(
-                  icon: Icons.adb,
-                  title: 'Select device / Load devices',
-                  subtitle: 'Discover connected devices and open a live logcat session.',
-                  onTap: () => _handleLoadDevices(openPickerWhenNeeded: true),
+            _buildPrimaryActionButtons(),
+            if (controller.devices.isNotEmpty) ...[
+              const Gap(28),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Available devices',
+                  style: theme.textTheme.titleMedium,
                 ),
-                _GetStartedActionCard(
-                  icon: Icons.file_download_outlined,
-                  title: 'Import Logs',
-                  subtitle: 'Open a previously exported logcat JSON file in this tab.',
-                  onTap: controller.importLogs,
+              ),
+              const Gap(12),
+              ...controller.devices.map(
+                (device) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _AvailableDeviceCard(
+                    device: device,
+                    onSelected: () => _selectDevice(device),
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ] else if (controller.hasAttemptedDeviceLoad && !controller.isLoadingDevices) ...[
+              const Gap(28),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.usb_off,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const Gap(10),
+                    Text(
+                      'No devices found',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    const Gap(6),
+                    Text(
+                      'Connect an Android device with ADB enabled, then load devices again.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -246,7 +325,11 @@ class _LogTabViewState extends State<LogTabView> {
                       ),
                     )
                     .toList(),
-                onChanged: controller.setSelectedDevice,
+                onChanged: (device) {
+                  if (device != null) {
+                    _selectDevice(device);
+                  }
+                },
               ),
             ),
           ),
@@ -398,23 +481,7 @@ class _LogTabViewState extends State<LogTabView> {
           title: 'No device or imported logs in this tab',
           description:
               'Load connected devices to begin a live session, or import a saved log file into this workspace.',
-          footer: Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            alignment: WrapAlignment.center,
-            children: [
-              FilledButton.icon(
-                onPressed: () => _handleLoadDevices(openPickerWhenNeeded: true),
-                icon: const Icon(Icons.usb),
-                label: const Text('Load devices'),
-              ),
-              OutlinedButton.icon(
-                onPressed: controller.importLogs,
-                icon: const Icon(Icons.file_open_outlined),
-                label: const Text('Import logs'),
-              ),
-            ],
-          ),
+          footer: _buildPrimaryActionButtons(compact: true),
         ),
       ),
     );
@@ -526,6 +593,56 @@ class _LogTabViewState extends State<LogTabView> {
   }
 }
 
+class _AvailableDeviceCard extends StatelessWidget {
+  const _AvailableDeviceCard({required this.device, required this.onSelected});
+
+  final Device device;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onSelected,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.phone_android, color: theme.colorScheme.primary),
+              const Gap(12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(device.displayName, style: theme.textTheme.titleSmall),
+                    const Gap(4),
+                    Text(
+                      '${device.id} · ${device.status}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _GetStartedActionCard extends StatelessWidget {
   const _GetStartedActionCard({
     required this.icon,
@@ -630,6 +747,4 @@ class _CenteredStateMessage extends StatelessWidget {
     );
   }
 }
-
-
 

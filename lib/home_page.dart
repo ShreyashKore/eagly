@@ -32,7 +32,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Timer? _memoryRefreshTimer;
   int _nextTabNumber = 1;
-  bool _hasExitedInitialGetStarted = false;
 
   bool get _supportsDesktopMenuBar => Platform.isMacOS;
 
@@ -74,26 +73,28 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _markExitedInitialGetStarted() {
-    if (_hasExitedInitialGetStarted) return;
-    setState(() {
-      _hasExitedInitialGetStarted = true;
-    });
-  }
-
   void _ensureAtLeastOneTab() {
     if (_tabsController.tabs.isNotEmpty) return;
     _createTab(select: true);
   }
 
+  bool _isDeviceSelectedInAnotherTab(String deviceId, LogTabController owner) {
+    return _workspaceTabs.values.any(
+      (workspaceTab) =>
+          !identical(workspaceTab.controller, owner) &&
+          workspaceTab.controller.selectedDevice?.id == deviceId,
+    );
+  }
+
   void _createTab({bool select = true}) {
     final tabNumber = _nextTabNumber++;
-    final controller = LogTabController(
+    late final LogTabController controller;
+    controller = LogTabController(
       id: 'workspace-tab-$tabNumber',
       initialTitle: 'Tab $tabNumber',
       initialSettings: PreferencesService.defaultTabSettings,
-      showGetStartedInitially: !_hasExitedInitialGetStarted,
-      onExitGetStarted: _markExitedInitialGetStarted,
+      isDeviceSelectedInAnotherTab: (deviceId) =>
+          _isDeviceSelectedInAnotherTab(deviceId, controller),
     );
 
     final tabData = TabData(
@@ -106,6 +107,8 @@ class _HomeScreenState extends State<HomeScreen> {
       view: LogTabView(
         controller: controller,
         appMemoryBytesListenable: _appMemoryBytes,
+        onOpenSettings: _openSettings,
+        onShowAbout: _showAboutApp,
       ),
     );
 
@@ -125,6 +128,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (select) {
       _tabsController.selectedIndex = _tabsController.tabs.length - 1;
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(controller.bootstrapInitialLoad());
+    });
     setState(() {});
   }
 
@@ -358,112 +365,43 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Scaffold(
             backgroundColor: const Color(0xFFF4F6FB),
             body: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            blurRadius: 18,
-                            offset: const Offset(0, 10),
-                            color: Colors.black.withValues(alpha: 0.05),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              Icons.subject,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                          const Gap(14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'ADB Logcat',
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                                Text(
-                                  activeController == null
-                                      ? 'Desktop log viewer'
-                                      : '${activeController.title} · ${_activeViewModeLabel(activeController.viewMode)} view',
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: 'Settings',
-                            onPressed: _openSettings,
-                            icon: const Icon(Icons.settings_outlined),
-                          ),
-                          IconButton(
-                            tooltip: 'About',
-                            onPressed: _showAboutApp,
-                            icon: const Icon(Icons.info_outline),
-                          ),
-                        ],
-                      ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 24,
+                      offset: const Offset(0, 14),
+                      color: Colors.black.withValues(alpha: 0.06),
                     ),
-                    const Gap(14),
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              blurRadius: 24,
-                              offset: const Offset(0, 14),
-                              color: Colors.black.withValues(alpha: 0.06),
-                            ),
-                          ],
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: TabbedViewTheme(
-                          data: theme,
-                          child: TabbedView(
-                            controller: _tabsController,
-                            trailing: Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: Center(
-                                child: FilledButton.tonalIcon(
-                                  onPressed: _createTab,
-                                  icon: const Icon(Icons.add),
-                                  label: const Text('New tab'),
+                  ],
+                ),
+                child: TabbedViewTheme(
+                  data: theme,
+                  child: TabbedView(
+                    controller: _tabsController,
+                    trailing: Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: Center(
+                        child: FilledButton.tonalIcon(
+                          style: ButtonStyle(
+                            shape: WidgetStatePropertyAll(
+                              RoundedRectangleBorder(
+                                borderRadius: BorderRadius.only(
+                                  topLeft: Radius.circular(8),
+                                  topRight: Radius.circular(8),
                                 ),
                               ),
                             ),
                           ),
+                          onPressed: _createTab,
+                          icon: const Icon(Icons.add),
+                          label: const Text('New tab'),
                         ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),

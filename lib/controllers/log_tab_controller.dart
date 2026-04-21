@@ -19,12 +19,11 @@ class LogTabController extends ChangeNotifier {
     required this.id,
     required String initialTitle,
     required LogTabSettings initialSettings,
-    required bool showGetStartedInitially,
     this.onExitGetStarted,
+    this.isDeviceSelectedInAnotherTab,
     AdbService? adbService,
   }) : _title = initialTitle,
        _settings = initialSettings,
-       _showGetStarted = showGetStartedInitially,
        _adbService = adbService ?? AdbService() {
     filterController.text = searchQuery;
     logLinesController.text = logLinesLimit.toString();
@@ -32,6 +31,7 @@ class LogTabController extends ChangeNotifier {
 
   final String id;
   final VoidCallback? onExitGetStarted;
+  final bool Function(String deviceId)? isDeviceSelectedInAnotherTab;
   final AdbService _adbService;
 
   final ScrollController scrollController = ScrollController();
@@ -49,6 +49,8 @@ class LogTabController extends ChangeNotifier {
   Timer? _inlineSearchDebounce;
 
   var devices = <Device>[];
+  var _loadingDevices = false;
+  var _hasAttemptedDeviceLoad = false;
   Device? selectedDevice;
   var logs = <LogEntry>[];
 
@@ -68,7 +70,7 @@ class LogTabController extends ChangeNotifier {
   var _logViewerRevision = 0;
 
   var _disposed = false;
-  var _showGetStarted = false;
+  var _showGetStarted = true;
   final String _title;
   LogTabSettings _settings;
 
@@ -104,6 +106,8 @@ class LogTabController extends ChangeNotifier {
   int get totalLogsMemoryBytes => _logsMemoryBytes + _bufferMemoryBytes;
   String get appliedInlineSearchQuery => _appliedInlineSearchQuery;
   String get inlineSearchQuery => _inlineSearchQuery;
+  bool get isLoadingDevices => _loadingDevices;
+  bool get hasAttemptedDeviceLoad => _hasAttemptedDeviceLoad;
 
   bool get wrapText => _settings.wrapText;
   bool get autoScroll => _settings.autoScroll;
@@ -130,6 +134,16 @@ class LogTabController extends ChangeNotifier {
     onExitGetStarted?.call();
   }
 
+  void _exitGetStartedIfWorkspaceReady() {
+    if (selectedDevice != null || logs.isNotEmpty) {
+      _exitGetStarted();
+    }
+  }
+
+  Future<void> bootstrapInitialLoad() async {
+    await loadDevices(autoStartSingleIfAvailable: true);
+  }
+
   void focusFilterInputs() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_disposed) return;
@@ -141,46 +155,75 @@ class LogTabController extends ChangeNotifier {
     });
   }
 
-  Future<void> loadDevices() async {
-    _exitGetStarted();
+  Future<void> loadDevices({bool autoStartSingleIfAvailable = false}) async {
+    _loadingDevices = true;
+    _hasAttemptedDeviceLoad = true;
     _notify();
 
-    final fetchedDevices = await _adbService.getDevices();
-    if (_disposed) return;
+    try {
+      final fetchedDevices = await _adbService.getDevices();
+      if (_disposed) return;
 
-    final currentSelectionId = selectedDevice?.id;
-    devices = fetchedDevices;
+      final currentSelectionId = selectedDevice?.id;
+      devices = fetchedDevices;
 
-    if (fetchedDevices.isEmpty) {
+      if (currentSelectionId != null) {
+        selectedDevice = fetchedDevices.firstWhereOrNull(
+          (device) => device.id == currentSelectionId,
+        );
+      }
+
+      if (currentSelectionId != null && selectedDevice == null) {
+        selectedDevice = null;
+        await _stopLogcatInternal(resetState: true);
+      }
+
+      final shouldAutoStartSingleDevice =
+          autoStartSingleIfAvailable &&
+          logs.isEmpty &&
+          selectedDevice == null &&
+          fetchedDevices.length == 1 &&
+          !(isDeviceSelectedInAnotherTab?.call(fetchedDevices.single.id) ?? false);
+
+      if (shouldAutoStartSingleDevice) {
+        await selectDeviceAndStart(fetchedDevices.single);
+        return;
+      }
+
+      _exitGetStartedIfWorkspaceReady();
+    } finally {
+      _loadingDevices = false;
+      _notify();
+    }
+  }
+
+  Future<void> setSelectedDevice(Device? device) async {
+    if (device == null) {
+      if (selectedDevice == null) return;
       selectedDevice = null;
-      await _stopLogcatInternal(resetState: true);
+      if (isRunning) {
+        await _stopLogcatInternal(resetState: true);
+      }
       _notify();
       return;
     }
 
-    if (currentSelectionId != null) {
-      selectedDevice = fetchedDevices.firstWhereOrNull(
-        (device) => device.id == currentSelectionId,
-      );
-    }
-
-    selectedDevice ??= fetchedDevices.length == 1 ? fetchedDevices.first : null;
-    _notify();
+    await selectDeviceAndStart(device);
   }
 
-  Future<void> setSelectedDevice(Device? device) async {
-    _exitGetStarted();
-    if (selectedDevice?.id == device?.id) return;
+  Future<void> selectDeviceAndStart(Device device) async {
+    final sameDevice = selectedDevice?.id == device.id;
     selectedDevice = device;
-    if (isRunning) {
-      await _stopLogcatInternal(resetState: true);
-    }
+    _exitGetStarted();
     _notify();
+
+    if (sameDevice && isRunning) return;
+    await startLogcat();
   }
 
   Future<void> startLogcat() async {
     if (selectedDevice == null) return;
-    _exitGetStarted();
+    _exitGetStartedIfWorkspaceReady();
 
     await _stopLogcatInternal(resetState: false);
     if (_disposed) return;
@@ -266,9 +309,6 @@ class LogTabController extends ChangeNotifier {
   }
 
   Future<void> importLogs() async {
-    _exitGetStarted();
-    _notify();
-
     final importedLogs = await LogFileService.importLogs();
     if (_disposed || importedLogs == null) return;
 
@@ -281,6 +321,10 @@ class LogTabController extends ChangeNotifier {
     _logsMemoryBytes = _estimateLogsBytes(logs);
     _bufferMemoryBytes = 0;
     logcatState = LogcatState.stopped;
+    _exitGetStartedIfWorkspaceReady();
+    if (importedLogs.isEmpty) {
+      _exitGetStarted();
+    }
     _invalidateFilteredLogs();
     _notify();
   }
