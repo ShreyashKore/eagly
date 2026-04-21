@@ -38,6 +38,29 @@ class _LogTabViewState extends State<LogTabView> {
 
   LogTabController get controller => widget.controller;
 
+  void _showSnackBar(String message) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _handleImportLogs() async {
+    final result = await controller.importLogs();
+    if (!mounted || result.cancelled || result.error == null) return;
+    _showSnackBar(result.error!);
+  }
+
+  Future<void> _handleExportLogs() async {
+    final result = await controller.exportLogs();
+    if (!mounted || result.cancelled) return;
+
+    final message = result.error ??
+        (result.fileName == null
+            ? 'Logs exported successfully.'
+            : 'Logs exported to ${result.fileName}.');
+    _showSnackBar(message);
+  }
+
   Future<void> _handleLoadDevices({bool openPickerWhenNeeded = false}) async {
     await controller.loadDevices();
     if (!mounted || !openPickerWhenNeeded) return;
@@ -83,7 +106,9 @@ class _LogTabViewState extends State<LogTabView> {
           icon: Icons.file_download_outlined,
           title: 'Import Logs',
           subtitle: 'Open a previously exported logcat JSON file in this tab.',
-          onTap: controller.importLogs,
+          onTap: () async {
+            await _handleImportLogs();
+          },
         ),
       ],
     );
@@ -387,8 +412,14 @@ class _LogTabViewState extends State<LogTabView> {
           ),
           const Spacer(),
           ActionToolbar(
-            onImport: controller.importLogs,
-            onExport: controller.logs.isEmpty ? null : controller.exportLogs,
+            onImport: () async {
+              await _handleImportLogs();
+            },
+            onExport: controller.logs.isEmpty
+                ? null
+                : () async {
+                    await _handleExportLogs();
+                  },
             wrapText: controller.wrapText,
             onToggleWrap: controller.toggleWrapText,
             autoScroll: controller.autoScroll,

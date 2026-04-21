@@ -72,6 +72,7 @@ class LogTabController extends ChangeNotifier {
   var _disposed = false;
   var _showGetStarted = true;
   final String _title;
+  String? _importedFileName;
   LogTabSettings _settings;
 
   List<LogEntry>? _cachedFilteredLogs;
@@ -87,7 +88,7 @@ class LogTabController extends ChangeNotifier {
 
   String get title {
     if (selectedDevice != null) return selectedDevice!.displayName;
-    if (logs.isNotEmpty) return 'Imported Logs';
+    if (_importedFileName != null) return _importedFileName!;
     if (_showGetStarted) return 'Get Started';
     return _title;
   }
@@ -213,6 +214,7 @@ class LogTabController extends ChangeNotifier {
 
   Future<void> selectDeviceAndStart(Device device) async {
     final sameDevice = selectedDevice?.id == device.id;
+    _importedFileName = null;
     selectedDevice = device;
     _exitGetStarted();
     _notify();
@@ -228,6 +230,7 @@ class LogTabController extends ChangeNotifier {
     await _stopLogcatInternal(resetState: false);
     if (_disposed) return;
 
+    _importedFileName = null;
     logs = [];
     _buffer.clear();
     _logsMemoryBytes = 0;
@@ -304,29 +307,28 @@ class LogTabController extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> exportLogs() async {
-    await LogFileService.exportLogs(logs, selectedDevice);
+  Future<LogExportResult> exportLogs() async {
+    return LogFileService.exportLogs(logs, selectedDevice);
   }
 
-  Future<void> importLogs() async {
-    final importedLogs = await LogFileService.importLogs();
-    if (_disposed || importedLogs == null) return;
+  Future<LogImportResult> importLogs() async {
+    final result = await LogFileService.importLogs();
+    if (_disposed || !result.isSuccess || result.logs == null) return result;
 
     await _stopLogcatInternal(resetState: false);
-    if (_disposed) return;
+    if (_disposed) return result;
 
     selectedDevice = null;
-    logs = importedLogs;
+    _importedFileName = result.fileName;
+    logs = result.logs!;
     _buffer.clear();
     _logsMemoryBytes = _estimateLogsBytes(logs);
     _bufferMemoryBytes = 0;
     logcatState = LogcatState.stopped;
-    _exitGetStartedIfWorkspaceReady();
-    if (importedLogs.isEmpty) {
-      _exitGetStarted();
-    }
+    _exitGetStarted();
     _invalidateFilteredLogs();
     _notify();
+    return result;
   }
 
   void scrollToEnd() {

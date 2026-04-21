@@ -3,11 +3,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:gap/gap.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 
 import 'controllers/log_tab_controller.dart';
-import 'data/log_view_mode.dart';
 import 'services/app_info_service.dart';
 import 'services/preferences_service.dart';
 import 'settings_screen.dart';
@@ -26,31 +24,54 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const String _newTabActionId = '__new-tab-action__';
+
   final TabbedViewController _tabsController = TabbedViewController([]);
   final ValueNotifier<int> _appMemoryBytes = ValueNotifier<int>(0);
   final Map<Object, _WorkspaceTab> _workspaceTabs = {};
+  late final TabData _newTabActionTab = TabData(
+    id: _newTabActionId,
+    text: 'New tab',
+    tooltip: 'Create a new tab',
+    closable: false,
+    draggable: false,
+    view: const SizedBox.shrink(),
+    labelBuilder: (context) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.add, size: (context.textStyle?.fontSize ?? 14) + 2),
+        const SizedBox(width: 6),
+        Text('New tab', style: context.textStyle),
+      ],
+    ),
+  );
 
   Timer? _memoryRefreshTimer;
   int _nextTabNumber = 1;
+  bool _isAdjustingNewTabActionPosition = false;
+  bool _ignoreNextNewTabSelection = false;
 
   bool get _supportsDesktopMenuBar => Platform.isMacOS;
 
   LogTabController? get _activeController =>
       _tabsController.selectedTab?.value as LogTabController?;
 
+  bool _isNewTabAction(TabData tab) => tab.id == _newTabActionId;
+
+  int get _workspaceTabCount =>
+      _tabsController.tabs.where((tab) => !_isNewTabAction(tab)).length;
+
   @override
   void initState() {
     super.initState();
     _tabsController.onTabRemoved = _onTabRemoved;
-    _tabsController.onTabSelected = (_) {
-      if (mounted) {
-        setState(() {});
-      }
-    };
+    _tabsController.onTabReordered = _onTabReordered;
+    _tabsController.onTabSelected = _onTabSelected;
     _refreshAppMemory();
     _memoryRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _refreshAppMemory();
     });
+    _ensureNewTabActionPresent();
     _ensureAtLeastOneTab();
   }
 
@@ -74,8 +95,56 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _ensureAtLeastOneTab() {
-    if (_tabsController.tabs.isNotEmpty) return;
+    if (_workspaceTabCount > 0) return;
     _createTab(select: true);
+  }
+
+  void _ensureNewTabActionPresent() {
+    final newTabActionIndex = _tabsController.tabs.indexWhere(_isNewTabAction);
+    if (newTabActionIndex == -1) {
+      _tabsController.addTab(_newTabActionTab);
+      return;
+    }
+    _moveNewTabActionToEnd();
+  }
+
+  void _moveNewTabActionToEnd() {
+    if (_isAdjustingNewTabActionPosition) return;
+    final newTabActionIndex = _tabsController.tabs.indexWhere(_isNewTabAction);
+    if (newTabActionIndex == -1 ||
+        newTabActionIndex == _tabsController.tabs.length - 1) {
+      return;
+    }
+
+    _isAdjustingNewTabActionPosition = true;
+    try {
+      _tabsController.reorderTab(newTabActionIndex, _tabsController.tabs.length);
+    } finally {
+      _isAdjustingNewTabActionPosition = false;
+    }
+  }
+
+  FutureOr<bool> _handleTabRemoveRequest(
+    BuildContext context,
+    int tabIndex,
+    TabData tab,
+  ) {
+    if (!_isNewTabAction(tab) && _workspaceTabCount == 1) {
+      _ignoreNextNewTabSelection = true;
+    }
+    return true;
+  }
+
+  void _clearNewTabActionSelectionIfNeeded() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final selectedTab = _tabsController.selectedTab;
+      if (_workspaceTabCount == 0 &&
+          selectedTab != null &&
+          _isNewTabAction(selectedTab)) {
+        _tabsController.selectedIndex = null;
+      }
+    });
   }
 
   bool _isDeviceSelectedInAnotherTab(String deviceId, LogTabController owner) {
@@ -124,9 +193,16 @@ class _HomeScreenState extends State<HomeScreen> {
       syncListener: syncTabLabel,
     );
 
-    _tabsController.addTab(tabData);
+    final newTabActionIndex = _tabsController.tabs.indexWhere(_isNewTabAction);
+    if (newTabActionIndex == -1) {
+      _tabsController.addTab(tabData);
+      _ensureNewTabActionPresent();
+    } else {
+      _tabsController.insertTab(newTabActionIndex, tabData);
+    }
+
     if (select) {
-      _tabsController.selectedIndex = _tabsController.tabs.length - 1;
+      _tabsController.selectedIndex = _tabsController.tabs.indexOf(tabData);
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -136,11 +212,50 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onTabRemoved(TabData tab) {
+    debugPrint('Tab Removed 0 ${tab.id}');
+    if (_isNewTabAction(tab)) {
+      _ensureNewTabActionPresent();
+      return;
+    }
+
     final workspaceTab = _workspaceTabs.remove(tab.id);
     workspaceTab?.dispose();
-    if (_tabsController.tabs.isEmpty) {
+    debugPrint('Tab Removed 1 $_workspaceTabs');
+
+    if (_workspaceTabCount == 0) {
+      debugPrint('Tab Removed 2');
+      _clearNewTabActionSelectionIfNeeded();
+    }
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _onTabReordered(int oldIndex, int newIndex) {
+    _moveNewTabActionToEnd();
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _onTabSelected(TabSelection? selection) {
+    final selectedTab = selection?.tab;
+    if (selectedTab != null && _isNewTabAction(selectedTab)) {
+      if (_ignoreNextNewTabSelection) {
+        _ignoreNextNewTabSelection = false;
+        _clearNewTabActionSelectionIfNeeded();
+        if (mounted) {
+          setState(() {});
+        }
+        return;
+      }
+
       _createTab(select: true);
-    } else {
+      return;
+    }
+
+    if (mounted) {
       setState(() {});
     }
   }
@@ -158,8 +273,38 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       applicationName: 'ADB Logcat',
       applicationVersion: AppInfoService.appVersion,
+      applicationIcon: Icon(Icons.developer_board),
       children: const [Text('Desktop log viewer for ADB logcat output.')],
     );
+  }
+
+  void _showSnackBar(String message) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _handleImportLogs() async {
+    final controller = _activeController;
+    if (controller == null) return;
+
+    final result = await controller.importLogs();
+    if (!mounted || result.cancelled || result.error == null) return;
+    _showSnackBar(result.error!);
+  }
+
+  Future<void> _handleExportLogs() async {
+    final controller = _activeController;
+    if (controller == null) return;
+
+    final result = await controller.exportLogs();
+    if (!mounted || result.cancelled) return;
+
+    final message = result.error ??
+        (result.fileName == null
+            ? 'Logs exported successfully.'
+            : 'Logs exported to ${result.fileName}.');
+    _showSnackBar(message);
   }
 
   void _runOnActiveTab(void Function(LogTabController tab) action) {
@@ -197,11 +342,15 @@ class _HomeScreenState extends State<HomeScreen> {
               PlatformMenuItem(label: 'New Tab', onSelected: _createTab),
               PlatformMenuItem(
                 label: 'Import Logs',
-                onSelected: () => _runOnActiveTab((tab) => tab.importLogs()),
+                onSelected: () {
+                  unawaited(_handleImportLogs());
+                },
               ),
               PlatformMenuItem(
                 label: 'Export Logs',
-                onSelected: () => _runOnActiveTab((tab) => tab.exportLogs()),
+                onSelected: () {
+                  unawaited(_handleExportLogs());
+                },
               ),
             ],
           ),
@@ -326,22 +475,16 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
   }
 
-  String _activeViewModeLabel(LogViewMode mode) {
-    return switch (mode) {
-      LogViewMode.text => 'Text',
-      LogViewMode.dataTable => 'Table',
-      LogViewMode.worksheet => 'Worksheet',
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
     final activeController = _activeController;
     final theme = TabbedViewThemeData.minimalist(
       tabRadius: 8,
+      tabStyleResolver: MyTabsStyleResolver()
     );
-    theme.tabsArea.padding = EdgeInsets.symmetric(horizontal: 8);
+    theme.tabsArea.padding = EdgeInsets.symmetric(horizontal: 0);
     theme.tabsArea.position = TabBarPosition.top;
+    theme.divider = null;
     theme.tabsArea.sideTabsLayout = SideTabsLayout.stacked;
 
     final content = Shortcuts(
@@ -363,45 +506,13 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Focus(
           autofocus: true,
           child: Scaffold(
-            backgroundColor: const Color(0xFFF4F6FB),
+            backgroundColor: Colors.grey.shade200,
             body: SafeArea(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      blurRadius: 24,
-                      offset: const Offset(0, 14),
-                      color: Colors.black.withValues(alpha: 0.06),
-                    ),
-                  ],
-                ),
-                child: TabbedViewTheme(
-                  data: theme,
-                  child: TabbedView(
-                    controller: _tabsController,
-                    trailing: Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: Center(
-                        child: FilledButton.tonalIcon(
-                          style: ButtonStyle(
-                            shape: WidgetStatePropertyAll(
-                              RoundedRectangleBorder(
-                                borderRadius: BorderRadius.only(
-                                  topLeft: Radius.circular(8),
-                                  topRight: Radius.circular(8),
-                                ),
-                              ),
-                            ),
-                          ),
-                          onPressed: _createTab,
-                          icon: const Icon(Icons.add),
-                          label: const Text('New tab'),
-                        ),
-                      ),
-                    ),
-                  ),
+              child: TabbedViewTheme(
+                data: theme,
+                child: TabbedView(
+                  controller: _tabsController,
+                  tabRemoveInterceptor: _handleTabRemoveRequest,
                 ),
               ),
             ),
@@ -432,5 +543,26 @@ class _WorkspaceTab {
   void dispose() {
     controller.removeListener(syncListener);
     controller.dispose();
+  }
+}
+
+class MyTabsStyleResolver extends MinimalistTabStyleResolver {
+  @override
+  Color? backgroundColor(TabStyleContext context) {
+    if (context.status == TabStatus.selected) {
+      return Colors.white;
+    }
+    return Colors.grey.shade200;
+  }
+
+
+  @override
+  Color buttonColor(TabStyleContext context) {
+    return Colors.black;
+  }
+
+  @override
+  Color fontColor(TabStyleContext context) {
+    return Colors.black;
   }
 }
