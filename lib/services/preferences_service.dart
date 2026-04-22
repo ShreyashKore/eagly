@@ -41,6 +41,7 @@ class PreferencesService {
   static const _keyHiddenColumns = 'hiddenColumns';
   static const _keyLogLinesLimit = 'logLinesLimit';
   static const _keyThemeMode = 'themeMode';
+  static const _keyLastFileDialogDirectory = 'lastFileDialogDirectory';
 
   // --- Home page preferences ---
 
@@ -63,6 +64,17 @@ class PreferencesService {
 
   static ThemeMode get themeMode =>
       _themeModeFromName(_prefs.getString(_keyThemeMode)) ?? ThemeMode.dark;
+
+  static String? get lastFileDialogDirectory =>
+      _prefs.getString(_keyLastFileDialogDirectory);
+
+  static Future<bool> setLastFileDialogDirectory(String? value) {
+    if (value == null || value.isEmpty) {
+      return _prefs.remove(_keyLastFileDialogDirectory);
+    }
+
+    return _prefs.setString(_keyLastFileDialogDirectory, value);
+  }
 
   static set themeMode(ThemeMode value) {
     themeModeListenable.value = value;

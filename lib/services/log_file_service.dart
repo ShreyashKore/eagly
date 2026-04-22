@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 
 import '../data/device.dart';
 import '../data/log_entry.dart';
+import 'preferences_service.dart';
 import '../utils/log_utils.dart';
 import '../utils/timestamp_utils.dart';
 
@@ -72,10 +73,13 @@ class LogFileService {
       return LogExportResult.failure(error: 'No logs available to export.');
     }
 
+    final initialDirectory = await _resolveInitialDirectory();
+
     final result = await FilePicker.platform.saveFile(
       dialogTitle: 'Export Logs',
       fileName: 'logcat_export_${DateTime.now().millisecondsSinceEpoch}.json',
       allowedExtensions: ['json'],
+      initialDirectory: initialDirectory,
       type: FileType.custom,
     );
 
@@ -113,6 +117,7 @@ class LogFileService {
 
       final file = File(result);
       await file.writeAsString(const JsonEncoder.withIndent('  ').convert(exportData));
+      await _rememberDialogDirectoryFromPath(result);
       return LogExportResult.success(fileName: fileName);
     } catch (e) {
       return LogExportResult.failure(
@@ -124,8 +129,11 @@ class LogFileService {
 
   /// Import logs from JSON file
   static Future<LogImportResult> importLogs() async {
+    final initialDirectory = await _resolveInitialDirectory();
+
     final result = await FilePicker.platform.pickFiles(
       dialogTitle: 'Import Logcat File',
+      initialDirectory: initialDirectory,
       type: FileType.any,
     );
 
@@ -144,6 +152,8 @@ class LogFileService {
     }
 
     try {
+      await _rememberDialogDirectoryFromPath(filePath);
+
       final file = File(filePath);
       final content = await file.readAsString();
       final decoded = jsonDecode(content);
@@ -213,6 +223,80 @@ class LogFileService {
     final normalized = path.replaceAll('\\', '/');
     final segments = normalized.split('/');
     return segments.isEmpty ? path : segments.last;
+  }
+
+  static Future<String?> _resolveInitialDirectory() async {
+    if (!_supportsInitialDirectory) {
+      return null;
+    }
+
+    final rememberedDirectory = PreferencesService.lastFileDialogDirectory;
+    if (_isUsableInitialDirectory(rememberedDirectory)) {
+      return rememberedDirectory;
+    }
+
+    for (final candidate in _defaultInitialDirectoryCandidates()) {
+      if (_isUsableInitialDirectory(candidate)) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  static Future<void> _rememberDialogDirectoryFromPath(String path) async {
+    final directoryPath = File(path).parent.path;
+    if (!_isUsableInitialDirectory(directoryPath)) {
+      return;
+    }
+
+    await PreferencesService.setLastFileDialogDirectory(directoryPath);
+  }
+
+  static Iterable<String> _defaultInitialDirectoryCandidates() sync* {
+    final homeDirectory = _userHomeDirectory;
+    if (homeDirectory == null || homeDirectory.isEmpty) {
+      return;
+    }
+
+    yield '$homeDirectory${Platform.pathSeparator}Downloads';
+    yield '$homeDirectory${Platform.pathSeparator}Documents';
+    yield homeDirectory;
+  }
+
+  static bool _isUsableInitialDirectory(String? path) {
+    if (path == null || path.isEmpty) {
+      return false;
+    }
+
+    final directory = Directory(path);
+    return directory.isAbsolute && directory.existsSync();
+  }
+
+  static bool get _supportsInitialDirectory =>
+      Platform.isMacOS || Platform.isLinux || Platform.isWindows;
+
+  static String? get _userHomeDirectory {
+    final home = Platform.environment['HOME'];
+    if (home != null && home.isNotEmpty) {
+      return home;
+    }
+
+    final userProfile = Platform.environment['USERPROFILE'];
+    if (userProfile != null && userProfile.isNotEmpty) {
+      return userProfile;
+    }
+
+    final homeDrive = Platform.environment['HOMEDRIVE'];
+    final homePath = Platform.environment['HOMEPATH'];
+    if (homeDrive != null &&
+        homeDrive.isNotEmpty &&
+        homePath != null &&
+        homePath.isNotEmpty) {
+      return '$homeDrive$homePath';
+    }
+
+    return null;
   }
 
   static int _parseInt(dynamic value) {
