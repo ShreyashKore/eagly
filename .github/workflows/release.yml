@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos
+            build-cmd: flutter build macos --release
+            artifact-path: build/macos/Build/Products/Release/*.app
+            package-cmd: |
+              cd build/macos/Build/Products/Release
+              ditto -c -k --sequesterRsrc --keepParent logview.app logview-${VERSION}-macos.zip
+            artifact-name: logview-${VERSION}-macos.zip
+            upload-path: build/macos/Build/Products/Release/logview-*-macos.zip
+          - os: ubuntu-latest
+            platform: linux
+            build-cmd: flutter build linux --release
+            artifact-path: build/linux/x64/release/bundle
+            package-cmd: |
+              cd build/linux/x64/release
+              tar -czf logview-${VERSION}-linux-x64.tar.gz -C bundle .
+            artifact-name: logview-${VERSION}-linux-x64.tar.gz
+            upload-path: build/linux/x64/release/logview-*-linux-x64.tar.gz
+          - os: windows-latest
+            platform: windows
+            build-cmd: flutter build windows --release
+            artifact-path: build/windows/x64/runner/Release
+            package-cmd: |
+              cd build/windows/x64/runner
+              powershell Compress-Archive -Path Release/* -DestinationPath logview-${VERSION}-windows-x64.zip
+            artifact-name: logview-${VERSION}-windows-x64.zip
+            upload-path: build/windows/x64/runner/logview-*-windows-x64.zip
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Read Flutter version from .fvmrc
+        id: fvm
+        shell: bash
+        run: echo "FLUTTER_VERSION=$(cat .fvmrc | python3 -c 'import sys,json;print(json.load(sys.stdin)[\"flutter\"])')" >> "$GITHUB_OUTPUT"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ steps.fvm.outputs.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+
+      - name: Download platform-tools (adb)
+        shell: bash
+        run: bash scripts/download_platform_tools.sh ${{ matrix.platform }}
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build
+        run: ${{ matrix.build-cmd }}
+
+      - name: Package artifact
+        shell: bash
+        run: ${{ matrix.package-cmd }}
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.upload-path }}
+
