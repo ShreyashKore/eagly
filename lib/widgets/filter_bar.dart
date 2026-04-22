@@ -28,9 +28,14 @@ class FilterBar extends StatelessWidget {
             child: TextField(
               controller: controller,
               focusNode: focusNode,
+              style: const TextStyle(fontSize: 14),
               decoration: const InputDecoration(
                 hintText: 'Filter logs...',
-                prefixIcon: Icon(Icons.filter_alt_outlined),
+                prefixIconConstraints: BoxConstraints(
+                  minHeight: 32,
+                  minWidth: 32,
+                ),
+                prefixIcon: Icon(Icons.filter_alt_outlined, size: 20),
               ),
               onChanged: onFilterChanged,
             ),

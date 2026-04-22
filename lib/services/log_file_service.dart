@@ -6,15 +6,9 @@ import 'package:file_picker/file_picker.dart';
 import '../data/device.dart';
 import '../data/log_entry.dart';
 import 'preferences_service.dart';
-import '../utils/log_utils.dart';
-import '../utils/timestamp_utils.dart';
 
 class LogExportResult {
-  const LogExportResult({
-    this.fileName,
-    this.error,
-    this.cancelled = false,
-  });
+  const LogExportResult({this.fileName, this.error, this.cancelled = false});
 
   final String? fileName;
   final String? error;
@@ -68,7 +62,10 @@ class LogImportResult {
 
 class LogFileService {
   /// Export logs to JSON file in Android Studio logcat format
-  static Future<LogExportResult> exportLogs(List<LogEntry> logs, Device? device) async {
+  static Future<LogExportResult> exportLogs(
+    List<LogEntry> logs,
+    Device? device,
+  ) async {
     if (logs.isEmpty) {
       return LogExportResult.failure(error: 'No logs available to export.');
     }
@@ -91,32 +88,20 @@ class LogFileService {
       final exportData = {
         'metadata': {
           'device': device != null
-              ? {
-                  'serialNumber': device.id,
-                  'status': device.status,
-                }
+              ? {'serialNumber': device.id, 'status': device.status}
               : null,
           'exportedAt': DateTime.now().toIso8601String(),
           'totalLogs': logs.length,
         },
         'logcatMessages': logs.map((log) {
-          final timestampObj = TimestampUtils.parseTimestampToSecondsNanos(log.timestamp);
-
-          return {
-            'header': {
-              'logLevel': LogUtils.logLevelName(log.level),
-              'pid': int.tryParse(log.pid) ?? 0,
-              'tid': int.tryParse(log.tid) ?? 0,
-              'tag': log.tag,
-              'timestamp': timestampObj,
-            },
-            'message': log.message,
-          };
+          return log.toExportMap();
         }).toList(),
       };
 
       final file = File(result);
-      await file.writeAsString(const JsonEncoder.withIndent('  ').convert(exportData));
+      await file.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(exportData),
+      );
       await _rememberDialogDirectoryFromPath(result);
       return LogExportResult.success(fileName: fileName);
     } catch (e) {
@@ -137,7 +122,8 @@ class LogFileService {
       type: FileType.any,
     );
 
-    if (result == null || result.files.isEmpty) return LogImportResult.cancelled();
+    if (result == null || result.files.isEmpty)
+      return LogImportResult.cancelled();
 
     final pickedFile = result.files.first;
     final filePath = pickedFile.path;
@@ -147,7 +133,8 @@ class LogFileService {
     if (filePath == null) {
       return LogImportResult.failure(
         fileName: fileName,
-        error: 'Failed to import "$fileName": The selected file could not be accessed.',
+        error:
+            'Failed to import "$fileName": The selected file could not be accessed.',
       );
     }
 
@@ -175,39 +162,14 @@ class LogFileService {
 
       final importedLogs = <LogEntry>[];
       for (final msg in logcatMessages) {
-        if (msg is! Map<String, dynamic>) continue;
-
-        final header = msg['header'] as Map<String, dynamic>?;
-        if (header == null) continue;
-
-        final level = LogUtils.logLevelFromName(header['logLevel']?.toString() ?? 'V');
-        final pid = header['pid']?.toString() ?? '0';
-        final tid = header['tid']?.toString() ?? '0';
-        final tag = header['tag']?.toString() ?? '';
-
-        // Convert timestamp from JSON format
-        String timestamp = '';
-        final timestampData = header['timestamp'];
-        if (timestampData is Map) {
-          // Format: {seconds: 1774431614, nanos: 314000000}
-          final seconds = _parseInt(timestampData['seconds']);
-          final nanos = _parseInt(timestampData['nanos']);
-          timestamp = TimestampUtils.formatTimestamp(seconds, nanos);
-        } else if (timestampData is String) {
-          // Already a string, use as-is
-          timestamp = timestampData;
+        if (msg is! Map<String, dynamic>) {
+          continue; // Skip invalid entries
         }
-
-        final message = msg['message']?.toString() ?? '';
-
-        importedLogs.add(LogEntry(
-          timestamp: timestamp,
-          pid: pid,
-          tid: tid,
-          level: level,
-          tag: tag,
-          message: message,
-        ));
+        final logEntry = LogEntry.fromExportedMap(msg);
+        if (logEntry == null) {
+          continue;
+        }
+        importedLogs.add(logEntry);
       }
 
       return LogImportResult.success(logs: importedLogs, fileName: fileName);
@@ -297,12 +259,6 @@ class LogFileService {
     }
 
     return null;
-  }
-
-  static int _parseInt(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   static String _describeError(Object error) {

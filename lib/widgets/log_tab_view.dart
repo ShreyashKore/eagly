@@ -55,7 +55,8 @@ class _LogTabViewState extends State<LogTabView> {
     final result = await controller.exportLogs();
     if (!mounted || result.cancelled) return;
 
-    final message = result.error ??
+    final message =
+        result.error ??
         (result.fileName == null
             ? 'Logs exported successfully.'
             : 'Logs exported to ${result.fileName}.');
@@ -100,7 +101,8 @@ class _LogTabViewState extends State<LogTabView> {
         _GetStartedActionCard(
           icon: Icons.adb,
           title: 'Select device / Load devices',
-          subtitle: 'Discover connected devices and open a live logcat session.',
+          subtitle:
+              'Discover connected devices and open a live logcat session.',
           onTap: () => _handleLoadDevices(openPickerWhenNeeded: compact),
         ),
         _GetStartedActionCard(
@@ -208,7 +210,8 @@ class _LogTabViewState extends State<LogTabView> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            theme.colorScheme.primary.withValues(alpha: 0.06),
+            theme.colorScheme.surface,
+            theme.colorScheme.primaryContainer,
             theme.colorScheme.surface,
           ],
           begin: Alignment.topCenter,
@@ -247,16 +250,23 @@ class _LogTabViewState extends State<LogTabView> {
                 ),
               ),
               const Gap(12),
-              ...controller.devices.map(
-                (device) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _AvailableDeviceCard(
-                    device: device,
-                    onSelected: () => _selectDevice(device),
-                  ),
+              SingleChildScrollView(
+                child: Column(
+                  children: controller.devices
+                      .map(
+                        (device) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _AvailableDeviceCard(
+                            device: device,
+                            onSelected: () => _selectDevice(device),
+                          ),
+                        ),
+                      )
+                      .toList(),
                 ),
               ),
-            ] else if (controller.hasAttemptedDeviceLoad && !controller.isLoadingDevices) ...[
+            ] else if (controller.hasAttemptedDeviceLoad &&
+                !controller.isLoadingDevices) ...[
               const Gap(28),
               Container(
                 width: double.infinity,
@@ -273,13 +283,10 @@ class _LogTabViewState extends State<LogTabView> {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                     const Gap(10),
-                    Text(
-                      'No devices found',
-                      style: theme.textTheme.titleSmall,
-                    ),
+                    Text('No devices found', style: theme.textTheme.titleSmall),
                     const Gap(6),
                     Text(
-                      'Connect an Android device with ADB enabled, then load devices again.',
+                      'Connect an Android device with ADB enabled.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -332,43 +339,55 @@ class _LogTabViewState extends State<LogTabView> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
       child: Row(
+        spacing: 4,
         children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              child: DropdownButton<Device>(
-                key: _dropdownButtonKey,
-                hint: const Text('Select Device'),
-                value: selectedValue,
-                underline: const SizedBox.shrink(),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                isDense: true,
-                items: controller.devices
-                    .map(
-                      (device) => DropdownMenuItem(
-                        value: device,
-                        child: Text('${device.displayName} · ${device.status}'),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (device) {
-                  if (device != null) {
-                    _selectDevice(device);
-                  }
-                },
-              ),
-            ),
-          ),
-          const Gap(8),
           if (controller.devices.isNotEmpty)
-            IconButton(
-              tooltip: 'Reload devices',
-              onPressed: _handleLoadDevices,
-              icon: const Icon(Icons.refresh),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                child: Row(
+                  children: [
+                    DropdownButton<Device>(
+                      key: _dropdownButtonKey,
+                      hint: const Text('Select Device'),
+                      value: selectedValue,
+                      underline: const SizedBox.shrink(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 4,
+                      ),
+                      isDense: true,
+                      items: controller.devices
+                          .map(
+                            (device) => DropdownMenuItem(
+                              value: device,
+                              child: Text(
+                                '${device.displayName} · ${device.status}',
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (device) {
+                        if (device != null) {
+                          _selectDevice(device);
+                        }
+                      },
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.all(0),
+                      tooltip: 'Reload devices',
+                      onPressed: _handleLoadDevices,
+                      icon: const Icon(Icons.refresh),
+                      iconSize: 20,
+                    ),
+                  ],
+                ),
+              ),
             )
           else
             FilledButton.tonalIcon(
@@ -381,28 +400,33 @@ class _LogTabViewState extends State<LogTabView> {
             icon: Icon(
               Icons.play_arrow,
               color: controller.selectedDevice != null
-                    ? logTheme.statusLiveColor
-                    : theme.colorScheme.onSurfaceVariant,
+                  ? logTheme.statusLiveColor
+                  : theme.colorScheme.onSurfaceVariant,
             ),
             tooltip: controller.isRunning ? 'Restart' : 'Start',
-            onPressed:
-                controller.selectedDevice == null ? null : controller.startLogcat,
+            onPressed: controller.selectedDevice == null
+                ? null
+                : controller.startLogcat,
           ),
           IconButton(
             icon: Icon(
               controller.isPaused ? Icons.play_arrow : Icons.pause,
-                color: controller.isRunning
-                    ? logTheme.statusPausedColor
-                    : theme.colorScheme.onSurfaceVariant,
+              color: controller.isRunning
+                  ? logTheme.statusPausedColor
+                  : theme.colorScheme.onSurfaceVariant,
             ),
             tooltip: controller.isRunning
                 ? (controller.isPaused ? 'Resume' : 'Pause')
                 : 'Not running',
-            onPressed: controller.isRunning ? controller.togglePauseResume : null,
+            onPressed: controller.isRunning
+                ? controller.togglePauseResume
+                : null,
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline),
-            tooltip: controller.logs.isNotEmpty ? 'Clear logs' : 'No logs to clear',
+            tooltip: controller.logs.isNotEmpty
+                ? 'Clear logs'
+                : 'No logs to clear',
             onPressed: controller.logs.isNotEmpty ? controller.clearLogs : null,
           ),
           IconButton(
@@ -433,6 +457,7 @@ class _LogTabViewState extends State<LogTabView> {
             onToggleAutoScroll: controller.toggleAutoScroll,
             viewMode: controller.viewMode,
             onCycleViewMode: controller.cycleViewMode,
+            openSettings: widget.onOpenSettings,
           ),
         ],
       ),
@@ -494,17 +519,21 @@ class _LogTabViewState extends State<LogTabView> {
               onPrevious: controller.onSearchPrev,
               onClose: controller.toggleSearchBar,
               totalMatches: matches.length,
-              currentMatch: matches.isEmpty ? 0 : controller.searchCurrentMatch + 1,
+              currentMatch: matches.isEmpty
+                  ? 0
+                  : controller.searchCurrentMatch + 1,
             ),
           ),
         ListenableBuilder(
           listenable: controller.scrollController,
           builder: (context, child) {
             return ScrollToEndButton(
-              visible: controller.logs.isNotEmpty &&
+              visible:
+                  controller.logs.isNotEmpty &&
                   controller.scrollController.hasClients &&
                   controller.scrollController.offset <
-                      (controller.scrollController.position.maxScrollExtent - 24),
+                      (controller.scrollController.position.maxScrollExtent -
+                          24),
               onPressed: controller.scrollToEnd,
             );
           },
@@ -537,13 +566,16 @@ class _LogTabViewState extends State<LogTabView> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          Text('Logs: ${controller.logs.length}', style: logTheme.statusBarStyle),
+          Text(
+            'Logs: ${controller.logs.length}',
+            style: logTheme.statusBarStyle,
+          ),
           const Gap(16),
           Text(
             'Filtered: ${controller.filteredLogs.length}',
             style: logTheme.statusBarStyle,
           ),
-          const Gap(16),
+          const Spacer(),
           Text(
             'App mem: ${controller.formatBytes(widget.appMemoryBytesListenable.value)}',
             style: logTheme.statusBarStyle,
@@ -553,9 +585,18 @@ class _LogTabViewState extends State<LogTabView> {
             'Logs mem: ${controller.formatBytes(controller.totalLogsMemoryBytes)}',
             style: logTheme.statusBarStyle,
           ),
-          const Gap(16),
+          const Gap(8),
           _buildLogLinesEditor(context),
-          const Spacer(),
+          const Gap(8),
+          SizedBox(
+            height: 18,
+            child: VerticalDivider(
+              width: 2,
+              thickness: 2,
+              radius: BorderRadius.circular(2),
+            ),
+          ),
+          const Gap(8),
           Text(
             controller.isPaused
                 ? 'Paused'
@@ -578,13 +619,12 @@ class _LogTabViewState extends State<LogTabView> {
 
   Widget _buildLogLinesEditor(BuildContext context) {
     return Container(
-      width: controller.editingLogLinesLimit ? 210 : null,
-      height: 28,
+      height: 24,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: controller.editingLogLinesLimit
           ? null
           : BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              color: Colors.pink,
               borderRadius: BorderRadius.circular(4),
             ),
       child: !controller.editingLogLinesLimit
@@ -609,26 +649,31 @@ class _LogTabViewState extends State<LogTabView> {
               children: [
                 IntrinsicWidth(
                   child: TextField(
-                    onTapOutside: (_) => controller.setEditingLogLinesLimit(false),
+                    onTapOutside: (_) =>
+                        controller.setEditingLogLinesLimit(false),
                     controller: controller.logLinesController,
                     autofocus: true,
                     keyboardType: TextInputType.number,
                     style: const TextStyle(fontSize: 13),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                      contentPadding: EdgeInsets.symmetric(
+                        vertical: 4,
+                        horizontal: 4,
+                      ),
                       prefixText: 'Max lines: ',
                       border: OutlineInputBorder(),
+                      suffix: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        onPressed: controller.submitLogLinesLimit,
+                        icon: const Icon(Icons.check, size: 14),
+                      ),
                     ),
                     onSubmitted: controller.submitLogLinesLimit,
-                    onEditingComplete: () => controller.setEditingLogLinesLimit(false),
+                    onEditingComplete: () =>
+                        controller.setEditingLogLinesLimit(false),
                   ),
-                ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  onPressed: controller.submitLogLinesLimit,
-                  icon: const Icon(Icons.check, size: 14),
                 ),
               ],
             ),
@@ -772,7 +817,11 @@ class _CenteredStateMessage extends StatelessWidget {
           children: [
             Icon(icon, size: 36, color: theme.colorScheme.primary),
             const Gap(16),
-            Text(title, style: theme.textTheme.titleLarge, textAlign: TextAlign.center),
+            Text(
+              title,
+              style: theme.textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
             const Gap(8),
             Text(
               description,
@@ -781,14 +830,10 @@ class _CenteredStateMessage extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
-            if (footer != null) ...[
-              const Gap(20),
-              footer!,
-            ],
+            if (footer != null) ...[const Gap(20), footer!],
           ],
         ),
       ),
     );
   }
 }
-

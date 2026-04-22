@@ -1,33 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-enum AppThemePreference {
-  auto,
-  light,
-  dark;
-
-  ThemeMode get themeMode => switch (this) {
-    AppThemePreference.auto => ThemeMode.system,
-    AppThemePreference.light => ThemeMode.light,
-    AppThemePreference.dark => ThemeMode.dark,
-  };
-
+extension ThemeModeExt on ThemeMode {
   String get label => switch (this) {
-    AppThemePreference.auto => 'Auto',
-    AppThemePreference.light => 'Light',
-    AppThemePreference.dark => 'Dark',
+    ThemeMode.system => 'Auto',
+    ThemeMode.light => 'Light',
+    ThemeMode.dark => 'Dark',
   };
 
   String get description => switch (this) {
-    AppThemePreference.auto => 'Follow the operating system appearance.',
-    AppThemePreference.light => 'Always use the light appearance.',
-    AppThemePreference.dark => 'Always use the dark appearance.',
-  };
-
-  static AppThemePreference fromThemeMode(ThemeMode mode) => switch (mode) {
-    ThemeMode.system => AppThemePreference.auto,
-    ThemeMode.light => AppThemePreference.light,
-    ThemeMode.dark => AppThemePreference.dark,
+    ThemeMode.system => 'Follow the operating system appearance.',
+    ThemeMode.light => 'Always use the light appearance.',
+    ThemeMode.dark => 'Always use the dark appearance.',
   };
 }
 
@@ -130,7 +114,8 @@ class LogViewTheme extends ThemeExtension<LogViewTheme> {
       searchMatchColor: searchMatchColor ?? this.searchMatchColor,
       searchCurrentMatchColor:
           searchCurrentMatchColor ?? this.searchCurrentMatchColor,
-      searchCurrentRowColor: searchCurrentRowColor ?? this.searchCurrentRowColor,
+      searchCurrentRowColor:
+          searchCurrentRowColor ?? this.searchCurrentRowColor,
       searchHighlightForeground:
           searchHighlightForeground ?? this.searchHighlightForeground,
       searchNoResultsFillColor:
@@ -173,7 +158,11 @@ class LogViewTheme extends ThemeExtension<LogViewTheme> {
         other.logBadgeForeground,
         t,
       )!,
-      searchMatchColor: Color.lerp(searchMatchColor, other.searchMatchColor, t)!,
+      searchMatchColor: Color.lerp(
+        searchMatchColor,
+        other.searchMatchColor,
+        t,
+      )!,
       searchCurrentMatchColor: Color.lerp(
         searchCurrentMatchColor,
         other.searchCurrentMatchColor,
@@ -242,19 +231,30 @@ class AppTheme {
     _themeTokens(_darkColorScheme),
   );
 
-  static final ColorScheme _lightColorScheme = ColorScheme.fromSeed(
-    seedColor: seedColor,
-    brightness: Brightness.light,
-  );
+  static final ColorScheme _lightColorScheme = () {
+    final seeded = ColorScheme.fromSeed(
+      seedColor: seedColor,
+      brightness: Brightness.light,
+    );
+    return seeded.copyWith(
+      onSurfaceVariant: seeded.onSurface.withValues(alpha: .65),
+    );
+  }();
 
-  static final ColorScheme _darkColorScheme = ColorScheme.fromSeed(
-    seedColor: seedColor,
-    brightness: Brightness.dark,
-  );
+  static final ColorScheme _darkColorScheme = () {
+    final seeded = ColorScheme.fromSeed(
+      seedColor: seedColor,
+      brightness: Brightness.dark,
+    );
+    return seeded.copyWith(
+      onSurfaceVariant: seeded.onSurface.withValues(alpha: .75),
+    );
+  }();
 
   static ThemeData _buildTheme(ColorScheme colorScheme, LogViewTheme tokens) {
     final baseTheme = ThemeData(
       useMaterial3: true,
+      visualDensity: VisualDensity.compact,
       colorScheme: colorScheme,
       brightness: colorScheme.brightness,
     );
@@ -274,7 +274,7 @@ class AppTheme {
       scaffoldBackgroundColor: colorScheme.surfaceContainerLowest,
       textTheme: textTheme,
       dividerTheme: DividerThemeData(
-        color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+        color: colorScheme.outlineVariant,
         thickness: 1,
         space: 1,
       ),
@@ -320,22 +320,20 @@ class AppTheme {
       ),
       textSelectionTheme: TextSelectionThemeData(
         cursorColor: colorScheme.primary,
-        selectionColor: colorScheme.primary.withValues(alpha: 0.24),
+        selectionColor: colorScheme.primary.withValues(alpha: 0.4),
         selectionHandleColor: colorScheme.primary,
       ),
+      listTileTheme: ListTileThemeData(dense: true),
       inputDecorationTheme: InputDecorationTheme(
         isDense: true,
         filled: true,
         fillColor: colorScheme.surfaceContainerHighest.withValues(
-          alpha: colorScheme.brightness == Brightness.dark ? 0.26 : 0.72,
+          alpha: colorScheme.brightness == Brightness.dark ? 0.3 : 0.72,
         ),
         hintStyle: textTheme.bodyMedium?.copyWith(
           color: colorScheme.onSurfaceVariant,
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 10,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         border: inputBorder,
         enabledBorder: inputBorder,
         disabledBorder: inputBorder.copyWith(
@@ -381,9 +379,14 @@ class AppTheme {
           ),
         ),
       ),
+      // iconTheme: IconThemeData(size: 20),
       iconButtonTheme: IconButtonThemeData(
         style: ButtonStyle(
           mouseCursor: cursorStyle,
+          iconSize: WidgetStatePropertyAll(18),
+          minimumSize: WidgetStatePropertyAll(const Size(24, 24)),
+          maximumSize: WidgetStatePropertyAll(const Size(32, 32)),
+          padding: WidgetStatePropertyAll(const EdgeInsets.all(6)),
           shape: WidgetStatePropertyAll(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
@@ -408,8 +411,8 @@ class AppTheme {
       warningColor: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
       errorColor: isDark ? const Color(0xFFFCA5A5) : colorScheme.error,
       logBadgeForeground: isDark
-          ? const Color(0xFF0F172A)
-          : const Color(0xFF111827),
+          ? const Color(0xFF1E1F21)
+          : const Color(0xFFDCE2F3),
       searchMatchColor: isDark
           ? const Color(0xFFFDE68A)
           : const Color(0xFFFDE68A),
@@ -430,12 +433,8 @@ class AppTheme {
       statusPausedColor: isDark
           ? const Color(0xFFFBBF24)
           : const Color(0xFFB45309),
-      statusStoppedColor: isDark
-          ? const Color(0xFFF87171)
-          : colorScheme.error,
+      statusStoppedColor: isDark ? const Color(0xFFF87171) : colorScheme.error,
       cardShadowColor: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04),
     );
   }
 }
-
-

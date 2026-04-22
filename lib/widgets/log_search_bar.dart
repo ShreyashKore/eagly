@@ -114,7 +114,7 @@ class _LogSearchBarState extends State<LogSearchBar> {
                   hintText: 'Search in logs...',
                   isDense: true,
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
                   filled: noResults,
                   fillColor: noResults
                       ? logTheme.searchNoResultsFillColor

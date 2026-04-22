@@ -118,7 +118,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _isAdjustingNewTabActionPosition = true;
     try {
-      _tabsController.reorderTab(newTabActionIndex, _tabsController.tabs.length);
+      _tabsController.reorderTab(
+        newTabActionIndex,
+        _tabsController.tabs.length,
+      );
     } finally {
       _isAdjustingNewTabActionPosition = false;
     }
@@ -212,7 +215,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onTabRemoved(TabData tab) {
-    debugPrint('Tab Removed 0 ${tab.id}');
     if (_isNewTabAction(tab)) {
       _ensureNewTabActionPresent();
       return;
@@ -220,10 +222,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final workspaceTab = _workspaceTabs.remove(tab.id);
     workspaceTab?.dispose();
-    debugPrint('Tab Removed 1 $_workspaceTabs');
 
     if (_workspaceTabCount == 0) {
-      debugPrint('Tab Removed 2');
       _clearNewTabActionSelectionIfNeeded();
     }
 
@@ -273,7 +273,11 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       applicationName: 'ADB Logcat',
       applicationVersion: AppInfoService.appVersion,
-      applicationIcon: Icon(Icons.developer_board),
+      applicationIcon: Icon(
+        Icons.developer_board,
+        size: 44,
+        color: Theme.of(context).colorScheme.primary,
+      ),
       children: const [Text('Desktop log viewer for ADB logcat output.')],
     );
   }
@@ -300,7 +304,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final result = await controller.exportLogs();
     if (!mounted || result.cancelled) return;
 
-    final message = result.error ??
+    final message =
+        result.error ??
         (result.fileName == null
             ? 'Logs exported successfully.'
             : 'Logs exported to ${result.fileName}.');

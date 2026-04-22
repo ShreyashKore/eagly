@@ -11,6 +11,7 @@ class ActionToolbar extends StatelessWidget {
   final VoidCallback? onToggleAutoScroll;
   final LogViewMode viewMode;
   final VoidCallback? onCycleViewMode;
+  final VoidCallback? openSettings;
 
   const ActionToolbar({
     super.key,
@@ -22,6 +23,7 @@ class ActionToolbar extends StatelessWidget {
     required this.onToggleAutoScroll,
     required this.viewMode,
     required this.onCycleViewMode,
+    required this.openSettings,
   });
 
   IconData _getViewModeIcon() {
@@ -51,6 +53,7 @@ class ActionToolbar extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Row(
+      spacing: 4,
       children: [
         IconButton(
           onPressed: onImport,
@@ -69,14 +72,21 @@ class ActionToolbar extends StatelessWidget {
         ),
         IconButton(
           onPressed: onToggleAutoScroll,
-          icon: Icon(autoScroll ? Icons.vertical_align_bottom : Icons.swipe_down),
+          icon: Icon(
+            autoScroll ? Icons.vertical_align_bottom : Icons.swipe_down,
+          ),
           tooltip: autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF',
           color: autoScroll ? colorScheme.primary : null,
         ),
+        // IconButton(
+        //   onPressed: onCycleViewMode,
+        //   icon: Icon(_getViewModeIcon()),
+        //   tooltip: _getViewModeTooltip(),
+        // ),
         IconButton(
           onPressed: onCycleViewMode,
-          icon: Icon(_getViewModeIcon()),
-          tooltip: _getViewModeTooltip(),
+          icon: Icon(Icons.settings_rounded),
+          tooltip: 'View settings',
         ),
       ],
     );

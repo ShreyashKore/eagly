@@ -8,14 +8,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:logview/data/log_column.dart';
 import 'package:logview/data/log_entry.dart';
 import 'package:logview/services/preferences_service.dart';
 import 'package:logview/settings_screen.dart';
 import 'package:logview/theme/app_theme.dart';
 import 'package:logview/widgets/log_viewer.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   setUpAll(() async {
@@ -60,7 +59,7 @@ void main() {
                   ],
               scrollController: ScrollController(),
               wrapText: wrapText,
-                      columnWidths: columnWidths,
+              columnWidths: columnWidths,
             ),
           ),
         ),
@@ -99,7 +98,7 @@ void main() {
 
     expect(find.text('Dark'), findsOneWidget);
 
-    await tester.tap(find.byType(DropdownButtonFormField<AppThemePreference>).first);
+    await tester.tap(find.byType(DropdownButtonFormField<ThemeMode>).first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Auto').last);
     await tester.pumpAndSettle();
