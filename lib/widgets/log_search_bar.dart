@@ -92,10 +92,7 @@ class _LogSearchBarState extends State<LogSearchBar> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: theme.colorScheme.outlineVariant,
-            width: 1,
-          ),
+          border: Border.all(color: theme.colorScheme.outlineVariant, width: 1),
         ),
         child: Row(
           children: [
@@ -109,6 +106,12 @@ class _LogSearchBarState extends State<LogSearchBar> {
               child: TextField(
                 controller: widget.controller,
                 focusNode: _focusNode,
+                textInputAction: TextInputAction.search,
+                // Prevent the default onEditingComplete behavior which can
+                // remove focus (especially on some platforms). We'll handle
+                // submission explicitly in onSubmitted and then re-request
+                // focus so the user can keep pressing Enter to navigate.
+                onEditingComplete: () {},
                 style: theme.textTheme.bodySmall,
                 decoration: InputDecoration(
                   hintText: 'Search in logs...',
@@ -121,7 +124,17 @@ class _LogSearchBarState extends State<LogSearchBar> {
                       : null,
                 ),
                 onChanged: widget.onQueryChanged,
-                onSubmitted: (_) => widget.onNext(),
+                onSubmitted: (_) {
+                  widget.onNext();
+                  // Re-request focus after the submission so the TextField
+                  // doesn't lose focus and users can continue pressing
+                  // Enter to go to the next match.
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      _focusNode.requestFocus();
+                    }
+                  });
+                },
               ),
             ),
 
@@ -146,8 +159,7 @@ class _LogSearchBarState extends State<LogSearchBar> {
 
             // Case-sensitive toggle (Aa)
             Tooltip(
-              message:
-                  'Match case (${widget.caseSensitive ? "on" : "off"})',
+              message: 'Match case (${widget.caseSensitive ? "on" : "off"})',
               child: GestureDetector(
                 onTap: () =>
                     widget.onCaseSensitiveChanged(!widget.caseSensitive),
@@ -166,9 +178,7 @@ class _LogSearchBarState extends State<LogSearchBar> {
                               width: 1,
                             ),
                           )
-                        : BoxDecoration(
-                            borderRadius: BorderRadius.circular(4),
-                          ),
+                        : BoxDecoration(borderRadius: BorderRadius.circular(4)),
                     alignment: Alignment.center,
                     child: Text(
                       'Aa',
@@ -189,10 +199,8 @@ class _LogSearchBarState extends State<LogSearchBar> {
             IconButton(
               iconSize: 16,
               padding: EdgeInsets.zero,
-              constraints:
-                  const BoxConstraints(minWidth: 28, minHeight: 28),
-              onPressed:
-                  widget.totalMatches > 0 ? widget.onPrevious : null,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              onPressed: widget.totalMatches > 0 ? widget.onPrevious : null,
               icon: const Icon(Icons.keyboard_arrow_up),
               tooltip: 'Previous match',
             ),
@@ -201,8 +209,7 @@ class _LogSearchBarState extends State<LogSearchBar> {
             IconButton(
               iconSize: 16,
               padding: EdgeInsets.zero,
-              constraints:
-                  const BoxConstraints(minWidth: 28, minHeight: 28),
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
               onPressed: widget.totalMatches > 0 ? widget.onNext : null,
               icon: const Icon(Icons.keyboard_arrow_down),
               tooltip: 'Next match',
@@ -212,8 +219,7 @@ class _LogSearchBarState extends State<LogSearchBar> {
             IconButton(
               iconSize: 16,
               padding: EdgeInsets.zero,
-              constraints:
-                  const BoxConstraints(minWidth: 28, minHeight: 28),
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
               onPressed: widget.onClose,
               icon: const Icon(Icons.close),
               tooltip: 'Close search (Esc)',

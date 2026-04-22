@@ -2,7 +2,7 @@ enum LogColumn {
   timestamp('Timestamp', 170.0, 250.0),
   pid('PID/Package', 130.0, 200.0),
   tid('TID', 60.0, 100.0),
-  level('Level', 35.0, 60.0),
+  level('Level', 35.0, 100.0),
   tag('Tag', 150.0, 300.0),
   message('Message', 0.0, 0.0); // expands to fill remaining space
 

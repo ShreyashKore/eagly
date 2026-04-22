@@ -340,16 +340,15 @@ class _LogTabViewState extends State<LogTabView> {
                       underline: const SizedBox.shrink(),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 6,
-                        vertical: 4,
+                        vertical: 0,
                       ),
                       isDense: true,
+                      borderRadius: BorderRadius.circular(8),
                       items: controller.devices
                           .map(
                             (device) => DropdownMenuItem(
                               value: device,
-                              child: Text(
-                                '${device.displayName} · ${device.status}',
-                              ),
+                              child: Text('${device.id} · ${device.model}'),
                             ),
                           )
                           .toList(),

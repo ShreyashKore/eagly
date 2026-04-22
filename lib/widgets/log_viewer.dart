@@ -370,9 +370,9 @@ class _LogViewerState extends State<LogViewer> {
                 value: visible,
                 title: Text(
                   col.label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 12,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontSize: 12),
                 ),
                 visualDensity: VisualDensity.compact,
                 contentPadding: EdgeInsets.zero,
