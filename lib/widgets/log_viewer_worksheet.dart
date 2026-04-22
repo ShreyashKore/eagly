@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../data/log_entry.dart';
-import '../utils/log_utils.dart';
+import '../theme/app_theme.dart';
 
 class LogViewerWorksheet extends StatelessWidget {
   const LogViewerWorksheet({
@@ -18,11 +17,9 @@ class LogViewerWorksheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final headerStyle = GoogleFonts.notoSansMono(
-      fontSize: 12,
-      fontWeight: FontWeight.bold,
-    );
-    final rowStyle = GoogleFonts.notoSansMono(fontSize: 11, height: 1.2);
+    final logTheme = context.logViewTheme;
+    final headerStyle = logTheme.logHeaderStyle;
+    final rowStyle = logTheme.logCompactStyle;
 
     return SelectionArea(
       child: Column(
@@ -53,7 +50,7 @@ class LogViewerWorksheet extends StatelessWidget {
               ),
               itemBuilder: (context, index) {
                 final log = logs[index];
-                final levelColor = LogUtils.colorForLevel(log.level);
+                final levelColor = logTheme.logLevelColor(log.level);
                 final displayId = log.packageName ?? log.pid;
 
                 return InkWell(
@@ -88,7 +85,7 @@ class LogViewerWorksheet extends StatelessWidget {
                               child: Text(
                                 log.level,
                                 style: rowStyle.copyWith(
-                                  color: Colors.black,
+                                  color: logTheme.logBadgeForeground,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),

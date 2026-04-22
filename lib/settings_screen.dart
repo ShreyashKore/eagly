@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'data/log_view_mode.dart';
 import 'services/app_info_service.dart';
 import 'services/preferences_service.dart';
+import 'theme/app_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -12,6 +13,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  late AppThemePreference _themePreference;
   late bool _wrapText;
   late bool _autoScroll;
   late String _selectedLogLevel;
@@ -21,6 +23,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _themePreference = AppThemePreference.fromThemeMode(
+      PreferencesService.themeMode,
+    );
     _wrapText = PreferencesService.wrapText;
     _autoScroll = PreferencesService.autoScroll;
     _selectedLogLevel = PreferencesService.selectedLogLevel;
@@ -93,6 +98,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Text('Appearance', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            'Switch between auto, light, and dark theme modes. New installs default to dark mode.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              title: const Text('Theme mode'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<AppThemePreference>(
+                    initialValue: _themePreference,
+                    isExpanded: true,
+                    items: AppThemePreference.values
+                        .map(
+                          (preference) => DropdownMenuItem(
+                            value: preference,
+                            child: Text(preference.label),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() => _themePreference = value);
+                      PreferencesService.themeMode = value.themeMode;
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _themePreference.description,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Text(
             'Defaults for new tabs',
             style: Theme.of(context).textTheme.titleMedium,

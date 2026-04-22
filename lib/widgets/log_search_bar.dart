@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/app_theme.dart';
+
 /// Floating search bar for searching within filtered log content.
 ///
 /// Supports:
@@ -79,6 +81,7 @@ class _LogSearchBarState extends State<LogSearchBar> {
     final hasQuery = widget.controller.text.isNotEmpty;
     final noResults = hasQuery && widget.totalMatches == 0;
     final theme = Theme.of(context);
+    final logTheme = context.logViewTheme;
 
     return Material(
       elevation: 8,
@@ -96,20 +99,26 @@ class _LogSearchBarState extends State<LogSearchBar> {
         ),
         child: Row(
           children: [
-            Icon(Icons.search, size: 16, color: Colors.grey[500]),
+            Icon(
+              Icons.search,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(width: 6),
             Expanded(
               child: TextField(
                 controller: widget.controller,
                 focusNode: _focusNode,
-                style: const TextStyle(fontSize: 13),
+                style: theme.textTheme.bodySmall,
                 decoration: InputDecoration(
                   hintText: 'Search in logs...',
                   isDense: true,
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 6),
                   filled: noResults,
-                  fillColor: noResults ? Colors.red[50] : null,
+                  fillColor: noResults
+                      ? logTheme.searchNoResultsFillColor
+                      : null,
                 ),
                 onChanged: widget.onQueryChanged,
                 onSubmitted: (_) => widget.onNext(),
@@ -127,8 +136,8 @@ class _LogSearchBarState extends State<LogSearchBar> {
                   style: TextStyle(
                     fontSize: 12,
                     color: widget.totalMatches == 0
-                        ? Colors.red[700]
-                        : Colors.grey[600],
+                        ? logTheme.searchNoResultsTextColor
+                        : theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -168,7 +177,7 @@ class _LogSearchBarState extends State<LogSearchBar> {
                         fontWeight: FontWeight.bold,
                         color: widget.caseSensitive
                             ? theme.colorScheme.primary
-                            : Colors.grey[600],
+                            : theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),

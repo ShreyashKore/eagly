@@ -8,15 +8,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:logview/data/log_column.dart';
 import 'package:logview/data/log_entry.dart';
+import 'package:logview/services/preferences_service.dart';
+import 'package:logview/settings_screen.dart';
+import 'package:logview/theme/app_theme.dart';
 import 'package:logview/widgets/log_viewer.dart';
 
 void main() {
-  setUpAll(() {
+  setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     GoogleFonts.config.allowRuntimeFetching = false;
+    SharedPreferences.setMockInitialValues({});
+    await PreferencesService.init();
+  });
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await PreferencesService.init();
   });
 
   Future<void> pumpLogViewer(
@@ -27,6 +38,9 @@ void main() {
   }) async {
     await tester.pumpWidget(
       MaterialApp(
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeMode.dark,
         home: Scaffold(
           body: SizedBox(
             width: 900,
@@ -65,6 +79,34 @@ void main() {
         )
         .map((box) => box.width);
   }
+
+  test('theme mode defaults to dark when no preference is stored', () {
+    expect(PreferencesService.themeMode, ThemeMode.dark);
+    expect(PreferencesService.themeModeListenable.value, ThemeMode.dark);
+  });
+
+  testWidgets('settings screen persists theme mode changes', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: PreferencesService.themeMode,
+        home: const SettingsScreen(),
+      ),
+    );
+
+    expect(find.text('Dark'), findsOneWidget);
+
+    await tester.tap(find.byType(DropdownButtonFormField<AppThemePreference>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Auto').last);
+    await tester.pumpAndSettle();
+
+    expect(PreferencesService.themeMode, ThemeMode.system);
+    expect(PreferencesService.themeModeListenable.value, ThemeMode.system);
+  });
 
   testWidgets('uses 4000px minimum width when wrapText is disabled', (
     WidgetTester tester,

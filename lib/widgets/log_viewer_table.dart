@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:data_table_2/data_table_2.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../data/log_entry.dart';
-import '../utils/log_utils.dart';
+import '../theme/app_theme.dart';
 
 /// Table-based log viewer using DataTable2 widget
 ///
@@ -36,6 +35,8 @@ class LogViewerTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final logTheme = context.logViewTheme;
+
     return SelectionArea(
       child: DataTable2(
         columnSpacing: 12,
@@ -43,14 +44,8 @@ class LogViewerTable extends StatelessWidget {
         minWidth: 1200,
         headingRowHeight: 40,
         dataRowHeight: 24,
-        headingTextStyle: GoogleFonts.notoSansMono(
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
-        dataTextStyle: GoogleFonts.notoSansMono(
-          fontSize: 11,
-          height: 1.2,
-        ),
+        headingTextStyle: logTheme.logHeaderStyle,
+        dataTextStyle: logTheme.logCompactStyle,
         columns: const [
           DataColumn2(
             label: Text('Timestamp'),
@@ -80,7 +75,7 @@ class LogViewerTable extends StatelessWidget {
         ],
         rows: logs.map((log) {
           final displayId = log.packageName ?? log.pid;
-          final levelColor = LogUtils.colorForLevel(log.level);
+          final levelColor = logTheme.logLevelColor(log.level);
 
           return DataRow2(
             onTap: onLogRowTap,
@@ -112,8 +107,8 @@ class LogViewerTable extends StatelessWidget {
                   ),
                   child: Text(
                     log.level,
-                    style: const TextStyle(
-                      color: Colors.black,
+                    style: TextStyle(
+                      color: logTheme.logBadgeForeground,
                       fontWeight: FontWeight.bold,
                     ),
                   ),

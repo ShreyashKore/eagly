@@ -7,6 +7,7 @@ import '../controllers/log_tab_controller.dart';
 import '../data/device.dart';
 import '../data/log_entry.dart';
 import '../data/log_view_mode.dart';
+import '../theme/app_theme.dart';
 import 'action_toolbar.dart';
 import 'filter_bar.dart';
 import 'log_search_bar.dart';
@@ -180,9 +181,11 @@ class _LogTabViewState extends State<LogTabView> {
         widget.appMemoryBytesListenable,
       ]),
       builder: (context, _) {
+        final theme = Theme.of(context);
+
         return DecoratedBox(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(14),
           ),
           child: ClipRRect(
@@ -320,6 +323,8 @@ class _LogTabViewState extends State<LogTabView> {
   }
 
   Widget _buildToolbar(BuildContext context) {
+    final theme = Theme.of(context);
+    final logTheme = context.logViewTheme;
     final selectedValue = controller.devices.firstWhereOrNull(
       (device) => device.id == controller.selectedDevice?.id,
     );
@@ -376,8 +381,8 @@ class _LogTabViewState extends State<LogTabView> {
             icon: Icon(
               Icons.play_arrow,
               color: controller.selectedDevice != null
-                  ? Colors.green
-                  : Colors.grey,
+                    ? logTheme.statusLiveColor
+                    : theme.colorScheme.onSurfaceVariant,
             ),
             tooltip: controller.isRunning ? 'Restart' : 'Start',
             onPressed:
@@ -386,7 +391,9 @@ class _LogTabViewState extends State<LogTabView> {
           IconButton(
             icon: Icon(
               controller.isPaused ? Icons.play_arrow : Icons.pause,
-              color: controller.isRunning ? Colors.orange : Colors.grey,
+                color: controller.isRunning
+                    ? logTheme.statusPausedColor
+                    : theme.colorScheme.onSurfaceVariant,
             ),
             tooltip: controller.isRunning
                 ? (controller.isPaused ? 'Resume' : 'Pause')
@@ -455,14 +462,17 @@ class _LogTabViewState extends State<LogTabView> {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Material(
-                color: Colors.yellow[100],
+                color: context.logViewTheme.inlineNoticeBackground,
                 borderRadius: BorderRadius.circular(8),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Text(
                     'No logs match your filter, but logs are being generated.',
                     style: TextStyle(
-                      color: Colors.black87,
+                      color: context.logViewTheme.inlineNoticeForeground,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -519,27 +529,29 @@ class _LogTabViewState extends State<LogTabView> {
   }
 
   Widget _buildStatusBar(BuildContext context) {
+    final logTheme = context.logViewTheme;
+
     return Container(
       width: double.infinity,
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          Text('Logs: ${controller.logs.length}', style: const TextStyle(fontSize: 13)),
+          Text('Logs: ${controller.logs.length}', style: logTheme.statusBarStyle),
           const Gap(16),
           Text(
             'Filtered: ${controller.filteredLogs.length}',
-            style: const TextStyle(fontSize: 13),
+            style: logTheme.statusBarStyle,
           ),
           const Gap(16),
           Text(
             'App mem: ${controller.formatBytes(widget.appMemoryBytesListenable.value)}',
-            style: const TextStyle(fontSize: 13),
+            style: logTheme.statusBarStyle,
           ),
           const Gap(16),
           Text(
             'Logs mem: ${controller.formatBytes(controller.totalLogsMemoryBytes)}',
-            style: const TextStyle(fontSize: 13),
+            style: logTheme.statusBarStyle,
           ),
           const Gap(16),
           _buildLogLinesEditor(context),
@@ -552,10 +564,10 @@ class _LogTabViewState extends State<LogTabView> {
                 : 'Stopped',
             style: TextStyle(
               color: controller.isPaused
-                  ? Colors.orange[700]
+                  ? logTheme.statusPausedColor
                   : controller.isRunning
-                  ? Colors.green[700]
-                  : Colors.red[700],
+                  ? logTheme.statusLiveColor
+                  : logTheme.statusStoppedColor,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -583,11 +595,11 @@ class _LogTabViewState extends State<LogTabView> {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Text(
                   'Max lines: ${controller.logLinesLimit}',
-                  style: const TextStyle(
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontSize: 13,
                     decoration: TextDecoration.underline,
                     decorationStyle: TextDecorationStyle.dotted,
-                    color: Colors.blue,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
@@ -690,6 +702,7 @@ class _GetStartedActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final logTheme = context.logViewTheme;
 
     return SizedBox(
       width: 320,
@@ -708,7 +721,7 @@ class _GetStartedActionCard extends StatelessWidget {
                 BoxShadow(
                   blurRadius: 18,
                   offset: const Offset(0, 8),
-                  color: Colors.black.withValues(alpha: 0.04),
+                  color: logTheme.cardShadowColor,
                 ),
               ],
             ),

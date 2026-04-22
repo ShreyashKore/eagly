@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:io' show Platform;
-import 'package:flutter/cupertino.dart';
 
 class FilterBar extends StatelessWidget {
   final String filterQuery;
@@ -27,36 +25,31 @@ class FilterBar extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: !Platform.isAndroid
-                ? CupertinoTextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    placeholder: 'Filter logs...',
-                    onChanged: onFilterChanged,
-                  )
-                : TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    decoration: const InputDecoration(
-                      hintText: 'Filter logs...',
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: onFilterChanged,
-                  ),
+            child: TextField(
+              controller: controller,
+              focusNode: focusNode,
+              decoration: const InputDecoration(
+                hintText: 'Filter logs...',
+                prefixIcon: Icon(Icons.filter_alt_outlined),
+              ),
+              onChanged: onFilterChanged,
+            ),
           ),
-          const SizedBox(width: 10),
-          DropdownButton<String>(
-            isDense: true,
-            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            value: selectedLogLevel,
-            items: const [
-              DropdownMenuItem(value: 'E', child: Text('Error (E)')),
-              DropdownMenuItem(value: 'W', child: Text('Warning (W)')),
-              DropdownMenuItem(value: 'I', child: Text('Info (I)')),
-              DropdownMenuItem(value: 'D', child: Text('Debug (D)')),
-              DropdownMenuItem(value: 'V', child: Text('Verbose (V)')),
-            ],
-            onChanged: onLogLevelChanged,
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 180,
+            child: DropdownButtonFormField<String>(
+              initialValue: selectedLogLevel,
+              decoration: const InputDecoration(labelText: 'Level'),
+              items: const [
+                DropdownMenuItem(value: 'E', child: Text('Error (E)')),
+                DropdownMenuItem(value: 'W', child: Text('Warning (W)')),
+                DropdownMenuItem(value: 'I', child: Text('Info (I)')),
+                DropdownMenuItem(value: 'D', child: Text('Debug (D)')),
+                DropdownMenuItem(value: 'V', child: Text('Verbose (V)')),
+              ],
+              onChanged: onLogLevelChanged,
+            ),
           ),
         ],
       ),

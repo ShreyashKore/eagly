@@ -48,6 +48,8 @@ class ActionToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Row(
       children: [
         IconButton(
@@ -69,7 +71,7 @@ class ActionToolbar extends StatelessWidget {
           onPressed: onToggleAutoScroll,
           icon: Icon(autoScroll ? Icons.vertical_align_bottom : Icons.swipe_down),
           tooltip: autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF',
-          color: autoScroll ? Colors.blue : null,
+          color: autoScroll ? colorScheme.primary : null,
         ),
         IconButton(
           onPressed: onCycleViewMode,

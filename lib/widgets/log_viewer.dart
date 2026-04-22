@@ -3,12 +3,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../data/log_column.dart';
 import '../data/log_entry.dart';
-import '../utils/log_utils.dart';
+import '../theme/app_theme.dart';
 
 class LogViewer extends StatefulWidget {
   static const double defaultUnwrappedMessageWidth = 1000;
@@ -79,10 +78,7 @@ class _LogViewerState extends State<LogViewer> {
   double _largestBuiltMessageWidth = 0;
   bool _messageWidthRefreshScheduled = false;
 
-  late final TextStyle _monoStyle = GoogleFonts.notoSansMono(
-    fontSize: 12,
-    height: 1.2,
-  );
+  TextStyle get _monoStyle => context.logViewTheme.logBodyStyle;
 
   /// Key placed on the currently-focused match row so we can scroll to it.
   final GlobalKey _currentMatchKey = GlobalKey();
@@ -291,7 +287,7 @@ class _LogViewerState extends State<LogViewer> {
           text: text.substring(idx, idx + queryNorm.length),
           style: style.copyWith(
             backgroundColor: highlightColor,
-            color: Colors.black,
+            color: context.logViewTheme.searchHighlightForeground,
           ),
         ),
       );
@@ -372,7 +368,12 @@ class _LogViewerState extends State<LogViewer> {
               return CheckboxListTile.adaptive(
                 dense: true,
                 value: visible,
-                title: Text(col.label, style: const TextStyle(fontSize: 12)),
+                title: Text(
+                  col.label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 12,
+                  ),
+                ),
                 visualDensity: VisualDensity.compact,
                 contentPadding: EdgeInsets.zero,
                 onChanged: (_) {
@@ -468,7 +469,7 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   Widget _buildHeader(double messageWidth) {
-    final headerStyle = TextStyle();
+    final headerStyle = context.logViewTheme.logHeaderStyle;
     final visible = _visibleFixedColumns;
 
     return GestureDetector(
@@ -542,7 +543,8 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   Widget _buildLogRow(LogEntry log, int index, double messageWidth) {
-    final levelColor = LogUtils.colorForLevel(log.level);
+    final logTheme = context.logViewTheme;
+    final levelColor = logTheme.logLevelColor(log.level);
     final rowStyle = _monoStyle.copyWith(color: levelColor);
     final visible = _visibleFixedColumns;
     final lastVisibleColumn = _lastVisibleColumn;
@@ -553,11 +555,13 @@ class _LogViewerState extends State<LogViewer> {
     // Current match → orange; other matching rows → yellow.
     final Color? highlightColor = widget.searchQuery.isEmpty
         ? null
-        : (isCurrentMatch ? Colors.orange[400] : Colors.yellow[400]);
+        : (isCurrentMatch
+              ? logTheme.searchCurrentMatchColor
+              : logTheme.searchMatchColor);
 
     return Container(
       key: isCurrentMatch ? _currentMatchKey : null,
-      color: isCurrentMatch ? Colors.orange.withValues(alpha: 0.12) : null,
+      color: isCurrentMatch ? logTheme.searchCurrentRowColor : null,
       child: Row(
         children: [
           for (final col in visible) ...[
@@ -614,7 +618,7 @@ class _LogViewerState extends State<LogViewer> {
           child: _buildSelectableText(
             level,
             _monoStyle.copyWith(
-              color: Colors.black,
+              color: context.logViewTheme.logBadgeForeground,
               fontWeight: FontWeight.bold,
             ),
             appendRowTerminator: appendRowTerminator,

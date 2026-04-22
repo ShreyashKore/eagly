@@ -478,11 +478,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final activeController = _activeController;
+    final materialTheme = Theme.of(context);
+    final colorScheme = materialTheme.colorScheme;
     final theme = TabbedViewThemeData.minimalist(
       tabRadius: 8,
-      tabStyleResolver: MyTabsStyleResolver()
+      tabStyleResolver: MyTabsStyleResolver(colorScheme: colorScheme),
     );
-    theme.tabsArea.padding = EdgeInsets.symmetric(horizontal: 0);
+    theme.tabsArea.padding = EdgeInsets.zero;
     theme.tabsArea.position = TabBarPosition.top;
     theme.divider = null;
     theme.tabsArea.sideTabsLayout = SideTabsLayout.stacked;
@@ -506,7 +508,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Focus(
           autofocus: true,
           child: Scaffold(
-            backgroundColor: Colors.grey.shade200,
+            backgroundColor: materialTheme.scaffoldBackgroundColor,
             body: SafeArea(
               child: TabbedViewTheme(
                 data: theme,
@@ -547,22 +549,29 @@ class _WorkspaceTab {
 }
 
 class MyTabsStyleResolver extends MinimalistTabStyleResolver {
+  MyTabsStyleResolver({required this.colorScheme});
+
+  final ColorScheme colorScheme;
+
   @override
   Color? backgroundColor(TabStyleContext context) {
     if (context.status == TabStatus.selected) {
-      return Colors.white;
+      return colorScheme.surface;
     }
-    return Colors.grey.shade200;
+    return colorScheme.surfaceContainerHighest;
   }
-
 
   @override
   Color buttonColor(TabStyleContext context) {
-    return Colors.black;
+    return context.status == TabStatus.selected
+        ? colorScheme.onSurface
+        : colorScheme.onSurfaceVariant;
   }
 
   @override
   Color fontColor(TabStyleContext context) {
-    return Colors.black;
+    return context.status == TabStatus.selected
+        ? colorScheme.onSurface
+        : colorScheme.onSurfaceVariant;
   }
 }

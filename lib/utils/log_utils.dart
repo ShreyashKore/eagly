@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 class LogUtils {
   /// Convert log level short code to full name
   static String logLevelName(String level) {
@@ -37,21 +35,6 @@ class LogUtils {
     }
   }
 
-  /// Get color for log level
-  static Color colorForLevel(String level) {
-    switch (level) {
-      case 'E':
-        return Colors.red;
-      case 'W':
-        return Colors.orange;
-      case 'I':
-        return Colors.green;
-      case 'D':
-        return Colors.blue;
-      default:
-        return Colors.grey[400]!;
-    }
-  }
 
   /// Define log level hierarchy (lower number = higher priority)
   static const levelHierarchy = {'E': 0, 'W': 1, 'I': 2, 'D': 3, 'V': 4};

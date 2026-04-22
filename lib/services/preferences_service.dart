@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/log_column.dart';
@@ -22,9 +23,13 @@ extension SharedPreferencesJson on SharedPreferences {
 
 class PreferencesService {
   static late SharedPreferences _prefs;
+  static final ValueNotifier<ThemeMode> themeModeListenable = ValueNotifier(
+    ThemeMode.dark,
+  );
 
   static Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
+    themeModeListenable.value = themeMode;
   }
 
   // Keys
@@ -35,6 +40,7 @@ class PreferencesService {
   static const _keyColumnWidths = 'columnWidths';
   static const _keyHiddenColumns = 'hiddenColumns';
   static const _keyLogLinesLimit = 'logLinesLimit';
+  static const _keyThemeMode = 'themeMode';
 
   // --- Home page preferences ---
 
@@ -54,6 +60,14 @@ class PreferencesService {
 
   static int get logLinesLimit => _prefs.getInt(_keyLogLinesLimit) ?? 50000;
   static set logLinesLimit(int v) => _prefs.setInt(_keyLogLinesLimit, v);
+
+  static ThemeMode get themeMode =>
+      _themeModeFromName(_prefs.getString(_keyThemeMode)) ?? ThemeMode.dark;
+
+  static set themeMode(ThemeMode value) {
+    themeModeListenable.value = value;
+    _prefs.setString(_keyThemeMode, value.name);
+  }
 
   static LogViewMode get defaultViewMode =>
       LogViewMode.values[viewMode.clamp(0, LogViewMode.values.length - 1)];
@@ -99,4 +113,13 @@ class PreferencesService {
 
   static set hiddenColumns(Set<String> v) =>
       _prefs.setJson(_keyHiddenColumns, v.toList());
+
+  static ThemeMode? _themeModeFromName(String? value) {
+    return switch (value) {
+      'system' => ThemeMode.system,
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => null,
+    };
+  }
 }
