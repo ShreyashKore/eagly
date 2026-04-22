@@ -6,14 +6,11 @@ import 'package:gap/gap.dart';
 import '../controllers/log_tab_controller.dart';
 import '../data/device.dart';
 import '../data/log_entry.dart';
-import '../data/log_view_mode.dart';
 import '../theme/app_theme.dart';
 import 'action_toolbar.dart';
 import 'filter_bar.dart';
 import 'log_search_bar.dart';
 import 'log_viewer.dart';
-import 'log_viewer_table.dart';
-import 'log_viewer_worksheet.dart';
 import 'scroll_to_end_button.dart';
 
 class LogTabView extends StatefulWidget {
@@ -140,39 +137,24 @@ class _LogTabViewState extends State<LogTabView> {
         ? null
         : controller.currentSearchMatchLogIndex(matches);
 
-    switch (controller.viewMode) {
-      case LogViewMode.text:
-        return LogViewer(
-          key: ValueKey('log-viewer-${controller.logViewerRevision}'),
-          logs: filtered,
-          scrollController: controller.scrollController,
-          wrapText: controller.wrapText,
-          onLogRowTap: controller.disableAutoScroll,
-          searchQuery: controller.appliedInlineSearchQuery,
-          caseSensitive: controller.searchCaseSensitive,
-          currentMatchLogIndex:
-              controller.searchBarVisible &&
-                  controller.appliedInlineSearchQuery.isNotEmpty
-              ? safeIndex
-              : null,
-          hiddenColumns: controller.hiddenColumns,
-          columnWidths: controller.columnWidths,
-          onHiddenColumnsChanged: controller.setHiddenColumns,
-          onColumnWidthsChanged: controller.setColumnWidths,
-        );
-      case LogViewMode.dataTable:
-        return LogViewerTable(
-          logs: filtered,
-          scrollController: controller.scrollController,
-          onLogRowTap: controller.disableAutoScroll,
-        );
-      case LogViewMode.worksheet:
-        return LogViewerWorksheet(
-          logs: filtered,
-          scrollController: controller.scrollController,
-          onLogRowTap: controller.disableAutoScroll,
-        );
-    }
+    return LogViewer(
+      key: ValueKey('log-viewer-${controller.logViewerRevision}'),
+      logs: filtered,
+      scrollController: controller.scrollController,
+      wrapText: controller.wrapText,
+      onLogRowTap: controller.disableAutoScroll,
+      searchQuery: controller.appliedInlineSearchQuery,
+      caseSensitive: controller.searchCaseSensitive,
+      currentMatchLogIndex:
+          controller.searchBarVisible &&
+              controller.appliedInlineSearchQuery.isNotEmpty
+          ? safeIndex
+          : null,
+      hiddenColumns: controller.hiddenColumns,
+      columnWidths: controller.columnWidths,
+      onHiddenColumnsChanged: controller.setHiddenColumns,
+      onColumnWidthsChanged: controller.setColumnWidths,
+    );
   }
 
   @override
@@ -455,8 +437,6 @@ class _LogTabViewState extends State<LogTabView> {
             onToggleWrap: controller.toggleWrapText,
             autoScroll: controller.autoScroll,
             onToggleAutoScroll: controller.toggleAutoScroll,
-            viewMode: controller.viewMode,
-            onCycleViewMode: controller.cycleViewMode,
             openSettings: widget.onOpenSettings,
           ),
         ],
@@ -623,10 +603,7 @@ class _LogTabViewState extends State<LogTabView> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: controller.editingLogLinesLimit
           ? null
-          : BoxDecoration(
-              color: Colors.pink,
-              borderRadius: BorderRadius.circular(4),
-            ),
+          : BoxDecoration(borderRadius: BorderRadius.circular(4)),
       child: !controller.editingLogLinesLimit
           ? InkWell(
               mouseCursor: SystemMouseCursors.click,

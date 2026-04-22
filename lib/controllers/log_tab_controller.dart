@@ -7,7 +7,6 @@ import '../data/device.dart';
 import '../data/log_column.dart';
 import '../data/log_entry.dart';
 import '../data/log_tab_settings.dart';
-import '../data/log_view_mode.dart';
 import '../services/adb_service.dart';
 import '../services/log_file_service.dart';
 import '../utils/log_utils.dart';
@@ -113,7 +112,6 @@ class LogTabController extends ChangeNotifier {
   bool get wrapText => _settings.wrapText;
   bool get autoScroll => _settings.autoScroll;
   String get selectedLogLevel => _settings.selectedLogLevel;
-  LogViewMode get viewMode => _settings.viewMode;
   int get logLinesLimit => _settings.logLinesLimit;
   Set<String> get hiddenColumns => _settings.hiddenColumns;
   Map<String, double> get columnWidths => _settings.columnWidths;
@@ -184,7 +182,8 @@ class LogTabController extends ChangeNotifier {
           logs.isEmpty &&
           selectedDevice == null &&
           fetchedDevices.length == 1 &&
-          !(isDeviceSelectedInAnotherTab?.call(fetchedDevices.single.id) ?? false);
+          !(isDeviceSelectedInAnotherTab?.call(fetchedDevices.single.id) ??
+              false);
 
       if (shouldAutoStartSingleDevice) {
         await selectDeviceAndStart(fetchedDevices.single);
@@ -380,14 +379,6 @@ class LogTabController extends ChangeNotifier {
 
   void toggleAutoScroll() {
     _updateSettings(_settings.copyWith(autoScroll: !autoScroll));
-  }
-
-  void cycleViewMode() {
-    _updateSettings(
-      _settings.copyWith(
-        viewMode: LogViewMode.values[(viewMode.index + 1) % LogViewMode.values.length],
-      ),
-    );
   }
 
   void setHiddenColumns(Set<String> columns) {
@@ -638,5 +629,3 @@ class LogTabController extends ChangeNotifier {
     super.dispose();
   }
 }
-
-

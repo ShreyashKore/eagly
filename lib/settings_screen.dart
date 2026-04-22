@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:logview/theme/app_theme.dart';
 
-import 'data/log_view_mode.dart';
 import 'services/app_info_service.dart';
 import 'services/preferences_service.dart';
 
@@ -17,7 +16,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _wrapText;
   late bool _autoScroll;
   late String _selectedLogLevel;
-  late LogViewMode _viewMode;
   late final TextEditingController _logLinesController;
 
   @override
@@ -27,7 +25,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _wrapText = PreferencesService.wrapText;
     _autoScroll = PreferencesService.autoScroll;
     _selectedLogLevel = PreferencesService.selectedLogLevel;
-    _viewMode = PreferencesService.viewMode;
     _logLinesController = TextEditingController(
       text: PreferencesService.logLinesLimit.toString(),
     );
@@ -37,14 +34,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _logLinesController.dispose();
     super.dispose();
-  }
-
-  String _viewModeLabel(LogViewMode mode) {
-    return switch (mode) {
-      LogViewMode.text => 'Text',
-      LogViewMode.dataTable => 'Data Table',
-      LogViewMode.worksheet => 'Worksheet',
-    };
   }
 
   Future<void> _saveLogLinesLimit() async {
@@ -198,25 +187,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           if (value == null) return;
                           setState(() => _selectedLogLevel = value);
                           PreferencesService.selectedLogLevel = value;
-                        },
-                      ),
-                    ),
-                    ListTile(
-                      title: const Text('Default view mode'),
-                      subtitle: DropdownButtonFormField<LogViewMode>(
-                        initialValue: _viewMode,
-                        items: LogViewMode.values
-                            .map(
-                              (mode) => DropdownMenuItem(
-                                value: mode,
-                                child: Text(_viewModeLabel(mode)),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() => _viewMode = value);
-                          PreferencesService.viewMode = value;
                         },
                       ),
                     ),

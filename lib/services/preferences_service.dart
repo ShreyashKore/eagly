@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/log_column.dart';
 import '../data/log_tab_settings.dart';
-import '../data/log_view_mode.dart';
 
 extension SharedPreferencesJson on SharedPreferences {
   /// Reads a JSON-encoded value from persistent storage and decodes it.
@@ -35,7 +34,6 @@ class PreferencesService {
   // Keys
   static const _keyWrapText = 'wrapText';
   static const _keyAutoScroll = 'autoScroll';
-  static const _keyViewMode = 'viewMode';
   static const _keySelectedLogLevel = 'selectedLogLevel';
   static const _keyColumnWidths = 'columnWidths';
   static const _keyHiddenColumns = 'hiddenColumns';
@@ -50,13 +48,6 @@ class PreferencesService {
 
   static bool get autoScroll => _prefs.getBool(_keyAutoScroll) ?? true;
   static set autoScroll(bool v) => _prefs.setBool(_keyAutoScroll, v);
-
-  static LogViewMode get viewMode => LogViewMode.values.firstWhere(
-    (m) => m.name == _prefs.getString(_keyViewMode),
-    orElse: () => LogViewMode.text,
-  );
-
-  static set viewMode(LogViewMode v) => _prefs.setString(_keyViewMode, v.name);
 
   static String get selectedLogLevel =>
       _prefs.getString(_keySelectedLogLevel) ?? 'V';
@@ -89,7 +80,6 @@ class PreferencesService {
     wrapText: wrapText,
     autoScroll: autoScroll,
     selectedLogLevel: selectedLogLevel,
-    viewMode: viewMode,
     logLinesLimit: logLinesLimit,
     hiddenColumns: hiddenColumns,
     columnWidths: columnWidths,

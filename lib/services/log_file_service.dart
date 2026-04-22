@@ -122,8 +122,9 @@ class LogFileService {
       type: FileType.any,
     );
 
-    if (result == null || result.files.isEmpty)
+    if (result == null || result.files.isEmpty) {
       return LogImportResult.cancelled();
+    }
 
     final pickedFile = result.files.first;
     final filePath = pickedFile.path;

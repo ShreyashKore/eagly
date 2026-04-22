@@ -456,10 +456,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 onSelected: () =>
                     _runOnActiveTab((tab) => tab.toggleAutoScroll()),
               ),
-              PlatformMenuItem(
-                label: 'Cycle View Mode',
-                onSelected: () => _runOnActiveTab((tab) => tab.cycleViewMode()),
-              ),
             ],
           ),
         ],
