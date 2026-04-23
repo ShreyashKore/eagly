@@ -4,8 +4,8 @@ import 'dart:io';
 
 import '../data/device.dart';
 import '../data/log_entry.dart';
-import 'ios_syslog_parser.dart';
 import '../utils/adb_path.dart';
+import 'ios_syslog_parser.dart';
 
 enum AdbMdnsServiceType { connect, pairing, unknown }
 
@@ -119,7 +119,7 @@ class AdbService {
 
   Future<List<Device>> _getAndroidDevices() async {
     try {
-      final result = await Process.run(adbPath, ['devices', '-l']);
+      final result = await _runTool(adbPath, ['devices', '-l']);
       if (result.exitCode != 0) {
         return const [];
       }
@@ -168,7 +168,7 @@ class AdbService {
 
   Future<List<Device>> _getIosDevices() async {
     try {
-      final result = await Process.run(ideviceIdPath, ['-l']);
+      final result = await _runTool(ideviceIdPath, ['-l']);
       if (result.exitCode != 0) {
         return const [];
       }
@@ -192,7 +192,7 @@ class AdbService {
 
   Future<Device> _describeIosDevice(String deviceId) async {
     try {
-      final result = await Process.run(ideviceInfoPath, ['-u', deviceId]);
+      final result = await _runTool(ideviceInfoPath, ['-u', deviceId]);
       if (result.exitCode != 0) {
         return Device(
           deviceId,
@@ -218,7 +218,7 @@ class AdbService {
 
   Future<AdbMdnsDiscoveryResult> discoverMdnsServices() async {
     try {
-      final result = await Process.run(adbPath, ['mdns', 'services']);
+      final result = await _runTool(adbPath, ['mdns', 'services']);
       if (result.exitCode != 0) {
         return AdbMdnsDiscoveryResult.failure(
           error: _describeCommandFailure(
@@ -279,7 +279,7 @@ class AdbService {
     required String pairingCode,
   }) async {
     try {
-      final result = await Process.run(adbPath, ['pair', address, pairingCode]);
+      final result = await _runTool(adbPath, ['pair', address, pairingCode]);
       if (result.exitCode != 0) {
         return AdbCommandResult.failure(
           error: _describeCommandFailure(
@@ -304,7 +304,7 @@ class AdbService {
 
   Future<AdbCommandResult> connectDevice(String address) async {
     try {
-      final result = await Process.run(adbPath, ['connect', address]);
+      final result = await _runTool(adbPath, ['connect', address]);
       final output = _combinedProcessOutput(result);
       final normalizedOutput = output.toLowerCase();
       final failed =
@@ -332,7 +332,7 @@ class AdbService {
   /// Refresh the PID to package name mapping.
   Future<void> refreshPidToPackageMap(String deviceId) async {
     try {
-      final result = await Process.run(adbPath, [
+      final result = await _runTool(adbPath, [
         '-s',
         deviceId,
         'shell',
@@ -383,7 +383,7 @@ class AdbService {
 
     Process? process;
     try {
-      process = await Process.start(adbPath, [
+      process = await _startTool(adbPath, [
         '-s',
         deviceId,
         'logcat',
@@ -445,7 +445,7 @@ class AdbService {
     final parser = IosSyslogParser();
 
     try {
-      process = await Process.start(ideviceSyslogPath, ['-u', device.id]);
+      process = await _startTool(ideviceSyslogPath, ['-u', device.id]);
       _activeLogcatProcess = process;
       _activeDeviceId = device.id;
       final stderrFuture = process.stderr.transform(utf8.decoder).join();
@@ -517,12 +517,12 @@ class AdbService {
       return;
     }
 
-    await Process.run(adbPath, ['-s', deviceId, 'shell', 'pkill', 'logcat']);
+    await _runTool(adbPath, ['-s', deviceId, 'shell', 'pkill', 'logcat']);
   }
 
   /// Clears the logcat buffer on the Android device.
   Future<void> clearLogcat(String deviceId) async {
-    await Process.run(adbPath, ['-s', deviceId, 'logcat', '-c']);
+    await _runTool(adbPath, ['-s', deviceId, 'logcat', '-c']);
   }
 
   Future<void> dispose() => stopActiveLogcat();
@@ -623,6 +623,82 @@ class AdbService {
     final second = now.second.toString().padLeft(2, '0');
     final millisecond = now.millisecond.toString().padLeft(3, '0');
     return '$year-$month-$day $hour:$minute:$second.$millisecond';
+  }
+
+  Future<ProcessResult> _runTool(String executable, List<String> arguments) {
+    return Process.run(
+      executable,
+      arguments,
+      environment: _toolEnvironment(executable),
+      workingDirectory: _toolWorkingDirectory(executable),
+    );
+  }
+
+  Future<Process> _startTool(String executable, List<String> arguments) {
+    return Process.start(
+      executable,
+      arguments,
+      environment: _toolEnvironment(executable),
+      workingDirectory: _toolWorkingDirectory(executable),
+    );
+  }
+
+  Map<String, String>? _toolEnvironment(String executable) {
+    final toolDirectory = _toolDirectoryPath(executable);
+    if (toolDirectory == null) {
+      return null;
+    }
+
+    final environment = <String, String>{};
+    _prependEnvironmentPath(environment, 'PATH', toolDirectory);
+
+    if (Platform.isWindows) {
+      _prependEnvironmentPath(environment, _windowsPathKey, toolDirectory);
+    } else if (Platform.isLinux) {
+      _prependEnvironmentPath(environment, 'LD_LIBRARY_PATH', toolDirectory);
+    } else if (Platform.isMacOS) {
+      _prependEnvironmentPath(environment, 'DYLD_LIBRARY_PATH', toolDirectory);
+    }
+
+    return environment.isEmpty ? null : environment;
+  }
+
+  String? _toolWorkingDirectory(String executable) => _toolDirectoryPath(executable);
+
+  String? _toolDirectoryPath(String executable) {
+    final absoluteExecutable = File(executable);
+    if (absoluteExecutable.isAbsolute) {
+      return absoluteExecutable.parent.path;
+    }
+
+    return resolveBundledToolsDirectory()?.path;
+  }
+
+  void _prependEnvironmentPath(
+    Map<String, String> environment,
+    String key,
+    String directoryPath,
+  ) {
+    final pathSeparator = Platform.isWindows ? ';' : ':';
+    final inheritedValue =
+        environment[key] ??
+        Platform.environment[key] ??
+        (Platform.isWindows && key != 'PATH'
+            ? Platform.environment['PATH']
+            : null) ??
+        '';
+    environment[key] = inheritedValue.isEmpty
+        ? directoryPath
+        : '$directoryPath$pathSeparator$inheritedValue';
+  }
+
+  String get _windowsPathKey {
+    for (final key in Platform.environment.keys) {
+      if (key.toLowerCase() == 'path') {
+        return key;
+      }
+    }
+    return 'Path';
   }
 }
 

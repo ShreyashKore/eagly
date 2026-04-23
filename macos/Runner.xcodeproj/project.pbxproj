@@ -416,14 +416,14 @@
 			);
 			inputPaths = (
 			);
-			name = "Copy ADB Binary";
+			name = "Copy Bundled Mobile Tools";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "ADB_SRC=\"${PROJECT_DIR}/../platform-tools/macos/adb\"\nADB_DST=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/MacOS/adb\"\nif [ -f \"$ADB_SRC\" ]; then\n  cp \"$ADB_SRC\" \"$ADB_DST\"\n  chmod +x \"$ADB_DST\"\n  codesign --force --sign - \"$ADB_DST\"\n  echo \"Copied and signed bundled adb\"\nelse\n  echo \"warning: ADB binary not found at $ADB_SRC. Run scripts/download_platform_tools.sh first.\"\nfi\n";
+			shellScript = "TOOLS_SRC_DIR=\"${PROJECT_DIR}/../platform-tools/macos\"\nTOOLS_DST_DIR=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/MacOS\"\n/bin/sh \"${PROJECT_DIR}/../scripts/copy_macos_bundled_tools.sh\" \"$TOOLS_SRC_DIR\" \"$TOOLS_DST_DIR\"\n";
 		};
 		D3E03DA57770D6485C340C5A /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
