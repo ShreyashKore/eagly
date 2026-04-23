@@ -12,6 +12,7 @@ import 'filter_bar.dart';
 import 'log_search_bar.dart';
 import 'log_viewer.dart';
 import 'scroll_to_end_button.dart';
+import 'wireless_connection_dialog.dart';
 
 class LogTabView extends StatefulWidget {
   const LogTabView({
@@ -71,6 +72,18 @@ class _LogTabViewState extends State<LogTabView> {
     }
   }
 
+  Future<void> _showWirelessConnectionDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return WirelessConnectionDialog(
+          controller: controller,
+          onShowSnackBar: _showSnackBar,
+        );
+      },
+    );
+  }
+
   Future<void> _selectDevice(Device device) {
     return controller.selectDeviceAndStart(device);
   }
@@ -109,6 +122,13 @@ class _LogTabViewState extends State<LogTabView> {
           onTap: () async {
             await _handleImportLogs();
           },
+        ),
+        _GetStartedActionCard(
+          icon: Icons.wifi_tethering,
+          title: 'Wireless ADB',
+          subtitle:
+              'Discover nearby wireless ADB services, pair with a code, and connect over Wi‑Fi.',
+          onTap: _showWirelessConnectionDialog,
         ),
       ],
     );
@@ -411,19 +431,14 @@ class _LogTabViewState extends State<LogTabView> {
             onPressed: controller.logs.isNotEmpty ? controller.clearLogs : null,
           ),
           IconButton(
-            icon: Icon(
-              Icons.search,
-              color: controller.searchBarVisible
-                  ? Theme.of(context).colorScheme.primary
-                  : null,
-            ),
-            tooltip: controller.searchBarVisible
-                ? 'Close search'
-                : 'Search in logs (Ctrl+F / Cmd+F)',
-            onPressed: controller.toggleSearchBar,
+            icon: const Icon(Icons.wifi_tethering_outlined),
+            tooltip: 'Wireless ADB connect',
+            onPressed: _showWirelessConnectionDialog,
           ),
           const Spacer(),
           ActionToolbar(
+            isSearchBarVisible: controller.searchBarVisible,
+            toggleSearchBar: controller.toggleSearchBar,
             onImport: () async {
               await _handleImportLogs();
             },
@@ -656,6 +671,7 @@ class _LogTabViewState extends State<LogTabView> {
     );
   }
 }
+
 
 class _AvailableDeviceCard extends StatelessWidget {
   const _AvailableDeviceCard({required this.device, required this.onSelected});
