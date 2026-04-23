@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gap/gap.dart';
 
 class ActionToolbar extends StatelessWidget {
   final bool isSearchBarVisible;
@@ -66,11 +67,16 @@ class ActionToolbar extends StatelessWidget {
           tooltip: autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF',
           color: autoScroll ? colorScheme.primary : null,
         ),
-        // IconButton(
-        //   onPressed: onCycleViewMode,
-        //   icon: Icon(_getViewModeIcon()),
-        //   tooltip: _getViewModeTooltip(),
-        // ),
+        Gap(4),
+        SizedBox(
+          height: 18,
+          child: VerticalDivider(
+            width: 2,
+            thickness: 2,
+            radius: BorderRadius.circular(2),
+          ),
+        ),
+        Gap(4),
         IconButton(
           onPressed: openSettings,
           icon: Icon(Icons.settings_rounded),

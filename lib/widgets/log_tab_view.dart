@@ -102,18 +102,82 @@ class _LogTabViewState extends State<LogTabView> {
     });
   }
 
-  Widget _buildPrimaryActionButtons({bool compact = false}) {
-    return Wrap(
+  Widget _buildGettingStartedOptions({bool compact = false}) {
+    final theme = Theme.of(context);
+    return Column(
       spacing: 16,
-      runSpacing: 16,
-      alignment: WrapAlignment.center,
       children: [
         _GetStartedActionCard(
           icon: Icons.adb,
-          title: 'Select device / Load devices',
+          title: 'Select device',
           subtitle:
               'Discover connected Android and iOS devices and open a live log stream.',
           onTap: () => _handleLoadDevices(openPickerWhenNeeded: compact),
+          secondaryActions: [
+            FilledButton.tonal(
+              onPressed: () => _handleLoadDevices(openPickerWhenNeeded: true),
+              child: const Text('Load devices'),
+            ),
+            FilledButton.tonal(
+              onPressed: _showWirelessConnectionDialog,
+              child: const Text('Wireless ADB'),
+            ),
+          ],
+          children: [
+            if (controller.devices.isNotEmpty) ...[
+              const Gap(4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Available devices',
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
+              SingleChildScrollView(
+                child: Column(
+                  spacing: 8,
+                  children: controller.devices
+                      .map(
+                        (device) => _AvailableDeviceCard(
+                          device: device,
+                          onSelected: () => _selectDevice(device),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ] else if (controller.hasAttemptedDeviceLoad &&
+                !controller.isLoadingDevices) ...[
+              const Gap(8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.usb_off,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const Gap(10),
+                    Text('No devices found', style: theme.textTheme.titleSmall),
+                    const Gap(6),
+                    Text(
+                      'Connect an Android device with ADB enabled, or an iOS device supported by libimobiledevice.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
         _GetStartedActionCard(
           icon: Icons.file_download_outlined,
@@ -122,13 +186,6 @@ class _LogTabViewState extends State<LogTabView> {
           onTap: () async {
             await _handleImportLogs();
           },
-        ),
-        _GetStartedActionCard(
-          icon: Icons.wifi_tethering,
-          title: 'Wireless ADB',
-          subtitle:
-              'Discover nearby wireless ADB services, pair with a code, and connect over Wi‑Fi.',
-          onTap: _showWirelessConnectionDialog,
         ),
       ],
     );
@@ -222,83 +279,29 @@ class _LogTabViewState extends State<LogTabView> {
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: _buildGetStartedSecondaryActions(),
-            ),
-            Icon(
-              Icons.developer_board,
-              size: 44,
-              color: theme.colorScheme.primary,
-            ),
-            const Gap(18),
-            Text(
-              'Logview',
-              style: theme.textTheme.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            const Gap(28),
-            _buildPrimaryActionButtons(),
-            if (controller.devices.isNotEmpty) ...[
-              const Gap(28),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Available devices',
-                  style: theme.textTheme.titleMedium,
-                ),
+                alignment: Alignment.centerRight,
+                child: _buildGetStartedSecondaryActions(),
               ),
-              const Gap(12),
-              SingleChildScrollView(
-                child: Column(
-                  children: controller.devices
-                      .map(
-                        (device) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _AvailableDeviceCard(
-                            device: device,
-                            onSelected: () => _selectDevice(device),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
+              Icon(
+                Icons.developer_board,
+                size: 44,
+                color: theme.colorScheme.primary,
               ),
-            ] else if (controller.hasAttemptedDeviceLoad &&
-                !controller.isLoadingDevices) ...[
+              const Gap(18),
+              Text(
+                'Logview',
+                style: theme.textTheme.headlineSmall,
+                textAlign: TextAlign.center,
+              ),
               const Gap(28),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: theme.colorScheme.outlineVariant),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.usb_off,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const Gap(10),
-                    Text('No devices found', style: theme.textTheme.titleSmall),
-                    const Gap(6),
-                    Text(
-                      'Connect an Android device with ADB enabled, or an iOS device supported by libimobiledevice.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
+              _buildGettingStartedOptions(),
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -396,10 +399,26 @@ class _LogTabViewState extends State<LogTabView> {
               icon: const Icon(Icons.usb),
               label: const Text('Load devices'),
             ),
+          IconButton(
+            icon: const Icon(Icons.wifi_tethering_outlined),
+            tooltip: 'Wireless ADB connect',
+            onPressed: _showWirelessConnectionDialog,
+          ),
+          const Gap(4),
+          SizedBox(
+            height: 18,
+            child: VerticalDivider(
+              width: 2,
+              thickness: 2,
+              radius: BorderRadius.circular(2),
+            ),
+          ),
           const Gap(4),
           IconButton(
             icon: Icon(
-              Icons.play_arrow,
+              controller.isRunning
+                  ? Icons.restart_alt_rounded
+                  : Icons.play_arrow,
               color: controller.selectedDevice != null
                   ? logTheme.statusLiveColor
                   : theme.colorScheme.onSurfaceVariant,
@@ -429,11 +448,6 @@ class _LogTabViewState extends State<LogTabView> {
                 ? 'Clear logs'
                 : 'No logs to clear',
             onPressed: controller.logs.isNotEmpty ? controller.clearLogs : null,
-          ),
-          IconButton(
-            icon: const Icon(Icons.wifi_tethering_outlined),
-            tooltip: 'Wireless ADB connect',
-            onPressed: _showWirelessConnectionDialog,
           ),
           const Spacer(),
           ActionToolbar(
@@ -545,7 +559,7 @@ class _LogTabViewState extends State<LogTabView> {
           title: 'No device or imported logs in this tab',
           description:
               'Load connected devices to begin a live session, or import a saved log file into this workspace.',
-          footer: _buildPrimaryActionButtons(compact: true),
+          footer: _buildGettingStartedOptions(compact: true),
         ),
       ),
     );
@@ -672,7 +686,6 @@ class _LogTabViewState extends State<LogTabView> {
   }
 }
 
-
 class _AvailableDeviceCard extends StatelessWidget {
   const _AvailableDeviceCard({required this.device, required this.onSelected});
 
@@ -691,24 +704,27 @@ class _AvailableDeviceCard extends StatelessWidget {
         onTap: onSelected,
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: theme.colorScheme.outlineVariant),
           ),
           child: Row(
             children: [
-              Icon(Icons.phone_android, color: theme.colorScheme.primary),
+              Icon(
+                Icons.phone_android,
+                color: theme.colorScheme.primary,
+                size: 20,
+              ),
               const Gap(12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(device.displayName, style: theme.textTheme.titleSmall),
-                    const Gap(4),
                     Text(
                       '${device.id} · ${device.status}',
-                      style: theme.textTheme.bodySmall?.copyWith(
+                      style: theme.textTheme.labelSmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
@@ -729,20 +745,21 @@ class _GetStartedActionCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.secondaryActions = const [],
+    this.children = const [],
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final List<Widget> secondaryActions;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final logTheme = context.logViewTheme;
-
     return SizedBox(
-      width: 320,
       child: Material(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
@@ -751,30 +768,30 @@ class _GetStartedActionCard extends StatelessWidget {
           onTap: onTap,
           child: Container(
             padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: theme.colorScheme.outlineVariant),
-              boxShadow: [
-                BoxShadow(
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                  color: logTheme.cardShadowColor,
-                ),
-              ],
-            ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 12,
               children: [
-                Icon(icon, color: theme.colorScheme.primary),
-                const Gap(14),
-                Text(title, style: theme.textTheme.titleMedium),
-                const Gap(8),
-                Text(
-                  subtitle,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                Row(
+                  spacing: 12,
+                  children: [
+                    Icon(icon, color: theme.colorScheme.primary, size: 32),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: theme.textTheme.titleMedium),
+                        Text(
+                          subtitle,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
+                if (secondaryActions.isNotEmpty)
+                  Row(spacing: 8, children: secondaryActions),
+                if (children.isNotEmpty) Column(spacing: 8, children: children),
               ],
             ),
           ),
