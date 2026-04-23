@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 class ActionToolbar extends StatelessWidget {
+  final bool isSearchBarVisible;
+  final VoidCallback? toggleSearchBar;
   final VoidCallback? onImport;
   final VoidCallback? onExport;
   final bool wrapText;
@@ -11,6 +13,8 @@ class ActionToolbar extends StatelessWidget {
 
   const ActionToolbar({
     super.key,
+    required this.isSearchBarVisible,
+    required this.toggleSearchBar,
     required this.onImport,
     required this.onExport,
     required this.wrapText,
@@ -27,6 +31,18 @@ class ActionToolbar extends StatelessWidget {
     return Row(
       spacing: 4,
       children: [
+        IconButton(
+          icon: Icon(
+            Icons.search,
+            color: isSearchBarVisible
+                ? Theme.of(context).colorScheme.primary
+                : null,
+          ),
+          tooltip: isSearchBarVisible
+              ? 'Close search'
+              : 'Search in logs (Ctrl+F / Cmd+F)',
+          onPressed: toggleSearchBar,
+        ),
         IconButton(
           onPressed: onImport,
           icon: const Icon(Icons.file_download),

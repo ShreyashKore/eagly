@@ -50,6 +50,13 @@ class LogTabController extends ChangeNotifier {
   var devices = <Device>[];
   var _loadingDevices = false;
   var _hasAttemptedDeviceLoad = false;
+  var _discoveringWireless = false;
+  var _pairingWireless = false;
+  var _connectingWireless = false;
+  var _hasAttemptedWirelessDiscovery = false;
+  var _wirelessServices = <AdbMdnsService>[];
+  String? _wirelessMessage;
+  String? _wirelessError;
   Device? selectedDevice;
   var logs = <LogEntry>[];
 
@@ -108,6 +115,26 @@ class LogTabController extends ChangeNotifier {
   String get inlineSearchQuery => _inlineSearchQuery;
   bool get isLoadingDevices => _loadingDevices;
   bool get hasAttemptedDeviceLoad => _hasAttemptedDeviceLoad;
+  bool get isDiscoveringWireless => _discoveringWireless;
+  bool get isPairingWireless => _pairingWireless;
+  bool get isConnectingWireless => _connectingWireless;
+  bool get isWirelessBusy =>
+      _discoveringWireless || _pairingWireless || _connectingWireless;
+  bool get hasAttemptedWirelessDiscovery => _hasAttemptedWirelessDiscovery;
+  List<AdbMdnsService> get wirelessServices =>
+      List.unmodifiable(_wirelessServices);
+  List<AdbMdnsService> get wirelessPairingServices => _wirelessServices
+      .where((service) => service.type == AdbMdnsServiceType.pairing)
+      .toList(growable: false);
+  List<AdbMdnsService> get wirelessConnectServices => _wirelessServices
+      .where((service) => service.type == AdbMdnsServiceType.connect)
+      .toList(growable: false);
+  String? get wirelessMessage => _wirelessMessage;
+  String? get wirelessError => _wirelessError;
+  String? get suggestedWirelessPairingAddress =>
+      wirelessPairingServices.firstOrNull?.address;
+  String? get suggestedWirelessConnectAddress =>
+      wirelessConnectServices.firstOrNull?.address;
 
   bool get wrapText => _settings.wrapText;
   bool get autoScroll => _settings.autoScroll;
@@ -162,37 +189,174 @@ class LogTabController extends ChangeNotifier {
     try {
       final fetchedDevices = await _adbService.getDevices();
       if (_disposed) return;
+      await _applyFetchedDevices(
+        fetchedDevices,
+        autoStartSingleIfAvailable: autoStartSingleIfAvailable,
+      );
+    } finally {
+      _loadingDevices = false;
+      _notify();
+    }
+  }
 
-      final currentSelectionId = selectedDevice?.id;
-      devices = fetchedDevices;
+  Future<AdbMdnsDiscoveryResult> discoverWirelessServices() async {
+    if (_pairingWireless || _connectingWireless) {
+      const error =
+          'Finish the current wireless ADB action before starting another one.';
+      _wirelessError = error;
+      _wirelessMessage = null;
+      _notify();
+      return AdbMdnsDiscoveryResult.failure(error: error);
+    }
 
-      if (currentSelectionId != null) {
-        selectedDevice = fetchedDevices.firstWhereOrNull(
-          (device) => device.id == currentSelectionId,
+    _discoveringWireless = true;
+    _hasAttemptedWirelessDiscovery = true;
+    _wirelessMessage = null;
+    _wirelessError = null;
+    _notify();
+
+    try {
+      final result = await _adbService.discoverMdnsServices();
+      if (_disposed) return result;
+
+      if (result.isSuccess) {
+        _wirelessServices = result.services;
+        _wirelessError = null;
+        _wirelessMessage = result.services.isEmpty
+            ? 'No wireless ADB services found on the local network.'
+            : 'Found ${result.services.length} wireless ADB service${result.services.length == 1 ? '' : 's'}.';
+      } else {
+        _wirelessServices = [];
+        _wirelessMessage = null;
+        _wirelessError = result.error;
+      }
+
+      return result;
+    } finally {
+      _discoveringWireless = false;
+      _notify();
+    }
+  }
+
+  Future<AdbCommandResult> pairWirelessDevice({
+    required String address,
+    required String pairingCode,
+  }) async {
+    final normalizedAddress = address.trim();
+    final normalizedCode = pairingCode.trim();
+    if (normalizedAddress.isEmpty) {
+      const error = 'Enter a pairing address such as 192.168.0.104:45673.';
+      _wirelessError = error;
+      _wirelessMessage = null;
+      _notify();
+      return AdbCommandResult.failure(error: error);
+    }
+    if (normalizedCode.isEmpty) {
+      const error = 'Enter the wireless pairing code shown on the device.';
+      _wirelessError = error;
+      _wirelessMessage = null;
+      _notify();
+      return AdbCommandResult.failure(error: error);
+    }
+    if (_discoveringWireless || _connectingWireless) {
+      const error =
+          'Finish the current wireless ADB action before pairing a device.';
+      _wirelessError = error;
+      _wirelessMessage = null;
+      _notify();
+      return AdbCommandResult.failure(error: error);
+    }
+
+    _pairingWireless = true;
+    _wirelessMessage = null;
+    _wirelessError = null;
+    _notify();
+
+    try {
+      final result = await _adbService.pairDevice(
+        address: normalizedAddress,
+        pairingCode: normalizedCode,
+      );
+      if (_disposed) return result;
+
+      _wirelessMessage = result.message;
+      _wirelessError = result.error;
+      return result;
+    } finally {
+      _pairingWireless = false;
+      _notify();
+    }
+  }
+
+  Future<AdbCommandResult> connectWirelessDevice({
+    required String address,
+  }) async {
+    final normalizedAddress = address.trim();
+    if (normalizedAddress.isEmpty) {
+      const error = 'Enter a connect address such as 192.168.0.117:37251.';
+      _wirelessError = error;
+      _wirelessMessage = null;
+      _notify();
+      return AdbCommandResult.failure(error: error);
+    }
+    if (_discoveringWireless || _pairingWireless) {
+      const error =
+          'Finish the current wireless ADB action before connecting a device.';
+      _wirelessError = error;
+      _wirelessMessage = null;
+      _notify();
+      return AdbCommandResult.failure(error: error);
+    }
+
+    _connectingWireless = true;
+    _wirelessMessage = null;
+    _wirelessError = null;
+    _notify();
+
+    try {
+      final result = await _adbService.connectDevice(normalizedAddress);
+      if (_disposed || !result.isSuccess) {
+        _wirelessMessage = result.message;
+        _wirelessError = result.error;
+        return result;
+      }
+
+      final matchedDevice = await _awaitDeviceById(normalizedAddress);
+      if (_disposed) {
+        return result;
+      }
+
+      if (matchedDevice == null) {
+        final message =
+            '${result.message ?? 'Connected to $normalizedAddress.'} The device has not appeared in the device list yet.';
+        _wirelessMessage = message;
+        _wirelessError = null;
+        return AdbCommandResult.success(message: message);
+      }
+
+      if ((isDeviceSelectedInAnotherTab?.call(matchedDevice.id) ?? false) &&
+          selectedDevice?.id != matchedDevice.id) {
+        final message =
+            '${result.message ?? 'Connected to ${matchedDevice.id}.'} The device is already open in another tab.';
+        _wirelessMessage = message;
+        _wirelessError = null;
+        return AdbCommandResult.success(message: message);
+      }
+
+      await selectDeviceAndStart(matchedDevice);
+      if (_disposed) {
+        return AdbCommandResult.success(
+          message: result.message ?? 'Connected to ${matchedDevice.id}.',
         );
       }
 
-      if (currentSelectionId != null && selectedDevice == null) {
-        selectedDevice = null;
-        await _stopLogcatInternal(resetState: true);
-      }
-
-      final shouldAutoStartSingleDevice =
-          autoStartSingleIfAvailable &&
-          logs.isEmpty &&
-          selectedDevice == null &&
-          fetchedDevices.length == 1 &&
-          !(isDeviceSelectedInAnotherTab?.call(fetchedDevices.single.id) ??
-              false);
-
-      if (shouldAutoStartSingleDevice) {
-        await selectDeviceAndStart(fetchedDevices.single);
-        return;
-      }
-
-      _exitGetStartedIfWorkspaceReady();
+      final message =
+          'Connected to ${matchedDevice.id} and started logcat in this tab.';
+      _wirelessMessage = message;
+      _wirelessError = null;
+      return AdbCommandResult.success(message: message);
     } finally {
-      _loadingDevices = false;
+      _connectingWireless = false;
       _notify();
     }
   }
@@ -553,6 +717,62 @@ class LogTabController extends ChangeNotifier {
 
   void _invalidateSearchMatches() {
     _cachedSearchMatchIndices = null;
+  }
+
+  Future<void> _applyFetchedDevices(
+    List<Device> fetchedDevices, {
+    bool autoStartSingleIfAvailable = false,
+  }) async {
+    final currentSelectionId = selectedDevice?.id;
+    devices = fetchedDevices;
+
+    if (currentSelectionId != null) {
+      selectedDevice = fetchedDevices.firstWhereOrNull(
+        (device) => device.id == currentSelectionId,
+      );
+    }
+
+    if (currentSelectionId != null && selectedDevice == null) {
+      selectedDevice = null;
+      await _stopLogcatInternal(resetState: true);
+    }
+
+    final shouldAutoStartSingleDevice =
+        autoStartSingleIfAvailable &&
+        logs.isEmpty &&
+        selectedDevice == null &&
+        fetchedDevices.length == 1 &&
+        !(isDeviceSelectedInAnotherTab?.call(fetchedDevices.single.id) ??
+            false);
+
+    if (shouldAutoStartSingleDevice) {
+      await selectDeviceAndStart(fetchedDevices.single);
+      return;
+    }
+
+    _exitGetStartedIfWorkspaceReady();
+  }
+
+  Future<Device?> _awaitDeviceById(String deviceId) async {
+    const attempts = 5;
+    for (var attempt = 0; attempt < attempts; attempt++) {
+      final fetchedDevices = await _adbService.getDevices();
+      if (_disposed) return null;
+
+      await _applyFetchedDevices(fetchedDevices);
+      final matchedDevice = fetchedDevices.firstWhereOrNull(
+        (device) => device.id == deviceId,
+      );
+      if (matchedDevice != null) {
+        return matchedDevice;
+      }
+
+      if (attempt < attempts - 1) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+    }
+
+    return null;
   }
 
   String _logColumnValue(LogEntry log, LogColumn column) => switch (column) {

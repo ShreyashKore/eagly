@@ -6,6 +6,7 @@ import 'package:gap/gap.dart';
 import '../controllers/log_tab_controller.dart';
 import '../data/device.dart';
 import '../data/log_entry.dart';
+import '../services/adb_service.dart';
 import '../theme/app_theme.dart';
 import 'action_toolbar.dart';
 import 'filter_bar.dart';
@@ -71,6 +72,18 @@ class _LogTabViewState extends State<LogTabView> {
     }
   }
 
+  Future<void> _showWirelessConnectionDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return _WirelessConnectionDialog(
+          controller: controller,
+          onShowSnackBar: _showSnackBar,
+        );
+      },
+    );
+  }
+
   Future<void> _selectDevice(Device device) {
     return controller.selectDeviceAndStart(device);
   }
@@ -109,6 +122,13 @@ class _LogTabViewState extends State<LogTabView> {
           onTap: () async {
             await _handleImportLogs();
           },
+        ),
+        _GetStartedActionCard(
+          icon: Icons.wifi_tethering,
+          title: 'Wireless ADB',
+          subtitle:
+              'Discover nearby wireless ADB services, pair with a code, and connect over Wi‑Fi.',
+          onTap: _showWirelessConnectionDialog,
         ),
       ],
     );
@@ -411,19 +431,14 @@ class _LogTabViewState extends State<LogTabView> {
             onPressed: controller.logs.isNotEmpty ? controller.clearLogs : null,
           ),
           IconButton(
-            icon: Icon(
-              Icons.search,
-              color: controller.searchBarVisible
-                  ? Theme.of(context).colorScheme.primary
-                  : null,
-            ),
-            tooltip: controller.searchBarVisible
-                ? 'Close search'
-                : 'Search in logs (Ctrl+F / Cmd+F)',
-            onPressed: controller.toggleSearchBar,
+            icon: const Icon(Icons.wifi_tethering_outlined),
+            tooltip: 'Wireless ADB connect',
+            onPressed: _showWirelessConnectionDialog,
           ),
           const Spacer(),
           ActionToolbar(
+            isSearchBarVisible: controller.searchBarVisible,
+            toggleSearchBar: controller.toggleSearchBar,
             onImport: () async {
               await _handleImportLogs();
             },
@@ -653,6 +668,908 @@ class _LogTabViewState extends State<LogTabView> {
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _WirelessConnectionDialog extends StatefulWidget {
+  const _WirelessConnectionDialog({
+    required this.controller,
+    required this.onShowSnackBar,
+  });
+
+  final LogTabController controller;
+  final ValueChanged<String> onShowSnackBar;
+
+  @override
+  State<_WirelessConnectionDialog> createState() =>
+      _WirelessConnectionDialogState();
+}
+
+class _WirelessConnectionDialogState extends State<_WirelessConnectionDialog> {
+  late final TextEditingController _pairAddressController;
+  late final TextEditingController _pairingCodeController;
+  late final TextEditingController _connectAddressController;
+  var _section = _WirelessDialogSection.nearby;
+  String? _selectedDiscoveryHost;
+
+  LogTabController get controller => widget.controller;
+
+  List<_DiscoveredWirelessTarget> get _discoveredTargets {
+    final groupedServices = <String, List<AdbMdnsService>>{};
+    for (final service in controller.wirelessServices) {
+      groupedServices.putIfAbsent(service.host, () => []).add(service);
+    }
+
+    final targets = groupedServices.entries.map((entry) {
+      final pairingService = entry.value.firstWhereOrNull(
+        (service) => service.type == AdbMdnsServiceType.pairing,
+      );
+      final connectService = entry.value.firstWhereOrNull(
+        (service) => service.type == AdbMdnsServiceType.connect,
+      );
+
+      return _DiscoveredWirelessTarget(
+        host: entry.key,
+        pairingService: pairingService,
+        connectService: connectService,
+      );
+    }).toList();
+
+    targets.sort((left, right) => left.host.compareTo(right.host));
+    return targets;
+  }
+
+  _DiscoveredWirelessTarget? get _selectedDiscoveryTarget {
+    if (_selectedDiscoveryHost != null) {
+      return _discoveredTargets.firstWhereOrNull(
+        (target) => target.host == _selectedDiscoveryHost,
+      );
+    }
+
+    final pairingHost = _hostFromAddress(_pairAddressController.text);
+    if (pairingHost != null) {
+      return _discoveredTargets.firstWhereOrNull(
+        (target) => target.host == pairingHost,
+      );
+    }
+
+    final connectHost = _hostFromAddress(_connectAddressController.text);
+    if (connectHost != null) {
+      return _discoveredTargets.firstWhereOrNull(
+        (target) => target.host == connectHost,
+      );
+    }
+
+    return _discoveredTargets.firstOrNull;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _pairAddressController = TextEditingController(
+      text: controller.suggestedWirelessPairingAddress ?? '',
+    );
+    _pairingCodeController = TextEditingController();
+    _connectAddressController = TextEditingController(
+      text: controller.suggestedWirelessConnectAddress ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _pairAddressController.dispose();
+    _pairingCodeController.dispose();
+    _connectAddressController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleDiscover() async {
+    final result = await controller.discoverWirelessServices();
+    if (!mounted) return;
+
+    _applySuggestedAddresses(preferFirstDiscoveredTarget: true);
+    if (!result.isSuccess && result.error != null) {
+      widget.onShowSnackBar(result.error!);
+    }
+  }
+
+  Future<void> _handlePair() async {
+    final result = await controller.pairWirelessDevice(
+      address: _pairAddressController.text,
+      pairingCode: _pairingCodeController.text,
+    );
+    if (!mounted) return;
+
+    if (result.error != null) {
+      widget.onShowSnackBar(result.error!);
+      return;
+    }
+
+    if (result.message != null) {
+      widget.onShowSnackBar(result.message!);
+    }
+    _applySuggestedAddresses();
+  }
+
+  Future<void> _handleConnect() async {
+    final result = await controller.connectWirelessDevice(
+      address: _connectAddressController.text,
+    );
+    if (!mounted) return;
+
+    final feedback = result.error ?? result.message;
+    if (feedback != null && feedback.isNotEmpty) {
+      widget.onShowSnackBar(feedback);
+    }
+    if (result.isSuccess) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _applySuggestedAddresses({bool preferFirstDiscoveredTarget = false}) {
+    final suggestedPairing = controller.suggestedWirelessPairingAddress;
+    final suggestedConnect = controller.suggestedWirelessConnectAddress;
+    final firstTarget = _discoveredTargets.firstOrNull;
+
+    setState(() {
+      if (_pairAddressController.text.trim().isEmpty &&
+          suggestedPairing != null) {
+        _pairAddressController.text = suggestedPairing;
+      }
+      if (_connectAddressController.text.trim().isEmpty &&
+          suggestedConnect != null) {
+        _connectAddressController.text = suggestedConnect;
+      }
+
+      _selectedDiscoveryHost ??=
+          _hostFromAddress(suggestedPairing) ??
+          _hostFromAddress(suggestedConnect) ??
+          (preferFirstDiscoveredTarget ? firstTarget?.host : null);
+    });
+  }
+
+  void _selectDiscoveredTarget(_DiscoveredWirelessTarget target) {
+    final matchingConnectService = target.connectService;
+
+    setState(() {
+      _selectedDiscoveryHost = target.host;
+      if (target.pairingService != null) {
+        _pairAddressController.text = target.pairingService!.address;
+      }
+      if (matchingConnectService != null) {
+        _connectAddressController.text = matchingConnectService.address;
+      }
+    });
+  }
+
+  String? _hostFromAddress(String? address) {
+    if (address == null) return null;
+    final trimmed = address.trim();
+    if (trimmed.isEmpty) return null;
+    final separatorIndex = trimmed.lastIndexOf(':');
+    if (separatorIndex <= 0) return null;
+    return trimmed.substring(0, separatorIndex);
+  }
+
+  Widget _buildNearbyDevicesTab(BuildContext context) {
+    final theme = Theme.of(context);
+    final selectedTarget = _selectedDiscoveryTarget;
+
+    if (_discoveredTargets.isEmpty) {
+      final description = controller.hasAttemptedWirelessDiscovery
+          ? 'No nearby wireless ADB devices were discovered. You can try discovery again or switch to manual entry.'
+          : 'Start by discovering nearby wireless ADB devices advertised through mDNS.';
+
+      return _WirelessPlaceholderCard(
+        icon: controller.hasAttemptedWirelessDiscovery
+            ? Icons.wifi_find
+            : Icons.travel_explore,
+        title: controller.hasAttemptedWirelessDiscovery
+            ? 'No nearby devices found'
+            : 'Discover nearby devices',
+        description: description,
+        footer: Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            FilledButton.tonalIcon(
+              onPressed: controller.isWirelessBusy ? null : _handleDiscover,
+              icon: controller.isDiscoveringWireless
+                  ? SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: theme.colorScheme.primary,
+                      ),
+                    )
+                  : const Icon(Icons.travel_explore),
+              label: Text(
+                controller.hasAttemptedWirelessDiscovery
+                    ? 'Refresh discovery'
+                    : 'Discover devices',
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _section = _WirelessDialogSection.manual;
+                });
+              },
+              icon: const Icon(Icons.tune),
+              label: const Text('Manual entry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Nearby devices', style: theme.textTheme.titleMedium),
+        const Gap(6),
+        Text(
+          'Pick a discovered device first. Pairing and connect actions will adapt to the selected device.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const Gap(14),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final target in _discoveredTargets)
+              _WirelessDiscoveryCard(
+                target: target,
+                selected: selectedTarget?.host == target.host,
+                onTap: () => _selectDiscoveredTarget(target),
+              ),
+          ],
+        ),
+        const Gap(18),
+        if (selectedTarget != null)
+          _WirelessSelectedDevicePanel(
+            target: selectedTarget,
+            pairingCodeController: _pairingCodeController,
+            pairingBusy: controller.isPairingWireless,
+            connectingBusy: controller.isConnectingWireless,
+            actionsDisabled: controller.isWirelessBusy,
+            onPair: selectedTarget.pairingService == null ? null : _handlePair,
+            onConnect: selectedTarget.connectService == null
+                ? null
+                : _handleConnect,
+            onUseManualEntry: () {
+              setState(() {
+                _section = _WirelessDialogSection.manual;
+              });
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildManualEntryTab(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Manual entry', style: theme.textTheme.titleMedium),
+        const Gap(6),
+        Text(
+          'Use this only when discovery is unavailable or you already know the pairing and connect addresses.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const Gap(16),
+        _WirelessManualSection(
+          title: 'Pair with code',
+          description:
+              'Enter the pairing address from the device screen and the pairing code shown on the device.',
+          child: Column(
+            children: [
+              TextField(
+                controller: _pairAddressController,
+                enabled: !controller.isWirelessBusy,
+                decoration: const InputDecoration(
+                  labelText: 'Pairing address',
+                  hintText: '192.168.0.104:45673',
+                  prefixIcon: Icon(Icons.router_outlined),
+                ),
+              ),
+              const Gap(12),
+              TextField(
+                controller: _pairingCodeController,
+                enabled: !controller.isWirelessBusy,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Pairing code',
+                  hintText: 'Enter the 6-digit code shown on the device',
+                  prefixIcon: Icon(Icons.password_outlined),
+                ),
+                onSubmitted: (_) {
+                  if (!controller.isWirelessBusy) {
+                    _handlePair();
+                  }
+                },
+              ),
+              const Gap(12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.icon(
+                  onPressed: controller.isWirelessBusy ? null : _handlePair,
+                  icon: controller.isPairingWireless
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.verified_user_outlined),
+                  label: const Text('Pair'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Gap(16),
+        _WirelessManualSection(
+          title: 'Connect and start logcat',
+          description:
+              'After pairing, enter the connect address advertised by ADB and open the live session in this tab.',
+          child: Column(
+            children: [
+              TextField(
+                controller: _connectAddressController,
+                enabled: !controller.isWirelessBusy,
+                decoration: const InputDecoration(
+                  labelText: 'Connect address',
+                  hintText: '192.168.0.117:37251',
+                  prefixIcon: Icon(Icons.link_outlined),
+                ),
+                onSubmitted: (_) {
+                  if (!controller.isWirelessBusy) {
+                    _handleConnect();
+                  }
+                },
+              ),
+              const Gap(12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton(
+                  onPressed: controller.isWirelessBusy ? null : _handleConnect,
+                  child: controller.isConnectingWireless
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Connect and start logcat'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return AlertDialog(
+          titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          title: Row(
+            children: [
+              Icon(Icons.wifi_tethering, color: theme.colorScheme.primary),
+              const Gap(12),
+              const Expanded(child: Text('Wireless ADB')),
+            ],
+          ),
+          content: SizedBox(
+            width: 720,
+            height: 560,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Discover nearby devices first, then pair and connect with just the relevant fields for the selected device.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const Gap(16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    SegmentedButton<_WirelessDialogSection>(
+                      segments: const [
+                        ButtonSegment<_WirelessDialogSection>(
+                          value: _WirelessDialogSection.nearby,
+                          icon: Icon(Icons.wifi_find_outlined),
+                          label: Text('Nearby devices'),
+                        ),
+                        ButtonSegment<_WirelessDialogSection>(
+                          value: _WirelessDialogSection.manual,
+                          icon: Icon(Icons.tune),
+                          label: Text('Manual entry'),
+                        ),
+                      ],
+                      selected: {_section},
+                      onSelectionChanged: (selection) {
+                        setState(() {
+                          _section = selection.first;
+                        });
+                      },
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: controller.isWirelessBusy
+                          ? null
+                          : _handleDiscover,
+                      icon: controller.isDiscoveringWireless
+                          ? SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: theme.colorScheme.primary,
+                              ),
+                            )
+                          : const Icon(Icons.travel_explore),
+                      label: Text(
+                        controller.hasAttemptedWirelessDiscovery
+                            ? 'Refresh discovery'
+                            : 'Discover nearby',
+                      ),
+                    ),
+                    if (controller.selectedDevice != null)
+                      Text(
+                        'Current device: ${controller.selectedDevice!.displayName}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+                const Gap(16),
+                _WirelessFeedbackBanner(
+                  message: controller.wirelessMessage,
+                  error: controller.wirelessError,
+                ),
+                const Gap(16),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: _section == _WirelessDialogSection.nearby
+                        ? _buildNearbyDevicesTab(context)
+                        : _buildManualEntryTab(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+enum _WirelessDialogSection { nearby, manual }
+
+class _DiscoveredWirelessTarget {
+  const _DiscoveredWirelessTarget({
+    required this.host,
+    this.pairingService,
+    this.connectService,
+  });
+
+  final String host;
+  final AdbMdnsService? pairingService;
+  final AdbMdnsService? connectService;
+
+  String get title => pairingService?.name ?? connectService?.name ?? host;
+  String? get pairingAddress => pairingService?.address;
+  String? get connectAddress => connectService?.address;
+  bool get canPair => pairingService != null;
+  bool get canConnect => connectService != null;
+}
+
+class _WirelessFeedbackBanner extends StatelessWidget {
+  const _WirelessFeedbackBanner({this.message, this.error});
+
+  final String? message;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = error ?? message;
+    if (text == null || text.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final isError = error != null;
+    final background = isError
+        ? theme.colorScheme.errorContainer
+        : theme.colorScheme.surfaceContainerHighest;
+    final foreground = isError
+        ? theme.colorScheme.onErrorContainer
+        : theme.colorScheme.onSurface;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isError ? Icons.error_outline : Icons.info_outline,
+            color: foreground,
+            size: 18,
+          ),
+          const Gap(10),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodyMedium?.copyWith(color: foreground),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WirelessPlaceholderCard extends StatelessWidget {
+  const _WirelessPlaceholderCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    this.footer,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final Widget? footer;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 28, color: theme.colorScheme.primary),
+          const Gap(12),
+          Text(title, style: theme.textTheme.titleMedium),
+          const Gap(8),
+          Text(
+            description,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (footer != null) ...[const Gap(16), footer!],
+        ],
+      ),
+    );
+  }
+}
+
+class _WirelessDiscoveryCard extends StatelessWidget {
+  const _WirelessDiscoveryCard({
+    required this.target,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _DiscoveredWirelessTarget target;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SizedBox(
+      width: 320,
+      child: Material(
+        color: selected
+            ? theme.colorScheme.primaryContainer
+            : theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: selected
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.outlineVariant,
+                width: selected ? 1.5 : 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.phone_android,
+                      color: selected
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const Gap(10),
+                    Expanded(
+                      child: Text(
+                        target.host,
+                        style: theme.textTheme.titleSmall,
+                      ),
+                    ),
+                    if (selected)
+                      Icon(
+                        Icons.check_circle,
+                        color: theme.colorScheme.primary,
+                      ),
+                  ],
+                ),
+                const Gap(10),
+                Text(
+                  target.title,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const Gap(12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (target.pairingAddress != null)
+                      Chip(
+                        avatar: const Icon(Icons.password, size: 16),
+                        label: Text('Pair ${target.pairingAddress}'),
+                      ),
+                    if (target.connectAddress != null)
+                      Chip(
+                        avatar: const Icon(Icons.link, size: 16),
+                        label: Text('Connect ${target.connectAddress}'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WirelessSelectedDevicePanel extends StatelessWidget {
+  const _WirelessSelectedDevicePanel({
+    required this.target,
+    required this.pairingCodeController,
+    required this.pairingBusy,
+    required this.connectingBusy,
+    required this.actionsDisabled,
+    required this.onPair,
+    required this.onConnect,
+    required this.onUseManualEntry,
+  });
+
+  final _DiscoveredWirelessTarget target;
+  final TextEditingController pairingCodeController;
+  final bool pairingBusy;
+  final bool connectingBusy;
+  final bool actionsDisabled;
+  final VoidCallback? onPair;
+  final VoidCallback? onConnect;
+  final VoidCallback onUseManualEntry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Selected device', style: theme.textTheme.titleMedium),
+          const Gap(8),
+          Text(target.host, style: theme.textTheme.bodyLarge),
+          const Gap(12),
+          if (target.pairingAddress != null)
+            _WirelessDetailRow(
+              icon: Icons.password,
+              label: 'Pairing address',
+              value: target.pairingAddress!,
+            ),
+          if (target.connectAddress != null)
+            _WirelessDetailRow(
+              icon: Icons.link,
+              label: 'Connect address',
+              value: target.connectAddress!,
+            ),
+          if (target.canPair) ...[
+            const Gap(14),
+            TextField(
+              controller: pairingCodeController,
+              enabled: !actionsDisabled,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Pairing code',
+                hintText: 'Enter the code shown on the device',
+                prefixIcon: Icon(Icons.password_outlined),
+              ),
+              onSubmitted: (_) {
+                if (!actionsDisabled && onPair != null) {
+                  onPair!();
+                }
+              },
+            ),
+          ],
+          const Gap(16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              if (target.canPair)
+                FilledButton.icon(
+                  onPressed: actionsDisabled ? null : onPair,
+                  icon: pairingBusy
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.verified_user_outlined),
+                  label: const Text('Pair'),
+                ),
+              FilledButton.tonalIcon(
+                onPressed: actionsDisabled || !target.canConnect
+                    ? null
+                    : onConnect,
+                icon: connectingBusy
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.link),
+                label: const Text('Connect'),
+              ),
+              TextButton.icon(
+                onPressed: onUseManualEntry,
+                icon: const Icon(Icons.tune),
+                label: const Text('Manual entry'),
+              ),
+            ],
+          ),
+          if (!target.canConnect) ...[
+            const Gap(12),
+            Text(
+              'A connect endpoint was not discovered for this device yet. If needed, switch to manual entry after pairing.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _WirelessManualSection extends StatelessWidget {
+  const _WirelessManualSection({
+    required this.title,
+    required this.description,
+    required this.child,
+  });
+
+  final String title;
+  final String description;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: theme.textTheme.titleMedium),
+          const Gap(6),
+          Text(
+            description,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const Gap(14),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _WirelessDetailRow extends StatelessWidget {
+  const _WirelessDetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.primary),
+          const Gap(8),
+          Text(
+            '$label: ',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
+        ],
+      ),
     );
   }
 }
