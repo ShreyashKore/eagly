@@ -1,10 +1,22 @@
+enum DevicePlatform { android, ios }
+
 class Device {
   final String id;
   final String status;
   final String? model;
   final String? name;
+  final DevicePlatform platform;
 
-  Device(this.id, this.status, {this.model, this.name});
+  Device(
+    this.id,
+    this.status, {
+    this.model,
+    this.name,
+    this.platform = DevicePlatform.android,
+  });
+
+  bool get isAndroid => platform == DevicePlatform.android;
+  bool get isIos => platform == DevicePlatform.ios;
 
   String get displayName {
     if (model != null && name != null) {
@@ -19,7 +31,7 @@ class Device {
 
   @override
   String toString() {
-    return 'Device(id: $id, status: $status, model: $model, name: $name)';
+    return 'Device(id: $id, status: $status, model: $model, name: $name, platform: $platform)';
   }
 
   @override
@@ -30,9 +42,10 @@ class Device {
       other.id == id &&
       other.status == status &&
       other.model == model &&
-      other.name == name;
+      other.name == name &&
+      other.platform == platform;
   }
 
   @override
-  int get hashCode => Object.hash(id, status, model, name);
+  int get hashCode => Object.hash(id, status, model, name, platform);
 }

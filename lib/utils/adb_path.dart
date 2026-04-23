@@ -1,37 +1,32 @@
 import 'dart:io';
 
-/// Resolves the path to the bundled adb binary based on the current platform.
-///
-/// The binary is placed in the app bundle during build:
-/// - macOS: Contents/Resources/adb
-/// - Linux: data/adb
-/// - Windows: data/adb.exe
-String? resolveBundledAdbPath() {
+/// Resolves the path to a bundled executable based on the current platform.
+String? resolveBundledExecutablePath(String executableName) {
   final execPath = Platform.resolvedExecutable;
   final execDir = File(execPath).parent;
+  final fileName = Platform.isWindows && !executableName.endsWith('.exe')
+      ? '$executableName.exe'
+      : executableName;
 
-  String adbPath;
+  final executablePath = switch (Platform.operatingSystem) {
+    'macos' => '${execDir.path}/$fileName',
+    'linux' => '${execDir.path}/data/$fileName',
+    'windows' => '${execDir.path}/data/$fileName',
+    _ => null,
+  };
 
-  if (Platform.isMacOS) {
-    // macOS: executable is at AppBundle.app/Contents/MacOS/logview
-    // adb is at AppBundle.app/Contents/MacOS/adb
-    adbPath = '${execDir.path}/adb';
-  } else if (Platform.isLinux) {
-    // Linux: executable is at bundle/logview
-    // adb is at bundle/data/adb
-    adbPath = '${execDir.path}/data/adb';
-  } else if (Platform.isWindows) {
-    // Windows: executable is at bundle/logview.exe
-    // adb is at bundle/data/adb.exe
-    adbPath = '${execDir.path}/data/adb.exe';
-  } else {
+  if (executablePath == null) {
     return null;
   }
 
-  final file = File(adbPath);
+  final file = File(executablePath);
   if (file.existsSync()) {
-    return adbPath;
+    return executablePath;
   }
 
   return null;
 }
+
+/// Resolves the path to the bundled adb binary based on the current platform.
+String? resolveBundledAdbPath() => resolveBundledExecutablePath('adb');
+

@@ -482,7 +482,7 @@ class LogTabController extends ChangeNotifier {
     logcatState = LogcatState.running;
     _notify();
 
-    _logSub = _adbService.startLogcat(selectedDevice!.id).listen((logEntry) {
+    _logSub = _adbService.startLogcat(selectedDevice!).listen((logEntry) {
       if (_disposed || logcatState == LogcatState.paused) return;
       _buffer.add(logEntry);
       _bufferMemoryBytes += _estimateLogEntryBytes(logEntry);
@@ -1093,8 +1093,8 @@ class LogTabController extends ChangeNotifier {
     }
 
     final message = selectedDevice?.id == matchedDevice.id && isRunning
-        ? '${prefixMessage ?? 'Connected to ${matchedDevice.id}.'} Logcat is ready in this tab.'
-        : 'Connected to ${matchedDevice.id} and started logcat in this tab.';
+        ? '${prefixMessage ?? 'Connected to ${matchedDevice.id}.'} Live logs are ready in this tab.'
+        : 'Connected to ${matchedDevice.id} and started live logs in this tab.';
     return AdbCommandResult.success(message: message);
   }
 

@@ -1,16 +1,33 @@
 # logview
 
-Logs viewer
+Desktop log viewer for Android logcat and iOS syslog streams.
 
-## Getting Started
+## Requirements
 
-This project is a starting point for a Flutter application.
+- Flutter (the workspace currently uses `fvm flutter`)
+- Android logs: `adb` available on `PATH` or bundled with the app
+- iOS logs: `libimobiledevice` tools available on `PATH` or bundled with the app:
+  - `idevice_id`
+  - `ideviceinfo`
+  - `idevicesyslog`
 
-A few resources to get you started if this is your first Flutter project:
+On macOS, you can install the iOS tooling with Homebrew:
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```bash
+brew install libimobiledevice
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Features
+
+- Discover connected Android and iOS devices
+- Stream Android logs with `adb logcat -v threadtime`
+- Stream iOS logs with `idevicesyslog`
+- Preserve multi-line iOS syslog entries in the log viewer
+- Filter, search, import, and export logs from the desktop UI
+
+## Validation
+
+```bash
+fvm flutter analyze
+fvm flutter test -r compact
+```
