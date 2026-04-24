@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../utils/widget_extensions.dart';
+
 import '../controllers/log_tab_controller.dart';
 import '../data/device.dart';
 import '../data/log_entry.dart';
@@ -89,17 +91,7 @@ class _LogTabViewState extends State<LogTabView> {
   }
 
   void _openDevicesDropdown() {
-    _dropdownButtonKey.currentContext?.visitChildElements((element) {
-      if (element.widget is Semantics) {
-        element.visitChildElements((element) {
-          if (element.widget is Actions) {
-            element.visitChildElements((element) {
-              Actions.invoke(element, ActivateIntent());
-            });
-          }
-        });
-      }
-    });
+    _dropdownButtonKey.openDropdown();
   }
 
   Widget _buildGettingStartedOptions({bool compact = false}) {
@@ -357,7 +349,7 @@ class _LogTabViewState extends State<LogTabView> {
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(10),
               ),
-              constraints: BoxConstraints(maxWidth: 400),
+              constraints: BoxConstraints(maxWidth: 320),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               child: Row(
                 children: [
@@ -375,8 +367,8 @@ class _LogTabViewState extends State<LogTabView> {
                       return controller.devices.map((device) {
                         return Container(
                           alignment: Alignment.centerLeft,
-                          constraints: BoxConstraints(maxWidth: 320),
-                          child: Text('${device.id} · ${device.model}'),
+                          constraints: BoxConstraints(maxWidth: 240),
+                          child: Text(device.displayName),
                         );
                       }).toList();
                     },
@@ -385,7 +377,7 @@ class _LogTabViewState extends State<LogTabView> {
                         .map(
                           (device) => DropdownMenuItem(
                             value: device,
-                            child: Text('${device.id} · ${device.model}'),
+                            child: Text(device.displayName),
                           ),
                         )
                         .toList(),
