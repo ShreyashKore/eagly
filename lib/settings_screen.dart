@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:logview/theme/app_theme.dart';
+import 'package:gap/gap.dart';
 
 import 'services/app_info_service.dart';
 import 'services/preferences_service.dart';
@@ -72,116 +72,149 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ).showSnackBar(const SnackBar(content: Text('Column widths reset.')));
   }
 
+  int get _themeIndex {
+    switch (_themePreference) {
+      case ThemeMode.light:
+        return 1;
+      case ThemeMode.dark:
+        return 2;
+      case ThemeMode.system:
+        return 0;
+    }
+  }
+
+  void _setThemeByIndex(int index) {
+    final mode = [ThemeMode.system, ThemeMode.light, ThemeMode.dark][index];
+    setState(() => _themePreference = mode);
+    PreferencesService.themeMode = mode;
+  }
+
   @override
   Widget build(BuildContext context) {
     final hiddenColumns = PreferencesService.hiddenColumns;
+    final theme = Theme.of(context);
+    Widget sectionCard({
+      required String title,
+      required List<Widget> children,
+    }) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(title, style: theme.textTheme.titleMedium),
+          ),
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            color: Theme.of(context).colorScheme.surfaceContainerHigh,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Column(
+                children: List<Widget>.generate(children.length * 2 - 1, (i) {
+                  final index = i ~/ 2;
+                  if (i.isEven) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: children[index],
+                    );
+                  }
+                  return const Divider(height: 1);
+                }),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        title: const Text('Settings'),
+        centerTitle: false,
+        elevation: 0,
+      ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
+          constraints: const BoxConstraints(maxWidth: 820),
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             children: [
-              Text(
-                'Appearance',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Switch between auto, light, and dark theme modes.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 8),
-              Card(
-                child: ListTile(
-                  title: const Text('Theme mode'),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              sectionCard(
+                title: 'Appearance',
+                children: [
+                  Row(
                     children: [
-                      DropdownButtonFormField<ThemeMode>(
-                        initialValue: _themePreference,
-                        isExpanded: true,
-                        items: ThemeMode.values
-                            .map(
-                              (preference) => DropdownMenuItem(
-                                value: preference,
-                                child: Text(preference.label),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() => _themePreference = value);
-                          PreferencesService.themeMode = value;
-                        },
-                        decoration: InputDecoration(
-                          helperText: _themePreference.description,
+                      Expanded(
+                        child: Text('Theme', style: theme.textTheme.bodyLarge),
+                      ),
+                      ToggleButtons(
+                        isSelected: List.generate(
+                          3,
+                          (i) => i == _themeIndex,
+                          growable: false,
                         ),
+                        onPressed: (index) => _setThemeByIndex(index),
+                        borderRadius: BorderRadius.circular(6),
+                        selectedBorderColor: theme.colorScheme.primary
+                            .withOpacity(0.5),
+                        constraints: const BoxConstraints(
+                          minWidth: 84,
+                          minHeight: 36,
+                        ),
+                        children: const [
+                          Text('Auto'),
+                          Text('Light'),
+                          Text('Dark'),
+                        ],
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Defaults for new tabs',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Open tabs keep their local configuration in memory. These values are used only when a new tab is created.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 8),
-              Card(
-                child: Column(
-                  children: [
-                    SwitchListTile(
-                      value: _wrapText,
-                      title: const Text('Wrap text'),
-                      subtitle: const Text(
-                        'Controls the message column wrapping.',
-                      ),
-                      onChanged: (value) {
-                        setState(() => _wrapText = value);
-                        PreferencesService.wrapText = value;
-                      },
-                    ),
-                    SwitchListTile(
-                      value: _autoScroll,
-                      title: const Text('Auto-scroll'),
-                      subtitle: const Text(
-                        'Keep the view pinned to the latest logs.',
-                      ),
-                      onChanged: (value) {
-                        setState(() => _autoScroll = value);
-                        PreferencesService.autoScroll = value;
-                      },
-                    ),
-                    ListTile(
-                      title: const Text('Default log level filter'),
-                      subtitle: DropdownButtonFormField<String>(
-                        initialValue: _selectedLogLevel,
+              const Gap(16),
+              sectionCard(
+                title: 'Defaults for new tabs',
+                children: [
+                  SwitchListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: _wrapText,
+                    title: const Text('Wrap text'),
+                    subtitle: const Text('Message column wraps'),
+                    onChanged: (value) {
+                      setState(() => _wrapText = value);
+                      PreferencesService.wrapText = value;
+                    },
+                  ),
+                  SwitchListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: _autoScroll,
+                    title: const Text('Auto-scroll'),
+                    subtitle: const Text('Keep view pinned to latest'),
+                    onChanged: (value) {
+                      setState(() => _autoScroll = value);
+                      PreferencesService.autoScroll = value;
+                    },
+                  ),
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Default log level'),
+                    trailing: SizedBox(
+                      width: 160,
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedLogLevel,
+                        isExpanded: true,
                         items: const [
-                          DropdownMenuItem(
-                            value: 'E',
-                            child: Text('Error (E)'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'W',
-                            child: Text('Warning (W)'),
-                          ),
-                          DropdownMenuItem(value: 'I', child: Text('Info (I)')),
-                          DropdownMenuItem(
-                            value: 'D',
-                            child: Text('Debug (D)'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'V',
-                            child: Text('Verbose (V)'),
-                          ),
+                          DropdownMenuItem(value: 'E', child: Text('Error')),
+                          DropdownMenuItem(value: 'W', child: Text('Warning')),
+                          DropdownMenuItem(value: 'I', child: Text('Info')),
+                          DropdownMenuItem(value: 'D', child: Text('Debug')),
+                          DropdownMenuItem(value: 'V', child: Text('Verbose')),
                         ],
                         onChanged: (value) {
                           if (value == null) return;
@@ -190,75 +223,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         },
                       ),
                     ),
-                    ListTile(
-                      title: const Text('Max log lines kept in memory'),
-                      subtitle: Row(
+                  ),
+                  // (no explicit Divider here)
+                  Row(
+                    children: [
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _logLinesController,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                hintText: '50000',
-                                helperText: 'Minimum: 1000',
-                              ),
-                              onSubmitted: (_) => _saveLogLinesLimit(),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          FilledButton(
-                            onPressed: _saveLogLinesLimit,
-                            child: const Text('Apply'),
+                          Text('Max log lines'),
+                          Text(
+                            'Minimum 1000',
+                            style: theme.textTheme.labelSmall,
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
+                      Gap(200),
+                      Expanded(
+                        child: TextField(
+                          controller: _logLinesController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(hintText: '50000'),
+                          onSubmitted: (_) => _saveLogLinesLimit(),
+                        ),
+                      ),
+                      const Gap(12),
+                      FilledButton(
+                        onPressed: _saveLogLinesLimit,
+                        child: const Text('Apply'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Stored layout defaults',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Card(
-                child: Column(
-                  children: [
-                    ListTile(
-                      title: const Text('Default hidden columns'),
-                      subtitle: Text(
-                        '${hiddenColumns.length} columns hidden for newly created tabs',
-                      ),
-                      trailing: TextButton(
-                        onPressed: hiddenColumns.isEmpty
-                            ? null
-                            : _resetHiddenColumns,
-                        child: const Text('Reset'),
-                      ),
+              const Gap(16),
+              sectionCard(
+                title: 'Stored layout defaults',
+                children: [
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Default hidden columns'),
+                    subtitle: Text(
+                      '${hiddenColumns.length} columns hidden by default',
                     ),
-                    ListTile(
-                      title: const Text('Default column widths'),
-                      subtitle: const Text(
-                        'Reset the persisted widths used when new tabs are created.',
-                      ),
-                      trailing: TextButton(
-                        onPressed: _resetColumnWidths,
-                        child: const Text('Reset'),
-                      ),
+                    trailing: TextButton(
+                      onPressed: hiddenColumns.isEmpty
+                          ? null
+                          : _resetHiddenColumns,
+                      child: const Text('Reset'),
                     ),
-                  ],
-                ),
+                  ),
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Default column widths'),
+                    subtitle: const Text('Persisted widths for new tabs'),
+                    trailing: TextButton(
+                      onPressed: _resetColumnWidths,
+                      child: const Text('Reset'),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              Text('About', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Card(
-                child: ListTile(
-                  title: const Text('Version'),
-                  subtitle: Text(AppInfoService.appVersion),
-                ),
+              const Gap(16),
+              sectionCard(
+                title: 'About',
+                children: [
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Version'),
+                    trailing: Text(AppInfoService.appVersion),
+                  ),
+                ],
               ),
             ],
           ),

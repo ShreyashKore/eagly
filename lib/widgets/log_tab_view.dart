@@ -114,13 +114,15 @@ class _LogTabViewState extends State<LogTabView> {
               'Discover connected Android and iOS devices and open a live log stream.',
           onTap: () => _handleLoadDevices(openPickerWhenNeeded: compact),
           secondaryActions: [
-            FilledButton.tonal(
+            FilledButton.tonalIcon(
               onPressed: () => _handleLoadDevices(openPickerWhenNeeded: true),
-              child: const Text('Load devices'),
+              icon: const Icon(Icons.usb),
+              label: const Text('Load devices'),
             ),
-            FilledButton.tonal(
+            FilledButton.tonalIcon(
+              icon: const Icon(Icons.wifi_tethering_outlined),
               onPressed: _showWirelessConnectionDialog,
-              child: const Text('Wireless ADB'),
+              label: const Text('Wireless ADB'),
             ),
           ],
           children: [
@@ -194,6 +196,7 @@ class _LogTabViewState extends State<LogTabView> {
   Widget _buildGetStartedSecondaryActions() {
     return Row(
       mainAxisSize: MainAxisSize.min,
+      spacing: 8,
       children: [
         IconButton(
           tooltip: 'Settings',
@@ -327,9 +330,11 @@ class _LogTabViewState extends State<LogTabView> {
         Expanded(
           child: controller.hasVisibleWorkspace
               ? _buildViewerArea(context)
-              : _buildNoDevicePlaceholder(context),
+              : SingleChildScrollView(
+                  child: _buildNoDevicePlaceholder(context),
+                ),
         ),
-        _buildStatusBar(context),
+        if (controller.hasVisibleWorkspace) _buildStatusBar(context),
       ],
     );
   }
@@ -347,50 +352,58 @@ class _LogTabViewState extends State<LogTabView> {
         spacing: 4,
         children: [
           if (controller.devices.isNotEmpty)
-            DecoratedBox(
+            Container(
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                child: Row(
-                  children: [
-                    DropdownButton<Device>(
-                      key: _dropdownButtonKey,
-                      hint: const Text('Select Device'),
-                      value: selectedValue,
-                      underline: const SizedBox.shrink(),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 0,
-                      ),
-                      isDense: true,
-                      borderRadius: BorderRadius.circular(8),
-                      items: controller.devices
-                          .map(
-                            (device) => DropdownMenuItem(
-                              value: device,
-                              child: Text('${device.id} · ${device.model}'),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (device) {
-                        if (device != null) {
-                          _selectDevice(device);
-                        }
-                      },
+              constraints: BoxConstraints(maxWidth: 400),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              child: Row(
+                children: [
+                  DropdownButton<Device>(
+                    key: _dropdownButtonKey,
+                    hint: const Text('Select Device'),
+                    value: selectedValue,
+                    underline: const SizedBox.shrink(),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 0,
                     ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.all(0),
-                      tooltip: 'Reload devices',
-                      onPressed: _handleLoadDevices,
-                      icon: const Icon(Icons.refresh),
-                      iconSize: 20,
-                    ),
-                  ],
-                ),
+                    isDense: true,
+                    selectedItemBuilder: (context) {
+                      return controller.devices.map((device) {
+                        return Container(
+                          alignment: Alignment.centerLeft,
+                          constraints: BoxConstraints(maxWidth: 320),
+                          child: Text('${device.id} · ${device.model}'),
+                        );
+                      }).toList();
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    items: controller.devices
+                        .map(
+                          (device) => DropdownMenuItem(
+                            value: device,
+                            child: Text('${device.id} · ${device.model}'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (device) {
+                      if (device != null) {
+                        _selectDevice(device);
+                      }
+                    },
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.all(0),
+                    tooltip: 'Reload devices',
+                    onPressed: _handleLoadDevices,
+                    icon: const Icon(Icons.refresh),
+                    iconSize: 20,
+                  ),
+                ],
               ),
             )
           else
@@ -553,7 +566,7 @@ class _LogTabViewState extends State<LogTabView> {
   Widget _buildNoDevicePlaceholder(BuildContext context) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
+        constraints: const BoxConstraints(maxWidth: 820),
         child: _CenteredStateMessage(
           icon: Icons.devices_outlined,
           title: 'No device or imported logs in this tab',

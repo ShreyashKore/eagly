@@ -235,20 +235,23 @@ class AppTheme {
     final seeded = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: Brightness.light,
+      surfaceContainerLowest: Colors.grey.shade200,
+      onSurface: Color(0xFF181818),
+      onSurfaceVariant: Color(0xFF262626),
     );
-    return seeded.copyWith(
-      onSurfaceVariant: seeded.onSurface.withValues(alpha: .65),
-    );
+    return seeded;
   }();
 
   static final ColorScheme _darkColorScheme = () {
     final seeded = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: Brightness.dark,
+      surface: Colors.grey.shade900,
+      surfaceContainerLowest: Color(0xFF0E0E0E),
+      onSurface: Color(0xFFF1F1F1),
+      onSurfaceVariant: Color(0xFF969696),
     );
-    return seeded.copyWith(
-      onSurfaceVariant: seeded.onSurface.withValues(alpha: .75),
-    );
+    return seeded;
   }();
 
   static ThemeData _buildTheme(ColorScheme colorScheme, LogViewTheme tokens) {
@@ -266,7 +269,7 @@ class AppTheme {
 
     final cursorStyle = WidgetStatePropertyAll(SystemMouseCursors.click);
     final inputBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(8),
       borderSide: BorderSide(color: colorScheme.outlineVariant),
     );
 
@@ -323,7 +326,10 @@ class AppTheme {
         selectionColor: colorScheme.primary.withValues(alpha: 0.4),
         selectionHandleColor: colorScheme.primary,
       ),
-      listTileTheme: ListTileThemeData(dense: true),
+      listTileTheme: ListTileThemeData(
+        dense: true,
+        visualDensity: VisualDensity(vertical: -4, horizontal: -4),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         isDense: true,
         filled: true,
@@ -333,6 +339,7 @@ class AppTheme {
         hintStyle: textTheme.bodyMedium?.copyWith(
           color: colorScheme.onSurfaceVariant,
         ),
+        visualDensity: VisualDensity.compact,
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         border: inputBorder,
         enabledBorder: inputBorder,
