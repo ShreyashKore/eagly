@@ -5,6 +5,7 @@ import 'dart:io';
 import '../data/device.dart';
 import '../data/log_entry.dart';
 import '../utils/adb_path.dart';
+import 'ios_syslog_parser.dart';
 
 enum AdbMdnsServiceType { connect, pairing, unknown }
 
@@ -68,53 +69,156 @@ class AdbCommandResult {
 
 class AdbService {
   final String adbPath;
+  final String ideviceIdPath;
+  final String ideviceInfoPath;
+  final String ideviceSyslogPath;
   final Map<String, String> _pidToPackageCache = {};
   Timer? _cacheRefreshTimer;
   Process? _activeLogcatProcess;
   String? _activeDeviceId;
 
-  AdbService({String? adbPath})
-    : adbPath = adbPath ?? resolveBundledAdbPath() ?? 'adb';
+  AdbService({
+    String? adbPath,
+    String? ideviceIdPath,
+    String? ideviceInfoPath,
+    String? ideviceSyslogPath,
+  }) : adbPath = adbPath ?? resolveBundledAdbPath() ?? 'adb',
+       ideviceIdPath =
+           ideviceIdPath ??
+           resolveBundledExecutablePath('idevice_id') ??
+           'idevice_id',
+       ideviceInfoPath =
+           ideviceInfoPath ??
+           resolveBundledExecutablePath('ideviceinfo') ??
+           'ideviceinfo',
+       ideviceSyslogPath =
+           ideviceSyslogPath ??
+           resolveBundledExecutablePath('idevicesyslog') ??
+           'idevicesyslog';
 
-  /// Fetches the list of connected devices
+  /// Fetches the list of connected Android and iOS devices.
   Future<List<Device>> getDevices() async {
-    final result = await Process.run(adbPath, ['devices', '-l']);
-    final lines = (result.stdout as String).split('\n');
+    final androidDevices = await _getAndroidDevices();
+    final iosDevices = await _getIosDevices();
+    final devices = [...androidDevices, ...iosDevices];
 
-    final deviceList = <Device>[];
+    devices.sort((left, right) {
+      final platformOrder = left.platform.index.compareTo(right.platform.index);
+      if (platformOrder != 0) return platformOrder;
+      final statusOrder = left.status.compareTo(right.status);
+      if (statusOrder != 0) return statusOrder;
+      final nameOrder = left.displayName.toLowerCase().compareTo(
+        right.displayName.toLowerCase(),
+      );
+      if (nameOrder != 0) return nameOrder;
+      return left.id.compareTo(right.id);
+    });
 
-    for (final line in lines.skip(1)) {
-      if (line.trim().isEmpty) continue;
+    return devices;
+  }
 
-      // Parse output format: ID status usb:X-Y product:PRODUCT model:MODEL device:DEVICE transport_id:N
-      final parts = line.trim().split(RegExp(r'\s+'));
-      if (parts.length < 2) continue;
-
-      final deviceId = parts[0];
-      final status = parts[1];
-
-      // Parse optional attributes
-      String? model;
-      String? product;
-
-      for (int i = 2; i < parts.length; i++) {
-        if (parts[i].startsWith('model:')) {
-          model = parts[i].substring('model:'.length);
-        } else if (parts[i].startsWith('product:')) {
-          product = parts[i].substring('product:'.length);
-        }
+  Future<List<Device>> _getAndroidDevices() async {
+    try {
+      final result = await _runTool(adbPath, ['devices', '-l']);
+      if (result.exitCode != 0) {
+        return const [];
       }
 
-      // Use product as name if available
-      deviceList.add(Device(deviceId, status, model: model, name: product));
-    }
+      final lines = (result.stdout as String).split('\n');
+      final deviceList = <Device>[];
 
-    return deviceList;
+      for (final line in lines.skip(1)) {
+        if (line.trim().isEmpty) continue;
+
+        final parts = line.trim().split(RegExp(r'\s+'));
+        if (parts.length < 2) continue;
+
+        final deviceId = parts[0];
+        final status = parts[1];
+
+        String? model;
+        String? product;
+
+        for (var i = 2; i < parts.length; i++) {
+          if (parts[i].startsWith('model:')) {
+            model = parts[i].substring('model:'.length);
+          } else if (parts[i].startsWith('product:')) {
+            product = parts[i].substring('product:'.length);
+          }
+        }
+
+        deviceList.add(
+          Device(
+            deviceId,
+            status,
+            model: model,
+            name: product,
+            platform: DevicePlatform.android,
+          ),
+        );
+      }
+
+      return deviceList;
+    } on ProcessException {
+      return const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<Device>> _getIosDevices() async {
+    try {
+      final result = await _runTool(ideviceIdPath, ['-l']);
+      if (result.exitCode != 0) {
+        return const [];
+      }
+
+      final deviceIds = const LineSplitter()
+          .convert((result.stdout as String).trim())
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList(growable: false);
+      if (deviceIds.isEmpty) {
+        return const [];
+      }
+
+      return Future.wait(deviceIds.map(_describeIosDevice));
+    } on ProcessException {
+      return const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<Device> _describeIosDevice(String deviceId) async {
+    try {
+      final result = await _runTool(ideviceInfoPath, ['-u', deviceId]);
+      if (result.exitCode != 0) {
+        return Device(
+          deviceId,
+          _describeIosDeviceStatus(result),
+          platform: DevicePlatform.ios,
+        );
+      }
+
+      final info = _parseIdeviceInfoOutput(result.stdout as String);
+      return Device(
+        deviceId,
+        'device',
+        name: _firstNonEmpty(info['DeviceName'], info['ProductName']),
+        model: _firstNonEmpty(info['ProductType'], info['HardwareModel']),
+        platform: DevicePlatform.ios,
+      );
+    } on ProcessException {
+      return Device(deviceId, 'unavailable', platform: DevicePlatform.ios);
+    } catch (_) {
+      return Device(deviceId, 'unavailable', platform: DevicePlatform.ios);
+    }
   }
 
   Future<AdbMdnsDiscoveryResult> discoverMdnsServices() async {
     try {
-      final result = await Process.run(adbPath, ['mdns', 'services']);
+      final result = await _runTool(adbPath, ['mdns', 'services']);
       if (result.exitCode != 0) {
         return AdbMdnsDiscoveryResult.failure(
           error: _describeCommandFailure(
@@ -125,29 +229,29 @@ class AdbService {
       }
 
       final services = <AdbMdnsService>[];
-      final output = (result.stdout as String).trim();
-
-      for (final rawLine in const LineSplitter().convert(output)) {
+      for (final rawLine in const LineSplitter().convert(result.stdout as String)) {
         final line = rawLine.trim();
-        if (line.isEmpty) continue;
-
-        final parts = line.split(RegExp(r'\s+'));
-        if (parts.length < 3) continue;
-
-        final endpoint = parts[2];
-        final separatorIndex = endpoint.lastIndexOf(':');
-        if (separatorIndex <= 0 || separatorIndex == endpoint.length - 1) {
+        if (line.isEmpty || line.startsWith('List of discovered mdns services')) {
           continue;
         }
 
-        final port = int.tryParse(endpoint.substring(separatorIndex + 1));
-        if (port == null) continue;
+        final match = RegExp(
+          r'^(.+?)\s+(_adb-tls-(?:connect|pairing)\._tcp)\.?\s+([^\s:]+):(\d+)$',
+        ).firstMatch(line);
+        if (match == null) {
+          continue;
+        }
+
+        final port = int.tryParse(match.group(4)!);
+        if (port == null) {
+          continue;
+        }
 
         services.add(
           AdbMdnsService(
-            name: parts[0],
-            type: _parseMdnsServiceType(parts[1]),
-            host: endpoint.substring(0, separatorIndex),
+            name: match.group(1)!.trim(),
+            type: _parseMdnsServiceType(match.group(2)!),
+            host: match.group(3)!.trim(),
             port: port,
           ),
         );
@@ -175,7 +279,7 @@ class AdbService {
     required String pairingCode,
   }) async {
     try {
-      final result = await Process.run(adbPath, ['pair', address, pairingCode]);
+      final result = await _runTool(adbPath, ['pair', address, pairingCode]);
       if (result.exitCode != 0) {
         return AdbCommandResult.failure(
           error: _describeCommandFailure(
@@ -200,7 +304,7 @@ class AdbService {
 
   Future<AdbCommandResult> connectDevice(String address) async {
     try {
-      final result = await Process.run(adbPath, ['connect', address]);
+      final result = await _runTool(adbPath, ['connect', address]);
       final output = _combinedProcessOutput(result);
       final normalizedOutput = output.toLowerCase();
       final failed =
@@ -225,10 +329,10 @@ class AdbService {
     }
   }
 
-  /// Refresh the PID to package name mapping
+  /// Refresh the PID to package name mapping.
   Future<void> refreshPidToPackageMap(String deviceId) async {
     try {
-      final result = await Process.run(adbPath, [
+      final result = await _runTool(adbPath, [
         '-s',
         deviceId,
         'shell',
@@ -242,7 +346,6 @@ class AdbService {
       for (final line in lines.skip(1)) {
         if (line.trim().isEmpty) continue;
 
-        // ps output format varies, but typically: USER PID PPID VSZ RSS WCHAN ADDR S NAME
         final parts = line.trim().split(RegExp(r'\s+'));
         if (parts.length >= 9) {
           final pid = parts[1];
@@ -255,35 +358,43 @@ class AdbService {
     }
   }
 
-  /// Get package name from PID
   String? getPackageNameFromPid(String pid) {
     return _pidToPackageCache[pid];
   }
 
-  /// Starts logcat for a specific device and returns a stream of log entries
-  Stream<LogEntry> startLogcat(String deviceId) async* {
-    await stopActiveLogcat();
+  /// Starts a live log stream for a specific device and returns a stream of log entries.
+  Stream<LogEntry> startLogcat(Device device) async* {
+    if (device.isIos) {
+      yield* _startIosSyslog(device);
+      return;
+    }
 
-    // Initial refresh of PID to package mapping
+    yield* _startAndroidLogcat(device.id);
+  }
+
+  Stream<LogEntry> _startAndroidLogcat(String deviceId) async* {
+    await stopActiveLogcat();
     await refreshPidToPackageMap(deviceId);
 
-    // Refresh the cache every 5 seconds
     _cacheRefreshTimer?.cancel();
     _cacheRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       refreshPidToPackageMap(deviceId);
     });
 
-    final process = await Process.start(adbPath, [
-      '-s',
-      deviceId,
-      'logcat',
-      '-v',
-      'threadtime',
-    ]);
-    _activeLogcatProcess = process;
-    _activeDeviceId = deviceId;
-
+    Process? process;
     try {
+      process = await _startTool(adbPath, [
+        '-s',
+        deviceId,
+        'logcat',
+        '-v',
+        'threadtime',
+      ]);
+      _activeLogcatProcess = process;
+      _activeDeviceId = deviceId;
+      final stderrFuture = process.stderr.transform(utf8.decoder).join();
+      var emittedLogs = false;
+
       await for (final line
           in process.stdout
               .transform(utf8.decoder)
@@ -291,9 +402,25 @@ class AdbService {
         final parsed = LogEntry.parse(line);
         if (parsed != null) {
           parsed.packageName = getPackageNameFromPid(parsed.pid);
+          emittedLogs = true;
           yield parsed;
         }
       }
+
+      final stderrOutput = (await stderrFuture).trim();
+      if (!emittedLogs && stderrOutput.isNotEmpty) {
+        yield _buildToolErrorEntry(
+          stderrOutput,
+          tag: 'adb logcat',
+          processName: deviceId,
+        );
+      }
+    } on ProcessException catch (error) {
+      yield _buildToolErrorEntry(
+        'Failed to start adb logcat: ${_describeError(error)}',
+        tag: 'adb logcat',
+        processName: deviceId,
+      );
     } finally {
       if (identical(_activeLogcatProcess, process)) {
         _activeLogcatProcess = null;
@@ -301,9 +428,67 @@ class AdbService {
       }
       _cacheRefreshTimer?.cancel();
       _cacheRefreshTimer = null;
-      if (process.kill(ProcessSignal.sigterm)) {
+      if (process?.kill(ProcessSignal.sigterm) ?? false) {
         try {
-          await process.exitCode.timeout(const Duration(seconds: 1));
+          await process?.exitCode.timeout(const Duration(seconds: 1));
+        } catch (_) {}
+      }
+    }
+  }
+
+  Stream<LogEntry> _startIosSyslog(Device device) async* {
+    await stopActiveLogcat();
+    _cacheRefreshTimer?.cancel();
+    _cacheRefreshTimer = null;
+
+    Process? process;
+    final parser = IosSyslogParser();
+
+    try {
+      process = await _startTool(ideviceSyslogPath, ['-u', device.id]);
+      _activeLogcatProcess = process;
+      _activeDeviceId = device.id;
+      final stderrFuture = process.stderr.transform(utf8.decoder).join();
+      var emittedLogs = false;
+
+      await for (final line
+          in process.stdout
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())) {
+        for (final entry in parser.addLine(line)) {
+          emittedLogs = true;
+          yield entry;
+        }
+      }
+
+      final trailingEntry = parser.flush();
+      if (trailingEntry != null) {
+        emittedLogs = true;
+        yield trailingEntry;
+      }
+
+      final stderrOutput = (await stderrFuture).trim();
+      if (!emittedLogs && stderrOutput.isNotEmpty) {
+        yield _buildToolErrorEntry(
+          stderrOutput,
+          tag: 'idevicesyslog',
+          processName: device.displayName,
+        );
+      }
+    } on ProcessException catch (error) {
+      yield _buildToolErrorEntry(
+        'Failed to start idevicesyslog: ${_describeError(error)}',
+        tag: 'idevicesyslog',
+        processName: device.displayName,
+      );
+    } finally {
+      if (identical(_activeLogcatProcess, process)) {
+        _activeLogcatProcess = null;
+        _activeDeviceId = null;
+      }
+      if (process?.kill(ProcessSignal.sigterm) ?? false) {
+        try {
+          await process?.exitCode.timeout(const Duration(seconds: 1));
         } catch (_) {}
       }
     }
@@ -325,19 +510,19 @@ class AdbService {
     }
   }
 
-  /// Stops logcat for a device (by killing the process)
+  /// Stops logcat for a device (by killing the process).
   Future<void> stopLogcat(String deviceId) async {
     if (_activeDeviceId == deviceId) {
       await stopActiveLogcat();
       return;
     }
 
-    await Process.run(adbPath, ['-s', deviceId, 'shell', 'pkill', 'logcat']);
+    await _runTool(adbPath, ['-s', deviceId, 'shell', 'pkill', 'logcat']);
   }
 
-  /// Clears the logcat buffer on the device
+  /// Clears the logcat buffer on the Android device.
   Future<void> clearLogcat(String deviceId) async {
-    await Process.run(adbPath, ['-s', deviceId, 'logcat', '-c']);
+    await _runTool(adbPath, ['-s', deviceId, 'logcat', '-c']);
   }
 
   Future<void> dispose() => stopActiveLogcat();
@@ -373,4 +558,147 @@ class AdbService {
         ? message.substring('Exception: '.length)
         : message;
   }
+
+  String? _firstNonEmpty(String? first, String? second) {
+    if (first != null && first.trim().isNotEmpty) {
+      return first.trim();
+    }
+    if (second != null && second.trim().isNotEmpty) {
+      return second.trim();
+    }
+    return null;
+  }
+
+  Map<String, String> _parseIdeviceInfoOutput(String stdout) {
+    final info = <String, String>{};
+    for (final line in const LineSplitter().convert(stdout)) {
+      final separatorIndex = line.indexOf(':');
+      if (separatorIndex <= 0) continue;
+      final key = line.substring(0, separatorIndex).trim();
+      final value = line.substring(separatorIndex + 1).trim();
+      if (key.isEmpty || value.isEmpty) continue;
+      info[key] = value;
+    }
+    return info;
+  }
+
+  String _describeIosDeviceStatus(ProcessResult result) {
+    final output = _combinedProcessOutput(result).toLowerCase();
+    if (output.contains('not paired') || output.contains('pair')) {
+      return 'unpaired';
+    }
+    if (output.contains('locked') || output.contains('passcode')) {
+      return 'locked';
+    }
+    if (output.contains('no device') || output.contains('not found')) {
+      return 'offline';
+    }
+    return 'unavailable';
+  }
+
+  LogEntry _buildToolErrorEntry(
+    String message, {
+    required String tag,
+    required String processName,
+  }) {
+    return LogEntry(
+      timestamp: _formatNowTimestamp(),
+      pid: '0',
+      tid: '0',
+      level: 'E',
+      tag: tag,
+      message: message,
+      packageName: processName,
+      processName: processName,
+    );
+  }
+
+  String _formatNowTimestamp() {
+    final now = DateTime.now();
+    final year = now.year.toString().padLeft(4, '0');
+    final month = now.month.toString().padLeft(2, '0');
+    final day = now.day.toString().padLeft(2, '0');
+    final hour = now.hour.toString().padLeft(2, '0');
+    final minute = now.minute.toString().padLeft(2, '0');
+    final second = now.second.toString().padLeft(2, '0');
+    final millisecond = now.millisecond.toString().padLeft(3, '0');
+    return '$year-$month-$day $hour:$minute:$second.$millisecond';
+  }
+
+  Future<ProcessResult> _runTool(String executable, List<String> arguments) {
+    return Process.run(
+      executable,
+      arguments,
+      environment: _toolEnvironment(executable),
+      workingDirectory: _toolWorkingDirectory(executable),
+    );
+  }
+
+  Future<Process> _startTool(String executable, List<String> arguments) {
+    return Process.start(
+      executable,
+      arguments,
+      environment: _toolEnvironment(executable),
+      workingDirectory: _toolWorkingDirectory(executable),
+    );
+  }
+
+  Map<String, String>? _toolEnvironment(String executable) {
+    final toolDirectory = _toolDirectoryPath(executable);
+    if (toolDirectory == null) {
+      return null;
+    }
+
+    final environment = <String, String>{};
+    _prependEnvironmentPath(environment, 'PATH', toolDirectory);
+
+    if (Platform.isWindows) {
+      _prependEnvironmentPath(environment, _windowsPathKey, toolDirectory);
+    } else if (Platform.isLinux) {
+      _prependEnvironmentPath(environment, 'LD_LIBRARY_PATH', toolDirectory);
+    } else if (Platform.isMacOS) {
+      _prependEnvironmentPath(environment, 'DYLD_LIBRARY_PATH', toolDirectory);
+    }
+
+    return environment.isEmpty ? null : environment;
+  }
+
+  String? _toolWorkingDirectory(String executable) => _toolDirectoryPath(executable);
+
+  String? _toolDirectoryPath(String executable) {
+    final absoluteExecutable = File(executable);
+    if (absoluteExecutable.isAbsolute) {
+      return absoluteExecutable.parent.path;
+    }
+
+    return resolveBundledToolsDirectory()?.path;
+  }
+
+  void _prependEnvironmentPath(
+    Map<String, String> environment,
+    String key,
+    String directoryPath,
+  ) {
+    final pathSeparator = Platform.isWindows ? ';' : ':';
+    final inheritedValue =
+        environment[key] ??
+        Platform.environment[key] ??
+        (Platform.isWindows && key != 'PATH'
+            ? Platform.environment['PATH']
+            : null) ??
+        '';
+    environment[key] = inheritedValue.isEmpty
+        ? directoryPath
+        : '$directoryPath$pathSeparator$inheritedValue';
+  }
+
+  String get _windowsPathKey {
+    for (final key in Platform.environment.keys) {
+      if (key.toLowerCase() == 'path') {
+        return key;
+      }
+    }
+    return 'Path';
+  }
 }
+

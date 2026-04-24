@@ -107,19 +107,11 @@ install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
 
-# Copy bundled adb binary and DLLs into the app bundle.
-set(ADB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../platform-tools/windows")
-set(ADB_BINARY "${ADB_DIR}/adb.exe")
-if(EXISTS "${ADB_BINARY}")
-  install(PROGRAMS "${ADB_BINARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
+# Copy bundled mobile tools into the app bundle.
+set(MOBILE_TOOLS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../platform-tools/windows")
+if(EXISTS "${MOBILE_TOOLS_DIR}")
+  install(DIRECTORY "${MOBILE_TOOLS_DIR}/" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
     COMPONENT Runtime)
-  # ADB on Windows requires these DLLs
-  foreach(dll AdbWinApi.dll AdbWinUsbApi.dll)
-    if(EXISTS "${ADB_DIR}/${dll}")
-      install(FILES "${ADB_DIR}/${dll}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
-        COMPONENT Runtime)
-    endif()
-  endforeach()
 else()
-  message(WARNING "ADB binary not found at ${ADB_BINARY}. Run scripts/download_platform_tools.sh first.")
+  message(WARNING "Bundled mobile tools were not found at ${MOBILE_TOOLS_DIR}. Run scripts/download_platform_tools.sh first.")
 endif()

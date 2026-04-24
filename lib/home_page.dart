@@ -271,14 +271,16 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showAboutApp() {
     showAboutDialog(
       context: context,
-      applicationName: 'ADB Logcat',
+      applicationName: 'Logview',
       applicationVersion: AppInfoService.appVersion,
       applicationIcon: Icon(
         Icons.developer_board,
         size: 44,
         color: Theme.of(context).colorScheme.primary,
       ),
-      children: const [Text('Desktop log viewer for ADB logcat output.')],
+      children: const [
+        Text('Desktop log viewer for Android logcat and iOS syslog output.'),
+      ],
     );
   }
 

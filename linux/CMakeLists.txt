@@ -127,11 +127,12 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
     COMPONENT Runtime)
 endif()
 
-# Copy bundled adb binary into the app bundle.
-set(ADB_BINARY "${CMAKE_CURRENT_SOURCE_DIR}/../platform-tools/linux/adb")
-if(EXISTS "${ADB_BINARY}")
-  install(PROGRAMS "${ADB_BINARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
+# Copy bundled mobile tools into the app bundle.
+set(MOBILE_TOOLS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../platform-tools/linux")
+if(EXISTS "${MOBILE_TOOLS_DIR}")
+  install(DIRECTORY "${MOBILE_TOOLS_DIR}/" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
+    USE_SOURCE_PERMISSIONS
     COMPONENT Runtime)
 else()
-  message(WARNING "ADB binary not found at ${ADB_BINARY}. Run scripts/download_platform_tools.sh first.")
+  message(WARNING "Bundled mobile tools were not found at ${MOBILE_TOOLS_DIR}. Run scripts/download_platform_tools.sh first.")
 endif()

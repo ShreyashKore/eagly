@@ -47,7 +47,7 @@ app.*.map.json
 # FVM Version Cache
 .fvm/
 
-# Bundled ADB platform-tools binaries (downloaded via scripts/download_platform_tools.sh)
+# Bundled desktop mobile tools (downloaded/staged via scripts/download_platform_tools.sh)
 platform-tools/macos/
 platform-tools/linux/
 platform-tools/windows/

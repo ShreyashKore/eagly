@@ -66,8 +66,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
 
-      - name: Download platform-tools (adb)
+      - name: Prepare bundled mobile tools
         shell: bash
+        env:
+          LIBIMOBILEDEVICE_MACOS_ARCHIVE: ${{ vars.LIBIMOBILEDEVICE_MACOS_ARCHIVE }}
+          LIBIMOBILEDEVICE_LINUX_ARCHIVE: ${{ vars.LIBIMOBILEDEVICE_LINUX_ARCHIVE }}
+          LIBIMOBILEDEVICE_WINDOWS_ARCHIVE: ${{ vars.LIBIMOBILEDEVICE_WINDOWS_ARCHIVE }}
+          LIBIMOBILEDEVICE_MACOS_DIR: ${{ vars.LIBIMOBILEDEVICE_MACOS_DIR }}
+          LIBIMOBILEDEVICE_LINUX_DIR: ${{ vars.LIBIMOBILEDEVICE_LINUX_DIR }}
+          LIBIMOBILEDEVICE_WINDOWS_DIR: ${{ vars.LIBIMOBILEDEVICE_WINDOWS_DIR }}
         run: bash scripts/download_platform_tools.sh ${{ matrix.platform }}
 
       - name: Install dependencies

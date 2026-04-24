@@ -112,7 +112,7 @@ class _LogTabViewState extends State<LogTabView> {
           icon: Icons.adb,
           title: 'Select device / Load devices',
           subtitle:
-              'Discover connected devices and open a live logcat session.',
+              'Discover connected Android and iOS devices and open a live log stream.',
           onTap: () => _handleLoadDevices(openPickerWhenNeeded: compact),
         ),
         _GetStartedActionCard(
@@ -236,7 +236,7 @@ class _LogTabViewState extends State<LogTabView> {
             ),
             const Gap(18),
             Text(
-              'ADB Logcat',
+              'Logview',
               style: theme.textTheme.headlineSmall,
               textAlign: TextAlign.center,
             ),
@@ -288,7 +288,7 @@ class _LogTabViewState extends State<LogTabView> {
                     Text('No devices found', style: theme.textTheme.titleSmall),
                     const Gap(6),
                     Text(
-                      'Connect an Android device with ADB enabled.',
+                      'Connect an Android device with ADB enabled, or an iOS device supported by libimobiledevice.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
