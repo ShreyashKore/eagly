@@ -413,7 +413,7 @@ class AdbService {
 
       await for (final line
           in process.stdout
-              .transform(utf8.decoder)
+              .transform(Utf8Decoder(allowMalformed: true))
               .transform(const LineSplitter())) {
         final parsed = LogEntry.parse(line);
         if (parsed != null) {
@@ -469,7 +469,7 @@ class AdbService {
 
       await for (final line
           in process.stdout
-              .transform(utf8.decoder)
+              .transform(Utf8Decoder(allowMalformed: true))
               .transform(const LineSplitter())) {
         for (final entry in parser.addLine(line)) {
           emittedLogs = true;
