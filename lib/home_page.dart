@@ -300,9 +300,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _changeLogFontSize(double delta) {
     final current = PreferencesService.logFontSize;
-    final newSize = (current + delta).clamp(8.0, 24.0);
-    PreferencesService.logFontSize = newSize;
-    _showSnackBar('Font size: ${newSize.toStringAsFixed(0)}', width: 120);
+    PreferencesService.logFontSize = current + delta;
+    final applied = PreferencesService.logFontSize;
+    _showSnackBar('Font size: ${applied.toStringAsFixed(0)}', width: 120);
   }
 
   Future<void> _handleImportLogs() async {

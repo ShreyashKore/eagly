@@ -87,8 +87,13 @@ class PreferencesService {
 
   static double get logFontSize => _prefs.getDouble(_keyLogFontSize) ?? 12.0;
   static set logFontSize(double v) {
-    logFontSizeListenable.value = v;
-    _prefs.setDouble(_keyLogFontSize, v);
+    // Clamp to allowed range and avoid writing/updating listeners if the
+    // resulting value is unchanged.
+    final clamped = (v).clamp(8.0, 24.0);
+    final current = logFontSize;
+    if ((current - clamped).abs() < 0.0001) return;
+    logFontSizeListenable.value = clamped;
+    _prefs.setDouble(_keyLogFontSize, clamped);
   }
 
   static LogTabSettings get defaultTabSettings => LogTabSettings(

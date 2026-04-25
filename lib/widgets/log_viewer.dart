@@ -78,6 +78,8 @@ class _LogViewerState extends State<LogViewer> {
   );
   double _largestBuiltMessageWidth = 0;
   bool _messageWidthRefreshScheduled = false;
+  // For pinch-to-zoom handling
+  double? _scaleBaseFontSize;
 
   TextStyle get _monoStyle => _applyFont(context.logViewTheme.logBodyStyle);
 
@@ -371,11 +373,31 @@ class _LogViewerState extends State<LogViewer> {
                   _buildHeader(messageWidth),
                   const Divider(height: 1, thickness: 1),
                   Expanded(
-                    child: SelectionArea(
-                      child: Scrollbar(
-                        controller: widget.scrollController,
-                        child: GestureDetector(
-                          onTap: widget.onLogRowTap,
+                    child: Scrollbar(
+                      controller: widget.scrollController,
+                      child: GestureDetector(
+                        onTap: widget.onLogRowTap,
+                        // Support pinch-to-zoom on trackpads / touchpads to change log font size.
+                        onScaleStart: (details) {
+                          // Record the base font size at gesture start.
+                          _scaleBaseFontSize = PreferencesService.logFontSize;
+                        },
+                        onScaleUpdate: (details) {
+                          // Only react when there are multiple pointers (pinch gesture).
+                          if (details.pointerCount < 2) return;
+                          final base =
+                              _scaleBaseFontSize ??
+                              PreferencesService.logFontSize;
+                          final target = base * details.scale;
+                          // Use integer steps to avoid jitter; PreferencesService
+                          // will clamp and avoid redundant writes.
+                          final rounded = target.roundToDouble();
+                          PreferencesService.logFontSize = rounded;
+                        },
+                        onScaleEnd: (_) {
+                          _scaleBaseFontSize = null;
+                        },
+                        child: SelectionArea(
                           child: SuperListView.builder(
                             controller: widget.scrollController,
                             listController: _listController,
