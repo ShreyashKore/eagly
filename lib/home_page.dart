@@ -143,17 +143,20 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_isNewTabAction(tab) && _workspaceTabCount == 1) {
       _ignoreNextNewTabSelection = true;
     }
+    // when removing second last tab; so tab just before new tab; ignore next new tab selection to avoid creating a new tab when the last tab is removed and new tab action gets selected
+    if (tabIndex == _tabsController.tabs.length - 2) {
+      _ignoreNextNewTabSelection = true;
+    }
     return true;
   }
 
   void _clearNewTabActionSelectionIfNeeded() {
+    _debugTabs('Clearing new tab action selection if needed');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final selectedTab = _tabsController.selectedTab;
-      if (_workspaceTabCount == 0 &&
-          selectedTab != null &&
-          _isNewTabAction(selectedTab)) {
-        _tabsController.selectedIndex = null;
+      if (selectedTab != null && _isNewTabAction(selectedTab)) {
+        _tabsController.selectedIndex = _tabsController.length - 2;
       }
     });
   }
@@ -223,6 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onTabRemoved(TabData tab) {
+    _debugTabs('removed: ${tab.text} (${tab.id})');
     if (_isNewTabAction(tab)) {
       _ensureNewTabActionPresent();
       return;
@@ -241,16 +245,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onTabReordered(int oldIndex, int newIndex) {
+    _debugTabs('reordered: $oldIndex -> $newIndex');
     _moveNewTabActionToEnd();
     if (mounted) {
       setState(() {});
     }
   }
 
-  void _onTabSelected(TabSelection? selection) {
+  void _onTabSelected(TabSelection? selection) async {
+    _debugTabs(
+      'selection ${selection?.index}\nworkspaceTabCount: $_workspaceTabCount\nignoreNextNewTabSelection: $_ignoreNextNewTabSelection',
+    );
     final selectedTab = selection?.tab;
     if (selectedTab != null && _isNewTabAction(selectedTab)) {
-      if (_ignoreNextNewTabSelection) {
+      if (_ignoreNextNewTabSelection && _workspaceTabCount > 0) {
         _ignoreNextNewTabSelection = false;
         _clearNewTabActionSelectionIfNeeded();
         if (mounted) {
@@ -618,4 +626,9 @@ class MyTabsStyleResolver extends MinimalistTabStyleResolver {
         ? colorScheme.onSurface
         : colorScheme.onSurfaceVariant;
   }
+}
+
+_debugTabs(Object? message) {
+  // ignore: avoid_print
+  print('[DEBUG_TAB] $message');
 }
