@@ -16,6 +16,14 @@ class _ActivateSearchIntent extends Intent {
   const _ActivateSearchIntent();
 }
 
+class _IncreaseFontIntent extends Intent {
+  const _IncreaseFontIntent();
+}
+
+class _DecreaseFontIntent extends Intent {
+  const _DecreaseFontIntent();
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -135,17 +143,20 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_isNewTabAction(tab) && _workspaceTabCount == 1) {
       _ignoreNextNewTabSelection = true;
     }
+    // when removing second last tab; so tab just before new tab; ignore next new tab selection to avoid creating a new tab when the last tab is removed and new tab action gets selected
+    if (tabIndex == _tabsController.tabs.length - 2) {
+      _ignoreNextNewTabSelection = true;
+    }
     return true;
   }
 
   void _clearNewTabActionSelectionIfNeeded() {
+    _debugTabs('Clearing new tab action selection if needed');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final selectedTab = _tabsController.selectedTab;
-      if (_workspaceTabCount == 0 &&
-          selectedTab != null &&
-          _isNewTabAction(selectedTab)) {
-        _tabsController.selectedIndex = null;
+      if (selectedTab != null && _isNewTabAction(selectedTab)) {
+        _tabsController.selectedIndex = _tabsController.length - 2;
       }
     });
   }
@@ -215,6 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onTabRemoved(TabData tab) {
+    _debugTabs('removed: ${tab.text} (${tab.id})');
     if (_isNewTabAction(tab)) {
       _ensureNewTabActionPresent();
       return;
@@ -233,16 +245,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onTabReordered(int oldIndex, int newIndex) {
+    _debugTabs('reordered: $oldIndex -> $newIndex');
     _moveNewTabActionToEnd();
     if (mounted) {
       setState(() {});
     }
   }
 
-  void _onTabSelected(TabSelection? selection) {
+  void _onTabSelected(TabSelection? selection) async {
+    _debugTabs(
+      'selection ${selection?.index}\nworkspaceTabCount: $_workspaceTabCount\nignoreNextNewTabSelection: $_ignoreNextNewTabSelection',
+    );
     final selectedTab = selection?.tab;
     if (selectedTab != null && _isNewTabAction(selectedTab)) {
-      if (_ignoreNextNewTabSelection) {
+      if (_ignoreNextNewTabSelection && _workspaceTabCount > 0) {
         _ignoreNextNewTabSelection = false;
         _clearNewTabActionSelectionIfNeeded();
         if (mounted) {
@@ -284,10 +300,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showSnackBar(String message) {
+  void _showSnackBar(String message, {double? width}) {
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(content: Text(message)));
+    messenger.showSnackBar(SnackBar(content: Text(message), width: width));
+  }
+
+  void _changeLogFontSize(double delta) {
+    final current = PreferencesService.logFontSize;
+    PreferencesService.logFontSize = current + delta;
+    final applied = PreferencesService.logFontSize;
+    _showSnackBar('Font size: ${applied.toStringAsFixed(0)}', width: 120);
   }
 
   Future<void> _handleImportLogs() async {
@@ -498,12 +521,38 @@ class _HomeScreenState extends State<HomeScreen> {
             _ActivateSearchIntent(),
         SingleActivator(LogicalKeyboardKey.keyF, meta: true):
             _ActivateSearchIntent(),
+        // Decrease font: Ctrl/Cmd + -
+        SingleActivator(LogicalKeyboardKey.minus, control: true):
+            _DecreaseFontIntent(),
+        SingleActivator(LogicalKeyboardKey.minus, meta: true):
+            _DecreaseFontIntent(),
+        // Increase font: Ctrl/Cmd + Shift + = (i.e. +) and Numpad Add
+        SingleActivator(LogicalKeyboardKey.equal, control: true):
+            _IncreaseFontIntent(),
+        SingleActivator(LogicalKeyboardKey.equal, meta: true):
+            _IncreaseFontIntent(),
+        SingleActivator(LogicalKeyboardKey.numpadAdd, control: true):
+            _IncreaseFontIntent(),
+        SingleActivator(LogicalKeyboardKey.numpadAdd, meta: true):
+            _IncreaseFontIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
           _ActivateSearchIntent: CallbackAction<_ActivateSearchIntent>(
             onInvoke: (_) {
               activeController?.toggleSearchBar();
+              return null;
+            },
+          ),
+          _IncreaseFontIntent: CallbackAction<_IncreaseFontIntent>(
+            onInvoke: (_) {
+              _changeLogFontSize(1);
+              return null;
+            },
+          ),
+          _DecreaseFontIntent: CallbackAction<_DecreaseFontIntent>(
+            onInvoke: (_) {
+              _changeLogFontSize(-1);
               return null;
             },
           ),
@@ -577,4 +626,9 @@ class MyTabsStyleResolver extends MinimalistTabStyleResolver {
         ? colorScheme.onSurface
         : colorScheme.onSurfaceVariant;
   }
+}
+
+_debugTabs(Object? message) {
+  // ignore: avoid_print
+  print('[DEBUG_TAB] $message');
 }

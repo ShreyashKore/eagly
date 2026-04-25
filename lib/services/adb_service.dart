@@ -5,6 +5,7 @@ import 'dart:io';
 import '../data/device.dart';
 import '../data/log_entry.dart';
 import '../utils/adb_path.dart';
+import '../utils/apple_device_mapping.dart';
 import 'ios_syslog_parser.dart';
 
 enum AdbMdnsServiceType { connect, pairing, unknown }
@@ -202,11 +203,23 @@ class AdbService {
       }
 
       final info = _parseIdeviceInfoOutput(result.stdout as String);
+      // Prefer the human-friendly product name for ProductType (e.g. "iPhone7,2"
+      // -> "iPhone 6"), falling back to the raw ProductType code or the
+      // HardwareModel when necessary.
+      final productType = info['ProductType'];
+      String? model;
+      if (productType != null && productType.trim().isNotEmpty) {
+        final human = await getAppleDeviceName(productType.trim());
+        model = human ?? productType.trim();
+      } else {
+        model = _firstNonEmpty(info['HardwareModel'], null);
+      }
+
       return Device(
         deviceId,
         'device',
         name: _firstNonEmpty(info['DeviceName'], info['ProductName']),
-        model: _firstNonEmpty(info['ProductType'], info['HardwareModel']),
+        model: model,
         platform: DevicePlatform.ios,
       );
     } on ProcessException {
@@ -229,9 +242,12 @@ class AdbService {
       }
 
       final services = <AdbMdnsService>[];
-      for (final rawLine in const LineSplitter().convert(result.stdout as String)) {
+      for (final rawLine in const LineSplitter().convert(
+        result.stdout as String,
+      )) {
         final line = rawLine.trim();
-        if (line.isEmpty || line.startsWith('List of discovered mdns services')) {
+        if (line.isEmpty ||
+            line.startsWith('List of discovered mdns services')) {
           continue;
         }
 
@@ -397,7 +413,7 @@ class AdbService {
 
       await for (final line
           in process.stdout
-              .transform(utf8.decoder)
+              .transform(Utf8Decoder(allowMalformed: true))
               .transform(const LineSplitter())) {
         final parsed = LogEntry.parse(line);
         if (parsed != null) {
@@ -453,7 +469,7 @@ class AdbService {
 
       await for (final line
           in process.stdout
-              .transform(utf8.decoder)
+              .transform(Utf8Decoder(allowMalformed: true))
               .transform(const LineSplitter())) {
         for (final entry in parser.addLine(line)) {
           emittedLogs = true;
@@ -663,7 +679,8 @@ class AdbService {
     return environment.isEmpty ? null : environment;
   }
 
-  String? _toolWorkingDirectory(String executable) => _toolDirectoryPath(executable);
+  String? _toolWorkingDirectory(String executable) =>
+      _toolDirectoryPath(executable);
 
   String? _toolDirectoryPath(String executable) {
     final absoluteExecutable = File(executable);
@@ -701,4 +718,3 @@ class AdbService {
     return 'Path';
   }
 }
-

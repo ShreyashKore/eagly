@@ -20,7 +20,7 @@ class Device {
 
   String get displayName {
     if (model != null && name != null) {
-      return '$name ($model)';
+      return '$model ($name)';
     } else if (model != null) {
       return model!;
     } else if (name != null) {
@@ -39,11 +39,11 @@ class Device {
     if (identical(this, other)) return true;
 
     return other is Device &&
-      other.id == id &&
-      other.status == status &&
-      other.model == model &&
-      other.name == name &&
-      other.platform == platform;
+        other.id == id &&
+        other.status == status &&
+        other.model == model &&
+        other.name == name &&
+        other.platform == platform;
   }
 
   @override
