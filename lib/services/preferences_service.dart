@@ -29,6 +29,8 @@ class PreferencesService {
   static Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     themeModeListenable.value = themeMode;
+    // Initialize font size listenable
+    logFontSizeListenable.value = logFontSize;
   }
 
   // Keys
@@ -40,6 +42,7 @@ class PreferencesService {
   static const _keyLogLinesLimit = 'logLinesLimit';
   static const _keyThemeMode = 'themeMode';
   static const _keyLastFileDialogDirectory = 'lastFileDialogDirectory';
+  static const _keyLogFontSize = 'logFontSize';
 
   // --- Home page preferences ---
 
@@ -74,6 +77,18 @@ class PreferencesService {
   static set themeMode(ThemeMode value) {
     themeModeListenable.value = value;
     _prefs.setString(_keyThemeMode, value.name);
+  }
+
+  // --- Log font size preference (affects the log viewer text size) ---
+  /// Listenable so widgets can rebuild when font size changes.
+  static final ValueNotifier<double> logFontSizeListenable = ValueNotifier(
+    12.0,
+  );
+
+  static double get logFontSize => _prefs.getDouble(_keyLogFontSize) ?? 12.0;
+  static set logFontSize(double v) {
+    logFontSizeListenable.value = v;
+    _prefs.setDouble(_keyLogFontSize, v);
   }
 
   static LogTabSettings get defaultTabSettings => LogTabSettings(

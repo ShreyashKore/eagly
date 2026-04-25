@@ -7,6 +7,7 @@ import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../data/log_column.dart';
 import '../data/log_entry.dart';
+import '../services/preferences_service.dart';
 import '../theme/app_theme.dart';
 
 class LogViewer extends StatefulWidget {
@@ -78,7 +79,10 @@ class _LogViewerState extends State<LogViewer> {
   double _largestBuiltMessageWidth = 0;
   bool _messageWidthRefreshScheduled = false;
 
-  TextStyle get _monoStyle => context.logViewTheme.logBodyStyle;
+  TextStyle get _monoStyle => _applyFont(context.logViewTheme.logBodyStyle);
+
+  TextStyle _applyFont(TextStyle base) =>
+      base.copyWith(fontSize: PreferencesService.logFontSize);
 
   /// Key placed on the currently-focused match row so we can scroll to it.
   final GlobalKey _currentMatchKey = GlobalKey();
@@ -88,6 +92,8 @@ class _LogViewerState extends State<LogViewer> {
     super.initState();
     _widths = Map.of(widget.columnWidths);
     _hiddenColumns = Set.of(widget.hiddenColumns);
+    // Rebuild when the global log font size preference changes.
+    PreferencesService.logFontSizeListenable.addListener(_onFontSizeChanged);
   }
 
   @override
@@ -113,7 +119,16 @@ class _LogViewerState extends State<LogViewer> {
     _flushWidths();
     _saveWidthsTimer?.cancel();
     _horizontalScrollController.dispose();
+    PreferencesService.logFontSizeListenable.removeListener(_onFontSizeChanged);
     super.dispose();
+  }
+
+  void _onFontSizeChanged() {
+    if (!mounted) return;
+    // Changing font size affects measurements — force rebuild so sizes recalc.
+    setState(() {
+      _largestBuiltMessageWidth = 0;
+    });
   }
 
   /// Scrolls so the matched row is visible.
@@ -385,7 +400,7 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   Widget _buildHeader(double messageWidth) {
-    final headerStyle = context.logViewTheme.logHeaderStyle;
+    final headerStyle = _applyFont(context.logViewTheme.logHeaderStyle);
     final visible = _visibleFixedColumns;
 
     return GestureDetector(
