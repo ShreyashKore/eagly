@@ -225,90 +225,6 @@ class _LogViewerState extends State<LogViewer> {
     return math.max(viewportWidth, width);
   }
 
-  TextSpan _rowTerminatorSpan() {
-    return const TextSpan(
-      text: '\n ',
-      style: TextStyle(fontSize: 0, height: 0, color: Colors.transparent),
-    );
-  }
-
-  /// Builds selectable text and highlights every occurrence of
-  /// [widget.searchQuery] inside [text] using [highlightColor].
-  Widget _buildSelectableText(
-    String text,
-    TextStyle style, {
-    Color? highlightColor,
-    TextOverflow? overflow,
-    bool softWrap = false,
-    bool appendRowTerminator = false,
-  }) {
-    final query = widget.searchQuery;
-    final children = <InlineSpan>[];
-
-    if (query.isEmpty || highlightColor == null) {
-      children.add(TextSpan(text: text, style: style));
-      if (appendRowTerminator) {
-        children.add(_rowTerminatorSpan());
-      }
-
-      return Text.rich(
-        TextSpan(style: style, children: children),
-        style: style,
-        overflow: overflow,
-        softWrap: softWrap,
-      );
-    }
-
-    final searchIn = widget.caseSensitive ? text : text.toLowerCase();
-    final queryNorm = widget.caseSensitive ? query : query.toLowerCase();
-
-    if (!searchIn.contains(queryNorm)) {
-      children.add(TextSpan(text: text, style: style));
-      if (appendRowTerminator) {
-        children.add(_rowTerminatorSpan());
-      }
-
-      return Text.rich(
-        TextSpan(style: style, children: children),
-        style: style,
-        overflow: overflow,
-        softWrap: softWrap,
-      );
-    }
-
-    int start = 0;
-    int idx = searchIn.indexOf(queryNorm, start);
-    while (idx != -1) {
-      if (idx > start) {
-        children.add(TextSpan(text: text.substring(start, idx), style: style));
-      }
-      children.add(
-        TextSpan(
-          text: text.substring(idx, idx + queryNorm.length),
-          style: style.copyWith(
-            backgroundColor: highlightColor,
-            color: context.logViewTheme.searchHighlightForeground,
-          ),
-        ),
-      );
-      start = idx + queryNorm.length;
-      idx = searchIn.indexOf(queryNorm, start);
-    }
-    if (start < text.length) {
-      children.add(TextSpan(text: text.substring(start), style: style));
-    }
-    if (appendRowTerminator) {
-      children.add(_rowTerminatorSpan());
-    }
-
-    return Text.rich(
-      TextSpan(style: style, children: children),
-      style: style,
-      overflow: overflow,
-      softWrap: softWrap,
-    );
-  }
-
   void _flushWidths() {
     if (_saveWidthsTimer?.isActive ?? false) {
       _saveWidthsTimer!.cancel();
@@ -543,70 +459,145 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   Widget _buildLogRow(LogEntry log, int index, double messageWidth) {
-    final logTheme = context.logViewTheme;
-    final levelColor = logTheme.logLevelColor(log.level);
-    final rowStyle = _monoStyle.copyWith(color: levelColor);
-    final visible = _visibleFixedColumns;
-    final lastVisibleColumn = _lastVisibleColumn;
+    return _LogRow(
+      key: widget.currentMatchLogIndex == index ? _currentMatchKey : null,
+      log: log,
+      index: index,
+      messageWidth: messageWidth,
+      widthOf: _widthOf,
+      isVisible: _isVisible,
+      lastVisibleColumn: _lastVisibleColumn,
+      searchQuery: widget.searchQuery,
+      caseSensitive: widget.caseSensitive,
+      currentMatchLogIndex: widget.currentMatchLogIndex,
+      wrapText: widget.wrapText,
+      monoStyle: _monoStyle,
+      contentValueForColumn: (col) => _cellValue(col, log),
+    );
+  }
+}
 
-    final isCurrentMatch = widget.currentMatchLogIndex == index;
+class _LogRow extends StatelessWidget {
+  final LogEntry log;
+  final int index;
+  final double messageWidth;
+  final double Function(LogColumn) widthOf;
+  final bool Function(LogColumn) isVisible;
+  final LogColumn? lastVisibleColumn;
+  final String searchQuery;
+  final bool caseSensitive;
+  final int? currentMatchLogIndex;
+  final bool wrapText;
+  final TextStyle monoStyle;
+  final String Function(LogColumn) contentValueForColumn;
 
-    // Determine highlight colour for search matches in this row.
-    // Current match → orange; other matching rows → yellow.
-    final Color? highlightColor = widget.searchQuery.isEmpty
-        ? null
-        : (isCurrentMatch
-              ? logTheme.searchCurrentMatchColor
-              : logTheme.searchMatchColor);
+  const _LogRow({
+    super.key,
+    required this.log,
+    required this.index,
+    required this.messageWidth,
+    required this.widthOf,
+    required this.isVisible,
+    required this.lastVisibleColumn,
+    required this.searchQuery,
+    required this.caseSensitive,
+    required this.currentMatchLogIndex,
+    required this.wrapText,
+    required this.monoStyle,
+    required this.contentValueForColumn,
+  });
 
-    return Container(
-      key: isCurrentMatch ? _currentMatchKey : null,
-      color: isCurrentMatch ? logTheme.searchCurrentRowColor : null,
-      child: Row(
-        children: [
-          for (final col in visible) ...[
-            if (col == LogColumn.level)
-              _levelCell(
-                log.level,
-                levelColor,
-                appendRowTerminator: lastVisibleColumn == col,
-              )
-            else
-              _fixedCell(
-                _cellValue(col, log),
-                _widthOf(col),
-                rowStyle,
-                highlightColor: highlightColor,
-                appendRowTerminator: lastVisibleColumn == col,
-              ),
-            const SizedBox(width: _columnSpacing),
-          ],
-          if (_isVisible(LogColumn.message))
-            SizedBox(
-              width: messageWidth,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                child: _buildSelectableText(
-                  log.message,
-                  rowStyle,
-                  highlightColor: highlightColor,
-                  softWrap: widget.wrapText,
-                  appendRowTerminator: lastVisibleColumn == LogColumn.message,
-                ),
-              ),
-            ),
-        ],
-      ),
+  TextSpan _rowTerminatorSpan() {
+    return const TextSpan(
+      text: '\n ',
+      style: TextStyle(fontSize: 0, height: 0, color: Colors.transparent),
+    );
+  }
+
+  Widget _buildSelectableText(
+    BuildContext context,
+    String text,
+    TextStyle style, {
+    Color? highlightColor,
+    TextOverflow? overflow,
+    bool softWrap = false,
+    bool appendRowTerminator = false,
+  }) {
+    final query = searchQuery;
+    final children = <InlineSpan>[];
+
+    if (query.isEmpty || highlightColor == null) {
+      children.add(TextSpan(text: text, style: style));
+      if (appendRowTerminator) {
+        children.add(_rowTerminatorSpan());
+      }
+
+      return Text.rich(
+        TextSpan(style: style, children: children),
+        style: style,
+        overflow: overflow,
+        softWrap: softWrap,
+      );
+    }
+
+    final searchIn = caseSensitive ? text : text.toLowerCase();
+    final queryNorm = caseSensitive ? query : query.toLowerCase();
+
+    if (!searchIn.contains(queryNorm)) {
+      children.add(TextSpan(text: text, style: style));
+      if (appendRowTerminator) {
+        children.add(_rowTerminatorSpan());
+      }
+
+      return Text.rich(
+        TextSpan(style: style, children: children),
+        style: style,
+        overflow: overflow,
+        softWrap: softWrap,
+      );
+    }
+
+    int start = 0;
+    int idx = searchIn.indexOf(queryNorm, start);
+    while (idx != -1) {
+      if (idx > start) {
+        children.add(TextSpan(text: text.substring(start, idx), style: style));
+      }
+      children.add(
+        TextSpan(
+          text: text.substring(idx, idx + queryNorm.length),
+          style: style.copyWith(
+            backgroundColor: highlightColor,
+            color: context.logViewTheme.searchHighlightForeground,
+          ),
+        ),
+      );
+      start = idx + queryNorm.length;
+      idx = searchIn.indexOf(queryNorm, start);
+    }
+    if (start < text.length) {
+      children.add(TextSpan(text: text.substring(start), style: style));
+    }
+    if (appendRowTerminator) {
+      children.add(_rowTerminatorSpan());
+    }
+
+    return Text.rich(
+      TextSpan(style: style, children: children),
+      style: style,
+      overflow: overflow,
+      softWrap: softWrap,
     );
   }
 
   Widget _levelCell(
+    BuildContext context,
     String level,
     Color levelColor, {
     bool appendRowTerminator = false,
   }) {
     return SizedBox(
-      width: _widthOf(LogColumn.level),
+      width: widthOf(LogColumn.level),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         child: Container(
@@ -616,8 +607,9 @@ class _LogViewerState extends State<LogViewer> {
           ),
           alignment: Alignment.center,
           child: _buildSelectableText(
+            context,
             level,
-            _monoStyle.copyWith(
+            monoStyle.copyWith(
               color: context.logViewTheme.logBadgeForeground,
               fontWeight: FontWeight.bold,
             ),
@@ -629,6 +621,7 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   Widget _fixedCell(
+    BuildContext context,
     String text,
     double width,
     TextStyle style, {
@@ -640,11 +633,73 @@ class _LogViewerState extends State<LogViewer> {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         child: _buildSelectableText(
+          context,
           text,
           style,
           highlightColor: highlightColor,
           appendRowTerminator: appendRowTerminator,
         ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final logTheme = context.logViewTheme;
+    final levelColor = logTheme.logLevelColor(log.level);
+    final rowStyle = monoStyle.copyWith(color: levelColor);
+    final visible = LogColumn.values
+        .where((c) => !c.isExpandable && isVisible(c))
+        .toList();
+
+    final isCurrentMatch = currentMatchLogIndex == index;
+
+    final Color? highlightColor = searchQuery.isEmpty
+        ? null
+        : (isCurrentMatch
+              ? logTheme.searchCurrentMatchColor
+              : logTheme.searchMatchColor);
+
+    return Container(
+      key: isCurrentMatch ? key : null,
+      color: isCurrentMatch ? logTheme.searchCurrentRowColor : null,
+      child: Row(
+        children: [
+          for (final col in visible) ...[
+            if (col == LogColumn.level)
+              _levelCell(
+                context,
+                log.level,
+                levelColor,
+                appendRowTerminator: lastVisibleColumn == col,
+              )
+            else
+              _fixedCell(
+                context,
+                contentValueForColumn(col),
+                widthOf(col),
+                rowStyle,
+                highlightColor: highlightColor,
+                appendRowTerminator: lastVisibleColumn == col,
+              ),
+            const SizedBox(width: _LogViewerState._columnSpacing),
+          ],
+          if (isVisible(LogColumn.message))
+            SizedBox(
+              width: messageWidth,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                child: _buildSelectableText(
+                  context,
+                  log.message,
+                  rowStyle,
+                  highlightColor: highlightColor,
+                  softWrap: wrapText,
+                  appendRowTerminator: lastVisibleColumn == LogColumn.message,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
