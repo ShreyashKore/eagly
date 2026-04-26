@@ -122,6 +122,10 @@ class AdbService {
     try {
       final result = await _runTool(adbPath, ['devices', '-l']);
       if (result.exitCode != 0) {
+        _logError(
+          'adb devices -l returned non-zero exit code',
+          _combinedProcessOutput(result),
+        );
         return const [];
       }
 
@@ -160,9 +164,11 @@ class AdbService {
       }
 
       return deviceList;
-    } on ProcessException {
+    } on ProcessException catch (e) {
+      _logError('ProcessException while listing Android devices', e);
       return const [];
-    } catch (_) {
+    } catch (e) {
+      _logError('Unexpected error while listing Android devices', e);
       return const [];
     }
   }
@@ -171,6 +177,10 @@ class AdbService {
     try {
       final result = await _runTool(ideviceIdPath, ['-l']);
       if (result.exitCode != 0) {
+        _logError(
+          'idevice_id -l returned non-zero exit code',
+          _combinedProcessOutput(result),
+        );
         return const [];
       }
 
@@ -184,9 +194,11 @@ class AdbService {
       }
 
       return Future.wait(deviceIds.map(_describeIosDevice));
-    } on ProcessException {
+    } on ProcessException catch (e) {
+      _logError('ProcessException while listing iOS devices', e);
       return const [];
-    } catch (_) {
+    } catch (e) {
+      _logError('Unexpected error while listing iOS devices', e);
       return const [];
     }
   }
@@ -195,6 +207,10 @@ class AdbService {
     try {
       final result = await _runTool(ideviceInfoPath, ['-u', deviceId]);
       if (result.exitCode != 0) {
+        _logError(
+          'ideviceinfo returned non-zero exit for $deviceId',
+          _combinedProcessOutput(result),
+        );
         return Device(
           deviceId,
           _describeIosDeviceStatus(result),
@@ -222,9 +238,11 @@ class AdbService {
         model: model,
         platform: DevicePlatform.ios,
       );
-    } on ProcessException {
+    } on ProcessException catch (e) {
+      _logError('ProcessException describing iOS device $deviceId', e);
       return Device(deviceId, 'unavailable', platform: DevicePlatform.ios);
-    } catch (_) {
+    } catch (e) {
+      _logError('Unexpected error describing iOS device $deviceId', e);
       return Device(deviceId, 'unavailable', platform: DevicePlatform.ios);
     }
   }
@@ -233,12 +251,12 @@ class AdbService {
     try {
       final result = await _runTool(adbPath, ['mdns', 'services']);
       if (result.exitCode != 0) {
-        return AdbMdnsDiscoveryResult.failure(
-          error: _describeCommandFailure(
-            'Failed to discover wireless ADB services.',
-            result,
-          ),
+        final details = _describeCommandFailure(
+          'Failed to discover wireless ADB services.',
+          result,
         );
+        _logError('Failed to discover wireless ADB services', details);
+        return AdbMdnsDiscoveryResult.failure(error: details);
       }
 
       final services = <AdbMdnsService>[];
@@ -283,6 +301,7 @@ class AdbService {
 
       return AdbMdnsDiscoveryResult.success(services: services);
     } catch (error) {
+      _logError('Exception while discovering mdns services', error);
       return AdbMdnsDiscoveryResult.failure(
         error:
             'Failed to discover wireless ADB services: ${_describeError(error)}',
@@ -297,12 +316,12 @@ class AdbService {
     try {
       final result = await _runTool(adbPath, ['pair', address, pairingCode]);
       if (result.exitCode != 0) {
-        return AdbCommandResult.failure(
-          error: _describeCommandFailure(
-            'Failed to pair with $address.',
-            result,
-          ),
+        final details = _describeCommandFailure(
+          'Failed to pair with $address.',
+          result,
         );
+        _logError('Pair command failed for $address', details);
+        return AdbCommandResult.failure(error: details);
       }
 
       final message = _combinedProcessOutput(result);
@@ -312,6 +331,7 @@ class AdbService {
             : message,
       );
     } catch (error) {
+      _logError('Exception while pairing with $address', error);
       return AdbCommandResult.failure(
         error: 'Failed to pair with $address: ${_describeError(error)}',
       );
@@ -327,18 +347,19 @@ class AdbService {
           result.exitCode != 0 || normalizedOutput.contains('failed');
 
       if (failed) {
-        return AdbCommandResult.failure(
-          error: _describeCommandFailure(
-            'Failed to connect to $address.',
-            result,
-          ),
+        final details = _describeCommandFailure(
+          'Failed to connect to $address.',
+          result,
         );
+        _logError('Connect command failed for $address', details);
+        return AdbCommandResult.failure(error: details);
       }
 
       return AdbCommandResult.success(
         message: output.isEmpty ? 'Connected to $address.' : output,
       );
     } catch (error) {
+      _logError('Exception while connecting to $address', error);
       return AdbCommandResult.failure(
         error: 'Failed to connect to $address: ${_describeError(error)}',
       );
@@ -369,8 +390,9 @@ class AdbService {
           _pidToPackageCache[pid] = packageName;
         }
       }
-    } catch (_) {
-      // Ignore PID/package refresh failures so log streaming can continue.
+    } catch (e) {
+      // Log PID/package refresh failures but keep streaming running.
+      _logError('Failed to refresh PID->package map for $deviceId', e);
     }
   }
 
@@ -432,6 +454,7 @@ class AdbService {
         );
       }
     } on ProcessException catch (error) {
+      _logError('Failed to start adb logcat for $deviceId', error);
       yield _buildToolErrorEntry(
         'Failed to start adb logcat: ${_describeError(error)}',
         tag: 'adb logcat',
@@ -492,6 +515,10 @@ class AdbService {
         );
       }
     } on ProcessException catch (error) {
+      _logError(
+        'Failed to start idevicesyslog for ${device.displayName}',
+        error,
+      );
       yield _buildToolErrorEntry(
         'Failed to start idevicesyslog: ${_describeError(error)}',
         tag: 'idevicesyslog',
@@ -573,6 +600,14 @@ class AdbService {
     return message.startsWith('Exception: ')
         ? message.substring('Exception: '.length)
         : message;
+  }
+
+  // Simplified logging helper used for error and early-return diagnostics.
+  // Keeps logging minimal and consistent across the class.
+  void _logError(String message, [Object? error]) {
+    final errorPart = error == null ? '' : ' | ${error.toString()}';
+    // ignore: avoid_print
+    print('[AdbService] $message$errorPart');
   }
 
   String? _firstNonEmpty(String? first, String? second) {
