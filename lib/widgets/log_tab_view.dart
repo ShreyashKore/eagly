@@ -3,13 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../controllers/log_tab_controller.dart';
+import '../constants/app_constants.dart';
 import '../data/device.dart';
 import '../data/log_entry.dart';
 import '../theme/app_theme.dart';
 import '../utils/log_feedback.dart';
 import '../utils/widget_extensions.dart';
-import 'device_presentation.dart';
 import 'filter_bar.dart';
+import 'log_tab_view/available_device_card.dart';
+import 'log_tab_view/centered_state_message.dart';
+import 'log_tab_view/get_started_action_card.dart';
+import 'log_tab_view/log_tab_view_constants.dart';
 import 'log_search_bar.dart';
 import 'log_viewer.dart';
 import 'scroll_to_end_button.dart';
@@ -94,7 +98,7 @@ class _LogTabViewState extends State<LogTabView> {
     return Column(
       spacing: 16,
       children: [
-        _GetStartedActionCard(
+        GetStartedActionCard(
           icon: Icons.phone_android_rounded,
           title: 'Select device',
           subtitle:
@@ -127,9 +131,10 @@ class _LogTabViewState extends State<LogTabView> {
                   spacing: 8,
                   children: controller.devices
                       .map(
-                        (device) => _AvailableDeviceCard(
+                        (device) => AvailableDeviceCard(
                           device: device,
                           onSelected: () => _selectDevice(device),
+                          onShowMessage: _showSnackBar,
                         ),
                       )
                       .toList(),
@@ -168,7 +173,7 @@ class _LogTabViewState extends State<LogTabView> {
             ],
           ],
         ),
-        _GetStartedActionCard(
+        GetStartedActionCard(
           icon: Icons.file_download_outlined,
           title: 'Import Logs',
           subtitle: 'Open a previously exported logcat JSON file in this tab.',
@@ -268,7 +273,9 @@ class _LogTabViewState extends State<LogTabView> {
         ),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
+        constraints: const BoxConstraints(
+          maxWidth: LogTabViewConstants.getStartedMaxWidth,
+        ),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -284,7 +291,7 @@ class _LogTabViewState extends State<LogTabView> {
               ),
               const Gap(18),
               Text(
-                'Logview',
+                AppConstants.appName,
                 style: theme.textTheme.headlineSmall,
                 textAlign: TextAlign.center,
               ),
@@ -353,7 +360,7 @@ class _LogTabViewState extends State<LogTabView> {
       children: [
         _buildLogViewer(filtered, matches),
         if (controller.logs.isEmpty && controller.selectedDevice != null)
-          _CenteredStateMessage(
+          CenteredStateMessage(
             icon: controller.isRunning ? Icons.sync : Icons.play_circle_outline,
             title: controller.isRunning
                 ? 'Waiting for logs from ${controller.selectedDevice!.displayName}'
@@ -426,8 +433,10 @@ class _LogTabViewState extends State<LogTabView> {
   Widget _buildNoDevicePlaceholder(BuildContext context) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 820),
-        child: _CenteredStateMessage(
+        constraints: const BoxConstraints(
+          maxWidth: LogTabViewConstants.noDevicePlaceholderMaxWidth,
+        ),
+        child: CenteredStateMessage(
           icon: Icons.devices_outlined,
           title: 'No device or imported logs in this tab',
           description:
@@ -555,161 +564,6 @@ class _LogTabViewState extends State<LogTabView> {
                 ),
               ],
             ),
-    );
-  }
-}
-
-class _AvailableDeviceCard extends StatelessWidget {
-  const _AvailableDeviceCard({required this.device, required this.onSelected});
-
-  final Device device;
-  final VoidCallback onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Material(
-      color: theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onSelected,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    DeviceLabel(
-                      device: device,
-                      textStyle: theme.textTheme.titleSmall,
-                      showStatus: true,
-                      iconColor: theme.colorScheme.primary,
-                      iconSize: 20,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GetStartedActionCard extends StatelessWidget {
-  const _GetStartedActionCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.secondaryActions = const [],
-    this.children = const [],
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final List<Widget> secondaryActions;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      child: Material(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              spacing: 12,
-              children: [
-                Row(
-                  spacing: 12,
-                  children: [
-                    Icon(icon, color: theme.colorScheme.primary, size: 32),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(title, style: theme.textTheme.titleMedium),
-                        Text(
-                          subtitle,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                if (secondaryActions.isNotEmpty)
-                  Row(spacing: 8, children: secondaryActions),
-                if (children.isNotEmpty) Column(spacing: 8, children: children),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CenteredStateMessage extends StatelessWidget {
-  const _CenteredStateMessage({
-    required this.icon,
-    required this.title,
-    required this.description,
-    this.footer,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-  final Widget? footer;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 36, color: theme.colorScheme.primary),
-            const Gap(16),
-            Text(
-              title,
-              style: theme.textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            const Gap(8),
-            Text(
-              description,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            if (footer != null) ...[const Gap(20), footer!],
-          ],
-        ),
-      ),
     );
   }
 }
