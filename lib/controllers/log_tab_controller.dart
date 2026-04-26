@@ -9,6 +9,7 @@ import '../data/log_entry.dart';
 import '../data/log_tab_settings.dart';
 import '../data/wireless_debug_models.dart';
 import '../services/device_bridge_service.dart';
+import '../services/device_repository.dart';
 import '../services/log_file_service.dart';
 import '../utils/log_utils.dart';
 
@@ -64,17 +65,23 @@ class LogTabController extends ChangeNotifier {
     required LogTabSettings initialSettings,
     this.onExitGetStarted,
     this.isDeviceSelectedInAnotherTab,
+    DeviceRepository? deviceRepository,
     DeviceBridgeService? deviceBridgeService,
   }) : _title = initialTitle,
        _settings = initialSettings,
+       _deviceRepository = deviceRepository ?? DeviceRepository.instance,
        _deviceBridgeService = deviceBridgeService ?? DeviceBridgeService() {
     filterController.text = searchQuery;
     logLinesController.text = logLinesLimit.toString();
+    devices = _deviceRepository.devices.toList(growable: false);
+    _deviceRepository.addListener(_handleDeviceRepositoryChanged);
+    unawaited(_deviceRepository.ensureStarted());
   }
 
   final String id;
   final VoidCallback? onExitGetStarted;
   final bool Function(String deviceId)? isDeviceSelectedInAnotherTab;
+  final DeviceRepository _deviceRepository;
   final DeviceBridgeService _deviceBridgeService;
 
   final ScrollController scrollController = ScrollController();
@@ -92,8 +99,6 @@ class LogTabController extends ChangeNotifier {
   Timer? _inlineSearchDebounce;
 
   var devices = <Device>[];
-  var _loadingDevices = false;
-  var _hasAttemptedDeviceLoad = false;
   var _discoveringWireless = false;
   var _pairingWireless = false;
   var _connectingWireless = false;
@@ -153,12 +158,13 @@ class LogTabController extends ChangeNotifier {
   bool get isPaused => logcatState == LogcatState.paused;
   bool get hasLogs => logs.isNotEmpty;
   bool get hasSelectedDevice => selectedDevice != null;
+  bool get hasConnectedSelectedDevice => selectedDevice?.isConnected == true;
   bool get hasVisibleWorkspace => hasSelectedDevice || hasLogs;
   int get totalLogsMemoryBytes => _logsMemoryBytes + _bufferMemoryBytes;
   String get appliedInlineSearchQuery => _appliedInlineSearchQuery;
   String get inlineSearchQuery => _inlineSearchQuery;
-  bool get isLoadingDevices => _loadingDevices;
-  bool get hasAttemptedDeviceLoad => _hasAttemptedDeviceLoad;
+  bool get isLoadingDevices => _deviceRepository.isLoading;
+  bool get hasAttemptedDeviceLoad => _deviceRepository.hasAttemptedLoad;
   bool get isDiscoveringWireless => _discoveringWireless;
   bool get isPairingWireless => _pairingWireless;
   bool get isConnectingWireless => _connectingWireless;
@@ -226,21 +232,13 @@ class LogTabController extends ChangeNotifier {
   }
 
   Future<void> loadDevices({bool autoStartSingleIfAvailable = false}) async {
-    _loadingDevices = true;
-    _hasAttemptedDeviceLoad = true;
+    await _deviceRepository.refreshDevices(force: true, showLoading: true);
+    if (_disposed) return;
+    await _applyFetchedDevices(
+      _deviceRepository.devices,
+      autoStartSingleIfAvailable: autoStartSingleIfAvailable,
+    );
     _notify();
-
-    try {
-      final fetchedDevices = await _deviceBridgeService.getDevices();
-      if (_disposed) return;
-      await _applyFetchedDevices(
-        fetchedDevices,
-        autoStartSingleIfAvailable: autoStartSingleIfAvailable,
-      );
-    } finally {
-      _loadingDevices = false;
-      _notify();
-    }
   }
 
   Future<WirelessServiceDiscoveryResult> discoverWirelessServices() async {
@@ -824,12 +822,16 @@ class LogTabController extends ChangeNotifier {
         autoStartSingleIfAvailable &&
         logs.isEmpty &&
         selectedDevice == null &&
-        fetchedDevices.length == 1 &&
-        !(isDeviceSelectedInAnotherTab?.call(fetchedDevices.single.id) ??
+        fetchedDevices.where((device) => device.isConnected).length == 1 &&
+        !(isDeviceSelectedInAnotherTab?.call(
+              fetchedDevices.firstWhere((device) => device.isConnected).id,
+            ) ??
             false);
 
     if (shouldAutoStartSingleDevice) {
-      await selectDeviceAndStart(fetchedDevices.single);
+      await selectDeviceAndStart(
+        fetchedDevices.firstWhere((device) => device.isConnected),
+      );
       return;
     }
 
@@ -842,9 +844,10 @@ class LogTabController extends ChangeNotifier {
   }) async {
     const attempts = 5;
     for (var attempt = 0; attempt < attempts; attempt++) {
-      final fetchedDevices = await _deviceBridgeService.getDevices();
+      await _deviceRepository.refreshDevices(force: true);
       if (_disposed) return null;
 
+      final fetchedDevices = _deviceRepository.devices;
       await _applyFetchedDevices(fetchedDevices);
       final matchedDevice = fetchedDevices.firstWhereOrNull(
         (device) => _matchesConnectedWirelessDevice(
@@ -1046,9 +1049,10 @@ class LogTabController extends ChangeNotifier {
     required List<String> exactAddresses,
     required String? host,
   }) async {
-    final fetchedDevices = await _deviceBridgeService.getDevices();
+    await _deviceRepository.refreshDevices(force: true);
     if (_disposed) return null;
 
+    final fetchedDevices = _deviceRepository.devices;
     await _applyFetchedDevices(fetchedDevices);
     return fetchedDevices.firstWhereOrNull(
       (device) => _matchesConnectedWirelessDevice(
@@ -1065,7 +1069,7 @@ class LogTabController extends ChangeNotifier {
     List<String> exactAddresses = const [],
     String? host,
   }) {
-    if (device.status != 'device') {
+    if (!device.isConnected || device.status != 'device') {
       return false;
     }
     if (exactAddress != null && device.id == exactAddress) {
@@ -1184,9 +1188,27 @@ class LogTabController extends ChangeNotifier {
     return total;
   }
 
+  void _handleDeviceRepositoryChanged() {
+    if (_disposed) return;
+
+    final nextDevices = _deviceRepository.devices;
+    if (const ListEquality<Device>().equals(devices, nextDevices)) {
+      _notify();
+      return;
+    }
+
+    unawaited(_applyRepositoryDevices(nextDevices));
+  }
+
+  Future<void> _applyRepositoryDevices(List<Device> nextDevices) async {
+    await _applyFetchedDevices(nextDevices);
+    _notify();
+  }
+
   @override
   void dispose() {
     _disposed = true;
+    _deviceRepository.removeListener(_handleDeviceRepositoryChanged);
     _flushTimer?.cancel();
     _debounceTimer?.cancel();
     _inlineSearchDebounce?.cancel();

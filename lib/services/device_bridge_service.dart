@@ -40,8 +40,8 @@ class DeviceBridgeService {
 
   /// Fetches the list of connected Android and iOS devices.
   Future<List<Device>> getDevices() async {
-    final androidDevices = await _getAndroidDevices();
-    final iosDevices = await _getIosDevices();
+    final androidDevices = await getAndroidDevices();
+    final iosDevices = await getIosDevices();
     final devices = [...androidDevices, ...iosDevices];
 
     devices.sort((left, right) {
@@ -59,7 +59,7 @@ class DeviceBridgeService {
     return devices;
   }
 
-  Future<List<Device>> _getAndroidDevices() async {
+  Future<List<Device>> getAndroidDevices() async {
     try {
       final result = await _runTool(adbPath, ['devices', '-l']);
       if (result.exitCode != 0) {
@@ -114,7 +114,44 @@ class DeviceBridgeService {
     }
   }
 
-  Future<List<Device>> _getIosDevices() async {
+  Stream<String> watchAndroidDeviceChanges() async* {
+    Process? process;
+
+    try {
+      process = await _startTool(adbPath, ['track-devices', '-l']);
+      await for (final line
+          in process.stdout
+              .transform(Utf8Decoder(allowMalformed: true))
+              .transform(const LineSplitter())) {
+        yield line;
+      }
+    } finally {
+      if (process?.kill(ProcessSignal.sigterm) ?? false) {
+        try {
+          await process?.exitCode.timeout(const Duration(seconds: 1));
+        } catch (_) {}
+      }
+    }
+  }
+
+  Future<List<Device>> getIosDevices() async {
+    try {
+      final deviceIds = await getIosDeviceIds();
+      if (deviceIds.isEmpty) {
+        return const [];
+      }
+
+      return Future.wait(deviceIds.map(describeIosDevice));
+    } on ProcessException catch (e) {
+      _logError('ProcessException while listing iOS devices', e);
+      return const [];
+    } catch (e) {
+      _logError('Unexpected error while listing iOS devices', e);
+      return const [];
+    }
+  }
+
+  Future<List<String>> getIosDeviceIds() async {
     try {
       final result = await _runTool(ideviceIdPath, ['-l']);
       if (result.exitCode != 0) {
@@ -125,26 +162,21 @@ class DeviceBridgeService {
         return const [];
       }
 
-      final deviceIds = const LineSplitter()
+      return const LineSplitter()
           .convert((result.stdout as String).trim())
           .map((line) => line.trim())
           .where((line) => line.isNotEmpty)
           .toList(growable: false);
-      if (deviceIds.isEmpty) {
-        return const [];
-      }
-
-      return Future.wait(deviceIds.map(_describeIosDevice));
     } on ProcessException catch (e) {
-      _logError('ProcessException while listing iOS devices', e);
+      _logError('ProcessException while listing iOS device ids', e);
       return const [];
     } catch (e) {
-      _logError('Unexpected error while listing iOS devices', e);
+      _logError('Unexpected error while listing iOS device ids', e);
       return const [];
     }
   }
 
-  Future<Device> _describeIosDevice(String deviceId) async {
+  Future<Device> describeIosDevice(String deviceId) async {
     try {
       final result = await _runTool(ideviceInfoPath, ['-u', deviceId]);
       if (result.exitCode != 0) {

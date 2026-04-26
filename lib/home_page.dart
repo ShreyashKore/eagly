@@ -169,6 +169,10 @@ class _HomeScreenState extends State<HomeScreen> {
       tooltip: controller.title,
       closable: true,
       keepAlive: true,
+      labelBuilder: (context) => WorkspaceTabLabel(
+        controller: controller,
+        textStyle: context.textStyle,
+      ),
       view: LogTabView(
         controller: controller,
         appMemoryBytesListenable: _appMemoryBytes,

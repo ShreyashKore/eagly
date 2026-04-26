@@ -5,6 +5,7 @@ import 'package:gap/gap.dart';
 import '../controllers/log_tab_controller.dart';
 import '../data/device.dart';
 import '../theme/app_theme.dart';
+import 'device_presentation.dart';
 
 typedef LoadDevicesCallback =
     Future<void> Function({bool openPickerWhenNeeded});
@@ -72,7 +73,12 @@ class Toolbar extends StatelessWidget {
                         return Container(
                           alignment: Alignment.centerLeft,
                           constraints: BoxConstraints(maxWidth: 240),
-                          child: Text(device.displayName),
+                          child: DeviceLabel(
+                            device: device,
+                            maxWidth: 240,
+                            textStyle: theme.textTheme.bodyMedium,
+                            iconSize: 18,
+                          ),
                         );
                       }).toList();
                     },
@@ -81,7 +87,12 @@ class Toolbar extends StatelessWidget {
                         .map(
                           (device) => DropdownMenuItem(
                             value: device,
-                            child: Text(device.displayName),
+                            child: DeviceLabel(
+                              device: device,
+                              maxWidth: 240,
+                              textStyle: theme.textTheme.bodyMedium,
+                              iconSize: 18,
+                            ),
                           ),
                         )
                         .toList(),
@@ -128,12 +139,16 @@ class Toolbar extends StatelessWidget {
               controller.isRunning
                   ? Icons.restart_alt_rounded
                   : Icons.play_arrow,
-              color: controller.selectedDevice != null
+              color: controller.hasConnectedSelectedDevice
                   ? logTheme.statusLiveColor
                   : theme.colorScheme.onSurfaceVariant,
             ),
-            tooltip: controller.isRunning ? 'Restart' : 'Start',
-            onPressed: controller.selectedDevice == null
+            tooltip: controller.selectedDevice?.isDisconnected == true
+                ? 'Selected device is disconnected'
+                : controller.isRunning
+                ? 'Restart'
+                : 'Start',
+            onPressed: !controller.hasConnectedSelectedDevice
                 ? null
                 : controller.startLogcat,
           ),

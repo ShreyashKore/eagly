@@ -5,6 +5,7 @@ import 'package:tabbed_view/tabbed_view.dart';
 import 'constants/app_constants.dart';
 import 'controllers/log_tab_controller.dart';
 import 'intents/home_page_intents.dart';
+import 'widgets/device_presentation.dart';
 
 const homePageShortcuts = <ShortcutActivator, Intent>{
   SingleActivator(LogicalKeyboardKey.keyF, control: true):
@@ -54,6 +55,41 @@ class WorkspaceTabBinding {
   void dispose() {
     controller.removeListener(syncListener);
     controller.dispose();
+  }
+}
+
+class WorkspaceTabLabel extends StatelessWidget {
+  const WorkspaceTabLabel({
+    super.key,
+    required this.controller,
+    this.textStyle,
+  });
+
+  final LogTabController controller;
+  final TextStyle? textStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final selectedDevice = controller.selectedDevice;
+        if (selectedDevice == null) {
+          return Text(
+            controller.title,
+            style: textStyle,
+            overflow: TextOverflow.ellipsis,
+          );
+        }
+
+        return DeviceLabel(
+          device: selectedDevice,
+          textStyle: textStyle,
+          maxWidth: 220,
+          iconSize: (textStyle?.fontSize ?? 14) + 2,
+        );
+      },
+    );
   }
 }
 

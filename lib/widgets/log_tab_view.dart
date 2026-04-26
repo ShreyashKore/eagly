@@ -8,6 +8,7 @@ import '../data/log_entry.dart';
 import '../theme/app_theme.dart';
 import '../utils/log_feedback.dart';
 import '../utils/widget_extensions.dart';
+import 'device_presentation.dart';
 import 'filter_bar.dart';
 import 'log_search_bar.dart';
 import 'log_viewer.dart';
@@ -94,7 +95,7 @@ class _LogTabViewState extends State<LogTabView> {
       spacing: 16,
       children: [
         _GetStartedActionCard(
-          icon: Icons.adb,
+          icon: Icons.phone_android_rounded,
           title: 'Select device',
           subtitle:
               'Discover connected Android and iOS devices and open a live log stream.',
@@ -583,22 +584,16 @@ class _AvailableDeviceCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(
-                Icons.phone_android,
-                color: theme.colorScheme.primary,
-                size: 20,
-              ),
-              const Gap(12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(device.displayName, style: theme.textTheme.titleSmall),
-                    Text(
-                      '${device.id} · ${device.status}',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                    DeviceLabel(
+                      device: device,
+                      textStyle: theme.textTheme.titleSmall,
+                      showStatus: true,
+                      iconColor: theme.colorScheme.primary,
+                      iconSize: 20,
                     ),
                   ],
                 ),
