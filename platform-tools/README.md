@@ -42,8 +42,9 @@ platform-tools/
 ## Preparing bundles
 
 `scripts/download_platform_tools.sh` always downloads `adb` for the requested platforms.
+It also downloads a default upstream `libimobiledevice` bundle for macOS, Linux, and Windows when no override is configured.
 
-To stage `libimobiledevice` as part of the app bundle, provide either an archive path/URL or an extracted directory for each platform:
+To stage a different `libimobiledevice` bundle as part of the app, provide either an archive path/URL or an extracted directory for each platform:
 
 ```bash
 LIBIMOBILEDEVICE_MACOS_ARCHIVE=/absolute/path/to/libimobiledevice-macos.zip \
@@ -62,4 +63,8 @@ LIBIMOBILEDEVICE_WINDOWS_DIR=/absolute/path/to/windows-bundle \
 ```
 
 The script flattens the provided bundle into `platform-tools/<platform>/`, and the desktop build scripts copy everything in that folder into the shipped app.
+
+The default upstream bundle currently comes from the public `iMobileDevice-net` release package and stages its x64 runtime files. On macOS, the script also builds and bundles OpenSSL 1.1 runtime dylibs from the public OpenSSL 1.1.1w source release so the `idevice_*` tools do not depend on a host Homebrew installation.
+
+Use the overrides above if you need a different build.
 
