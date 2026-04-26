@@ -1,19 +1,23 @@
-import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-import '../utils/widget_extensions.dart';
-
 import '../controllers/log_tab_controller.dart';
+import '../constants/app_constants.dart';
 import '../data/device.dart';
 import '../data/log_entry.dart';
 import '../theme/app_theme.dart';
-import 'action_toolbar.dart';
+import '../utils/log_feedback.dart';
+import '../utils/widget_extensions.dart';
 import 'filter_bar.dart';
+import 'log_tab_view/available_device_card.dart';
+import 'log_tab_view/centered_state_message.dart';
+import 'log_tab_view/get_started_action_card.dart';
+import 'log_tab_view/log_tab_view_constants.dart';
 import 'log_search_bar.dart';
 import 'log_viewer.dart';
 import 'scroll_to_end_button.dart';
+import 'toolbar.dart';
 import 'wireless_connection_dialog.dart';
 
 class LogTabView extends StatefulWidget {
@@ -55,12 +59,7 @@ class _LogTabViewState extends State<LogTabView> {
     final result = await controller.exportLogs();
     if (!mounted || result.cancelled) return;
 
-    final message =
-        result.error ??
-        (result.fileName == null
-            ? 'Logs exported successfully.'
-            : 'Logs exported to ${result.fileName}.');
-    _showSnackBar(message);
+    _showSnackBar(formatExportLogsMessage(result));
   }
 
   Future<void> _handleLoadDevices({bool openPickerWhenNeeded = false}) async {
@@ -99,8 +98,8 @@ class _LogTabViewState extends State<LogTabView> {
     return Column(
       spacing: 16,
       children: [
-        _GetStartedActionCard(
-          icon: Icons.adb,
+        GetStartedActionCard(
+          icon: Icons.phone_android_rounded,
           title: 'Select device',
           subtitle:
               'Discover connected Android and iOS devices and open a live log stream.',
@@ -132,9 +131,10 @@ class _LogTabViewState extends State<LogTabView> {
                   spacing: 8,
                   children: controller.devices
                       .map(
-                        (device) => _AvailableDeviceCard(
+                        (device) => AvailableDeviceCard(
                           device: device,
                           onSelected: () => _selectDevice(device),
+                          onShowMessage: _showSnackBar,
                         ),
                       )
                       .toList(),
@@ -173,7 +173,7 @@ class _LogTabViewState extends State<LogTabView> {
             ],
           ],
         ),
-        _GetStartedActionCard(
+        GetStartedActionCard(
           icon: Icons.file_download_outlined,
           title: 'Import Logs',
           subtitle: 'Open a previously exported logcat JSON file in this tab.',
@@ -273,7 +273,9 @@ class _LogTabViewState extends State<LogTabView> {
         ),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
+        constraints: const BoxConstraints(
+          maxWidth: LogTabViewConstants.getStartedMaxWidth,
+        ),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -289,7 +291,7 @@ class _LogTabViewState extends State<LogTabView> {
               ),
               const Gap(18),
               Text(
-                'Logview',
+                AppConstants.appName,
                 style: theme.textTheme.headlineSmall,
                 textAlign: TextAlign.center,
               ),
@@ -332,148 +334,21 @@ class _LogTabViewState extends State<LogTabView> {
   }
 
   Widget _buildToolbar(BuildContext context) {
-    final theme = Theme.of(context);
-    final logTheme = context.logViewTheme;
-    final selectedValue = controller.devices.firstWhereOrNull(
-      (device) => device.id == controller.selectedDevice?.id,
-    );
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-      child: Row(
-        spacing: 4,
-        children: [
-          if (controller.devices.isNotEmpty)
-            Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              constraints: BoxConstraints(maxWidth: 320),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              child: Row(
-                children: [
-                  DropdownButton<Device>(
-                    key: _dropdownButtonKey,
-                    hint: const Text('Select Device'),
-                    value: selectedValue,
-                    underline: const SizedBox.shrink(),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 0,
-                    ),
-                    isDense: true,
-                    selectedItemBuilder: (context) {
-                      return controller.devices.map((device) {
-                        return Container(
-                          alignment: Alignment.centerLeft,
-                          constraints: BoxConstraints(maxWidth: 240),
-                          child: Text(device.displayName),
-                        );
-                      }).toList();
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    items: controller.devices
-                        .map(
-                          (device) => DropdownMenuItem(
-                            value: device,
-                            child: Text(device.displayName),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (device) {
-                      if (device != null) {
-                        _selectDevice(device);
-                      }
-                    },
-                  ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.all(0),
-                    tooltip: 'Reload devices',
-                    onPressed: _handleLoadDevices,
-                    icon: const Icon(Icons.refresh),
-                    iconSize: 20,
-                  ),
-                ],
-              ),
-            )
-          else
-            FilledButton.tonalIcon(
-              onPressed: () => _handleLoadDevices(openPickerWhenNeeded: true),
-              icon: const Icon(Icons.usb),
-              label: const Text('Load devices'),
-            ),
-          IconButton(
-            icon: const Icon(Icons.wifi_tethering_outlined),
-            tooltip: 'Wireless ADB connect',
-            onPressed: _showWirelessConnectionDialog,
-          ),
-          const Gap(4),
-          SizedBox(
-            height: 18,
-            child: VerticalDivider(
-              width: 2,
-              thickness: 2,
-              radius: BorderRadius.circular(2),
-            ),
-          ),
-          const Gap(4),
-          IconButton(
-            icon: Icon(
-              controller.isRunning
-                  ? Icons.restart_alt_rounded
-                  : Icons.play_arrow,
-              color: controller.selectedDevice != null
-                  ? logTheme.statusLiveColor
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
-            tooltip: controller.isRunning ? 'Restart' : 'Start',
-            onPressed: controller.selectedDevice == null
-                ? null
-                : controller.startLogcat,
-          ),
-          IconButton(
-            icon: Icon(
-              controller.isPaused ? Icons.play_arrow : Icons.pause,
-              color: controller.isRunning
-                  ? logTheme.statusPausedColor
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
-            tooltip: controller.isRunning
-                ? (controller.isPaused ? 'Resume' : 'Pause')
-                : 'Not running',
-            onPressed: controller.isRunning
-                ? controller.togglePauseResume
-                : null,
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: controller.logs.isNotEmpty
-                ? 'Clear logs'
-                : 'No logs to clear',
-            onPressed: controller.logs.isNotEmpty ? controller.clearLogs : null,
-          ),
-          const Spacer(),
-          ActionToolbar(
-            isSearchBarVisible: controller.searchBarVisible,
-            toggleSearchBar: controller.toggleSearchBar,
-            onImport: () async {
-              await _handleImportLogs();
+    return Toolbar(
+      controller: controller,
+      dropdownButtonKey: _dropdownButtonKey,
+      onLoadDevices: _handleLoadDevices,
+      onShowWirelessConnectionDialog: _showWirelessConnectionDialog,
+      onSelectDevice: _selectDevice,
+      onImport: () async {
+        await _handleImportLogs();
+      },
+      onExport: controller.logs.isEmpty
+          ? null
+          : () async {
+              await _handleExportLogs();
             },
-            onExport: controller.logs.isEmpty
-                ? null
-                : () async {
-                    await _handleExportLogs();
-                  },
-            wrapText: controller.wrapText,
-            onToggleWrap: controller.toggleWrapText,
-            autoScroll: controller.autoScroll,
-            onToggleAutoScroll: controller.toggleAutoScroll,
-            openSettings: widget.onOpenSettings,
-          ),
-        ],
-      ),
+      onOpenSettings: widget.onOpenSettings,
     );
   }
 
@@ -485,7 +360,7 @@ class _LogTabViewState extends State<LogTabView> {
       children: [
         _buildLogViewer(filtered, matches),
         if (controller.logs.isEmpty && controller.selectedDevice != null)
-          _CenteredStateMessage(
+          CenteredStateMessage(
             icon: controller.isRunning ? Icons.sync : Icons.play_circle_outline,
             title: controller.isRunning
                 ? 'Waiting for logs from ${controller.selectedDevice!.displayName}'
@@ -558,8 +433,10 @@ class _LogTabViewState extends State<LogTabView> {
   Widget _buildNoDevicePlaceholder(BuildContext context) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 820),
-        child: _CenteredStateMessage(
+        constraints: const BoxConstraints(
+          maxWidth: LogTabViewConstants.noDevicePlaceholderMaxWidth,
+        ),
+        child: CenteredStateMessage(
           icon: Icons.devices_outlined,
           title: 'No device or imported logs in this tab',
           description:
@@ -687,167 +564,6 @@ class _LogTabViewState extends State<LogTabView> {
                 ),
               ],
             ),
-    );
-  }
-}
-
-class _AvailableDeviceCard extends StatelessWidget {
-  const _AvailableDeviceCard({required this.device, required this.onSelected});
-
-  final Device device;
-  final VoidCallback onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Material(
-      color: theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onSelected,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.phone_android,
-                color: theme.colorScheme.primary,
-                size: 20,
-              ),
-              const Gap(12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(device.displayName, style: theme.textTheme.titleSmall),
-                    Text(
-                      '${device.id} · ${device.status}',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GetStartedActionCard extends StatelessWidget {
-  const _GetStartedActionCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.secondaryActions = const [],
-    this.children = const [],
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final List<Widget> secondaryActions;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      child: Material(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              spacing: 12,
-              children: [
-                Row(
-                  spacing: 12,
-                  children: [
-                    Icon(icon, color: theme.colorScheme.primary, size: 32),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(title, style: theme.textTheme.titleMedium),
-                        Text(
-                          subtitle,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                if (secondaryActions.isNotEmpty)
-                  Row(spacing: 8, children: secondaryActions),
-                if (children.isNotEmpty) Column(spacing: 8, children: children),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CenteredStateMessage extends StatelessWidget {
-  const _CenteredStateMessage({
-    required this.icon,
-    required this.title,
-    required this.description,
-    this.footer,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-  final Widget? footer;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 36, color: theme.colorScheme.primary),
-            const Gap(16),
-            Text(
-              title,
-              style: theme.textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            const Gap(8),
-            Text(
-              description,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            if (footer != null) ...[const Gap(20), footer!],
-          ],
-        ),
-      ),
     );
   }
 }

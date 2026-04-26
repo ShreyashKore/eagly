@@ -4,7 +4,7 @@ import 'package:gap/gap.dart';
 
 import '../controllers/log_tab_controller.dart';
 import '../data/device.dart';
-import '../services/adb_service.dart';
+import '../data/wireless_debug_models.dart';
 
 class WirelessConnectionDialog extends StatefulWidget {
   const WirelessConnectionDialog({
@@ -34,7 +34,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   LogTabController get controller => widget.controller;
 
   List<_DiscoveredWirelessTarget> get _discoveredTargets {
-    final groupedServices = <String, List<AdbMdnsService>>{};
+    final groupedServices = <String, List<WirelessDebugService>>{};
     for (final service in controller.wirelessServices) {
       groupedServices.putIfAbsent(service.host, () => []).add(service);
     }
@@ -42,10 +42,12 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     final targets = groupedServices.entries
         .map((entry) {
           final pairingService = entry.value.firstWhereOrNull(
-            (service) => service.type == AdbMdnsServiceType.pairing,
+            (service) => service.type == WirelessDebugServiceType.pairing,
           );
           final connectServices = entry.value
-              .where((service) => service.type == AdbMdnsServiceType.connect)
+              .where(
+                (service) => service.type == WirelessDebugServiceType.connect,
+              )
               .sortedBy<num>((service) => service.port)
               .toList(growable: false);
 
@@ -608,8 +610,8 @@ class _DiscoveredWirelessTarget {
   });
 
   final String host;
-  final AdbMdnsService? pairingService;
-  final List<AdbMdnsService> connectServices;
+  final WirelessDebugService? pairingService;
+  final List<WirelessDebugService> connectServices;
 
   String get title =>
       pairingService?.name ?? connectServices.firstOrNull?.name ?? host;

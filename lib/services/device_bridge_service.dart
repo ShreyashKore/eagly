@@ -4,86 +4,27 @@ import 'dart:io';
 
 import '../data/device.dart';
 import '../data/log_entry.dart';
+import '../data/wireless_debug_models.dart';
 import '../utils/adb_path.dart';
 import '../utils/apple_device_mapping.dart';
 import 'ios_syslog_parser.dart';
 
-enum AdbMdnsServiceType { connect, pairing, unknown }
-
-class AdbMdnsService {
-  const AdbMdnsService({
-    required this.name,
-    required this.type,
-    required this.host,
-    required this.port,
-  });
-
-  final String name;
-  final AdbMdnsServiceType type;
-  final String host;
-  final int port;
-
-  String get address => '$host:$port';
-
-  String get typeLabel => switch (type) {
-    AdbMdnsServiceType.connect => 'Connect',
-    AdbMdnsServiceType.pairing => 'Pairing',
-    AdbMdnsServiceType.unknown => 'Unknown',
-  };
-}
-
-class AdbMdnsDiscoveryResult {
-  const AdbMdnsDiscoveryResult({this.services = const [], this.error});
-
-  final List<AdbMdnsService> services;
-  final String? error;
-
-  bool get isSuccess => error == null;
-
-  factory AdbMdnsDiscoveryResult.success({
-    required List<AdbMdnsService> services,
-  }) {
-    return AdbMdnsDiscoveryResult(services: services);
-  }
-
-  factory AdbMdnsDiscoveryResult.failure({required String error}) {
-    return AdbMdnsDiscoveryResult(error: error);
-  }
-}
-
-class AdbCommandResult {
-  const AdbCommandResult({this.message, this.error});
-
-  final String? message;
-  final String? error;
-
-  bool get isSuccess => error == null;
-
-  factory AdbCommandResult.success({required String message}) {
-    return AdbCommandResult(message: message);
-  }
-
-  factory AdbCommandResult.failure({required String error}) {
-    return AdbCommandResult(error: error);
-  }
-}
-
-class AdbService {
+class DeviceBridgeService {
   final String adbPath;
   final String ideviceIdPath;
   final String ideviceInfoPath;
   final String ideviceSyslogPath;
   final Map<String, String> _pidToPackageCache = {};
   Timer? _cacheRefreshTimer;
-  Process? _activeLogcatProcess;
+  Process? _activeLogProcess;
   String? _activeDeviceId;
 
-  AdbService({
+  DeviceBridgeService({
     String? adbPath,
     String? ideviceIdPath,
     String? ideviceInfoPath,
     String? ideviceSyslogPath,
-  }) : adbPath = adbPath ?? resolveBundledAdbPath() ?? 'adb',
+  }) : adbPath = adbPath ?? resolveBundledExecutablePath('adb') ?? 'adb',
        ideviceIdPath =
            ideviceIdPath ??
            resolveBundledExecutablePath('idevice_id') ??
@@ -97,28 +38,7 @@ class AdbService {
            resolveBundledExecutablePath('idevicesyslog') ??
            'idevicesyslog';
 
-  /// Fetches the list of connected Android and iOS devices.
-  Future<List<Device>> getDevices() async {
-    final androidDevices = await _getAndroidDevices();
-    final iosDevices = await _getIosDevices();
-    final devices = [...androidDevices, ...iosDevices];
-
-    devices.sort((left, right) {
-      final platformOrder = left.platform.index.compareTo(right.platform.index);
-      if (platformOrder != 0) return platformOrder;
-      final statusOrder = left.status.compareTo(right.status);
-      if (statusOrder != 0) return statusOrder;
-      final nameOrder = left.displayName.toLowerCase().compareTo(
-        right.displayName.toLowerCase(),
-      );
-      if (nameOrder != 0) return nameOrder;
-      return left.id.compareTo(right.id);
-    });
-
-    return devices;
-  }
-
-  Future<List<Device>> _getAndroidDevices() async {
+  Future<List<Device>> getAndroidDevices() async {
     try {
       final result = await _runTool(adbPath, ['devices', '-l']);
       if (result.exitCode != 0) {
@@ -173,7 +93,27 @@ class AdbService {
     }
   }
 
-  Future<List<Device>> _getIosDevices() async {
+  Stream<String> watchAndroidDeviceChanges() async* {
+    Process? process;
+
+    try {
+      process = await _startTool(adbPath, ['track-devices', '-l']);
+      await for (final line
+          in process.stdout
+              .transform(Utf8Decoder(allowMalformed: true))
+              .transform(const LineSplitter())) {
+        yield line;
+      }
+    } finally {
+      if (process?.kill(ProcessSignal.sigterm) ?? false) {
+        try {
+          await process?.exitCode.timeout(const Duration(seconds: 1));
+        } catch (_) {}
+      }
+    }
+  }
+
+  Future<List<String>> getIosDeviceIds() async {
     try {
       final result = await _runTool(ideviceIdPath, ['-l']);
       if (result.exitCode != 0) {
@@ -184,26 +124,69 @@ class AdbService {
         return const [];
       }
 
-      final deviceIds = const LineSplitter()
+      return const LineSplitter()
           .convert((result.stdout as String).trim())
           .map((line) => line.trim())
           .where((line) => line.isNotEmpty)
           .toList(growable: false);
-      if (deviceIds.isEmpty) {
-        return const [];
-      }
-
-      return Future.wait(deviceIds.map(_describeIosDevice));
     } on ProcessException catch (e) {
-      _logError('ProcessException while listing iOS devices', e);
+      _logError('ProcessException while listing iOS device ids', e);
       return const [];
     } catch (e) {
-      _logError('Unexpected error while listing iOS devices', e);
+      _logError('Unexpected error while listing iOS device ids', e);
       return const [];
     }
   }
 
-  Future<Device> _describeIosDevice(String deviceId) async {
+  Future<Device> describeAndroidDevice(String deviceId) async {
+    try {
+      final result = await _runTool(adbPath, [
+        '-s',
+        deviceId,
+        'shell',
+        'getprop',
+      ]);
+      if (result.exitCode != 0) {
+        _logError(
+          'adb shell getprop returned non-zero exit for $deviceId',
+          _combinedProcessOutput(result),
+        );
+        return Device.android(deviceId, 'unavailable');
+      }
+
+      final properties = _parseAndroidGetPropOutput(result.stdout as String);
+      final brand = _normalizeAndroidBrand(
+        _firstNonEmpty(
+          properties['ro.product.brand'],
+          properties['ro.product.manufacturer'],
+        ),
+      );
+      final model = _firstNonEmpty(
+        properties['ro.product.marketname'],
+        properties['ro.product.model'],
+      );
+      final name = _firstNonEmpty(
+        properties['ro.product.device'],
+        properties['ro.product.name'],
+      );
+
+      return Device.android(
+        deviceId,
+        'device',
+        brand: brand,
+        model: model,
+        name: name,
+      );
+    } on ProcessException catch (e) {
+      _logError('ProcessException describing Android device $deviceId', e);
+      return Device.android(deviceId, 'unavailable');
+    } catch (e) {
+      _logError('Unexpected error describing Android device $deviceId', e);
+      return Device.android(deviceId, 'unavailable');
+    }
+  }
+
+  Future<Device> describeIosDevice(String deviceId) async {
     try {
       final result = await _runTool(ideviceInfoPath, ['-u', deviceId]);
       if (result.exitCode != 0) {
@@ -211,11 +194,7 @@ class AdbService {
           'ideviceinfo returned non-zero exit for $deviceId',
           _combinedProcessOutput(result),
         );
-        return Device(
-          deviceId,
-          _describeIosDeviceStatus(result),
-          platform: DevicePlatform.ios,
-        );
+        return Device.ios(deviceId, _describeIosDeviceStatus(result));
       }
 
       final info = _parseIdeviceInfoOutput(result.stdout as String);
@@ -231,23 +210,22 @@ class AdbService {
         model = _firstNonEmpty(info['HardwareModel'], null);
       }
 
-      return Device(
+      return Device.ios(
         deviceId,
         'device',
         name: _firstNonEmpty(info['DeviceName'], info['ProductName']),
         model: model,
-        platform: DevicePlatform.ios,
       );
     } on ProcessException catch (e) {
       _logError('ProcessException describing iOS device $deviceId', e);
-      return Device(deviceId, 'unavailable', platform: DevicePlatform.ios);
+      return Device.ios(deviceId, 'unavailable');
     } catch (e) {
       _logError('Unexpected error describing iOS device $deviceId', e);
-      return Device(deviceId, 'unavailable', platform: DevicePlatform.ios);
+      return Device.ios(deviceId, 'unavailable');
     }
   }
 
-  Future<AdbMdnsDiscoveryResult> discoverMdnsServices() async {
+  Future<WirelessServiceDiscoveryResult> discoverMdnsServices() async {
     try {
       final result = await _runTool(adbPath, ['mdns', 'services']);
       if (result.exitCode != 0) {
@@ -256,10 +234,10 @@ class AdbService {
           result,
         );
         _logError('Failed to discover wireless ADB services', details);
-        return AdbMdnsDiscoveryResult.failure(error: details);
+        return WirelessServiceDiscoveryResult.failure(error: details);
       }
 
-      final services = <AdbMdnsService>[];
+      final services = <WirelessDebugService>[];
       for (final rawLine in const LineSplitter().convert(
         result.stdout as String,
       )) {
@@ -282,7 +260,7 @@ class AdbService {
         }
 
         services.add(
-          AdbMdnsService(
+          WirelessDebugService(
             name: match.group(1)!.trim(),
             type: _parseMdnsServiceType(match.group(2)!),
             host: match.group(3)!.trim(),
@@ -299,17 +277,17 @@ class AdbService {
         return left.port.compareTo(right.port);
       });
 
-      return AdbMdnsDiscoveryResult.success(services: services);
+      return WirelessServiceDiscoveryResult.success(services: services);
     } catch (error) {
       _logError('Exception while discovering mdns services', error);
-      return AdbMdnsDiscoveryResult.failure(
+      return WirelessServiceDiscoveryResult.failure(
         error:
             'Failed to discover wireless ADB services: ${_describeError(error)}',
       );
     }
   }
 
-  Future<AdbCommandResult> pairDevice({
+  Future<DeviceCommandResult> pairDevice({
     required String address,
     required String pairingCode,
   }) async {
@@ -321,24 +299,24 @@ class AdbService {
           result,
         );
         _logError('Pair command failed for $address', details);
-        return AdbCommandResult.failure(error: details);
+        return DeviceCommandResult.failure(error: details);
       }
 
       final message = _combinedProcessOutput(result);
-      return AdbCommandResult.success(
+      return DeviceCommandResult.success(
         message: message.isEmpty
             ? 'Successfully paired with $address.'
             : message,
       );
     } catch (error) {
       _logError('Exception while pairing with $address', error);
-      return AdbCommandResult.failure(
+      return DeviceCommandResult.failure(
         error: 'Failed to pair with $address: ${_describeError(error)}',
       );
     }
   }
 
-  Future<AdbCommandResult> connectDevice(String address) async {
+  Future<DeviceCommandResult> connectDevice(String address) async {
     try {
       final result = await _runTool(adbPath, ['connect', address]);
       final output = _combinedProcessOutput(result);
@@ -352,15 +330,15 @@ class AdbService {
           result,
         );
         _logError('Connect command failed for $address', details);
-        return AdbCommandResult.failure(error: details);
+        return DeviceCommandResult.failure(error: details);
       }
 
-      return AdbCommandResult.success(
+      return DeviceCommandResult.success(
         message: output.isEmpty ? 'Connected to $address.' : output,
       );
     } catch (error) {
       _logError('Exception while connecting to $address', error);
-      return AdbCommandResult.failure(
+      return DeviceCommandResult.failure(
         error: 'Failed to connect to $address: ${_describeError(error)}',
       );
     }
@@ -400,18 +378,18 @@ class AdbService {
     return _pidToPackageCache[pid];
   }
 
-  /// Starts a live log stream for a specific device and returns a stream of log entries.
-  Stream<LogEntry> startLogcat(Device device) async* {
-    if (device.isIos) {
-      yield* _startIosSyslog(device);
-      return;
+  /// Starts a live log stream for a specific device and returns log entries.
+  Stream<LogEntry> startLogStream(Device device) async* {
+    switch (device) {
+      case IosDevice():
+        yield* _startIosSyslog(device);
+      case AndroidDevice():
+        yield* _startAndroidLogcat(device.id);
     }
-
-    yield* _startAndroidLogcat(device.id);
   }
 
   Stream<LogEntry> _startAndroidLogcat(String deviceId) async* {
-    await stopActiveLogcat();
+    await stopActiveLogStream();
     await refreshPidToPackageMap(deviceId);
 
     _cacheRefreshTimer?.cancel();
@@ -428,7 +406,7 @@ class AdbService {
         '-v',
         'threadtime',
       ]);
-      _activeLogcatProcess = process;
+      _activeLogProcess = process;
       _activeDeviceId = deviceId;
       final stderrFuture = process.stderr.transform(utf8.decoder).join();
       var emittedLogs = false;
@@ -461,8 +439,8 @@ class AdbService {
         processName: deviceId,
       );
     } finally {
-      if (identical(_activeLogcatProcess, process)) {
-        _activeLogcatProcess = null;
+      if (identical(_activeLogProcess, process)) {
+        _activeLogProcess = null;
         _activeDeviceId = null;
       }
       _cacheRefreshTimer?.cancel();
@@ -476,7 +454,7 @@ class AdbService {
   }
 
   Stream<LogEntry> _startIosSyslog(Device device) async* {
-    await stopActiveLogcat();
+    await stopActiveLogStream();
     _cacheRefreshTimer?.cancel();
     _cacheRefreshTimer = null;
 
@@ -485,7 +463,7 @@ class AdbService {
 
     try {
       process = await _startTool(ideviceSyslogPath, ['-u', device.id]);
-      _activeLogcatProcess = process;
+      _activeLogProcess = process;
       _activeDeviceId = device.id;
       final stderrFuture = process.stderr.transform(utf8.decoder).join();
       var emittedLogs = false;
@@ -525,8 +503,8 @@ class AdbService {
         processName: device.displayName,
       );
     } finally {
-      if (identical(_activeLogcatProcess, process)) {
-        _activeLogcatProcess = null;
+      if (identical(_activeLogProcess, process)) {
+        _activeLogProcess = null;
         _activeDeviceId = null;
       }
       if (process?.kill(ProcessSignal.sigterm) ?? false) {
@@ -537,12 +515,12 @@ class AdbService {
     }
   }
 
-  Future<void> stopActiveLogcat() async {
+  Future<void> stopActiveLogStream() async {
     _cacheRefreshTimer?.cancel();
     _cacheRefreshTimer = null;
 
-    final process = _activeLogcatProcess;
-    _activeLogcatProcess = null;
+    final process = _activeLogProcess;
+    _activeLogProcess = null;
     _activeDeviceId = null;
 
     if (process == null) return;
@@ -554,9 +532,9 @@ class AdbService {
   }
 
   /// Stops logcat for a device (by killing the process).
-  Future<void> stopLogcat(String deviceId) async {
+  Future<void> stopLogStream(String deviceId) async {
     if (_activeDeviceId == deviceId) {
-      await stopActiveLogcat();
+      await stopActiveLogStream();
       return;
     }
 
@@ -564,17 +542,17 @@ class AdbService {
   }
 
   /// Clears the logcat buffer on the Android device.
-  Future<void> clearLogcat(String deviceId) async {
+  Future<void> clearLogs(String deviceId) async {
     await _runTool(adbPath, ['-s', deviceId, 'logcat', '-c']);
   }
 
-  Future<void> dispose() => stopActiveLogcat();
+  Future<void> dispose() => stopActiveLogStream();
 
-  AdbMdnsServiceType _parseMdnsServiceType(String rawValue) {
+  WirelessDebugServiceType _parseMdnsServiceType(String rawValue) {
     return switch (rawValue.trim()) {
-      '_adb-tls-connect._tcp' => AdbMdnsServiceType.connect,
-      '_adb-tls-pairing._tcp' => AdbMdnsServiceType.pairing,
-      _ => AdbMdnsServiceType.unknown,
+      '_adb-tls-connect._tcp' => WirelessDebugServiceType.connect,
+      '_adb-tls-pairing._tcp' => WirelessDebugServiceType.pairing,
+      _ => WirelessDebugServiceType.unknown,
     };
   }
 
@@ -602,12 +580,10 @@ class AdbService {
         : message;
   }
 
-  // Simplified logging helper used for error and early-return diagnostics.
-  // Keeps logging minimal and consistent across the class.
   void _logError(String message, [Object? error]) {
     final errorPart = error == null ? '' : ' | ${error.toString()}';
     // ignore: avoid_print
-    print('[AdbService] $message$errorPart');
+    print('[DeviceBridgeService] $message$errorPart');
   }
 
   String? _firstNonEmpty(String? first, String? second) {
@@ -618,6 +594,27 @@ class AdbService {
       return second.trim();
     }
     return null;
+  }
+
+  String? _normalizeAndroidBrand(String? brand) {
+    if (brand == null) {
+      return null;
+    }
+
+    final trimmed = brand.trim();
+    if (trimmed.isEmpty || trimmed != trimmed.toLowerCase()) {
+      return trimmed.isEmpty ? null : trimmed;
+    }
+
+    final words = trimmed.split(RegExp(r'\s+'));
+    return words
+        .map((word) {
+          if (word.isEmpty) {
+            return word;
+          }
+          return '${word[0].toUpperCase()}${word.substring(1)}';
+        })
+        .join(' ');
   }
 
   Map<String, String> _parseIdeviceInfoOutput(String stdout) {
@@ -631,6 +628,29 @@ class AdbService {
       info[key] = value;
     }
     return info;
+  }
+
+  Map<String, String> _parseAndroidGetPropOutput(String stdout) {
+    final properties = <String, String>{};
+    final propertyPattern = RegExp(r'^\[([^\]]+)\]:\s*\[(.*)\]$');
+
+    for (final rawLine in const LineSplitter().convert(stdout)) {
+      final line = rawLine.trim();
+      final match = propertyPattern.firstMatch(line);
+      if (match == null) {
+        continue;
+      }
+
+      final key = match.group(1)?.trim();
+      final value = match.group(2)?.trim();
+      if (key == null || key.isEmpty || value == null || value.isEmpty) {
+        continue;
+      }
+
+      properties[key] = value;
+    }
+
+    return properties;
   }
 
   String _describeIosDeviceStatus(ProcessResult result) {
