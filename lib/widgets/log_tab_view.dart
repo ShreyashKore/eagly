@@ -1,19 +1,17 @@
-import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
-
-import '../utils/widget_extensions.dart';
 
 import '../controllers/log_tab_controller.dart';
 import '../data/device.dart';
 import '../data/log_entry.dart';
 import '../theme/app_theme.dart';
-import 'action_toolbar.dart';
+import '../utils/widget_extensions.dart';
 import 'filter_bar.dart';
 import 'log_search_bar.dart';
 import 'log_viewer.dart';
 import 'scroll_to_end_button.dart';
+import 'toolbar.dart';
 import 'wireless_connection_dialog.dart';
 
 class LogTabView extends StatefulWidget {
@@ -332,148 +330,21 @@ class _LogTabViewState extends State<LogTabView> {
   }
 
   Widget _buildToolbar(BuildContext context) {
-    final theme = Theme.of(context);
-    final logTheme = context.logViewTheme;
-    final selectedValue = controller.devices.firstWhereOrNull(
-      (device) => device.id == controller.selectedDevice?.id,
-    );
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-      child: Row(
-        spacing: 4,
-        children: [
-          if (controller.devices.isNotEmpty)
-            Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              constraints: BoxConstraints(maxWidth: 320),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              child: Row(
-                children: [
-                  DropdownButton<Device>(
-                    key: _dropdownButtonKey,
-                    hint: const Text('Select Device'),
-                    value: selectedValue,
-                    underline: const SizedBox.shrink(),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 0,
-                    ),
-                    isDense: true,
-                    selectedItemBuilder: (context) {
-                      return controller.devices.map((device) {
-                        return Container(
-                          alignment: Alignment.centerLeft,
-                          constraints: BoxConstraints(maxWidth: 240),
-                          child: Text(device.displayName),
-                        );
-                      }).toList();
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    items: controller.devices
-                        .map(
-                          (device) => DropdownMenuItem(
-                            value: device,
-                            child: Text(device.displayName),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (device) {
-                      if (device != null) {
-                        _selectDevice(device);
-                      }
-                    },
-                  ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.all(0),
-                    tooltip: 'Reload devices',
-                    onPressed: _handleLoadDevices,
-                    icon: const Icon(Icons.refresh),
-                    iconSize: 20,
-                  ),
-                ],
-              ),
-            )
-          else
-            FilledButton.tonalIcon(
-              onPressed: () => _handleLoadDevices(openPickerWhenNeeded: true),
-              icon: const Icon(Icons.usb),
-              label: const Text('Load devices'),
-            ),
-          IconButton(
-            icon: const Icon(Icons.wifi_tethering_outlined),
-            tooltip: 'Wireless ADB connect',
-            onPressed: _showWirelessConnectionDialog,
-          ),
-          const Gap(4),
-          SizedBox(
-            height: 18,
-            child: VerticalDivider(
-              width: 2,
-              thickness: 2,
-              radius: BorderRadius.circular(2),
-            ),
-          ),
-          const Gap(4),
-          IconButton(
-            icon: Icon(
-              controller.isRunning
-                  ? Icons.restart_alt_rounded
-                  : Icons.play_arrow,
-              color: controller.selectedDevice != null
-                  ? logTheme.statusLiveColor
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
-            tooltip: controller.isRunning ? 'Restart' : 'Start',
-            onPressed: controller.selectedDevice == null
-                ? null
-                : controller.startLogcat,
-          ),
-          IconButton(
-            icon: Icon(
-              controller.isPaused ? Icons.play_arrow : Icons.pause,
-              color: controller.isRunning
-                  ? logTheme.statusPausedColor
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
-            tooltip: controller.isRunning
-                ? (controller.isPaused ? 'Resume' : 'Pause')
-                : 'Not running',
-            onPressed: controller.isRunning
-                ? controller.togglePauseResume
-                : null,
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: controller.logs.isNotEmpty
-                ? 'Clear logs'
-                : 'No logs to clear',
-            onPressed: controller.logs.isNotEmpty ? controller.clearLogs : null,
-          ),
-          const Spacer(),
-          ActionToolbar(
-            isSearchBarVisible: controller.searchBarVisible,
-            toggleSearchBar: controller.toggleSearchBar,
-            onImport: () async {
-              await _handleImportLogs();
+    return Toolbar(
+      controller: controller,
+      dropdownButtonKey: _dropdownButtonKey,
+      onLoadDevices: _handleLoadDevices,
+      onShowWirelessConnectionDialog: _showWirelessConnectionDialog,
+      onSelectDevice: _selectDevice,
+      onImport: () async {
+        await _handleImportLogs();
+      },
+      onExport: controller.logs.isEmpty
+          ? null
+          : () async {
+              await _handleExportLogs();
             },
-            onExport: controller.logs.isEmpty
-                ? null
-                : () async {
-                    await _handleExportLogs();
-                  },
-            wrapText: controller.wrapText,
-            onToggleWrap: controller.toggleWrapText,
-            autoScroll: controller.autoScroll,
-            onToggleAutoScroll: controller.toggleAutoScroll,
-            openSettings: widget.onOpenSettings,
-          ),
-        ],
-      ),
+      onOpenSettings: widget.onOpenSettings,
     );
   }
 
