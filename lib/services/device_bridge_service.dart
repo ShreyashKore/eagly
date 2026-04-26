@@ -151,11 +151,7 @@ class DeviceBridgeService {
           'adb shell getprop returned non-zero exit for $deviceId',
           _combinedProcessOutput(result),
         );
-        return Device(
-          deviceId,
-          'unavailable',
-          platform: DevicePlatform.android,
-        );
+        return Device.android(deviceId, 'unavailable');
       }
 
       final properties = _parseAndroidGetPropOutput(result.stdout as String);
@@ -174,20 +170,19 @@ class DeviceBridgeService {
         properties['ro.product.name'],
       );
 
-      return Device(
+      return Device.android(
         deviceId,
         'device',
         brand: brand,
         model: model,
         name: name,
-        platform: DevicePlatform.android,
       );
     } on ProcessException catch (e) {
       _logError('ProcessException describing Android device $deviceId', e);
-      return Device(deviceId, 'unavailable', platform: DevicePlatform.android);
+      return Device.android(deviceId, 'unavailable');
     } catch (e) {
       _logError('Unexpected error describing Android device $deviceId', e);
-      return Device(deviceId, 'unavailable', platform: DevicePlatform.android);
+      return Device.android(deviceId, 'unavailable');
     }
   }
 
@@ -199,11 +194,7 @@ class DeviceBridgeService {
           'ideviceinfo returned non-zero exit for $deviceId',
           _combinedProcessOutput(result),
         );
-        return Device(
-          deviceId,
-          _describeIosDeviceStatus(result),
-          platform: DevicePlatform.ios,
-        );
+        return Device.ios(deviceId, _describeIosDeviceStatus(result));
       }
 
       final info = _parseIdeviceInfoOutput(result.stdout as String);
@@ -219,19 +210,18 @@ class DeviceBridgeService {
         model = _firstNonEmpty(info['HardwareModel'], null);
       }
 
-      return Device(
+      return Device.ios(
         deviceId,
         'device',
         name: _firstNonEmpty(info['DeviceName'], info['ProductName']),
         model: model,
-        platform: DevicePlatform.ios,
       );
     } on ProcessException catch (e) {
       _logError('ProcessException describing iOS device $deviceId', e);
-      return Device(deviceId, 'unavailable', platform: DevicePlatform.ios);
+      return Device.ios(deviceId, 'unavailable');
     } catch (e) {
       _logError('Unexpected error describing iOS device $deviceId', e);
-      return Device(deviceId, 'unavailable', platform: DevicePlatform.ios);
+      return Device.ios(deviceId, 'unavailable');
     }
   }
 
@@ -390,12 +380,12 @@ class DeviceBridgeService {
 
   /// Starts a live log stream for a specific device and returns log entries.
   Stream<LogEntry> startLogStream(Device device) async* {
-    if (device.isIos) {
-      yield* _startIosSyslog(device);
-      return;
+    switch (device) {
+      case IosDevice():
+        yield* _startIosSyslog(device);
+      case AndroidDevice():
+        yield* _startAndroidLogcat(device.id);
     }
-
-    yield* _startAndroidLogcat(device.id);
   }
 
   Stream<LogEntry> _startAndroidLogcat(String deviceId) async* {

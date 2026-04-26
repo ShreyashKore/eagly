@@ -295,12 +295,11 @@ class _CachedIosDeviceDescription {
   final String? model;
 
   Device toDevice(String deviceId) {
-    return Device(
+    return Device.ios(
       deviceId,
       'device',
       name: name,
       model: model,
-      platform: DevicePlatform.ios,
       connectionState: DeviceConnectionState.connected,
     );
   }

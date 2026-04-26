@@ -50,13 +50,15 @@ class AvailableDeviceCard extends StatelessWidget {
                   iconSize: 20,
                 ),
               ),
-              if (device.isIos)
-                IconButton(
+              switch (device) {
+                IosDevice() => IconButton(
                   tooltip: 'Copy UDID',
                   visualDensity: VisualDensity.compact,
                   onPressed: _copyIosUdid,
                   icon: const Icon(Icons.content_copy_outlined, size: 18),
                 ),
+                AndroidDevice() => const SizedBox.shrink(),
+              },
             ],
           ),
         ),

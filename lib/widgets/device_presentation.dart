@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../data/device.dart';
 
 IconData devicePlatformIcon(Device device) {
-  return switch (device.platform) {
-    DevicePlatform.android => Icons.android,
-    DevicePlatform.ios => Icons.apple,
+  return switch (device) {
+    AndroidDevice() => Icons.android,
+    IosDevice() => Icons.apple,
   };
 }
 
