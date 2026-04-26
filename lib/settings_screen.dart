@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import 'constants/log_constants.dart';
 import 'services/app_info_service.dart';
 import 'services/preferences_service.dart';
 
@@ -161,7 +162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onPressed: (index) => _setThemeByIndex(index),
                         borderRadius: BorderRadius.circular(6),
                         selectedBorderColor: theme.colorScheme.primary
-                            .withOpacity(0.5),
+                            .withValues(alpha: 0.5),
                         constraints: const BoxConstraints(
                           minWidth: 84,
                           minHeight: 36,
@@ -253,15 +254,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: SizedBox(
                       width: 160,
                       child: DropdownButtonFormField<String>(
-                        value: _selectedLogLevel,
+                        initialValue: _selectedLogLevel,
                         isExpanded: true,
-                        items: const [
-                          DropdownMenuItem(value: 'E', child: Text('Error')),
-                          DropdownMenuItem(value: 'W', child: Text('Warning')),
-                          DropdownMenuItem(value: 'I', child: Text('Info')),
-                          DropdownMenuItem(value: 'D', child: Text('Debug')),
-                          DropdownMenuItem(value: 'V', child: Text('Verbose')),
-                        ],
+                        items: buildLogLevelDropdownItems(),
                         onChanged: (value) {
                           if (value == null) return;
                           setState(() => _selectedLogLevel = value);

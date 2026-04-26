@@ -6,6 +6,7 @@ import '../controllers/log_tab_controller.dart';
 import '../data/device.dart';
 import '../data/log_entry.dart';
 import '../theme/app_theme.dart';
+import '../utils/log_feedback.dart';
 import '../utils/widget_extensions.dart';
 import 'filter_bar.dart';
 import 'log_search_bar.dart';
@@ -53,12 +54,7 @@ class _LogTabViewState extends State<LogTabView> {
     final result = await controller.exportLogs();
     if (!mounted || result.cancelled) return;
 
-    final message =
-        result.error ??
-        (result.fileName == null
-            ? 'Logs exported successfully.'
-            : 'Logs exported to ${result.fileName}.');
-    _showSnackBar(message);
+    _showSnackBar(formatExportLogsMessage(result));
   }
 
   Future<void> _handleLoadDevices({bool openPickerWhenNeeded = false}) async {

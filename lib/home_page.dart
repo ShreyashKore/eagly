@@ -2,27 +2,18 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 
+import 'constants/app_constants.dart';
+import 'constants/log_constants.dart';
 import 'controllers/log_tab_controller.dart';
+import 'home_page_support.dart';
+import 'intents/home_page_intents.dart';
 import 'services/app_info_service.dart';
 import 'services/preferences_service.dart';
 import 'settings_screen.dart';
+import 'utils/log_feedback.dart';
 import 'widgets/log_tab_view.dart';
-
-/// Intent fired by the Ctrl+F / Cmd+F keyboard shortcut.
-class _ActivateSearchIntent extends Intent {
-  const _ActivateSearchIntent();
-}
-
-class _IncreaseFontIntent extends Intent {
-  const _IncreaseFontIntent();
-}
-
-class _DecreaseFontIntent extends Intent {
-  const _DecreaseFontIntent();
-}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,26 +23,17 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const String _newTabActionId = '__new-tab-action__';
-
   final TabbedViewController _tabsController = TabbedViewController([]);
   final ValueNotifier<int> _appMemoryBytes = ValueNotifier<int>(0);
-  final Map<Object, _WorkspaceTab> _workspaceTabs = {};
+  final Map<Object, WorkspaceTabBinding> _workspaceTabs = {};
   late final TabData _newTabActionTab = TabData(
-    id: _newTabActionId,
-    text: 'New tab',
-    tooltip: 'Create a new tab',
+    id: AppConstants.newTabActionId,
+    text: AppConstants.newTabLabel,
+    tooltip: AppConstants.newTabTooltip,
     closable: false,
     draggable: false,
     view: const SizedBox.shrink(),
-    labelBuilder: (context) => Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.add, size: (context.textStyle?.fontSize ?? 14) + 2),
-        const SizedBox(width: 6),
-        Text('New tab', style: context.textStyle),
-      ],
-    ),
+    labelBuilder: (context) => NewTabActionLabel(textStyle: context.textStyle),
   );
 
   Timer? _memoryRefreshTimer;
@@ -64,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
   LogTabController? get _activeController =>
       _tabsController.selectedTab?.value as LogTabController?;
 
-  bool _isNewTabAction(TabData tab) => tab.id == _newTabActionId;
+  bool _isNewTabAction(TabData tab) => tab.id == AppConstants.newTabActionId;
 
   int get _workspaceTabCount =>
       _tabsController.tabs.where((tab) => !_isNewTabAction(tab)).length;
@@ -151,7 +133,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _clearNewTabActionSelectionIfNeeded() {
-    _debugTabs('Clearing new tab action selection if needed');
+    debugTabs('Clearing new tab action selection if needed');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final selectedTab = _tabsController.selectedTab;
@@ -201,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     controller.addListener(syncTabLabel);
-    _workspaceTabs[tabData.id] = _WorkspaceTab(
+    _workspaceTabs[tabData.id] = WorkspaceTabBinding(
       tabData: tabData,
       controller: controller,
       syncListener: syncTabLabel,
@@ -226,7 +208,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onTabRemoved(TabData tab) {
-    _debugTabs('removed: ${tab.text} (${tab.id})');
+    debugTabs('removed: ${tab.text} (${tab.id})');
     if (_isNewTabAction(tab)) {
       _ensureNewTabActionPresent();
       return;
@@ -245,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onTabReordered(int oldIndex, int newIndex) {
-    _debugTabs('reordered: $oldIndex -> $newIndex');
+    debugTabs('reordered: $oldIndex -> $newIndex');
     _moveNewTabActionToEnd();
     if (mounted) {
       setState(() {});
@@ -253,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onTabSelected(TabSelection? selection) async {
-    _debugTabs(
+    debugTabs(
       'selection ${selection?.index}\nworkspaceTabCount: $_workspaceTabCount\nignoreNextNewTabSelection: $_ignoreNextNewTabSelection',
     );
     final selectedTab = selection?.tab;
@@ -287,16 +269,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showAboutApp() {
     showAboutDialog(
       context: context,
-      applicationName: 'Logview',
+      applicationName: AppConstants.appName,
       applicationVersion: AppInfoService.appVersion,
       applicationIcon: Icon(
         Icons.developer_board,
         size: 44,
         color: Theme.of(context).colorScheme.primary,
       ),
-      children: const [
-        Text('Desktop log viewer for Android logcat and iOS syslog output.'),
-      ],
+      children: const [Text(AppConstants.appDescription)],
     );
   }
 
@@ -310,7 +290,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final current = PreferencesService.logFontSize;
     PreferencesService.logFontSize = current + delta;
     final applied = PreferencesService.logFontSize;
-    _showSnackBar('Font size: ${applied.toStringAsFixed(0)}', width: 120);
+    _showSnackBar(
+      'Font size: ${applied.toStringAsFixed(0)}',
+      width: AppConstants.fontSizeSnackBarWidth,
+    );
   }
 
   Future<void> _handleImportLogs() async {
@@ -329,12 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final result = await controller.exportLogs();
     if (!mounted || result.cancelled) return;
 
-    final message =
-        result.error ??
-        (result.fileName == null
-            ? 'Logs exported successfully.'
-            : 'Logs exported to ${result.fileName}.');
-    _showSnackBar(message);
+    _showSnackBar(formatExportLogsMessage(result));
   }
 
   void _runOnActiveTab(void Function(LogTabController tab) action) {
@@ -344,22 +322,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<PlatformMenuItem> _logLevelFilterMenuItems() {
-    const levels = [
-      ('E', 'Error'),
-      ('W', 'Warning'),
-      ('I', 'Info'),
-      ('D', 'Debug'),
-      ('V', 'Verbose'),
-    ];
-
-    return [
-      for (final (value, label) in levels)
-        PlatformMenuItem(
-          label: '$label ($value)',
-          onSelected: () =>
-              _runOnActiveTab((tab) => tab.setSelectedLogLevel(value)),
-        ),
-    ];
+    return buildLogLevelMenuItems(
+      onSelected: (value) =>
+          _runOnActiveTab((tab) => tab.setSelectedLogLevel(value)),
+    );
   }
 
   List<PlatformMenuItem> _buildDesktopMenus() {
@@ -508,7 +474,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final colorScheme = materialTheme.colorScheme;
     final theme = TabbedViewThemeData.minimalist(
       tabRadius: 8,
-      tabStyleResolver: MyTabsStyleResolver(colorScheme: colorScheme),
+      tabStyleResolver: HomeTabsStyleResolver(colorScheme: colorScheme),
     );
     theme.tabsArea.padding = EdgeInsets.zero;
     theme.tabsArea.position = TabBarPosition.top;
@@ -516,41 +482,22 @@ class _HomeScreenState extends State<HomeScreen> {
     theme.tabsArea.sideTabsLayout = SideTabsLayout.stacked;
 
     final content = Shortcuts(
-      shortcuts: const <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.keyF, control: true):
-            _ActivateSearchIntent(),
-        SingleActivator(LogicalKeyboardKey.keyF, meta: true):
-            _ActivateSearchIntent(),
-        // Decrease font: Ctrl/Cmd + -
-        SingleActivator(LogicalKeyboardKey.minus, control: true):
-            _DecreaseFontIntent(),
-        SingleActivator(LogicalKeyboardKey.minus, meta: true):
-            _DecreaseFontIntent(),
-        // Increase font: Ctrl/Cmd + Shift + = (i.e. +) and Numpad Add
-        SingleActivator(LogicalKeyboardKey.equal, control: true):
-            _IncreaseFontIntent(),
-        SingleActivator(LogicalKeyboardKey.equal, meta: true):
-            _IncreaseFontIntent(),
-        SingleActivator(LogicalKeyboardKey.numpadAdd, control: true):
-            _IncreaseFontIntent(),
-        SingleActivator(LogicalKeyboardKey.numpadAdd, meta: true):
-            _IncreaseFontIntent(),
-      },
+      shortcuts: homePageShortcuts,
       child: Actions(
         actions: <Type, Action<Intent>>{
-          _ActivateSearchIntent: CallbackAction<_ActivateSearchIntent>(
+          ActivateSearchIntent: CallbackAction<ActivateSearchIntent>(
             onInvoke: (_) {
               activeController?.toggleSearchBar();
               return null;
             },
           ),
-          _IncreaseFontIntent: CallbackAction<_IncreaseFontIntent>(
+          IncreaseFontIntent: CallbackAction<IncreaseFontIntent>(
             onInvoke: (_) {
               _changeLogFontSize(1);
               return null;
             },
           ),
-          _DecreaseFontIntent: CallbackAction<_DecreaseFontIntent>(
+          DecreaseFontIntent: CallbackAction<DecreaseFontIntent>(
             onInvoke: (_) {
               _changeLogFontSize(-1);
               return null;
@@ -581,54 +528,4 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return content;
   }
-}
-
-class _WorkspaceTab {
-  _WorkspaceTab({
-    required this.tabData,
-    required this.controller,
-    required this.syncListener,
-  });
-
-  final TabData tabData;
-  final LogTabController controller;
-  final VoidCallback syncListener;
-
-  void dispose() {
-    controller.removeListener(syncListener);
-    controller.dispose();
-  }
-}
-
-class MyTabsStyleResolver extends MinimalistTabStyleResolver {
-  MyTabsStyleResolver({required this.colorScheme});
-
-  final ColorScheme colorScheme;
-
-  @override
-  Color? backgroundColor(TabStyleContext context) {
-    if (context.status == TabStatus.selected) {
-      return colorScheme.surface;
-    }
-    return colorScheme.surfaceContainerHighest;
-  }
-
-  @override
-  Color buttonColor(TabStyleContext context) {
-    return context.status == TabStatus.selected
-        ? colorScheme.onSurface
-        : colorScheme.onSurfaceVariant;
-  }
-
-  @override
-  Color fontColor(TabStyleContext context) {
-    return context.status == TabStatus.selected
-        ? colorScheme.onSurface
-        : colorScheme.onSurfaceVariant;
-  }
-}
-
-_debugTabs(Object? message) {
-  // ignore: avoid_print
-  print('[DEBUG_TAB] $message');
 }

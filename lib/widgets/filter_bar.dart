@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../constants/log_constants.dart';
+
 class FilterBar extends StatelessWidget {
   final String filterQuery;
   final TextEditingController? controller;
@@ -46,13 +48,7 @@ class FilterBar extends StatelessWidget {
             child: DropdownButtonFormField<String>(
               initialValue: selectedLogLevel,
               decoration: const InputDecoration(labelText: 'Level'),
-              items: const [
-                DropdownMenuItem(value: 'E', child: Text('Error (E)')),
-                DropdownMenuItem(value: 'W', child: Text('Warning (W)')),
-                DropdownMenuItem(value: 'I', child: Text('Info (I)')),
-                DropdownMenuItem(value: 'D', child: Text('Debug (D)')),
-                DropdownMenuItem(value: 'V', child: Text('Verbose (V)')),
-              ],
+              items: buildLogLevelDropdownItems(includeValueInLabel: true),
               onChanged: onLogLevelChanged,
             ),
           ),
