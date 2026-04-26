@@ -23,6 +23,8 @@ class DeviceRepository extends ChangeNotifier {
   static const Duration _iosRefreshInterval = Duration(seconds: 4);
 
   final DeviceBridgeService _deviceBridgeService;
+  final Map<String, _CachedAndroidDeviceDescription> _androidDescriptionCache =
+      {};
   final Map<String, _CachedIosDeviceDescription> _iosDescriptionCache = {};
 
   List<Device> _devices = const [];
@@ -103,9 +105,15 @@ class DeviceRepository extends ChangeNotifier {
 
   Future<void> _reloadDevices() async {
     final androidDevices = await _deviceBridgeService.getAndroidDevices();
+    final describedAndroidDevices = await Future.wait(
+      androidDevices.map(_resolveAndroidDevice),
+    );
     final iosDeviceIds = await _deviceBridgeService.getIosDeviceIds();
     final iosDevices = await Future.wait(iosDeviceIds.map(_resolveIosDevice));
-    final nextDevices = _mergeDevices([...androidDevices, ...iosDevices]);
+    final nextDevices = _mergeDevices([
+      ...describedAndroidDevices,
+      ...iosDevices,
+    ]);
 
     nextDevices.sort((left, right) {
       final platformOrder = left.platform.index.compareTo(right.platform.index);
@@ -139,6 +147,7 @@ class DeviceRepository extends ChangeNotifier {
       final previous = previousById[device.id];
       merged.add(
         device.copyWith(
+          brand: device.brand ?? previous?.brand,
           model: device.model ?? previous?.model,
           name: device.name ?? previous?.name,
           connectionState: DeviceConnectionState.connected,
@@ -156,6 +165,36 @@ class DeviceRepository extends ChangeNotifier {
     }
 
     return merged;
+  }
+
+  Future<Device> _resolveAndroidDevice(Device device) async {
+    final cached = _androidDescriptionCache[device.id];
+    if (cached != null) {
+      return cached.applyTo(device);
+    }
+
+    if (device.status != 'device') {
+      return device;
+    }
+
+    final described = await _deviceBridgeService.describeAndroidDevice(
+      device.id,
+    );
+    final enriched = device.copyWith(
+      brand: described.brand ?? device.brand,
+      model: described.model ?? device.model,
+      name: described.name ?? device.name,
+    );
+    if (enriched.brand != null ||
+        enriched.model != null ||
+        enriched.name != null) {
+      _androidDescriptionCache[device.id] = _CachedAndroidDeviceDescription(
+        brand: enriched.brand,
+        model: enriched.model,
+        name: enriched.name,
+      );
+    }
+    return enriched;
   }
 
   Future<Device> _resolveIosDevice(String deviceId) async {
@@ -230,6 +269,22 @@ class DeviceRepository extends ChangeNotifier {
     _iosRefreshTimer?.cancel();
     unawaited(_androidDeviceChangesSub?.cancel());
     super.dispose();
+  }
+}
+
+class _CachedAndroidDeviceDescription {
+  const _CachedAndroidDeviceDescription({this.brand, this.model, this.name});
+
+  final String? brand;
+  final String? model;
+  final String? name;
+
+  Device applyTo(Device device) {
+    return device.copyWith(
+      brand: brand ?? device.brand,
+      model: model ?? device.model,
+      name: name ?? device.name,
+    );
   }
 }
 

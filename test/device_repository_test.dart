@@ -25,14 +25,16 @@ void main() {
     'refreshDevices preserves metadata for devices that become disconnected',
     () async {
       bridgeService.androidDevices = [
-        Device(
-          'emulator-5554',
-          'device',
-          model: 'Pixel_8',
-          name: 'sdk_gphone64_arm64',
-          platform: DevicePlatform.android,
-        ),
+        Device('emulator-5554', 'device', platform: DevicePlatform.android),
       ];
+      bridgeService.androidDescriptions['emulator-5554'] = Device(
+        'emulator-5554',
+        'device',
+        brand: 'Google',
+        model: 'Pixel 8',
+        name: 'husky',
+        platform: DevicePlatform.android,
+      );
 
       await repository.refreshDevices(force: true);
 
@@ -41,9 +43,46 @@ void main() {
 
       expect(repository.devices, hasLength(1));
       expect(repository.devices.single.id, 'emulator-5554');
-      expect(repository.devices.single.model, 'Pixel_8');
-      expect(repository.devices.single.name, 'sdk_gphone64_arm64');
+      expect(repository.devices.single.brand, 'Google');
+      expect(repository.devices.single.model, 'Pixel 8');
+      expect(repository.devices.single.name, 'husky');
       expect(repository.devices.single.isDisconnected, isTrue);
+    },
+  );
+
+  test(
+    'refreshDevices reuses cached Android descriptions when the device remains connected',
+    () async {
+      bridgeService.androidDevices = [
+        Device('emulator-5554', 'device', platform: DevicePlatform.android),
+      ];
+      bridgeService.androidDescriptions['emulator-5554'] = Device(
+        'emulator-5554',
+        'device',
+        brand: 'Google',
+        model: 'Pixel 8',
+        name: 'husky',
+        platform: DevicePlatform.android,
+      );
+
+      await repository.refreshDevices(force: true);
+
+      bridgeService.androidDescriptions['emulator-5554'] = Device(
+        'emulator-5554',
+        'device',
+        platform: DevicePlatform.android,
+      );
+      await repository.refreshDevices(force: true);
+
+      expect(bridgeService.describeAndroidDeviceCalls['emulator-5554'], 1);
+      expect(repository.devices.single.brand, 'Google');
+      expect(repository.devices.single.model, 'Pixel 8');
+      expect(repository.devices.single.name, 'husky');
+      expect(repository.devices.single.displayLabel.primary, 'emulator-5554');
+      expect(
+        repository.devices.single.displayLabel.secondary,
+        'Google Pixel 8',
+      );
     },
   );
 
@@ -86,13 +125,26 @@ class _FakeDeviceBridgeService extends DeviceBridgeService {
 
   List<Device> androidDevices = const [];
   List<String> iosDeviceIds = const [];
+  final Map<String, Device> androidDescriptions = {};
   final Map<String, Device> iosDescriptions = {};
+  final Map<String, int> describeAndroidDeviceCalls = {};
   final Map<String, int> describeIosDeviceCalls = {};
   final StreamController<String> _watchController =
       StreamController<String>.broadcast();
 
   @override
   Future<List<Device>> getAndroidDevices() async => List.of(androidDevices);
+
+  @override
+  Future<Device> describeAndroidDevice(String deviceId) async {
+    describeAndroidDeviceCalls.update(
+      deviceId,
+      (count) => count + 1,
+      ifAbsent: () => 1,
+    );
+    return androidDescriptions[deviceId] ??
+        Device(deviceId, 'device', platform: DevicePlatform.android);
+  }
 
   @override
   Future<List<String>> getIosDeviceIds() async => List.of(iosDeviceIds);

@@ -142,7 +142,7 @@ class LogTabController extends ChangeNotifier {
   int _smCacheFilteredLen = -1;
 
   String get title {
-    if (selectedDevice != null) return selectedDevice!.displayName;
+    if (selectedDevice != null) return selectedDevice!.displayLabel.primary;
     if (_importedFileName != null) return _importedFileName!;
     if (_showGetStarted) return 'Get Started';
     return _title;

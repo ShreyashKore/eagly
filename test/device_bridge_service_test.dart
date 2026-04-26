@@ -16,6 +16,14 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('device-bridge-test');
     adbPath = await _writeExecutable(tempDir, 'adb', r'''#!/bin/sh
+if [ "$1" = "-s" ] && [ "$3" = "shell" ] && [ "$4" = "getprop" ]; then
+  cat <<'EOF'
+[ro.product.brand]: [google]
+[ro.product.model]: [Pixel 8]
+[ro.product.device]: [husky]
+EOF
+  exit 0
+fi
 if [ "$1" = "connect" ]; then
   echo "failed to connect to $2"
   exit 0
@@ -85,6 +93,22 @@ fi
     expect(device.status, 'device');
     expect(device.name, 'QA iPhone');
     expect(device.model, 'N71AP');
+  });
+
+  test('describeAndroidDevice parses brand, model and device name', () async {
+    final service = buildService();
+
+    final device = await service.describeAndroidDevice('emulator-5554');
+
+    expect(device, isA<Device>());
+    expect(device.id, 'emulator-5554');
+    expect(device.platform, DevicePlatform.android);
+    expect(device.status, 'device');
+    expect(device.brand, 'Google');
+    expect(device.model, 'Pixel 8');
+    expect(device.name, 'husky');
+    expect(device.displayLabel.primary, 'emulator-5554');
+    expect(device.displayLabel.secondary, 'Google Pixel 8');
   });
 
   test(

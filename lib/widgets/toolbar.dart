@@ -73,10 +73,11 @@ class Toolbar extends StatelessWidget {
                         return Container(
                           alignment: Alignment.centerLeft,
                           constraints: BoxConstraints(maxWidth: 240),
-                          child: DeviceLabel(
+                          child: DeviceSelectionLabel(
                             device: device,
                             maxWidth: 240,
                             textStyle: theme.textTheme.bodyMedium,
+                            secondaryTextStyle: theme.textTheme.labelSmall,
                             iconSize: 18,
                           ),
                         );
@@ -87,10 +88,11 @@ class Toolbar extends StatelessWidget {
                         .map(
                           (device) => DropdownMenuItem(
                             value: device,
-                            child: DeviceLabel(
+                            child: DeviceSelectionLabel(
                               device: device,
                               maxWidth: 240,
                               textStyle: theme.textTheme.bodyMedium,
+                              secondaryTextStyle: theme.textTheme.labelSmall,
                               iconSize: 18,
                             ),
                           ),

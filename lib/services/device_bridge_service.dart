@@ -38,27 +38,6 @@ class DeviceBridgeService {
            resolveBundledExecutablePath('idevicesyslog') ??
            'idevicesyslog';
 
-  /// Fetches the list of connected Android and iOS devices.
-  Future<List<Device>> getDevices() async {
-    final androidDevices = await getAndroidDevices();
-    final iosDevices = await getIosDevices();
-    final devices = [...androidDevices, ...iosDevices];
-
-    devices.sort((left, right) {
-      final platformOrder = left.platform.index.compareTo(right.platform.index);
-      if (platformOrder != 0) return platformOrder;
-      final statusOrder = left.status.compareTo(right.status);
-      if (statusOrder != 0) return statusOrder;
-      final nameOrder = left.displayName.toLowerCase().compareTo(
-        right.displayName.toLowerCase(),
-      );
-      if (nameOrder != 0) return nameOrder;
-      return left.id.compareTo(right.id);
-    });
-
-    return devices;
-  }
-
   Future<List<Device>> getAndroidDevices() async {
     try {
       final result = await _runTool(adbPath, ['devices', '-l']);
@@ -134,23 +113,6 @@ class DeviceBridgeService {
     }
   }
 
-  Future<List<Device>> getIosDevices() async {
-    try {
-      final deviceIds = await getIosDeviceIds();
-      if (deviceIds.isEmpty) {
-        return const [];
-      }
-
-      return Future.wait(deviceIds.map(describeIosDevice));
-    } on ProcessException catch (e) {
-      _logError('ProcessException while listing iOS devices', e);
-      return const [];
-    } catch (e) {
-      _logError('Unexpected error while listing iOS devices', e);
-      return const [];
-    }
-  }
-
   Future<List<String>> getIosDeviceIds() async {
     try {
       final result = await _runTool(ideviceIdPath, ['-l']);
@@ -173,6 +135,59 @@ class DeviceBridgeService {
     } catch (e) {
       _logError('Unexpected error while listing iOS device ids', e);
       return const [];
+    }
+  }
+
+  Future<Device> describeAndroidDevice(String deviceId) async {
+    try {
+      final result = await _runTool(adbPath, [
+        '-s',
+        deviceId,
+        'shell',
+        'getprop',
+      ]);
+      if (result.exitCode != 0) {
+        _logError(
+          'adb shell getprop returned non-zero exit for $deviceId',
+          _combinedProcessOutput(result),
+        );
+        return Device(
+          deviceId,
+          'unavailable',
+          platform: DevicePlatform.android,
+        );
+      }
+
+      final properties = _parseAndroidGetPropOutput(result.stdout as String);
+      final brand = _normalizeAndroidBrand(
+        _firstNonEmpty(
+          properties['ro.product.brand'],
+          properties['ro.product.manufacturer'],
+        ),
+      );
+      final model = _firstNonEmpty(
+        properties['ro.product.marketname'],
+        properties['ro.product.model'],
+      );
+      final name = _firstNonEmpty(
+        properties['ro.product.device'],
+        properties['ro.product.name'],
+      );
+
+      return Device(
+        deviceId,
+        'device',
+        brand: brand,
+        model: model,
+        name: name,
+        platform: DevicePlatform.android,
+      );
+    } on ProcessException catch (e) {
+      _logError('ProcessException describing Android device $deviceId', e);
+      return Device(deviceId, 'unavailable', platform: DevicePlatform.android);
+    } catch (e) {
+      _logError('Unexpected error describing Android device $deviceId', e);
+      return Device(deviceId, 'unavailable', platform: DevicePlatform.android);
     }
   }
 
@@ -591,6 +606,27 @@ class DeviceBridgeService {
     return null;
   }
 
+  String? _normalizeAndroidBrand(String? brand) {
+    if (brand == null) {
+      return null;
+    }
+
+    final trimmed = brand.trim();
+    if (trimmed.isEmpty || trimmed != trimmed.toLowerCase()) {
+      return trimmed.isEmpty ? null : trimmed;
+    }
+
+    final words = trimmed.split(RegExp(r'\s+'));
+    return words
+        .map((word) {
+          if (word.isEmpty) {
+            return word;
+          }
+          return '${word[0].toUpperCase()}${word.substring(1)}';
+        })
+        .join(' ');
+  }
+
   Map<String, String> _parseIdeviceInfoOutput(String stdout) {
     final info = <String, String>{};
     for (final line in const LineSplitter().convert(stdout)) {
@@ -602,6 +638,29 @@ class DeviceBridgeService {
       info[key] = value;
     }
     return info;
+  }
+
+  Map<String, String> _parseAndroidGetPropOutput(String stdout) {
+    final properties = <String, String>{};
+    final propertyPattern = RegExp(r'^\[([^\]]+)\]:\s*\[(.*)\]$');
+
+    for (final rawLine in const LineSplitter().convert(stdout)) {
+      final line = rawLine.trim();
+      final match = propertyPattern.firstMatch(line);
+      if (match == null) {
+        continue;
+      }
+
+      final key = match.group(1)?.trim();
+      final value = match.group(2)?.trim();
+      if (key == null || key.isEmpty || value == null || value.isEmpty) {
+        continue;
+      }
+
+      properties[key] = value;
+    }
+
+    return properties;
   }
 
   String _describeIosDeviceStatus(ProcessResult result) {

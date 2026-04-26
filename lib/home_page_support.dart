@@ -82,9 +82,10 @@ class WorkspaceTabLabel extends StatelessWidget {
           );
         }
 
-        return DeviceLabel(
+        return DeviceSelectionLabel(
           device: selectedDevice,
           textStyle: textStyle,
+          secondaryTextStyle: Theme.of(context).textTheme.labelSmall,
           maxWidth: 220,
           iconSize: (textStyle?.fontSize ?? 14) + 2,
         );
