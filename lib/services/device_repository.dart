@@ -9,6 +9,12 @@ class DeviceRepository extends ChangeNotifier {
   DeviceRepository._({DeviceBridgeService? deviceBridgeService})
     : _deviceBridgeService = deviceBridgeService ?? DeviceBridgeService();
 
+  factory DeviceRepository.forTesting({
+    DeviceBridgeService? deviceBridgeService,
+  }) {
+    return DeviceRepository._(deviceBridgeService: deviceBridgeService);
+  }
+
   static final DeviceRepository instance = DeviceRepository._();
 
   static const Duration _minimumRefreshInterval = Duration(seconds: 2);
