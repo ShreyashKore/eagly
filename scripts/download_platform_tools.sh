@@ -11,6 +11,8 @@ PLATFORM_TOOLS_DIR="$PROJECT_DIR/platform-tools"
 MACOS_URL="https://dl.google.com/android/repository/platform-tools-latest-darwin.zip"
 LINUX_URL="https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
 WINDOWS_URL="https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
+LIBIMOBILEDEVICE_PACKAGE_URL="https://github.com/libimobiledevice-win32/imobiledevice-net/releases/download/v1.3.17/iMobileDevice-net.1.3.17.nupkg"
+MACOS_OPENSSL_URL="https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1w/openssl-1.1.1w.tar.gz"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -50,13 +52,15 @@ copy_directory_contents_flat() {
 extract_archive_flat() {
   local archive_path="$1"
   local target_dir="$2"
+  local source_subdir="${3:-}"
   local extracted_dir="$TMP_DIR/extracted-$(basename "$archive_path")"
+  local copy_source_dir="$extracted_dir"
 
   rm -rf "$extracted_dir"
   mkdir -p "$extracted_dir"
 
   case "$archive_path" in
-    *.zip)
+    *.zip|*.nupkg)
       unzip -o "$archive_path" -d "$extracted_dir" >/dev/null
       ;;
     *.tar.gz|*.tgz)
@@ -74,17 +78,132 @@ extract_archive_flat() {
       ;;
   esac
 
-  copy_directory_contents_flat "$extracted_dir" "$target_dir"
+  if [ -n "$source_subdir" ]; then
+    copy_source_dir="$extracted_dir/$source_subdir"
+    if [ ! -d "$copy_source_dir" ]; then
+      echo "Expected archive subdirectory not found: $source_subdir" >&2
+      exit 1
+    fi
+  fi
+
+  copy_directory_contents_flat "$copy_source_dir" "$target_dir"
+}
+
+default_bundle_url() {
+  local platform="$1"
+  case "$platform" in
+    macos|linux|windows) printf '%s' "$LIBIMOBILEDEVICE_PACKAGE_URL" ;;
+    *) return 1 ;;
+  esac
+}
+
+default_bundle_subdir() {
+  local platform="$1"
+  case "$platform" in
+    macos) printf '%s' 'runtimes/osx-x64/native' ;;
+    linux) printf '%s' 'runtimes/ubuntu.16.04-x64/native' ;;
+    windows) printf '%s' 'runtimes/win-x64/native' ;;
+    *) return 1 ;;
+  esac
+}
+
+bundle_contains_file() {
+  local target_dir="$1"
+  local file_name="$2"
+  [ -f "$target_dir/$file_name" ]
+}
+
+build_macos_openssl_runtime() {
+  local target_dir="$1"
+  local archive_path="$TMP_DIR/openssl-1.1.1w.tar.gz"
+  local source_dir="$TMP_DIR/openssl-1.1.1w"
+
+  if bundle_contains_file "$target_dir" 'libssl.1.1.dylib' && bundle_contains_file "$target_dir" 'libcrypto.1.1.dylib'; then
+    return
+  fi
+
+  echo "Building OpenSSL 1.1 runtime for macOS..."
+  curl -L --fail -o "$archive_path" "$MACOS_OPENSSL_URL"
+
+  rm -rf "$source_dir"
+  tar -xzf "$archive_path" -C "$TMP_DIR"
+
+  (
+    cd "$source_dir"
+    env CFLAGS='-arch x86_64' CXXFLAGS='-arch x86_64' LDFLAGS='-arch x86_64' ./Configure darwin64-x86_64-cc shared no-tests >/dev/null
+    make build_libs >/dev/null
+  )
+
+  cp -f "$source_dir/libssl.1.1.dylib" "$target_dir/libssl.1.1.dylib"
+  cp -f "$source_dir/libcrypto.1.1.dylib" "$target_dir/libcrypto.1.1.dylib"
+}
+
+rewrite_macos_bundle_load_paths() {
+  local target_dir="$1"
+
+  if ! command -v otool >/dev/null 2>&1 || ! command -v install_name_tool >/dev/null 2>&1; then
+    echo "warning: macOS linkage tools are unavailable; skipping Mach-O load path rewrite."
+    return
+  fi
+
+  find "$target_dir" -maxdepth 1 -type f | while IFS= read -r target_path; do
+    if ! file "$target_path" | grep -q 'Mach-O'; then
+      continue
+    fi
+
+    local target_name
+    target_name="$(basename "$target_path")"
+
+    case "$target_name" in
+      idevice_*|inetcat|ios_webkit_debug_proxy|iproxy|irecovery|plistutil|usbmuxd|lib*.dylib)
+        ;;
+      *)
+        continue
+        ;;
+    esac
+
+    if [[ "$target_name" == *.dylib ]]; then
+      install_name_tool -id "@loader_path/$target_name" "$target_path"
+    fi
+
+    otool -L "$target_path" | tail -n +2 | awk '{print $1}' | while IFS= read -r dependency_path; do
+      if [ -z "$dependency_path" ]; then
+        continue
+      fi
+
+      local dependency_name
+      dependency_name="$(basename "$dependency_path")"
+
+      case "$dependency_path" in
+        /usr/lib/*|/System/*|@loader_path/*)
+          continue
+          ;;
+      esac
+
+      if bundle_contains_file "$target_dir" "$dependency_name"; then
+        install_name_tool -change "$dependency_path" "@loader_path/$dependency_name" "$target_path"
+      fi
+    done
+  done
+}
+
+prepare_macos_bundle_runtime() {
+  local target_dir="$1"
+
+  build_macos_openssl_runtime "$target_dir"
+  rewrite_macos_bundle_load_paths "$target_dir"
 }
 
 stage_optional_bundle() {
   local source_spec="$1"
   local target_dir="$2"
   local platform="$3"
+  local source_subdir="${4:-}"
 
   if [ -z "$source_spec" ]; then
-    echo "No libimobiledevice bundle configured for $platform; keeping any existing bundled files."
-    return
+    echo "No libimobiledevice override configured for $platform; downloading the default upstream bundle."
+    source_spec="$(default_bundle_url "$platform")"
+    source_subdir="$(default_bundle_subdir "$platform")"
   fi
 
   echo "Staging libimobiledevice bundle for $platform..."
@@ -105,7 +224,7 @@ stage_optional_bundle() {
     exit 1
   fi
 
-  extract_archive_flat "$archive_path" "$target_dir"
+  extract_archive_flat "$archive_path" "$target_dir" "$source_subdir"
 }
 
 mark_binaries_executable() {
@@ -178,6 +297,9 @@ prepare_platform_bundle() {
   esac
 
   stage_optional_bundle "$(platform_bundle_spec "$platform")" "$target_dir" "$platform"
+  if [ "$platform" = "macos" ]; then
+    prepare_macos_bundle_runtime "$target_dir"
+  fi
   mark_binaries_executable "$target_dir"
   verify_expected_tools "$target_dir" "$platform"
 
