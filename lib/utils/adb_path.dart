@@ -42,7 +42,3 @@ String? resolveBundledExecutablePath(String executableName) {
 
   return null;
 }
-
-/// Resolves the path to the bundled adb binary based on the current platform.
-String? resolveBundledAdbPath() => resolveBundledExecutablePath('adb');
-

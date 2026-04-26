@@ -7,7 +7,8 @@ import '../data/device.dart';
 import '../data/log_column.dart';
 import '../data/log_entry.dart';
 import '../data/log_tab_settings.dart';
-import '../services/adb_service.dart';
+import '../data/wireless_debug_models.dart';
+import '../services/device_bridge_service.dart';
 import '../services/log_file_service.dart';
 import '../utils/log_utils.dart';
 
@@ -63,10 +64,10 @@ class LogTabController extends ChangeNotifier {
     required LogTabSettings initialSettings,
     this.onExitGetStarted,
     this.isDeviceSelectedInAnotherTab,
-    AdbService? adbService,
+    DeviceBridgeService? deviceBridgeService,
   }) : _title = initialTitle,
        _settings = initialSettings,
-       _adbService = adbService ?? AdbService() {
+       _deviceBridgeService = deviceBridgeService ?? DeviceBridgeService() {
     filterController.text = searchQuery;
     logLinesController.text = logLinesLimit.toString();
   }
@@ -74,7 +75,7 @@ class LogTabController extends ChangeNotifier {
   final String id;
   final VoidCallback? onExitGetStarted;
   final bool Function(String deviceId)? isDeviceSelectedInAnotherTab;
-  final AdbService _adbService;
+  final DeviceBridgeService _deviceBridgeService;
 
   final ScrollController scrollController = ScrollController();
   final TextEditingController filterController = TextEditingController();
@@ -97,7 +98,7 @@ class LogTabController extends ChangeNotifier {
   var _pairingWireless = false;
   var _connectingWireless = false;
   var _hasAttemptedWirelessDiscovery = false;
-  var _wirelessServices = <AdbMdnsService>[];
+  var _wirelessServices = <WirelessDebugService>[];
   String? _wirelessMessage;
   String? _wirelessError;
   Device? selectedDevice;
@@ -164,13 +165,13 @@ class LogTabController extends ChangeNotifier {
   bool get isWirelessBusy =>
       _discoveringWireless || _pairingWireless || _connectingWireless;
   bool get hasAttemptedWirelessDiscovery => _hasAttemptedWirelessDiscovery;
-  List<AdbMdnsService> get wirelessServices =>
+  List<WirelessDebugService> get wirelessServices =>
       List.unmodifiable(_wirelessServices);
-  List<AdbMdnsService> get wirelessPairingServices => _wirelessServices
-      .where((service) => service.type == AdbMdnsServiceType.pairing)
+  List<WirelessDebugService> get wirelessPairingServices => _wirelessServices
+      .where((service) => service.type == WirelessDebugServiceType.pairing)
       .toList(growable: false);
-  List<AdbMdnsService> get wirelessConnectServices => _wirelessServices
-      .where((service) => service.type == AdbMdnsServiceType.connect)
+  List<WirelessDebugService> get wirelessConnectServices => _wirelessServices
+      .where((service) => service.type == WirelessDebugServiceType.connect)
       .toList(growable: false);
   String? get wirelessMessage => _wirelessMessage;
   String? get wirelessError => _wirelessError;
@@ -230,7 +231,7 @@ class LogTabController extends ChangeNotifier {
     _notify();
 
     try {
-      final fetchedDevices = await _adbService.getDevices();
+      final fetchedDevices = await _deviceBridgeService.getDevices();
       if (_disposed) return;
       await _applyFetchedDevices(
         fetchedDevices,
@@ -242,14 +243,14 @@ class LogTabController extends ChangeNotifier {
     }
   }
 
-  Future<AdbMdnsDiscoveryResult> discoverWirelessServices() async {
+  Future<WirelessServiceDiscoveryResult> discoverWirelessServices() async {
     if (_pairingWireless || _connectingWireless) {
       const error =
           'Finish the current wireless ADB action before starting another one.';
       _wirelessError = error;
       _wirelessMessage = null;
       _notify();
-      return AdbMdnsDiscoveryResult.failure(error: error);
+      return WirelessServiceDiscoveryResult.failure(error: error);
     }
 
     _discoveringWireless = true;
@@ -259,7 +260,7 @@ class LogTabController extends ChangeNotifier {
     _notify();
 
     try {
-      final result = await _adbService.discoverMdnsServices();
+      final result = await _deviceBridgeService.discoverMdnsServices();
       if (_disposed) return result;
 
       if (result.isSuccess) {
@@ -317,7 +318,7 @@ class LogTabController extends ChangeNotifier {
     _notify();
 
     try {
-      final result = await _adbService.pairDevice(
+      final result = await _deviceBridgeService.pairDevice(
         address: normalizedAddress,
         pairingCode: normalizedCode,
       );
@@ -399,7 +400,7 @@ class LogTabController extends ChangeNotifier {
     }
   }
 
-  Future<AdbCommandResult> connectWirelessDevice({
+  Future<DeviceCommandResult> connectWirelessDevice({
     String? address,
     Iterable<String> candidateAddresses = const [],
   }) async {
@@ -424,7 +425,7 @@ class LogTabController extends ChangeNotifier {
       _wirelessError = error;
       _wirelessMessage = null;
       _notify();
-      return AdbCommandResult.failure(error: error);
+      return DeviceCommandResult.failure(error: error);
     }
     if (_discoveringWireless || _pairingWireless) {
       const error =
@@ -432,7 +433,7 @@ class LogTabController extends ChangeNotifier {
       _wirelessError = error;
       _wirelessMessage = null;
       _notify();
-      return AdbCommandResult.failure(error: error);
+      return DeviceCommandResult.failure(error: error);
     }
 
     return _connectWirelessDeviceInternal(
@@ -482,7 +483,9 @@ class LogTabController extends ChangeNotifier {
     logcatState = LogcatState.running;
     _notify();
 
-    _logSub = _adbService.startLogcat(selectedDevice!).listen((logEntry) {
+    _logSub = _deviceBridgeService.startLogStream(selectedDevice!).listen((
+      logEntry,
+    ) {
       if (_disposed || logcatState == LogcatState.paused) return;
       _buffer.add(logEntry);
       _bufferMemoryBytes += _estimateLogEntryBytes(logEntry);
@@ -527,7 +530,7 @@ class LogTabController extends ChangeNotifier {
 
     await _logSub?.cancel();
     _logSub = null;
-    await _adbService.stopActiveLogcat();
+    await _deviceBridgeService.stopActiveLogStream();
 
     if (resetState && !_disposed) {
       logcatState = LogcatState.stopped;
@@ -839,7 +842,7 @@ class LogTabController extends ChangeNotifier {
   }) async {
     const attempts = 5;
     for (var attempt = 0; attempt < attempts; attempt++) {
-      final fetchedDevices = await _adbService.getDevices();
+      final fetchedDevices = await _deviceBridgeService.getDevices();
       if (_disposed) return null;
 
       await _applyFetchedDevices(fetchedDevices);
@@ -862,7 +865,7 @@ class LogTabController extends ChangeNotifier {
     return null;
   }
 
-  Future<AdbCommandResult> _connectWirelessDeviceInternal({
+  Future<DeviceCommandResult> _connectWirelessDeviceInternal({
     required Iterable<String> candidateAddresses,
     String? host,
     bool suppressFailureState = false,
@@ -881,7 +884,7 @@ class LogTabController extends ChangeNotifier {
         _wirelessMessage = null;
         _notify();
       }
-      return AdbCommandResult.failure(error: error);
+      return DeviceCommandResult.failure(error: error);
     }
 
     _connectingWireless = true;
@@ -895,7 +898,7 @@ class LogTabController extends ChangeNotifier {
         host: host,
       );
       if (_disposed) {
-        return AdbCommandResult.success(
+        return DeviceCommandResult.success(
           message: 'Using existing wireless connection.',
         );
       }
@@ -913,7 +916,7 @@ class LogTabController extends ChangeNotifier {
 
       final failures = <String>[];
       for (final candidate in addresses) {
-        final result = await _adbService.connectDevice(candidate);
+        final result = await _deviceBridgeService.connectDevice(candidate);
         if (_disposed) {
           return result;
         }
@@ -938,7 +941,7 @@ class LogTabController extends ChangeNotifier {
             _wirelessMessage = message;
             _wirelessError = null;
           }
-          return AdbCommandResult.success(message: message);
+          return DeviceCommandResult.success(message: message);
         }
 
         final activatedResult = await _activateConnectedWirelessDevice(
@@ -957,7 +960,7 @@ class LogTabController extends ChangeNotifier {
         _wirelessMessage = null;
         _wirelessError = error;
       }
-      return AdbCommandResult.failure(error: error);
+      return DeviceCommandResult.failure(error: error);
     } finally {
       _connectingWireless = false;
       _notify();
@@ -1000,9 +1003,10 @@ class LogTabController extends ChangeNotifier {
     );
   }
 
-  Future<AdbMdnsDiscoveryResult> _refreshWirelessServicesSnapshot() async {
+  Future<WirelessServiceDiscoveryResult>
+  _refreshWirelessServicesSnapshot() async {
     _hasAttemptedWirelessDiscovery = true;
-    final result = await _adbService.discoverMdnsServices();
+    final result = await _deviceBridgeService.discoverMdnsServices();
     if (_disposed) return result;
     if (result.isSuccess) {
       _wirelessServices = result.services;
@@ -1012,12 +1016,12 @@ class LogTabController extends ChangeNotifier {
   }
 
   List<String> _pickWirelessConnectAddresses({
-    required List<AdbMdnsService> services,
+    required List<WirelessDebugService> services,
     required String? host,
   }) {
     final addresses = <String>[];
     final connectServices = services.where(
-      (service) => service.type == AdbMdnsServiceType.connect,
+      (service) => service.type == WirelessDebugServiceType.connect,
     );
 
     for (final service in connectServices) {
@@ -1042,7 +1046,7 @@ class LogTabController extends ChangeNotifier {
     required List<String> exactAddresses,
     required String? host,
   }) async {
-    final fetchedDevices = await _adbService.getDevices();
+    final fetchedDevices = await _deviceBridgeService.getDevices();
     if (_disposed) return null;
 
     await _applyFetchedDevices(fetchedDevices);
@@ -1074,7 +1078,7 @@ class LogTabController extends ChangeNotifier {
     return host != null && deviceHost == host;
   }
 
-  Future<AdbCommandResult> _activateConnectedWirelessDevice(
+  Future<DeviceCommandResult> _activateConnectedWirelessDevice(
     Device matchedDevice, {
     String? prefixMessage,
   }) async {
@@ -1082,12 +1086,12 @@ class LogTabController extends ChangeNotifier {
         selectedDevice?.id != matchedDevice.id) {
       final message =
           '${prefixMessage ?? 'Wireless device is already connected.'} The device is already open in another tab.';
-      return AdbCommandResult.success(message: message);
+      return DeviceCommandResult.success(message: message);
     }
 
     await selectDeviceAndStart(matchedDevice);
     if (_disposed) {
-      return AdbCommandResult.success(
+      return DeviceCommandResult.success(
         message: prefixMessage ?? 'Connected to ${matchedDevice.id}.',
       );
     }
@@ -1095,7 +1099,7 @@ class LogTabController extends ChangeNotifier {
     final message = selectedDevice?.id == matchedDevice.id && isRunning
         ? '${prefixMessage ?? 'Connected to ${matchedDevice.id}.'} Live logs are ready in this tab.'
         : 'Connected to ${matchedDevice.id} and started live logs in this tab.';
-    return AdbCommandResult.success(message: message);
+    return DeviceCommandResult.success(message: message);
   }
 
   String _describeWirelessConnectFailures(
@@ -1187,7 +1191,7 @@ class LogTabController extends ChangeNotifier {
     _debounceTimer?.cancel();
     _inlineSearchDebounce?.cancel();
     unawaited(_logSub?.cancel());
-    unawaited(_adbService.dispose());
+    unawaited(_deviceBridgeService.dispose());
     scrollController.dispose();
     filterController.dispose();
     filterFocusNode.dispose();
