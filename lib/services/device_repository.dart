@@ -3,16 +3,32 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../data/device.dart';
-import 'device_bridge_service.dart';
+import '../data/ios_device_info.dart';
+import '../data/wireless_debug_models.dart';
+import '../utils/apple_device_mapping.dart';
+import 'tools/adb_tool.dart';
+import 'tools/idevice_id_tool.dart';
+import 'tools/idevice_info_tool.dart';
 
 class DeviceRepository extends ChangeNotifier {
-  DeviceRepository._({DeviceBridgeService? deviceBridgeService})
-    : _deviceBridgeService = deviceBridgeService ?? DeviceBridgeService();
+  DeviceRepository._({
+    AdbTool? adbTool,
+    IdeviceIdTool? ideviceIdTool,
+    IdeviceInfoTool? ideviceInfoTool,
+  }) : _adbTool = adbTool ?? AdbTool(),
+       _ideviceIdTool = ideviceIdTool ?? IdeviceIdTool(),
+       _ideviceInfoTool = ideviceInfoTool ?? IdeviceInfoTool();
 
   factory DeviceRepository.forTesting({
-    DeviceBridgeService? deviceBridgeService,
+    AdbTool? adbTool,
+    IdeviceIdTool? ideviceIdTool,
+    IdeviceInfoTool? ideviceInfoTool,
   }) {
-    return DeviceRepository._(deviceBridgeService: deviceBridgeService);
+    return DeviceRepository._(
+      adbTool: adbTool,
+      ideviceIdTool: ideviceIdTool,
+      ideviceInfoTool: ideviceInfoTool,
+    );
   }
 
   static final DeviceRepository instance = DeviceRepository._();
@@ -22,7 +38,9 @@ class DeviceRepository extends ChangeNotifier {
   static const Duration _androidWatcherRestartDelay = Duration(seconds: 2);
   static const Duration _iosRefreshInterval = Duration(seconds: 4);
 
-  final DeviceBridgeService _deviceBridgeService;
+  final AdbTool _adbTool;
+  final IdeviceIdTool _ideviceIdTool;
+  final IdeviceInfoTool _ideviceInfoTool;
   final Map<String, _CachedAndroidDeviceDescription> _androidDescriptionCache =
       {};
   final Map<String, _CachedIosDeviceDescription> _iosDescriptionCache = {};
@@ -36,7 +54,7 @@ class DeviceRepository extends ChangeNotifier {
   DateTime? _lastRefreshAt;
 
   Future<void>? _refreshInFlight;
-  StreamSubscription<String>? _androidDeviceChangesSub;
+  StreamSubscription<List<Device>>? _androidDeviceChangesSub;
   Timer? _androidRefreshTimer;
   Timer? _androidWatcherRestartTimer;
   Timer? _iosRefreshTimer;
@@ -103,12 +121,16 @@ class DeviceRepository extends ChangeNotifier {
     }
   }
 
+
+  Future<WirelessServiceDiscoveryResult> discoverMdnsServices() =>
+      _adbTool.discoverMdnsServices();
+
   Future<void> _reloadDevices() async {
-    final androidDevices = await _deviceBridgeService.getAndroidDevices();
+    final androidDevices = await _adbTool.getDevices();
     final describedAndroidDevices = await Future.wait(
       androidDevices.map(_resolveAndroidDevice),
     );
-    final iosDeviceIds = await _deviceBridgeService.getIosDeviceIds();
+    final iosDeviceIds = await _ideviceIdTool.getDeviceIds();
     final iosDevices = await Future.wait(iosDeviceIds.map(_resolveIosDevice));
     final nextDevices = _mergeDevices([
       ...describedAndroidDevices,
@@ -177,9 +199,7 @@ class DeviceRepository extends ChangeNotifier {
       return device;
     }
 
-    final described = await _deviceBridgeService.describeAndroidDevice(
-      device.id,
-    );
+    final described = await _adbTool.describeDevice(device.id);
     final enriched = device.copyWith(
       brand: described.brand ?? device.brand,
       model: described.model ?? device.model,
@@ -203,7 +223,8 @@ class DeviceRepository extends ChangeNotifier {
       return cached.toDevice(deviceId);
     }
 
-    final described = await _deviceBridgeService.describeIosDevice(deviceId);
+    final info = await _ideviceInfoTool.readDeviceInfo(deviceId);
+    final described = await _mapIosDeviceInfo(info);
     if (described.name != null || described.model != null) {
       _iosDescriptionCache[deviceId] = _CachedIosDeviceDescription(
         name: described.name,
@@ -217,14 +238,46 @@ class DeviceRepository extends ChangeNotifier {
     _androidDeviceChangesSub?.cancel();
     _androidWatcherRestartTimer?.cancel();
 
-    _androidDeviceChangesSub = _deviceBridgeService
-        .watchAndroidDeviceChanges()
-        .listen(
-          (_) => _scheduleAndroidRefresh(),
-          onError: (_, __) => _scheduleAndroidWatcherRestart(),
-          onDone: _scheduleAndroidWatcherRestart,
-          cancelOnError: true,
-        );
+    _androidDeviceChangesSub = _adbTool.watchDeviceChanges().listen(
+      (_) => _scheduleAndroidRefresh(),
+      onError: (_, __) => _scheduleAndroidWatcherRestart(),
+      onDone: _scheduleAndroidWatcherRestart,
+      cancelOnError: true,
+    );
+  }
+
+  Future<Device> _mapIosDeviceInfo(IosDeviceInfo info) async {
+    if (!info.isAvailable) {
+      return Device.ios(info.deviceId, info.status);
+    }
+
+    return Device.ios(
+      info.deviceId,
+      info.status,
+      name: _firstNonEmpty(info.deviceName, info.productName),
+      model: await _resolveIosModel(info),
+    );
+  }
+
+  Future<String?> _resolveIosModel(IosDeviceInfo info) async {
+    final productType = info.productType;
+    if (productType != null && productType.trim().isNotEmpty) {
+      final normalizedProductType = productType.trim();
+      final human = await getAppleDeviceName(normalizedProductType);
+      return human ?? normalizedProductType;
+    }
+
+    return _firstNonEmpty(info.hardwareModel, null);
+  }
+
+  String? _firstNonEmpty(String? first, String? second) {
+    if (first != null && first.trim().isNotEmpty) {
+      return first.trim();
+    }
+    if (second != null && second.trim().isNotEmpty) {
+      return second.trim();
+    }
+    return null;
   }
 
   void _scheduleAndroidRefresh() {

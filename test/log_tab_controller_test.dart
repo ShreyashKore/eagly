@@ -6,13 +6,19 @@ import 'package:logview/data/device.dart';
 import 'package:logview/data/log_column.dart';
 import 'package:logview/data/log_entry.dart';
 import 'package:logview/data/log_tab_settings.dart';
-import 'package:logview/services/device_bridge_service.dart';
 import 'package:logview/services/device_repository.dart';
+import 'package:logview/services/device_session_service.dart';
+import 'package:logview/services/tools/adb_tool.dart';
+import 'package:logview/services/tools/idevice_id_tool.dart';
+import 'package:logview/services/tools/idevice_info_tool.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late _FakeControllerBridgeService bridgeService;
+  late _FakeControllerSessionService sessionService;
+  late _FakeControllerAdbTool adbTool;
+  late _FakeControllerIdeviceIdTool ideviceIdTool;
+  late _FakeControllerIdeviceInfoTool ideviceInfoTool;
   late DeviceRepository repository;
   LogTabController? controller;
 
@@ -22,27 +28,33 @@ void main() {
       initialTitle: 'Tab 1',
       initialSettings: _initialSettings(),
       deviceRepository: repository,
-      deviceBridgeService: bridgeService,
+      deviceSessionService: sessionService,
     );
   }
 
   setUp(() {
-    bridgeService = _FakeControllerBridgeService();
+    sessionService = _FakeControllerSessionService();
+    adbTool = _FakeControllerAdbTool();
+    ideviceIdTool = _FakeControllerIdeviceIdTool();
+    ideviceInfoTool = _FakeControllerIdeviceInfoTool();
     repository = DeviceRepository.forTesting(
-      deviceBridgeService: bridgeService,
+      adbTool: adbTool,
+      ideviceIdTool: ideviceIdTool,
+      ideviceInfoTool: ideviceInfoTool,
     );
   });
 
   tearDown(() {
     controller?.dispose();
     repository.dispose();
-    bridgeService.dispose();
+    adbTool.dispose();
+    sessionService.dispose();
   });
 
   test(
     'bootstrapInitialLoad auto-selects a single connected device and starts logs',
     () async {
-      bridgeService.androidDevices = [
+      adbTool.androidDevices = [
         Device('emulator-5554', 'device', platform: DevicePlatform.android),
       ];
       controller = createController();
@@ -52,7 +64,7 @@ void main() {
       expect(controller!.selectedDevice?.id, 'emulator-5554');
       expect(controller!.showGetStarted, isFalse);
       expect(controller!.isRunning, isTrue);
-      expect(bridgeService.startedLogStreamDeviceIds, ['emulator-5554']);
+      expect(sessionService.startedLogStreamDeviceIds, ['emulator-5554']);
     },
   );
 
@@ -125,28 +137,11 @@ LogTabSettings _initialSettings() {
   );
 }
 
-class _FakeControllerBridgeService extends DeviceBridgeService {
-  _FakeControllerBridgeService()
-    : super(
-        adbPath: '/usr/bin/true',
-        ideviceIdPath: '/usr/bin/true',
-        ideviceInfoPath: '/usr/bin/true',
-        ideviceSyslogPath: '/usr/bin/true',
-      );
+class _FakeControllerSessionService extends DeviceSessionService {
+  _FakeControllerSessionService()
+    : super(adbPath: '/usr/bin/true', ideviceSyslogPath: '/usr/bin/true');
 
-  List<Device> androidDevices = const [];
   List<String> startedLogStreamDeviceIds = [];
-  final StreamController<String> _watchController =
-      StreamController<String>.broadcast();
-
-  @override
-  Future<List<Device>> getAndroidDevices() async => List.of(androidDevices);
-
-  @override
-  Future<List<String>> getIosDeviceIds() async => const [];
-
-  @override
-  Stream<String> watchAndroidDeviceChanges() => _watchController.stream;
 
   @override
   Stream<LogEntry> startLogStream(Device device) {
@@ -156,9 +151,33 @@ class _FakeControllerBridgeService extends DeviceBridgeService {
 
   @override
   Future<void> stopActiveLogStream() async {}
+}
+
+class _FakeControllerAdbTool extends AdbTool {
+  _FakeControllerAdbTool() : super(executablePath: '/usr/bin/true');
+
+  List<Device> androidDevices = const [];
+  final StreamController<List<Device>> _watchController =
+      StreamController<List<Device>>.broadcast();
 
   @override
+  Future<List<Device>> getDevices() async => List.of(androidDevices);
+
+  @override
+  Stream<List<Device>> watchDeviceChanges() => _watchController.stream;
+
   Future<void> dispose() async {
     await _watchController.close();
   }
+}
+
+class _FakeControllerIdeviceIdTool extends IdeviceIdTool {
+  _FakeControllerIdeviceIdTool() : super(executablePath: '/usr/bin/true');
+
+  @override
+  Future<List<String>> getDeviceIds() async => const [];
+}
+
+class _FakeControllerIdeviceInfoTool extends IdeviceInfoTool {
+  _FakeControllerIdeviceInfoTool() : super(executablePath: '/usr/bin/true');
 }

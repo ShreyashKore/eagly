@@ -8,8 +8,8 @@ import '../data/log_column.dart';
 import '../data/log_entry.dart';
 import '../data/log_tab_settings.dart';
 import '../data/wireless_debug_models.dart';
-import '../services/device_bridge_service.dart';
 import '../services/device_repository.dart';
+import '../services/device_session_service.dart';
 import '../services/log_file_service.dart';
 import '../utils/log_utils.dart';
 
@@ -66,11 +66,11 @@ class LogTabController extends ChangeNotifier {
     this.onExitGetStarted,
     this.isDeviceSelectedInAnotherTab,
     DeviceRepository? deviceRepository,
-    DeviceBridgeService? deviceBridgeService,
+    DeviceSessionService? deviceSessionService,
   }) : _title = initialTitle,
        _settings = initialSettings,
        _deviceRepository = deviceRepository ?? DeviceRepository.instance,
-       _deviceBridgeService = deviceBridgeService ?? DeviceBridgeService() {
+       _deviceSessionService = deviceSessionService ?? DeviceSessionService() {
     filterController.text = searchQuery;
     logLinesController.text = logLinesLimit.toString();
     devices = _deviceRepository.devices.toList(growable: false);
@@ -82,7 +82,7 @@ class LogTabController extends ChangeNotifier {
   final VoidCallback? onExitGetStarted;
   final bool Function(String deviceId)? isDeviceSelectedInAnotherTab;
   final DeviceRepository _deviceRepository;
-  final DeviceBridgeService _deviceBridgeService;
+  final DeviceSessionService _deviceSessionService;
 
   final ScrollController scrollController = ScrollController();
   final TextEditingController filterController = TextEditingController();
@@ -258,7 +258,7 @@ class LogTabController extends ChangeNotifier {
     _notify();
 
     try {
-      final result = await _deviceBridgeService.discoverMdnsServices();
+      final result = await _deviceRepository.discoverMdnsServices();
       if (_disposed) return result;
 
       if (result.isSuccess) {
@@ -316,7 +316,7 @@ class LogTabController extends ChangeNotifier {
     _notify();
 
     try {
-      final result = await _deviceBridgeService.pairDevice(
+      final result = await _deviceSessionService.pairDevice(
         address: normalizedAddress,
         pairingCode: normalizedCode,
       );
@@ -481,7 +481,7 @@ class LogTabController extends ChangeNotifier {
     logcatState = LogcatState.running;
     _notify();
 
-    _logSub = _deviceBridgeService.startLogStream(selectedDevice!).listen((
+    _logSub = _deviceSessionService.startLogStream(selectedDevice!).listen((
       logEntry,
     ) {
       if (_disposed || logcatState == LogcatState.paused) return;
@@ -528,7 +528,7 @@ class LogTabController extends ChangeNotifier {
 
     await _logSub?.cancel();
     _logSub = null;
-    await _deviceBridgeService.stopActiveLogStream();
+    await _deviceSessionService.stopActiveLogStream();
 
     if (resetState && !_disposed) {
       logcatState = LogcatState.stopped;
@@ -919,7 +919,7 @@ class LogTabController extends ChangeNotifier {
 
       final failures = <String>[];
       for (final candidate in addresses) {
-        final result = await _deviceBridgeService.connectDevice(candidate);
+        final result = await _deviceSessionService.connectDevice(candidate);
         if (_disposed) {
           return result;
         }
@@ -1009,7 +1009,7 @@ class LogTabController extends ChangeNotifier {
   Future<WirelessServiceDiscoveryResult>
   _refreshWirelessServicesSnapshot() async {
     _hasAttemptedWirelessDiscovery = true;
-    final result = await _deviceBridgeService.discoverMdnsServices();
+    final result = await _deviceRepository.discoverMdnsServices();
     if (_disposed) return result;
     if (result.isSuccess) {
       _wirelessServices = result.services;
@@ -1213,7 +1213,7 @@ class LogTabController extends ChangeNotifier {
     _debounceTimer?.cancel();
     _inlineSearchDebounce?.cancel();
     unawaited(_logSub?.cancel());
-    unawaited(_deviceBridgeService.dispose());
+    unawaited(_deviceSessionService.dispose());
     scrollController.dispose();
     filterController.dispose();
     filterFocusNode.dispose();

@@ -2,32 +2,41 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logview/data/device.dart';
-import 'package:logview/services/device_bridge_service.dart';
+import 'package:logview/data/ios_device_info.dart';
 import 'package:logview/services/device_repository.dart';
+import 'package:logview/services/tools/adb_tool.dart';
+import 'package:logview/services/tools/idevice_id_tool.dart';
+import 'package:logview/services/tools/idevice_info_tool.dart';
 
 void main() {
-  late _FakeDeviceBridgeService bridgeService;
+  late _FakeAdbTool adbTool;
+  late _FakeIdeviceIdTool ideviceIdTool;
+  late _FakeIdeviceInfoTool ideviceInfoTool;
   late DeviceRepository repository;
 
   setUp(() {
-    bridgeService = _FakeDeviceBridgeService();
+    adbTool = _FakeAdbTool();
+    ideviceIdTool = _FakeIdeviceIdTool();
+    ideviceInfoTool = _FakeIdeviceInfoTool();
     repository = DeviceRepository.forTesting(
-      deviceBridgeService: bridgeService,
+      adbTool: adbTool,
+      ideviceIdTool: ideviceIdTool,
+      ideviceInfoTool: ideviceInfoTool,
     );
   });
 
   tearDown(() {
     repository.dispose();
-    bridgeService.dispose();
+    adbTool.dispose();
   });
 
   test(
     'refreshDevices preserves metadata for devices that become disconnected',
     () async {
-      bridgeService.androidDevices = [
+      adbTool.androidDevices = [
         Device('emulator-5554', 'device', platform: DevicePlatform.android),
       ];
-      bridgeService.androidDescriptions['emulator-5554'] = Device(
+      adbTool.androidDescriptions['emulator-5554'] = Device(
         'emulator-5554',
         'device',
         brand: 'Google',
@@ -38,7 +47,7 @@ void main() {
 
       await repository.refreshDevices(force: true);
 
-      bridgeService.androidDevices = const [];
+      adbTool.androidDevices = const [];
       await repository.refreshDevices(force: true);
 
       expect(repository.devices, hasLength(1));
@@ -53,10 +62,10 @@ void main() {
   test(
     'refreshDevices reuses cached Android descriptions when the device remains connected',
     () async {
-      bridgeService.androidDevices = [
+      adbTool.androidDevices = [
         Device('emulator-5554', 'device', platform: DevicePlatform.android),
       ];
-      bridgeService.androidDescriptions['emulator-5554'] = Device(
+      adbTool.androidDescriptions['emulator-5554'] = Device(
         'emulator-5554',
         'device',
         brand: 'Google',
@@ -67,14 +76,14 @@ void main() {
 
       await repository.refreshDevices(force: true);
 
-      bridgeService.androidDescriptions['emulator-5554'] = Device(
+      adbTool.androidDescriptions['emulator-5554'] = Device(
         'emulator-5554',
         'device',
         platform: DevicePlatform.android,
       );
       await repository.refreshDevices(force: true);
 
-      expect(bridgeService.describeAndroidDeviceCalls['emulator-5554'], 1);
+      expect(adbTool.describeAndroidDeviceCalls['emulator-5554'], 1);
       expect(repository.devices.single.brand, 'Google');
       expect(repository.devices.single.model, 'Pixel 8');
       expect(repository.devices.single.name, 'husky');
@@ -89,54 +98,43 @@ void main() {
   test(
     'refreshDevices reuses cached iOS descriptions when the device remains connected',
     () async {
-      bridgeService.iosDeviceIds = ['ios-1'];
-      bridgeService.iosDescriptions['ios-1'] = Device(
-        'ios-1',
-        'device',
-        name: 'QA iPhone',
-        model: 'iPhone 15',
-        platform: DevicePlatform.ios,
+      ideviceIdTool.iosDeviceIds = ['ios-1'];
+      ideviceInfoTool.iosInfos['ios-1'] = const IosDeviceInfo(
+        deviceId: 'ios-1',
+        status: 'device',
+        deviceName: 'QA iPhone',
+        hardwareModel: 'iPhone 15',
       );
 
       await repository.refreshDevices(force: true);
 
-      bridgeService.iosDescriptions['ios-1'] = Device(
-        'ios-1',
-        'device',
-        platform: DevicePlatform.ios,
+      ideviceInfoTool.iosInfos['ios-1'] = const IosDeviceInfo(
+        deviceId: 'ios-1',
+        status: 'device',
       );
       await repository.refreshDevices(force: true);
 
-      expect(bridgeService.describeIosDeviceCalls['ios-1'], 1);
+      expect(ideviceInfoTool.readDeviceInfoCalls['ios-1'], 1);
       expect(repository.devices.single.name, 'QA iPhone');
       expect(repository.devices.single.model, 'iPhone 15');
     },
   );
 }
 
-class _FakeDeviceBridgeService extends DeviceBridgeService {
-  _FakeDeviceBridgeService()
-    : super(
-        adbPath: '/usr/bin/true',
-        ideviceIdPath: '/usr/bin/true',
-        ideviceInfoPath: '/usr/bin/true',
-        ideviceSyslogPath: '/usr/bin/true',
-      );
+class _FakeAdbTool extends AdbTool {
+  _FakeAdbTool() : super(executablePath: '/usr/bin/true');
 
   List<Device> androidDevices = const [];
-  List<String> iosDeviceIds = const [];
   final Map<String, Device> androidDescriptions = {};
-  final Map<String, Device> iosDescriptions = {};
   final Map<String, int> describeAndroidDeviceCalls = {};
-  final Map<String, int> describeIosDeviceCalls = {};
-  final StreamController<String> _watchController =
-      StreamController<String>.broadcast();
+  final StreamController<List<Device>> _watchController =
+      StreamController<List<Device>>.broadcast();
 
   @override
-  Future<List<Device>> getAndroidDevices() async => List.of(androidDevices);
+  Future<List<Device>> getDevices() async => List.of(androidDevices);
 
   @override
-  Future<Device> describeAndroidDevice(String deviceId) async {
+  Future<Device> describeDevice(String deviceId) async {
     describeAndroidDeviceCalls.update(
       deviceId,
       (count) => count + 1,
@@ -147,24 +145,36 @@ class _FakeDeviceBridgeService extends DeviceBridgeService {
   }
 
   @override
-  Future<List<String>> getIosDeviceIds() async => List.of(iosDeviceIds);
+  Stream<List<Device>> watchDeviceChanges() => _watchController.stream;
+
+  Future<void> dispose() async {
+    await _watchController.close();
+  }
+}
+
+class _FakeIdeviceIdTool extends IdeviceIdTool {
+  _FakeIdeviceIdTool() : super(executablePath: '/usr/bin/true');
+
+  List<String> iosDeviceIds = const [];
 
   @override
-  Future<Device> describeIosDevice(String deviceId) async {
-    describeIosDeviceCalls.update(
+  Future<List<String>> getDeviceIds() async => List.of(iosDeviceIds);
+}
+
+class _FakeIdeviceInfoTool extends IdeviceInfoTool {
+  _FakeIdeviceInfoTool() : super(executablePath: '/usr/bin/true');
+
+  final Map<String, IosDeviceInfo> iosInfos = {};
+  final Map<String, int> readDeviceInfoCalls = {};
+
+  @override
+  Future<IosDeviceInfo> readDeviceInfo(String deviceId) async {
+    readDeviceInfoCalls.update(
       deviceId,
       (count) => count + 1,
       ifAbsent: () => 1,
     );
-    return iosDescriptions[deviceId] ??
-        Device(deviceId, 'device', platform: DevicePlatform.ios);
-  }
-
-  @override
-  Stream<String> watchAndroidDeviceChanges() => _watchController.stream;
-
-  @override
-  Future<void> dispose() async {
-    await _watchController.close();
+    return iosInfos[deviceId] ??
+        IosDeviceInfo(deviceId: deviceId, status: 'device');
   }
 }
