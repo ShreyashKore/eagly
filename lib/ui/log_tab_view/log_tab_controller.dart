@@ -3,15 +3,15 @@ import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
-import '../controllers/wireless_connection_controller.dart';
-import '../data/device.dart';
-import '../data/log_column.dart';
-import '../data/log_entry.dart';
-import '../data/log_tab_settings.dart';
-import '../services/device_repository.dart';
-import '../services/device_session_service.dart';
-import '../services/log_file_service.dart';
-import '../utils/log_utils.dart';
+import '../wireless_connection/wireless_connection_controller.dart';
+import '../../data/device.dart';
+import '../../data/log_column.dart';
+import '../../data/log_entry.dart';
+import '../../data/log_tab_settings.dart';
+import '../../services/device_repository.dart';
+import '../../services/device_session_service.dart';
+import '../../services/log_file_service.dart';
+import '../../utils/log_utils.dart';
 
 enum LogcatState { stopped, running, paused }
 

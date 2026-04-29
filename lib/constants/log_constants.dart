@@ -1,31 +1,49 @@
 import 'package:flutter/material.dart';
 
 class LogLevelOption {
-  const LogLevelOption({required this.value, required this.label});
+  const LogLevelOption({
+    required this.value,
+    required this.label,
+    required this.iosLabel,
+  });
 
   final String value;
   final String label;
+  final String iosLabel;
 
   String get labelWithValue => '$label ($value)';
+
+  String get androidLabelWithValue => labelWithValue;
+
+  String get iosLabelWithValue => '$iosLabel ($value)';
 }
 
 const logLevelOptions = <LogLevelOption>[
-  LogLevelOption(value: 'E', label: 'Error'),
-  LogLevelOption(value: 'W', label: 'Warning'),
-  LogLevelOption(value: 'I', label: 'Info'),
-  LogLevelOption(value: 'D', label: 'Debug'),
-  LogLevelOption(value: 'V', label: 'Verbose'),
+  LogLevelOption(
+    value: 'E',
+    label: 'Error',
+    iosLabel: 'fault, error, critical',
+  ),
+  LogLevelOption(value: 'W', label: 'Warning', iosLabel: 'warning, warn'),
+  LogLevelOption(value: 'I', label: 'Info', iosLabel: 'notice, info, default'),
+  LogLevelOption(value: 'D', label: 'Debug', iosLabel: 'debug'),
+  LogLevelOption(value: 'V', label: 'Verbose', iosLabel: 'Verbose'),
 ];
 
 List<DropdownMenuItem<String>> buildLogLevelDropdownItems({
   bool includeValueInLabel = false,
+  bool isIos = false,
 }) {
   return logLevelOptions
       .map(
         (option) => DropdownMenuItem<String>(
           value: option.value,
           child: Text(
-            includeValueInLabel ? option.labelWithValue : option.label,
+            includeValueInLabel
+                ? (isIos
+                      ? option.iosLabelWithValue
+                      : option.androidLabelWithValue)
+                : option.label,
           ),
         ),
       )

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 
-import 'constants/app_constants.dart';
-import 'controllers/log_tab_controller.dart';
-import 'intents/home_page_intents.dart';
-import 'widgets/device_presentation.dart';
+import '../../constants/app_constants.dart';
+import '../log_tab_view/log_tab_controller.dart';
+import '../../intents/intents.dart';
+import '../log_tab_view/components/device_presentation.dart';
 
 const homePageShortcuts = <ShortcutActivator, Intent>{
   SingleActivator(LogicalKeyboardKey.keyF, control: true):

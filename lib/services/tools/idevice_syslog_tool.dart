@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import '../../data/log_entry.dart';
-import '../ios_syslog_parser.dart';
+import '../../utils/ios_syslog_parser.dart';
 import 'tool_process_runner.dart';
 
 class IdeviceSyslogTool extends ToolProcessRunner {

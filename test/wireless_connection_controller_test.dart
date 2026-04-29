@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logview/controllers/wireless_connection_controller.dart';
+import 'package:logview/ui/wireless_connection/wireless_connection_controller.dart';
 import 'package:logview/data/device.dart';
 import 'package:logview/data/wireless_debug_models.dart';
 import 'package:logview/services/device_repository.dart';

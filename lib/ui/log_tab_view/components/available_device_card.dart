@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../data/device.dart';
-import '../device_presentation.dart';
-import 'log_tab_view_constants.dart';
+import '../../../data/device.dart';
+import 'device_presentation.dart';
+import '../log_tab_view_constants.dart';
 
 class AvailableDeviceCard extends StatelessWidget {
   const AvailableDeviceCard({

@@ -58,7 +58,7 @@ class LogEntry {
         other.processName == processName;
   }
 
-  static LogEntry? parse(String line) {
+  static LogEntry? parseFromLogcat(String line) {
     final regex = RegExp(
       r'^(\d\d-\d\d\s+\d\d:\d\d:\d\d\.\d+)\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+):\s+(.*)',
     );

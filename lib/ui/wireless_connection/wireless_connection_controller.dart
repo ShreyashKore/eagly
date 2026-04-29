@@ -1,10 +1,10 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 
-import '../data/device.dart';
-import '../data/wireless_debug_models.dart';
-import '../services/device_repository.dart';
-import '../services/device_session_service.dart';
+import '../../data/device.dart';
+import '../../data/wireless_debug_models.dart';
+import '../../services/device_repository.dart';
+import '../../services/device_session_service.dart';
 
 class WirelessPairResult {
   const WirelessPairResult({

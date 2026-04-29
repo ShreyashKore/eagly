@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-import 'constants/log_constants.dart';
-import 'services/app_info_service.dart';
-import 'services/preferences_service.dart';
+import '../../constants/log_constants.dart';
+import '../../services/app_info_service.dart';
+import '../../services/preferences_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -39,12 +39,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   Future<void> _saveLogLinesLimit() async {
     final parsed = int.tryParse(_logLinesController.text.trim());
     if (parsed == null || parsed < 1000) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Max lines must be at least 1000.')),
-      );
+      _showSnackBar('Max lines must be at least 1000.');
       return;
     }
 
@@ -52,27 +56,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _logLinesController.text = parsed.toString();
     });
     PreferencesService.logLinesLimit = parsed;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Max lines updated.')));
+    _showSnackBar('Max lines updated.');
   }
 
   Future<void> _resetHiddenColumns() async {
     PreferencesService.hiddenColumns = {};
     if (!mounted) return;
     setState(() {});
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Hidden columns reset.')));
+    _showSnackBar('Hidden columns reset.');
   }
 
   Future<void> _resetColumnWidths() async {
     PreferencesService.columnWidths = {};
     if (!mounted) return;
     setState(() {});
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Column widths reset.')));
+    _showSnackBar('Column widths reset.');
   }
 
   int get _themeIndex {

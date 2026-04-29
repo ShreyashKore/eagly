@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logview/data/log_entry.dart';
-import 'package:logview/services/ios_syslog_parser.dart';
+import 'package:logview/utils/ios_syslog_parser.dart';
 
 void main() {
   group('IosSyslogParser', () {

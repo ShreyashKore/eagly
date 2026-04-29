@@ -2,10 +2,10 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-import '../controllers/log_tab_controller.dart';
-import '../controllers/wireless_connection_controller.dart';
-import '../data/device.dart';
-import '../data/wireless_debug_models.dart';
+import '../log_tab_view/log_tab_controller.dart';
+import 'wireless_connection_controller.dart';
+import '../../data/device.dart';
+import '../../data/wireless_debug_models.dart';
 
 class WirelessConnectionDialog extends StatefulWidget {
   const WirelessConnectionDialog({

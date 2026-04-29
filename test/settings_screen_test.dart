@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:logview/services/preferences_service.dart';
-import 'package:logview/settings_screen.dart';
+import 'package:logview/ui/settings/settings_screen.dart';
 import 'package:logview/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

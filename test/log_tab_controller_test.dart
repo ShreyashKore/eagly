@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logview/controllers/log_tab_controller.dart';
+import 'package:logview/ui/log_tab_view/log_tab_controller.dart';
 import 'package:logview/data/device.dart';
 import 'package:logview/data/log_column.dart';
 import 'package:logview/data/log_entry.dart';

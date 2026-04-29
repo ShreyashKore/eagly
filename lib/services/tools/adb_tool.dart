@@ -262,7 +262,7 @@ class AdbTool extends ToolProcessRunner {
           var emittedLogs = false;
 
           await for (final line in stdoutLines(process!)) {
-            final parsed = LogEntry.parse(line);
+            final parsed = LogEntry.parseFromLogcat(line);
             if (parsed != null) {
               emittedLogs = true;
               controller.add(parsed);

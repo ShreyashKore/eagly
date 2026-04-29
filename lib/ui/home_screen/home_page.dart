@@ -4,16 +4,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 
-import 'constants/app_constants.dart';
-import 'constants/log_constants.dart';
-import 'controllers/log_tab_controller.dart';
+import '../../constants/app_constants.dart';
+import '../../constants/log_constants.dart';
+import '../log_tab_view/log_tab_controller.dart';
+import '../log_tab_view/log_tab_view.dart';
 import 'home_page_support.dart';
-import 'intents/home_page_intents.dart';
-import 'services/app_info_service.dart';
-import 'services/preferences_service.dart';
-import 'settings_screen.dart';
-import 'utils/log_feedback.dart';
-import 'widgets/log_tab_view.dart';
+import '../../intents/intents.dart';
+import '../../services/app_info_service.dart';
+import '../../services/preferences_service.dart';
+import '../settings/settings_screen.dart';
+import '../../utils/log_feedback.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

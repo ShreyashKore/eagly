@@ -220,7 +220,7 @@ class DeviceRepository extends ChangeNotifier {
   Future<Device> _resolveIosDevice(String deviceId) async {
     final cached = _iosDescriptionCache[deviceId];
     if (cached != null) {
-      return cached.toDevice(deviceId);
+      return cached.toIosDevice(deviceId);
     }
 
     final info = await _ideviceInfoTool.readDeviceInfo(deviceId);
@@ -347,7 +347,7 @@ class _CachedIosDeviceDescription {
   final String? name;
   final String? model;
 
-  Device toDevice(String deviceId) {
+  Device toIosDevice(String deviceId) {
     return Device.ios(
       deviceId,
       'device',

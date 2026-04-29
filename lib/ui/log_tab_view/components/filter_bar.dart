@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../constants/log_constants.dart';
+import '../../../constants/log_constants.dart';
 
 class FilterBar extends StatelessWidget {
   final String filterQuery;
@@ -9,6 +9,7 @@ class FilterBar extends StatelessWidget {
   final ValueChanged<String> onFilterChanged;
   final String selectedLogLevel;
   final ValueChanged<String?> onLogLevelChanged;
+  final bool isIos;
 
   const FilterBar({
     super.key,
@@ -18,6 +19,7 @@ class FilterBar extends StatelessWidget {
     required this.onFilterChanged,
     required this.selectedLogLevel,
     required this.onLogLevelChanged,
+    this.isIos = false,
   });
 
   @override
@@ -48,7 +50,10 @@ class FilterBar extends StatelessWidget {
             child: DropdownButtonFormField<String>(
               initialValue: selectedLogLevel,
               decoration: const InputDecoration(labelText: 'Level'),
-              items: buildLogLevelDropdownItems(includeValueInLabel: true),
+              items: buildLogLevelDropdownItems(
+                includeValueInLabel: true,
+                isIos: isIos,
+              ),
               onChanged: onLogLevelChanged,
             ),
           ),
