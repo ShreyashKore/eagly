@@ -327,15 +327,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<PlatformMenuItem> _logLevelFilterMenuItems() {
     final isIos = _activeController?.isIosLogContext ?? false;
-    if (isIos) {
-      return buildIosLogLevelMenuItems(
-        onSelected: (level) =>
-            _runOnActiveTab((tab) => tab.setSelectedLogLevel(level.code)),
-      );
-    }
     return buildLogLevelMenuItems(
+      isIos: isIos,
       onSelected: (level) =>
-          _runOnActiveTab((tab) => tab.setSelectedLogLevel(level.code)),
+          _runOnActiveTab((tab) => tab.setSelectedLogLevel(level)),
     );
   }
 

@@ -1,3 +1,5 @@
+import 'package:logview/data/log_level.dart';
+
 class LogTabSettings {
   const LogTabSettings({
     required this.wrapText,
@@ -10,7 +12,7 @@ class LogTabSettings {
 
   final bool wrapText;
   final bool autoScroll;
-  final String selectedLogLevel;
+  final LogLevel selectedLogLevel;
   final int logLinesLimit;
   final Set<String> hiddenColumns;
   final Map<String, double> columnWidths;
@@ -18,7 +20,7 @@ class LogTabSettings {
   LogTabSettings copyWith({
     bool? wrapText,
     bool? autoScroll,
-    String? selectedLogLevel,
+    LogLevel? selectedLogLevel,
     int? logLinesLimit,
     Set<String>? hiddenColumns,
     Map<String, double>? columnWidths,

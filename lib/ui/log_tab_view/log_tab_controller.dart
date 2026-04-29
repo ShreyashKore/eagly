@@ -16,6 +16,8 @@ import '../wireless_connection/wireless_connection_controller.dart';
 enum LogcatState { stopped, running, paused }
 
 class LogTabController extends ChangeNotifier {
+  static const int _maxRecentFilterValues = 8;
+
   LogTabController({
     required this.id,
     required String initialTitle,
@@ -39,6 +41,9 @@ class LogTabController extends ChangeNotifier {
       isRunningProvider: () => isRunning,
     );
     filterController.text = searchQuery;
+    packageFilterController.text = packageFilterQuery;
+    pidTidFilterController.text = pidTidFilterQuery;
+    tagFilterController.text = tagFilterQuery;
     logLinesController.text = logLinesLimit.toString();
     devices = _deviceRepository.devices.toList(growable: false);
     _deviceRepository.addListener(_handleDeviceRepositoryChanged);
@@ -55,6 +60,12 @@ class LogTabController extends ChangeNotifier {
   final ScrollController scrollController = ScrollController();
   final TextEditingController filterController = TextEditingController();
   final FocusNode filterFocusNode = FocusNode();
+  final TextEditingController packageFilterController = TextEditingController();
+  final FocusNode packageFilterFocusNode = FocusNode();
+  final TextEditingController pidTidFilterController = TextEditingController();
+  final FocusNode pidTidFilterFocusNode = FocusNode();
+  final TextEditingController tagFilterController = TextEditingController();
+  final FocusNode tagFilterFocusNode = FocusNode();
   final TextEditingController searchController = TextEditingController();
   final FocusNode searchFocusNode = FocusNode();
   final TextEditingController logLinesController = TextEditingController();
@@ -64,6 +75,7 @@ class LogTabController extends ChangeNotifier {
   StreamSubscription<LogEntry>? _logSub;
   Timer? _flushTimer;
   Timer? _debounceTimer;
+  Timer? _filterSaveDebounceTimer;
   Timer? _inlineSearchDebounce;
 
   var devices = <Device>[];
@@ -73,6 +85,17 @@ class LogTabController extends ChangeNotifier {
   var logcatState = LogcatState.stopped;
   var searchQuery = '';
   var _appliedSearchQuery = '';
+  var packageFilterQuery = '';
+  var _appliedPackageFilterQuery = '';
+  var pidTidFilterQuery = '';
+  var _appliedPidTidFilterQuery = '';
+  var tagFilterQuery = '';
+  var _appliedTagFilterQuery = '';
+
+  final List<String> _recentMessageFilters = [];
+  final List<String> _recentPackageFilters = [];
+  final List<String> _recentPidTidFilters = [];
+  final List<String> _recentTagFilters = [];
 
   var _searchBarVisible = false;
   var _inlineSearchQuery = '';
@@ -94,7 +117,10 @@ class LogTabController extends ChangeNotifier {
   List<LogEntry>? _cachedFilteredLogs;
   int _lastLogsLength = 0;
   String _lastFilterQuery = '';
-  String _lastLogLevel = 'V';
+  String _lastPackageFilterQuery = '';
+  String _lastPidTidFilterQuery = '';
+  String _lastTagFilterQuery = '';
+  LogLevel _lastLogLevel = LogLevel.verbose;
 
   List<int>? _cachedSearchMatchIndices;
   String _smCacheQuery = '';
@@ -126,10 +152,17 @@ class LogTabController extends ChangeNotifier {
   String get inlineSearchQuery => _inlineSearchQuery;
   bool get isLoadingDevices => _deviceRepository.isLoading;
   bool get hasAttemptedDeviceLoad => _deviceRepository.hasAttemptedLoad;
+  List<String> get recentMessageFilters =>
+      List.unmodifiable(_recentMessageFilters);
+  List<String> get recentPackageFilters =>
+      List.unmodifiable(_recentPackageFilters);
+  List<String> get recentPidTidFilters =>
+      List.unmodifiable(_recentPidTidFilters);
+  List<String> get recentTagFilters => List.unmodifiable(_recentTagFilters);
 
   bool get wrapText => _settings.wrapText;
   bool get autoScroll => _settings.autoScroll;
-  String get selectedLogLevel => _settings.selectedLogLevel;
+  LogLevel get selectedLogLevel => _settings.selectedLogLevel;
   int get logLinesLimit => _settings.logLinesLimit;
   Set<String> get hiddenColumns => _settings.hiddenColumns;
   Map<String, double> get columnWidths => _settings.columnWidths;
@@ -145,9 +178,7 @@ class LogTabController extends ChangeNotifier {
         LogLevel.looksLikeIosStoredLevel(sampleLevel.level);
   }
 
-  LogLevel get effectiveSelectedLogLevel => LogLevel.fromStored(
-    selectedLogLevel,
-  ).normalizeSelectionForPlatform(isIos: isIosLogContext);
+  LogLevel get effectiveSelectedLogLevel => selectedLogLevel;
 
   void _notify() {
     if (!_disposed) {
@@ -246,28 +277,62 @@ class LogTabController extends ChangeNotifier {
 
   void clearFilter() {
     _debounceTimer?.cancel();
+    _filterSaveDebounceTimer?.cancel();
     filterController.clear();
+    packageFilterController.clear();
+    pidTidFilterController.clear();
+    tagFilterController.clear();
     searchQuery = '';
     _appliedSearchQuery = '';
+    packageFilterQuery = '';
+    _appliedPackageFilterQuery = '';
+    pidTidFilterQuery = '';
+    _appliedPidTidFilterQuery = '';
+    tagFilterQuery = '';
+    _appliedTagFilterQuery = '';
     _invalidateFilteredLogs();
     focusFilterInputs();
     _notify();
   }
 
   void onSearchChanged(String value) {
-    searchQuery = value;
-    _notify();
-
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      if (_disposed) return;
-      _appliedSearchQuery = value;
-      _invalidateFilteredLogs();
-      _notify();
-    });
+    _setFilterField(_LogFilterField.message, value);
   }
 
-  void setSelectedLogLevel(String level) {
+  void onPackageFilterChanged(String value) {
+    _setFilterField(_LogFilterField.packageName, value);
+  }
+
+  void onPidTidFilterChanged(String value) {
+    _setFilterField(_LogFilterField.pidTid, value);
+  }
+
+  void onTagFilterChanged(String value) {
+    _setFilterField(_LogFilterField.tag, value);
+  }
+
+  void selectMessageFilterSuggestion(String value) {
+    _setFilterField(_LogFilterField.message, value, applyImmediately: true);
+  }
+
+  void selectPackageFilterSuggestion(String value) {
+    _setFilterField(_LogFilterField.packageName, value, applyImmediately: true);
+  }
+
+  void selectPidTidFilterSuggestion(String value) {
+    _setFilterField(_LogFilterField.pidTid, value, applyImmediately: true);
+  }
+
+  void selectTagFilterSuggestion(String value) {
+    _setFilterField(_LogFilterField.tag, value, applyImmediately: true);
+  }
+
+  void applyFiltersNow() {
+    _debounceTimer?.cancel();
+    _applyTextFilters();
+  }
+
+  void setSelectedLogLevel(LogLevel level) {
     _updateSettings(_settings.copyWith(selectedLogLevel: level));
     _invalidateFilteredLogs();
   }
@@ -389,21 +454,43 @@ class LogTabController extends ChangeNotifier {
     if (_cachedFilteredLogs != null &&
         _lastLogsLength == logs.length &&
         _lastFilterQuery == _appliedSearchQuery &&
-        _lastLogLevel == selectedLevel.code) {
+        _lastPackageFilterQuery == _appliedPackageFilterQuery &&
+        _lastPidTidFilterQuery == _appliedPidTidFilterQuery &&
+        _lastTagFilterQuery == _appliedTagFilterQuery &&
+        _lastLogLevel == selectedLogLevel) {
       return _cachedFilteredLogs!;
     }
 
     _lastLogsLength = logs.length;
     _lastFilterQuery = _appliedSearchQuery;
-    _lastLogLevel = selectedLevel.code;
+    _lastPackageFilterQuery = _appliedPackageFilterQuery;
+    _lastPidTidFilterQuery = _appliedPidTidFilterQuery;
+    _lastTagFilterQuery = _appliedTagFilterQuery;
+    _lastLogLevel = selectedLogLevel;
 
-    final query = _appliedSearchQuery.toLowerCase();
+    final messageQuery = _appliedSearchQuery.toLowerCase();
+    final packageQuery = _appliedPackageFilterQuery.toLowerCase();
+    final pidTidQuery = _appliedPidTidFilterQuery.toLowerCase();
+    final tagQuery = _appliedTagFilterQuery.toLowerCase();
     _cachedFilteredLogs = logs.where((log) {
       if (LogLevel.fromStored(log.level).hierarchy > selectedLevel.hierarchy) {
         return false;
       }
-      if (_appliedSearchQuery.isEmpty) return true;
-      return log.lowercaseSearchable.contains(query);
+      if (packageQuery.isNotEmpty &&
+          !_packageFilterValue(log).toLowerCase().contains(packageQuery)) {
+        return false;
+      }
+      if (pidTidQuery.isNotEmpty && !_matchesPidTidFilter(log, pidTidQuery)) {
+        return false;
+      }
+      if (tagQuery.isNotEmpty && !log.tag.toLowerCase().contains(tagQuery)) {
+        return false;
+      }
+      if (messageQuery.isNotEmpty &&
+          !log.message.toLowerCase().contains(messageQuery)) {
+        return false;
+      }
+      return true;
     }).toList();
 
     return _cachedFilteredLogs!;
@@ -454,6 +541,122 @@ class LogTabController extends ChangeNotifier {
 
   void _invalidateSearchMatches() {
     _cachedSearchMatchIndices = null;
+  }
+
+  void _setFilterField(
+    _LogFilterField field,
+    String value, {
+    bool applyImmediately = false,
+  }) {
+    final selection = TextSelection.collapsed(offset: value.length);
+
+    switch (field) {
+      case _LogFilterField.message:
+        searchQuery = value;
+        if (filterController.text != value) {
+          filterController.value = TextEditingValue(
+            text: value,
+            selection: selection,
+          );
+        }
+        break;
+      case _LogFilterField.packageName:
+        packageFilterQuery = value;
+        if (packageFilterController.text != value) {
+          packageFilterController.value = TextEditingValue(
+            text: value,
+            selection: selection,
+          );
+        }
+        break;
+      case _LogFilterField.pidTid:
+        pidTidFilterQuery = value;
+        if (pidTidFilterController.text != value) {
+          pidTidFilterController.value = TextEditingValue(
+            text: value,
+            selection: selection,
+          );
+        }
+        break;
+      case _LogFilterField.tag:
+        tagFilterQuery = value;
+        if (tagFilterController.text != value) {
+          tagFilterController.value = TextEditingValue(
+            text: value,
+            selection: selection,
+          );
+        }
+        break;
+    }
+
+    if (applyImmediately) {
+      _applyTextFilters();
+      return;
+    }
+
+    _notify();
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      if (_disposed) return;
+      _applyTextFilters();
+    });
+  }
+
+  void _applyTextFilters() {
+    _appliedSearchQuery = searchQuery.trim();
+    _appliedPackageFilterQuery = packageFilterQuery.trim();
+    _appliedPidTidFilterQuery = pidTidFilterQuery.trim();
+    _appliedTagFilterQuery = tagFilterQuery.trim();
+
+    _filterSaveDebounceTimer?.cancel();
+    _filterSaveDebounceTimer = Timer(const Duration(milliseconds: 1000), () {
+      _rememberRecentFilterValues();
+    });
+    _invalidateFilteredLogs();
+    _notify();
+  }
+
+  void _rememberRecentFilterValues() {
+    _rememberRecentFilterValue(_recentMessageFilters, _appliedSearchQuery);
+    _rememberRecentFilterValue(
+      _recentPackageFilters,
+      _appliedPackageFilterQuery,
+    );
+    _rememberRecentFilterValue(_recentPidTidFilters, _appliedPidTidFilterQuery);
+    _rememberRecentFilterValue(_recentTagFilters, _appliedTagFilterQuery);
+  }
+
+  void _rememberRecentFilterValue(List<String> recentValues, String value) {
+    final normalized = value.trim();
+    if (normalized.isEmpty) return;
+
+    recentValues.removeWhere(
+      (existing) => existing.toLowerCase() == normalized.toLowerCase(),
+    );
+    recentValues.insert(0, normalized);
+
+    if (recentValues.length > _maxRecentFilterValues) {
+      recentValues.removeRange(_maxRecentFilterValues, recentValues.length);
+    }
+  }
+
+  String _packageFilterValue(LogEntry log) {
+    final packageName = log.packageName?.trim();
+    if (packageName != null && packageName.isNotEmpty) return packageName;
+
+    final processName = log.processName?.trim();
+    if (processName != null && processName.isNotEmpty) return processName;
+
+    return '';
+  }
+
+  bool _matchesPidTidFilter(LogEntry log, String query) {
+    final pid = log.pid.toLowerCase();
+    final tid = log.tid.toLowerCase();
+    return pid.contains(query) ||
+        tid.contains(query) ||
+        '$pid/$tid'.contains(query) ||
+        '$pid:$tid'.contains(query);
   }
 
   Future<void> _applyFetchedDevices(
@@ -683,9 +886,17 @@ class LogTabController extends ChangeNotifier {
     scrollController.dispose();
     filterController.dispose();
     filterFocusNode.dispose();
+    packageFilterController.dispose();
+    packageFilterFocusNode.dispose();
+    pidTidFilterController.dispose();
+    pidTidFilterFocusNode.dispose();
+    tagFilterController.dispose();
+    tagFilterFocusNode.dispose();
     searchController.dispose();
     searchFocusNode.dispose();
     logLinesController.dispose();
     super.dispose();
   }
 }
+
+enum _LogFilterField { message, packageName, pidTid, tag }

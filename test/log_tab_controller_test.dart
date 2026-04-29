@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:logview/data/device.dart';
 import 'package:logview/data/log_column.dart';
 import 'package:logview/data/log_entry.dart';
+import 'package:logview/data/log_level.dart';
 import 'package:logview/data/log_tab_settings.dart';
 import 'package:logview/services/device_repository.dart';
 import 'package:logview/services/device_session_service.dart';
@@ -102,6 +103,108 @@ void main() {
     expect(controller!.logLinesController.text, '1000');
   });
 
+  test(
+    'filteredLogs apply message, package, PID/TID, tag, and level filters',
+    () {
+      controller = createController();
+
+      controller!.logs = [
+        LogEntry(
+          timestamp: '2026-04-26 10:00:00.000',
+          pid: '101',
+          tid: '202',
+          level: 'I',
+          tag: 'AuthService',
+          message: 'User signed in successfully',
+          packageName: 'com.example.auth',
+        ),
+        LogEntry(
+          timestamp: '2026-04-26 10:00:01.000',
+          pid: '303',
+          tid: '404',
+          level: 'D',
+          tag: 'Network',
+          message: 'User signed in successfully',
+          packageName: 'com.example.network',
+        ),
+        LogEntry(
+          timestamp: '2026-04-26 10:00:02.000',
+          pid: '505',
+          tid: '606',
+          level: 'W',
+          tag: 'AuthService',
+          message: 'Background sync retry scheduled',
+          packageName: 'com.example.auth',
+        ),
+      ];
+
+      controller!.onSearchChanged('signed in');
+      controller!.onPackageFilterChanged('example.auth');
+      controller!.onPidTidFilterChanged('101/202');
+      controller!.onTagFilterChanged('auth');
+      controller!.applyFiltersNow();
+
+      expect(controller!.filteredLogs, hasLength(1));
+      expect(controller!.filteredLogs.single.pid, '101');
+
+      controller!.setSelectedLogLevel(LogLevel.warning);
+      expect(controller!.filteredLogs, isEmpty);
+    },
+  );
+
+  test(
+    'message filter only matches the log message while tag filter is separate',
+    () {
+      controller = createController();
+
+      controller!.logs = [
+        LogEntry(
+          timestamp: '2026-04-26 10:00:00.000',
+          pid: '123',
+          tid: '456',
+          level: 'I',
+          tag: 'NeedleTag',
+          message: 'Different message',
+        ),
+      ];
+
+      controller!.onSearchChanged('needle');
+      controller!.applyFiltersNow();
+      expect(controller!.filteredLogs, isEmpty);
+
+      controller!.clearFilter();
+      controller!.onTagFilterChanged('needle');
+      controller!.applyFiltersNow();
+      expect(controller!.filteredLogs, hasLength(1));
+    },
+  );
+
+  test(
+    'applying filters stores recent values per field without duplicates',
+    () async {
+      controller = createController();
+
+      controller!.onSearchChanged('First message');
+      controller!.onPackageFilterChanged('com.example.app');
+      controller!.onPidTidFilterChanged('123:456');
+      controller!.onTagFilterChanged('Auth');
+      controller!.applyFiltersNow();
+
+      controller!.onSearchChanged('second message');
+      controller!.onPackageFilterChanged('com.example.app');
+      controller!.onPidTidFilterChanged('123:456');
+      controller!.onTagFilterChanged('auth');
+      controller!.applyFiltersNow();
+
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+
+      expect(controller!.recentMessageFilters, ['second message']);
+      expect(controller!.recentPackageFilters, ['com.example.app']);
+      expect(controller!.recentPidTidFilters, ['123:456']);
+      expect(controller!.recentTagFilters, ['auth']);
+    },
+  );
+
   test('searchMatchIndices ignore hidden columns when computing matches', () {
     controller = createController();
 
@@ -125,7 +228,7 @@ void main() {
 
   test('filteredLogs keeps entries with unknown log levels', () {
     controller = createController();
-    controller!.setSelectedLogLevel('info');
+    controller!.setSelectedLogLevel(LogLevel.info);
 
     controller!.logs = [
       LogEntry(
@@ -146,7 +249,7 @@ LogTabSettings _initialSettings() {
   return LogTabSettings(
     wrapText: false,
     autoScroll: true,
-    selectedLogLevel: 'verbose',
+    selectedLogLevel: LogLevel.verbose,
     logLinesLimit: 50000,
     hiddenColumns: const {},
     columnWidths: {
