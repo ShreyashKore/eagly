@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/device.dart';
 import '../../data/log_column.dart';
@@ -14,6 +16,8 @@ import '../../services/log_file_service.dart';
 import '../wireless_connection/wireless_connection_controller.dart';
 
 enum LogcatState { stopped, running, paused }
+
+enum LogCopyFormat { messageOnly, timestampAndMessage, fullLine }
 
 class LogTabController extends ChangeNotifier {
   static const int _maxRecentFilterValues = 8;
@@ -102,6 +106,9 @@ class LogTabController extends ChangeNotifier {
   var _appliedInlineSearchQuery = '';
   var _searchCaseSensitive = false;
   var _searchCurrentMatchIndex = 0;
+  var _rowSelectionMode = false;
+  final Set<int> _selectedRowIndices = <int>{};
+  int? _rowSelectionAnchorIndex;
 
   var _editingLogLinesLimit = false;
   var _logsMemoryBytes = 0;
@@ -139,11 +146,17 @@ class LogTabController extends ChangeNotifier {
   bool get searchBarVisible => _searchBarVisible;
   bool get searchCaseSensitive => _searchCaseSensitive;
   int get searchCurrentMatch => _searchCurrentMatchIndex;
+  bool get rowSelectionMode => _rowSelectionMode;
+  Set<int> get selectedRowIndices => Set.unmodifiable(_selectedRowIndices);
+  bool get hasSelectedRows => _selectedRowIndices.isNotEmpty;
+  int get selectedRowCount => _selectedRowIndices.length;
+  int? get rowSelectionAnchorIndex => _rowSelectionAnchorIndex;
   bool get editingLogLinesLimit => _editingLogLinesLimit;
   int get logViewerRevision => _logViewerRevision;
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;
   bool get hasLogs => logs.isNotEmpty;
+  bool get hasAnyCachedLogs => logs.isNotEmpty || _buffer.isNotEmpty;
   bool get hasSelectedDevice => selectedDevice != null;
   bool get hasConnectedSelectedDevice => selectedDevice?.isConnected == true;
   bool get hasVisibleWorkspace => hasSelectedDevice || hasLogs;
@@ -229,6 +242,7 @@ class LogTabController extends ChangeNotifier {
   }
 
   void clearLogs() {
+    clearSelectedRows(notify: false);
     logs = [];
     _buffer.clear();
     _logsMemoryBytes = 0;
@@ -248,6 +262,7 @@ class LogTabController extends ChangeNotifier {
     await _stopLogcatInternal(resetState: false);
     if (_disposed) return result;
 
+    clearSelectedRows(notify: false);
     selectedDevice = null;
     _importedFileName = result.fileName;
     logs = result.logs!;
@@ -275,9 +290,152 @@ class LogTabController extends ChangeNotifier {
     _updateSettings(_settings.copyWith(autoScroll: false));
   }
 
+  void toggleRowSelectionMode() {
+    setRowSelectionMode(!rowSelectionMode);
+  }
+
+  void setRowSelectionMode(bool value) {
+    if (_rowSelectionMode == value) return;
+
+    _rowSelectionMode = value;
+    if (!value) {
+      clearSelectedRows(notify: false);
+    }
+    _notify();
+  }
+
+  bool isRowSelected(int filteredIndex) {
+    return _selectedRowIndices.contains(filteredIndex);
+  }
+
+  bool? beginRowSelectionGesture(
+    int filteredIndex, {
+    bool shiftPressed = false,
+  }) {
+    if (filteredIndex < 0) return null;
+
+    if (shiftPressed) {
+      selectRowRangeTo(filteredIndex);
+      return null;
+    }
+
+    final shouldSelect = !_selectedRowIndices.contains(filteredIndex);
+    final anchorChanged = _rowSelectionAnchorIndex != filteredIndex;
+    _rowSelectionAnchorIndex = filteredIndex;
+    final changed = shouldSelect
+        ? _selectedRowIndices.add(filteredIndex)
+        : _selectedRowIndices.remove(filteredIndex);
+    if (changed || anchorChanged) {
+      _notify();
+    }
+    return shouldSelect;
+  }
+
+  void setRowSelected(int filteredIndex, bool selected) {
+    if (filteredIndex < 0) return;
+
+    final changed = selected
+        ? _selectedRowIndices.add(filteredIndex)
+        : _selectedRowIndices.remove(filteredIndex);
+    if (changed) {
+      _notify();
+    }
+  }
+
+  void setSelectedRows(Set<int> indices) {
+    final next = indices.where((index) => index >= 0).toSet();
+    if (const SetEquality<int>().equals(_selectedRowIndices, next)) {
+      return;
+    }
+
+    _selectedRowIndices
+      ..clear()
+      ..addAll(next);
+    _notify();
+  }
+
+  void selectRowRangeTo(int filteredIndex) {
+    if (filteredIndex < 0) return;
+
+    if (_rowSelectionAnchorIndex == null) {
+      final anchorChanged = _rowSelectionAnchorIndex != filteredIndex;
+      _rowSelectionAnchorIndex = filteredIndex;
+      final changed = _selectedRowIndices.add(filteredIndex);
+      if (changed || anchorChanged) {
+        _notify();
+      }
+      return;
+    }
+
+    final start = math.min(_rowSelectionAnchorIndex!, filteredIndex);
+    final end = math.max(_rowSelectionAnchorIndex!, filteredIndex);
+    var changed = false;
+    for (var index = start; index <= end; index++) {
+      changed = _selectedRowIndices.add(index) || changed;
+    }
+    if (changed) {
+      _notify();
+    }
+  }
+
+  void clearSelectedRows({bool notify = true}) {
+    final changed =
+        _selectedRowIndices.isNotEmpty || _rowSelectionAnchorIndex != null;
+    if (!changed) return;
+    _selectedRowIndices.clear();
+    _rowSelectionAnchorIndex = null;
+    if (notify) {
+      _notify();
+    }
+  }
+
+  Future<int> copyAllLogs() {
+    return _copyLogsToClipboard(
+      _currentLogsSnapshot,
+      format: LogCopyFormat.fullLine,
+    );
+  }
+
+  Future<int> copyRowsForContextMenu({
+    required int clickedFilteredIndex,
+    required LogCopyFormat format,
+  }) {
+    final selectedIndices = _selectionTargetIndicesForCopy(
+      clickedFilteredIndex,
+    );
+    return copyFilteredRows(selectedIndices, format: format);
+  }
+
+  Future<int> copyFilteredRows(
+    Iterable<int> filteredIndices, {
+    required LogCopyFormat format,
+  }) {
+    final filteredSnapshot = List<LogEntry>.of(filteredLogs);
+    final indices = filteredIndices.toSet().where((index) {
+      return index >= 0 && index < filteredSnapshot.length;
+    }).toList()..sort();
+
+    if (indices.isEmpty) {
+      return Future<int>.value(0);
+    }
+
+    final entries = [for (final index in indices) filteredSnapshot[index]];
+    return _copyLogsToClipboard(entries, format: format);
+  }
+
+  String formatLogsForClipboard(
+    Iterable<LogEntry> entries, {
+    required LogCopyFormat format,
+  }) {
+    return entries
+        .map((entry) => _formatLogEntryForCopy(entry, format))
+        .join('\n');
+  }
+
   void clearFilter() {
     _debounceTimer?.cancel();
     _filterSaveDebounceTimer?.cancel();
+    clearSelectedRows(notify: false);
     filterController.clear();
     packageFilterController.clear();
     pidTidFilterController.clear();
@@ -334,6 +492,7 @@ class LogTabController extends ChangeNotifier {
 
   void setSelectedLogLevel(LogLevel level) {
     _updateSettings(_settings.copyWith(selectedLogLevel: level));
+    clearSelectedRows(notify: false);
     _invalidateFilteredLogs();
   }
 
@@ -377,6 +536,7 @@ class LogTabController extends ChangeNotifier {
     _updateSettings(_settings.copyWith(logLinesLimit: parsed));
 
     if (logs.length > parsed) {
+      clearSelectedRows(notify: false);
       logs = logs.sublist(logs.length - parsed);
       _logsMemoryBytes = _estimateLogsBytes(logs);
       _invalidateFilteredLogs();
@@ -607,6 +767,7 @@ class LogTabController extends ChangeNotifier {
     _appliedPackageFilterQuery = packageFilterQuery.trim();
     _appliedPidTidFilterQuery = pidTidFilterQuery.trim();
     _appliedTagFilterQuery = tagFilterQuery.trim();
+    clearSelectedRows(notify: false);
 
     _filterSaveDebounceTimer?.cancel();
     _filterSaveDebounceTimer = Timer(const Duration(milliseconds: 1000), () {
@@ -700,6 +861,7 @@ class LogTabController extends ChangeNotifier {
   Future<void> setSelectedDevice(Device? device) async {
     if (device == null) {
       if (selectedDevice == null) return;
+      clearSelectedRows(notify: false);
       selectedDevice = null;
       if (isRunning) {
         await _stopLogcatInternal(resetState: true);
@@ -729,6 +891,7 @@ class LogTabController extends ChangeNotifier {
     await _stopLogcatInternal(resetState: false);
     if (_disposed) return;
 
+    clearSelectedRows(notify: false);
     _importedFileName = null;
     logs = [];
     _buffer.clear();
@@ -756,6 +919,7 @@ class LogTabController extends ChangeNotifier {
       _bufferMemoryBytes = 0;
 
       if (logs.length > logLinesLimit * 1.2) {
+        clearSelectedRows(notify: false);
         final keep = logLinesLimit.floor();
         logs = logs.sublist(logs.length - keep);
         _logsMemoryBytes = _estimateLogsBytes(logs);
@@ -832,6 +996,38 @@ class LogTabController extends ChangeNotifier {
       }
     }
     return result;
+  }
+
+  List<LogEntry> get _currentLogsSnapshot =>
+      List<LogEntry>.unmodifiable([...logs, ..._buffer]);
+
+  List<int> _selectionTargetIndicesForCopy(int clickedFilteredIndex) {
+    if (_selectedRowIndices.isNotEmpty &&
+        _selectedRowIndices.contains(clickedFilteredIndex)) {
+      return _selectedRowIndices.toList()..sort();
+    }
+    return [clickedFilteredIndex];
+  }
+
+  Future<int> _copyLogsToClipboard(
+    Iterable<LogEntry> entries, {
+    required LogCopyFormat format,
+  }) async {
+    final snapshot = List<LogEntry>.of(entries);
+    if (snapshot.isEmpty) return 0;
+
+    final text = formatLogsForClipboard(snapshot, format: format);
+    await Clipboard.setData(ClipboardData(text: text));
+    return snapshot.length;
+  }
+
+  String _formatLogEntryForCopy(LogEntry log, LogCopyFormat format) {
+    return switch (format) {
+      LogCopyFormat.messageOnly => log.message,
+      LogCopyFormat.timestampAndMessage => '${log.timestamp} ${log.message}',
+      LogCopyFormat.fullLine =>
+        '${log.timestamp} ${log.packageName ?? log.pid} ${log.tid} ${log.level} ${log.tag}: ${log.message}',
+    };
   }
 
   int _estimateLogEntryBytes(LogEntry log) {

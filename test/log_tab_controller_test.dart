@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logview/data/device.dart';
 import 'package:logview/data/log_column.dart';
@@ -22,6 +23,7 @@ void main() {
   late _FakeControllerIdeviceInfoTool ideviceInfoTool;
   late DeviceRepository repository;
   LogTabController? controller;
+  String? clipboardText;
 
   LogTabController createController() {
     return LogTabController(
@@ -43,9 +45,27 @@ void main() {
       ideviceIdTool: ideviceIdTool,
       ideviceInfoTool: ideviceInfoTool,
     );
+
+    clipboardText = null;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (methodCall) async {
+          switch (methodCall.method) {
+            case 'Clipboard.setData':
+              final arguments = Map<String, dynamic>.from(
+                methodCall.arguments as Map<dynamic, dynamic>,
+              );
+              clipboardText = arguments['text'] as String?;
+              return null;
+            case 'Clipboard.getData':
+              return <String, dynamic>{'text': clipboardText};
+          }
+          return null;
+        });
   });
 
   tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null);
     controller?.dispose();
     repository.dispose();
     adbTool.dispose();
@@ -242,6 +262,137 @@ void main() {
     ];
 
     expect(controller!.filteredLogs, hasLength(1));
+  });
+
+  test(
+    'copyAllLogs copies formatted full log lines from cached logs',
+    () async {
+      controller = createController();
+      controller!.logs = [
+        LogEntry(
+          timestamp: '2026-04-26 10:00:00.000',
+          pid: '123',
+          tid: '456',
+          level: 'I',
+          tag: 'Auth',
+          message: 'Signed in',
+          packageName: 'com.example.auth',
+        ),
+        LogEntry(
+          timestamp: '2026-04-26 10:00:01.000',
+          pid: '789',
+          tid: '987',
+          level: 'W',
+          tag: 'Sync',
+          message: 'Retry scheduled',
+        ),
+      ];
+
+      final copiedCount = await controller!.copyAllLogs();
+      final clipboard = await Clipboard.getData('text/plain');
+
+      expect(copiedCount, 2);
+      expect(
+        clipboard?.text,
+        '2026-04-26 10:00:00.000 com.example.auth 456 I Auth: Signed in\n'
+        '2026-04-26 10:00:01.000 789 987 W Sync: Retry scheduled',
+      );
+    },
+  );
+
+  test(
+    'copyRowsForContextMenu copies selected rows when clicked row is selected',
+    () async {
+      controller = createController();
+      controller!.logs = [
+        LogEntry(
+          timestamp: '2026-04-26 10:00:00.000',
+          pid: '101',
+          tid: '201',
+          level: 'I',
+          tag: 'Auth',
+          message: 'First message',
+        ),
+        LogEntry(
+          timestamp: '2026-04-26 10:00:01.000',
+          pid: '102',
+          tid: '202',
+          level: 'I',
+          tag: 'Auth',
+          message: 'Second message',
+        ),
+        LogEntry(
+          timestamp: '2026-04-26 10:00:02.000',
+          pid: '103',
+          tid: '203',
+          level: 'I',
+          tag: 'Auth',
+          message: 'Third message',
+        ),
+      ];
+
+      controller!.setRowSelectionMode(true);
+      controller!.setRowSelected(0, true);
+      controller!.setRowSelected(2, true);
+
+      final copiedCount = await controller!.copyRowsForContextMenu(
+        clickedFilteredIndex: 2,
+        format: LogCopyFormat.timestampAndMessage,
+      );
+      final clipboard = await Clipboard.getData('text/plain');
+
+      expect(copiedCount, 2);
+      expect(
+        clipboard?.text,
+        '2026-04-26 10:00:00.000 First message\n'
+        '2026-04-26 10:00:02.000 Third message',
+      );
+    },
+  );
+
+  test('disabling row selection mode clears selected rows', () {
+    controller = createController();
+    controller!.setRowSelectionMode(true);
+    controller!.setRowSelected(1, true);
+    controller!.setRowSelected(2, true);
+
+    controller!.setRowSelectionMode(false);
+
+    expect(controller!.rowSelectionMode, isFalse);
+    expect(controller!.selectedRowIndices, isEmpty);
+  });
+
+  test('shift selection selects an inclusive range from the anchor row', () {
+    controller = createController();
+    controller!.setRowSelectionMode(true);
+
+    final dragValue = controller!.beginRowSelectionGesture(1);
+    controller!.beginRowSelectionGesture(4, shiftPressed: true);
+
+    expect(dragValue, isTrue);
+    expect(controller!.rowSelectionAnchorIndex, 1);
+    expect(controller!.selectedRowIndices, {1, 2, 3, 4});
+  });
+
+  test('shift selection without an anchor selects only the clicked row', () {
+    controller = createController();
+    controller!.setRowSelectionMode(true);
+
+    controller!.beginRowSelectionGesture(3, shiftPressed: true);
+
+    expect(controller!.rowSelectionAnchorIndex, 3);
+    expect(controller!.selectedRowIndices, {3});
+  });
+
+  test('setSelectedRows replaces the current row selection in one update', () {
+    controller = createController();
+    controller!.setRowSelectionMode(true);
+    controller!.setRowSelected(0, true);
+    controller!.setRowSelected(4, true);
+
+    controller!.setSelectedRows({1, 2, 3});
+
+    expect(controller!.selectedRowIndices, {1, 2, 3});
   });
 }
 

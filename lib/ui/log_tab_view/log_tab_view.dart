@@ -62,6 +62,41 @@ class _LogTabViewState extends State<LogTabView> {
     _showSnackBar(formatExportLogsMessage(result));
   }
 
+  Future<void> _handleCopyAllLogs() async {
+    final copiedCount = await controller.copyAllLogs();
+    if (!mounted || copiedCount == 0) return;
+    _showSnackBar(
+      copiedCount == 1 ? 'Copied 1 log.' : 'Copied $copiedCount logs.',
+    );
+  }
+
+  Future<void> _handleRowCopyAction(
+    int index,
+    LogViewerCopyAction action,
+  ) async {
+    final format = switch (action) {
+      LogViewerCopyAction.copyMessage => LogCopyFormat.messageOnly,
+      LogViewerCopyAction.copyTimestampAndMessage =>
+        LogCopyFormat.timestampAndMessage,
+    };
+
+    final copiedCount = await controller.copyRowsForContextMenu(
+      clickedFilteredIndex: index,
+      format: format,
+    );
+    if (!mounted || copiedCount == 0) return;
+
+    final copiedLabel = switch (action) {
+      LogViewerCopyAction.copyMessage => 'message',
+      LogViewerCopyAction.copyTimestampAndMessage => 'time + message',
+    };
+    _showSnackBar(
+      copiedCount == 1
+          ? 'Copied $copiedLabel for 1 row.'
+          : 'Copied $copiedLabel for $copiedCount rows.',
+    );
+  }
+
   Future<void> _handleLoadDevices({bool openPickerWhenNeeded = false}) async {
     await controller.loadDevices();
     if (!mounted || !openPickerWhenNeeded) return;
@@ -216,6 +251,12 @@ class _LogTabViewState extends State<LogTabView> {
       scrollController: controller.scrollController,
       wrapText: controller.wrapText,
       onLogRowTap: controller.disableAutoScroll,
+      rowSelectionMode: controller.rowSelectionMode,
+      selectedRowIndices: controller.selectedRowIndices,
+      onRowSelectionStart: controller.beginRowSelectionGesture,
+      onSelectedRowsChanged: controller.setSelectedRows,
+      onRowSelectionChanged: controller.setRowSelected,
+      onRowCopyAction: _handleRowCopyAction,
       searchQuery: controller.appliedInlineSearchQuery,
       caseSensitive: controller.searchCaseSensitive,
       currentMatchLogIndex:
@@ -367,6 +408,11 @@ class _LogTabViewState extends State<LogTabView> {
           : () async {
               await _handleExportLogs();
             },
+      onCopyAll: controller.hasAnyCachedLogs
+          ? () async {
+              await _handleCopyAllLogs();
+            }
+          : null,
       onOpenSettings: widget.onOpenSettings,
     );
   }
@@ -484,6 +530,13 @@ class _LogTabViewState extends State<LogTabView> {
             'Filtered: ${controller.filteredLogs.length}',
             style: logTheme.statusBarStyle,
           ),
+          if (controller.rowSelectionMode || controller.hasSelectedRows) ...[
+            const Gap(16),
+            Text(
+              'Selected: ${controller.selectedRowCount}',
+              style: logTheme.statusBarStyle,
+            ),
+          ],
           const Spacer(),
           Text(
             'App mem: ${controller.formatBytes(widget.appMemoryBytesListenable.value)}',

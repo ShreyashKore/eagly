@@ -144,8 +144,17 @@ final class AndroidDevice extends Device {
   DevicePlatform get platform => DevicePlatform.android;
 
   @override
-  ({String primary, String? secondary}) get displayLabel =>
-      (primary: id, secondary: _androidPrimaryLabel ?? _normalizedValue(name));
+  ({String primary, String? secondary}) get displayLabel => (
+    primary: _subString(id, 10),
+    secondary: _androidPrimaryLabel ?? _normalizedValue(name),
+  );
+
+  String _subString(String value, int maxLength) {
+    if (value.length <= maxLength) {
+      return value;
+    }
+    return '${value.substring(0, maxLength)}...';
+  }
 
   @override
   String get displayName {
