@@ -5,10 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
-import '../data/log_column.dart';
-import '../data/log_entry.dart';
-import '../services/preferences_service.dart';
-import '../theme/app_theme.dart';
+import '../../data/log_column.dart';
+import '../../data/log_entry.dart';
+import '../../services/preferences_service.dart';
+import '../../theme/app_theme.dart';
 
 class LogViewer extends StatefulWidget {
   static const double defaultUnwrappedMessageWidth = 1000;

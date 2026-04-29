@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-import '../utils/log_utils.dart';
 import '../utils/timestamp_utils.dart';
+import 'log_level.dart';
 
 class LogEntry {
   final String timestamp;
@@ -58,7 +58,7 @@ class LogEntry {
         other.processName == processName;
   }
 
-  static LogEntry? parse(String line) {
+  static LogEntry? parseFromLogcat(String line) {
     final regex = RegExp(
       r'^(\d\d-\d\d\s+\d\d:\d\d:\d\d\.\d+)\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+):\s+(.*)',
     );
@@ -80,7 +80,7 @@ class LogEntry {
     final timestampObj = TimestampUtils.parseTimestampToSecondsNanos(timestamp);
     return {
       'header': {
-        'logLevel': LogUtils.logLevelName(level),
+        'logLevel': level,
         'pid': int.tryParse(pid) ?? 0,
         'tid': int.tryParse(tid) ?? 0,
         'tag': tag,
@@ -97,9 +97,11 @@ class LogEntry {
       final header = map['header'] as Map<String, dynamic>?;
       if (header == null) throw FormatException('Missing header in log entry');
 
-      final level = LogUtils.logLevelFromName(
-        header['logLevel']?.toString() ?? 'V',
-      );
+      // Support both legacy full names (ERROR/WARN/…) and current codes (E/W/…
+      // for Android, fault/debug/… for iOS). Try Android name lookup first,
+      // then fall back to treating the value as a literal code.
+      final rawLevel = header['logLevel']?.toString() ?? '';
+      final level = _resolveLevel(rawLevel);
       final pid = header['pid']?.toString() ?? '0';
       final tid = header['tid']?.toString() ?? '0';
       final tag = header['tag']?.toString() ?? '';
@@ -141,5 +143,26 @@ class LogEntry {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  /// Resolves a serialised level string back to the stored level code.
+  ///
+  /// Handles three formats produced across versions:
+  ///  - Legacy Android full name: `'ERROR'` → `'E'`
+  ///  - Android single-char code: `'E'` → `'E'`
+  ///  - iOS os_log code:           `'fault'` → `'fault'`
+  static String _resolveLevel(String raw) {
+    if (raw.isEmpty) {
+      return LogLevel.verbose.androidCode;
+    }
+
+    final androidLevel = LogLevel.normalizeAndroidStoredLevel(raw);
+    if (androidLevel != raw.trim() ||
+        LogLevel.fromAndroidCode(raw).code != raw) {
+      return androidLevel;
+    }
+
+    final iosLevel = LogLevel.normalizeIosStoredLevel(raw);
+    return iosLevel;
   }
 }

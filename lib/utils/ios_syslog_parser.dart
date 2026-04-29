@@ -1,4 +1,5 @@
 import '../data/log_entry.dart';
+import '../data/log_level.dart';
 
 class IosSyslogParser {
   IosSyslogParser({DateTime Function()? now}) : _now = now ?? DateTime.now;
@@ -140,25 +141,8 @@ class _IosSyslogEntryBuilder {
     );
   }
 
-  static String _mapLevel(String rawLevel) {
-    switch (rawLevel.trim().toLowerCase()) {
-      case 'fault':
-      case 'error':
-      case 'critical':
-        return 'E';
-      case 'warning':
-      case 'warn':
-        return 'W';
-      case 'notice':
-      case 'info':
-      case 'default':
-        return 'I';
-      case 'debug':
-        return 'D';
-      default:
-        return 'V';
-    }
-  }
+  static String _mapLevel(String rawLevel) =>
+      LogLevel.normalizeIosStoredLevel(rawLevel);
 
   void appendContinuation(String line) {
     _message.writeln();

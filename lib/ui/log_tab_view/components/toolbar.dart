@@ -2,9 +2,9 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-import '../controllers/log_tab_controller.dart';
-import '../data/device.dart';
-import '../theme/app_theme.dart';
+import '../log_tab_controller.dart';
+import '../../../data/device.dart';
+import '../../../theme/app_theme.dart';
 import 'device_presentation.dart';
 
 typedef LoadDevicesCallback =

@@ -2,18 +2,21 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-import '../controllers/log_tab_controller.dart';
-import '../data/device.dart';
-import '../data/wireless_debug_models.dart';
+import '../log_tab_view/log_tab_controller.dart';
+import 'wireless_connection_controller.dart';
+import '../../data/device.dart';
+import '../../data/wireless_debug_models.dart';
 
 class WirelessConnectionDialog extends StatefulWidget {
   const WirelessConnectionDialog({
     super.key,
     required this.controller,
+    required this.wirelessController,
     required this.onShowSnackBar,
   });
 
   final LogTabController controller;
+  final WirelessConnectionController wirelessController;
   final ValueChanged<String> onShowSnackBar;
 
   @override
@@ -32,10 +35,12 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   var _showManualConnectSection = false;
 
   LogTabController get controller => widget.controller;
+  WirelessConnectionController get wirelessController =>
+      widget.wirelessController;
 
   List<_DiscoveredWirelessTarget> get _discoveredTargets {
     final groupedServices = <String, List<WirelessDebugService>>{};
-    for (final service in controller.wirelessServices) {
+    for (final service in wirelessController.wirelessServices) {
       groupedServices.putIfAbsent(service.host, () => []).add(service);
     }
 
@@ -90,11 +95,11 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   void initState() {
     super.initState();
     _pairAddressController = TextEditingController(
-      text: controller.suggestedWirelessPairingAddress ?? '',
+      text: wirelessController.suggestedWirelessPairingAddress ?? '',
     );
     _pairingCodeController = TextEditingController();
     _connectAddressController = TextEditingController(
-      text: controller.suggestedWirelessConnectAddress ?? '',
+      text: wirelessController.suggestedWirelessConnectAddress ?? '',
     );
   }
 
@@ -107,7 +112,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   }
 
   Future<void> _handleDiscover() async {
-    final result = await controller.discoverWirelessServices();
+    final result = await wirelessController.discoverWirelessServices();
     if (!mounted) return;
 
     _applySuggestedAddresses(preferFirstDiscoveredTarget: true);
@@ -118,7 +123,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
 
   Future<void> _handlePair() async {
     final selectedTarget = _selectedDiscoveryTarget;
-    final result = await controller.pairWirelessDevice(
+    final result = await wirelessController.pairWirelessDevice(
       address: _pairAddressController.text,
       pairingCode: _pairingCodeController.text,
       connectAddresses:
@@ -159,7 +164,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
 
   Future<void> _handleConnect() async {
     final selectedTarget = _selectedDiscoveryTarget;
-    final result = await controller.connectWirelessDevice(
+    final result = await wirelessController.connectWirelessDevice(
       address: _connectAddressController.text,
       candidateAddresses:
           selectedTarget?.connectAddresses ?? _manualConnectAddresses,
@@ -181,8 +186,8 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   }
 
   void _applySuggestedAddresses({bool preferFirstDiscoveredTarget = false}) {
-    final suggestedPairing = controller.suggestedWirelessPairingAddress;
-    final suggestedConnect = controller.suggestedWirelessConnectAddress;
+    final suggestedPairing = wirelessController.suggestedWirelessPairingAddress;
+    final suggestedConnect = wirelessController.suggestedWirelessConnectAddress;
     final firstTarget = _discoveredTargets.firstOrNull;
 
     setState(() {
@@ -246,15 +251,15 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     final selectedTarget = _selectedDiscoveryTarget;
 
     if (_discoveredTargets.isEmpty) {
-      final description = controller.hasAttemptedWirelessDiscovery
+      final description = wirelessController.hasAttemptedWirelessDiscovery
           ? 'No nearby wireless ADB devices were discovered. You can try discovery again or switch to manual entry.'
           : 'Start by discovering nearby wireless ADB devices advertised through mDNS.';
 
       return _WirelessPlaceholderCard(
-        icon: controller.hasAttemptedWirelessDiscovery
+        icon: wirelessController.hasAttemptedWirelessDiscovery
             ? Icons.wifi_find
             : Icons.travel_explore,
-        title: controller.hasAttemptedWirelessDiscovery
+        title: wirelessController.hasAttemptedWirelessDiscovery
             ? 'No nearby devices found'
             : 'Discover nearby devices',
         description: description,
@@ -263,8 +268,8 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
           runSpacing: 10,
           children: [
             FilledButton.tonalIcon(
-              onPressed: controller.isWirelessBusy ? null : _handleDiscover,
-              icon: controller.isDiscoveringWireless
+              onPressed: wirelessController.isWirelessBusy ? null : _handleDiscover,
+              icon: wirelessController.isDiscoveringWireless
                   ? SizedBox.square(
                       dimension: 16,
                       child: CircularProgressIndicator(
@@ -274,7 +279,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                     )
                   : const Icon(Icons.travel_explore),
               label: Text(
-                controller.hasAttemptedWirelessDiscovery
+                wirelessController.hasAttemptedWirelessDiscovery
                     ? 'Refresh discovery'
                     : 'Discover devices',
               ),
@@ -324,9 +329,9 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
             target: selectedTarget,
             connectedDevice: _connectedDeviceForTarget(selectedTarget),
             pairingCodeController: _pairingCodeController,
-            pairingBusy: controller.isPairingWireless,
-            connectingBusy: controller.isConnectingWireless,
-            actionsDisabled: controller.isWirelessBusy,
+            pairingBusy: wirelessController.isPairingWireless,
+            connectingBusy: wirelessController.isConnectingWireless,
+            actionsDisabled: wirelessController.isWirelessBusy,
             showConnectAction:
                 selectedTarget.canConnect &&
                 (_fallbackConnectHost == selectedTarget.host ||
@@ -372,7 +377,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
             children: [
               TextField(
                 controller: _pairAddressController,
-                enabled: !controller.isWirelessBusy,
+                enabled: !wirelessController.isWirelessBusy,
                 decoration: const InputDecoration(
                   labelText: 'Pairing address',
                   hintText: '192.168.0.104:45673',
@@ -382,7 +387,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
               const Gap(12),
               TextField(
                 controller: _pairingCodeController,
-                enabled: !controller.isWirelessBusy,
+                enabled: !wirelessController.isWirelessBusy,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
                   labelText: 'Pairing code',
@@ -390,7 +395,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                   prefixIcon: Icon(Icons.password_outlined),
                 ),
                 onSubmitted: (_) {
-                  if (!controller.isWirelessBusy) {
+                  if (!wirelessController.isWirelessBusy) {
                     _handlePair();
                   }
                 },
@@ -399,8 +404,8 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: FilledButton.icon(
-                  onPressed: controller.isWirelessBusy ? null : _handlePair,
-                  icon: controller.isPairingWireless
+                  onPressed: wirelessController.isWirelessBusy ? null : _handlePair,
+                  icon: wirelessController.isPairingWireless
                       ? const SizedBox.square(
                           dimension: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
@@ -448,14 +453,14 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
               children: [
                 TextField(
                   controller: _connectAddressController,
-                  enabled: !controller.isWirelessBusy,
+                  enabled: !wirelessController.isWirelessBusy,
                   decoration: const InputDecoration(
                     labelText: 'Connect address',
                     hintText: '192.168.0.117:37251',
                     prefixIcon: Icon(Icons.link_outlined),
                   ),
                   onSubmitted: (_) {
-                    if (!controller.isWirelessBusy) {
+                    if (!wirelessController.isWirelessBusy) {
                       _handleConnect();
                     }
                   },
@@ -464,10 +469,10 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: FilledButton(
-                    onPressed: controller.isWirelessBusy
+                    onPressed: wirelessController.isWirelessBusy
                         ? null
                         : _handleConnect,
-                    child: controller.isConnectingWireless
+                    child: wirelessController.isConnectingWireless
                         ? const SizedBox.square(
                             dimension: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
@@ -492,7 +497,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     final theme = Theme.of(context);
 
     return AnimatedBuilder(
-      animation: controller,
+      animation: Listenable.merge([controller, wirelessController]),
       builder: (context, _) {
         return AlertDialog(
           titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
@@ -545,10 +550,10 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                       },
                     ),
                     FilledButton.tonalIcon(
-                      onPressed: controller.isWirelessBusy
+                      onPressed: wirelessController.isWirelessBusy
                           ? null
                           : _handleDiscover,
-                      icon: controller.isDiscoveringWireless
+                      icon: wirelessController.isDiscoveringWireless
                           ? SizedBox.square(
                               dimension: 16,
                               child: CircularProgressIndicator(
@@ -558,7 +563,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                             )
                           : const Icon(Icons.travel_explore),
                       label: Text(
-                        controller.hasAttemptedWirelessDiscovery
+                        wirelessController.hasAttemptedWirelessDiscovery
                             ? 'Refresh discovery'
                             : 'Discover nearby',
                       ),
@@ -574,8 +579,8 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                 ),
                 const Gap(16),
                 _WirelessFeedbackBanner(
-                  message: controller.wirelessMessage,
-                  error: controller.wirelessError,
+                  message: wirelessController.wirelessMessage,
+                  error: wirelessController.wirelessError,
                 ),
                 const Gap(16),
                 Flexible(

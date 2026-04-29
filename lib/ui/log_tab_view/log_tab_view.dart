@@ -2,23 +2,23 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-import '../controllers/log_tab_controller.dart';
-import '../constants/app_constants.dart';
-import '../data/device.dart';
-import '../data/log_entry.dart';
-import '../theme/app_theme.dart';
-import '../utils/log_feedback.dart';
-import '../utils/widget_extensions.dart';
-import 'filter_bar.dart';
-import 'log_tab_view/available_device_card.dart';
-import 'log_tab_view/centered_state_message.dart';
-import 'log_tab_view/get_started_action_card.dart';
-import 'log_tab_view/log_tab_view_constants.dart';
-import 'log_search_bar.dart';
-import 'log_viewer.dart';
-import 'scroll_to_end_button.dart';
-import 'toolbar.dart';
-import 'wireless_connection_dialog.dart';
+import '../../constants/app_constants.dart';
+import '../../data/device.dart';
+import '../../data/log_entry.dart';
+import '../../theme/app_theme.dart';
+import '../../utils/log_feedback.dart';
+import '../../utils/widget_extensions.dart';
+import '../log_viewer/log_viewer.dart';
+import '../wireless_connection/wireless_connection_dialog.dart';
+import 'components/available_device_card.dart';
+import 'components/centered_state_message.dart';
+import 'components/filter_bar.dart';
+import 'components/get_started_action_card.dart';
+import 'components/log_search_bar.dart';
+import 'components/scroll_to_end_button.dart';
+import 'components/toolbar.dart';
+import 'log_tab_controller.dart';
+import 'log_tab_view_constants.dart';
 
 class LogTabView extends StatefulWidget {
   const LogTabView({
@@ -79,6 +79,7 @@ class _LogTabViewState extends State<LogTabView> {
       builder: (dialogContext) {
         return WirelessConnectionDialog(
           controller: controller,
+          wirelessController: controller.wirelessController,
           onShowSnackBar: _showSnackBar,
         );
       },
@@ -320,6 +321,7 @@ class _LogTabViewState extends State<LogTabView> {
                 controller.setSelectedLogLevel(level);
               }
             },
+            isIos: controller.isIosLogContext,
           ),
         Expanded(
           child: controller.hasVisibleWorkspace

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/device.dart';
+import '../../../data/device.dart';
 
 IconData devicePlatformIcon(Device device) {
   return switch (device) {
