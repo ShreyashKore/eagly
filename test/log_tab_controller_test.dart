@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logview/ui/log_tab_view/log_tab_controller.dart';
 import 'package:logview/data/device.dart';
 import 'package:logview/data/log_column.dart';
 import 'package:logview/data/log_entry.dart';
@@ -11,6 +10,7 @@ import 'package:logview/services/device_session_service.dart';
 import 'package:logview/services/tools/adb_tool.dart';
 import 'package:logview/services/tools/idevice_id_tool.dart';
 import 'package:logview/services/tools/idevice_info_tool.dart';
+import 'package:logview/ui/log_tab_view/log_tab_controller.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -122,13 +122,31 @@ void main() {
 
     expect(controller!.searchMatchIndices, isEmpty);
   });
+
+  test('filteredLogs keeps entries with unknown log levels', () {
+    controller = createController();
+    controller!.setSelectedLogLevel('info');
+
+    controller!.logs = [
+      LogEntry(
+        timestamp: '2026-04-26 10:00:00.000',
+        pid: '123',
+        tid: '456',
+        level: 'panic',
+        tag: 'VisibleTag',
+        message: 'Unexpected log level should still be visible',
+      ),
+    ];
+
+    expect(controller!.filteredLogs, hasLength(1));
+  });
 }
 
 LogTabSettings _initialSettings() {
   return LogTabSettings(
     wrapText: false,
     autoScroll: true,
-    selectedLogLevel: 'V',
+    selectedLogLevel: 'verbose',
     logLinesLimit: 50000,
     hiddenColumns: const {},
     columnWidths: {

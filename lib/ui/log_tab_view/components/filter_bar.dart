@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../constants/log_constants.dart';
+import '../../../data/log_level.dart';
 
 class FilterBar extends StatelessWidget {
   final String filterQuery;
@@ -24,6 +25,29 @@ class FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currentLevel = LogLevel.fromStored(
+      selectedLogLevel,
+    ).normalizeSelectionForPlatform(isIos: isIos);
+
+    if (isIos) {
+      return _buildRow(
+        items: buildIosLogLevelDropdownItems(includeValueInLabel: true),
+        currentValue: currentLevel,
+        onChanged: (level) => onLogLevelChanged(level?.code),
+      );
+    }
+    return _buildRow(
+      items: buildLogLevelDropdownItems(includeValueInLabel: true),
+      currentValue: currentLevel,
+      onChanged: (level) => onLogLevelChanged(level?.code),
+    );
+  }
+
+  Widget _buildRow({
+    required List<DropdownMenuItem<LogLevel>> items,
+    required LogLevel currentValue,
+    required ValueChanged<LogLevel?> onChanged,
+  }) {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Row(
@@ -47,14 +71,11 @@ class FilterBar extends StatelessWidget {
           const SizedBox(width: 12),
           SizedBox(
             width: 180,
-            child: DropdownButtonFormField<String>(
-              initialValue: selectedLogLevel,
+            child: DropdownButtonFormField<LogLevel>(
+              initialValue: currentValue,
               decoration: const InputDecoration(labelText: 'Level'),
-              items: buildLogLevelDropdownItems(
-                includeValueInLabel: true,
-                isIos: isIos,
-              ),
-              onChanged: onLogLevelChanged,
+              items: items,
+              onChanged: onChanged,
             ),
           ),
         ],

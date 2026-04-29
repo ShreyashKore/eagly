@@ -3,15 +3,15 @@ import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
-import '../wireless_connection/wireless_connection_controller.dart';
 import '../../data/device.dart';
 import '../../data/log_column.dart';
 import '../../data/log_entry.dart';
+import '../../data/log_level.dart';
 import '../../data/log_tab_settings.dart';
 import '../../services/device_repository.dart';
 import '../../services/device_session_service.dart';
 import '../../services/log_file_service.dart';
-import '../../utils/log_utils.dart';
+import '../wireless_connection/wireless_connection_controller.dart';
 
 enum LogcatState { stopped, running, paused }
 
@@ -31,7 +31,8 @@ class LogTabController extends ChangeNotifier {
     wirelessController = WirelessConnectionController(
       deviceRepository: _deviceRepository,
       deviceSessionService: _deviceSessionService,
-      onDevicesApplied: (fetchedDevices) => _applyFetchedDevices(fetchedDevices),
+      onDevicesApplied: (fetchedDevices) =>
+          _applyFetchedDevices(fetchedDevices),
       onActivateDevice: selectDeviceAndStart,
       isDeviceSelectedInAnotherTab: isDeviceSelectedInAnotherTab,
       selectedDeviceIdProvider: () => selectedDevice?.id,
@@ -132,6 +133,21 @@ class LogTabController extends ChangeNotifier {
   int get logLinesLimit => _settings.logLinesLimit;
   Set<String> get hiddenColumns => _settings.hiddenColumns;
   Map<String, double> get columnWidths => _settings.columnWidths;
+
+  bool get isIosLogContext {
+    if (selectedDevice is IosDevice) return true;
+    if (selectedDevice is AndroidDevice) return false;
+
+    final sampleLevel = logs.firstWhereOrNull(
+      (log) => log.level.trim().isNotEmpty,
+    );
+    return sampleLevel != null &&
+        LogLevel.looksLikeIosStoredLevel(sampleLevel.level);
+  }
+
+  LogLevel get effectiveSelectedLogLevel => LogLevel.fromStored(
+    selectedLogLevel,
+  ).normalizeSelectionForPlatform(isIos: isIosLogContext);
 
   void _notify() {
     if (!_disposed) {
@@ -368,23 +384,24 @@ class LogTabController extends ChangeNotifier {
   }
 
   List<LogEntry> get filteredLogs {
-    final selectedLevelValue = LogUtils.levelHierarchy[selectedLogLevel] ?? 4;
+    final selectedLevel = effectiveSelectedLogLevel;
 
     if (_cachedFilteredLogs != null &&
         _lastLogsLength == logs.length &&
         _lastFilterQuery == _appliedSearchQuery &&
-        _lastLogLevel == selectedLogLevel) {
+        _lastLogLevel == selectedLevel.code) {
       return _cachedFilteredLogs!;
     }
 
     _lastLogsLength = logs.length;
     _lastFilterQuery = _appliedSearchQuery;
-    _lastLogLevel = selectedLogLevel;
+    _lastLogLevel = selectedLevel.code;
 
     final query = _appliedSearchQuery.toLowerCase();
     _cachedFilteredLogs = logs.where((log) {
-      final logLevelValue = LogUtils.levelHierarchy[log.level] ?? 4;
-      if (logLevelValue > selectedLevelValue) return false;
+      if (LogLevel.fromStored(log.level).hierarchy > selectedLevel.hierarchy) {
+        return false;
+      }
       if (_appliedSearchQuery.isEmpty) return true;
       return log.lowercaseSearchable.contains(query);
     }).toList();

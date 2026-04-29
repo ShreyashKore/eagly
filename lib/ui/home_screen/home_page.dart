@@ -6,14 +6,14 @@ import 'package:tabbed_view/tabbed_view.dart';
 
 import '../../constants/app_constants.dart';
 import '../../constants/log_constants.dart';
-import '../log_tab_view/log_tab_controller.dart';
-import '../log_tab_view/log_tab_view.dart';
-import 'home_page_support.dart';
 import '../../intents/intents.dart';
 import '../../services/app_info_service.dart';
 import '../../services/preferences_service.dart';
-import '../settings/settings_screen.dart';
 import '../../utils/log_feedback.dart';
+import '../log_tab_view/log_tab_controller.dart';
+import '../log_tab_view/log_tab_view.dart';
+import '../settings/settings_screen.dart';
+import 'home_page_support.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -326,9 +326,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<PlatformMenuItem> _logLevelFilterMenuItems() {
+    final isIos = _activeController?.isIosLogContext ?? false;
+    if (isIos) {
+      return buildIosLogLevelMenuItems(
+        onSelected: (level) =>
+            _runOnActiveTab((tab) => tab.setSelectedLogLevel(level.code)),
+      );
+    }
     return buildLogLevelMenuItems(
-      onSelected: (value) =>
-          _runOnActiveTab((tab) => tab.setSelectedLogLevel(value)),
+      onSelected: (level) =>
+          _runOnActiveTab((tab) => tab.setSelectedLogLevel(level.code)),
     );
   }
 

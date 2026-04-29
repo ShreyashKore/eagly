@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:logview/services/preferences_service.dart';
-import 'package:logview/ui/settings/settings_screen.dart';
 import 'package:logview/theme/app_theme.dart';
+import 'package:logview/ui/settings/settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -51,5 +51,22 @@ void main() {
     expect(PreferencesService.themeMode, ThemeMode.system);
     expect(PreferencesService.themeModeListenable.value, ThemeMode.system);
     expect(prefs.getString('themeMode'), ThemeMode.system.name);
+  });
+
+  testWidgets('settings screen shows a single default log level setting', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: PreferencesService.themeMode,
+        home: const SettingsScreen(),
+      ),
+    );
+
+    expect(find.text('Default log level'), findsOneWidget);
+    expect(find.text('Default log level (Android)'), findsNothing);
+    expect(find.text('Default log level (iOS)'), findsNothing);
   });
 }

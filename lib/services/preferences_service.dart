@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/log_column.dart';
+import '../data/log_level.dart';
 import '../data/log_tab_settings.dart';
 
 extension SharedPreferencesJson on SharedPreferences {
@@ -37,6 +38,8 @@ class PreferencesService {
   static const _keyWrapText = 'wrapText';
   static const _keyAutoScroll = 'autoScroll';
   static const _keySelectedLogLevel = 'selectedLogLevel';
+  static const _keySelectedAndroidLogLevel = 'selectedAndroidLogLevel';
+  static const _keySelectedIosLogLevel = 'selectedIosLogLevel';
   static const _keyColumnWidths = 'columnWidths';
   static const _keyHiddenColumns = 'hiddenColumns';
   static const _keyLogLinesLimit = 'logLinesLimit';
@@ -52,10 +55,14 @@ class PreferencesService {
   static bool get autoScroll => _prefs.getBool(_keyAutoScroll) ?? true;
   static set autoScroll(bool v) => _prefs.setBool(_keyAutoScroll, v);
 
-  static String get selectedLogLevel =>
-      _prefs.getString(_keySelectedLogLevel) ?? 'V';
-  static set selectedLogLevel(String v) =>
-      _prefs.setString(_keySelectedLogLevel, v);
+  static LogLevel get selectedLogLevel => LogLevel.fromStored(
+    _prefs.getString(_keySelectedLogLevel) ??
+        _prefs.getString(_keySelectedAndroidLogLevel) ??
+        _prefs.getString(_keySelectedIosLogLevel) ??
+        LogLevel.verbose.code,
+  );
+  static set selectedLogLevel(LogLevel v) =>
+      _prefs.setString(_keySelectedLogLevel, v.code);
 
   static int get logLinesLimit => _prefs.getInt(_keyLogLinesLimit) ?? 50000;
   static set logLinesLimit(int v) => _prefs.setInt(_keyLogLinesLimit, v);
@@ -99,7 +106,7 @@ class PreferencesService {
   static LogTabSettings get defaultTabSettings => LogTabSettings(
     wrapText: wrapText,
     autoScroll: autoScroll,
-    selectedLogLevel: selectedLogLevel,
+    selectedLogLevel: selectedLogLevel.code,
     logLinesLimit: logLinesLimit,
     hiddenColumns: hiddenColumns,
     columnWidths: columnWidths,

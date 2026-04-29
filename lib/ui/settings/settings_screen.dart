@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-import '../../constants/log_constants.dart';
+import '../../data/log_level.dart';
 import '../../services/app_info_service.dart';
 import '../../services/preferences_service.dart';
 
@@ -16,7 +16,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late ThemeMode _themePreference;
   late bool _wrapText;
   late bool _autoScroll;
-  late String _selectedLogLevel;
+  late LogLevel _selectedLogLevel;
   late double _logFontSize;
   late final TextEditingController _logLinesController;
 
@@ -40,9 +40,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _saveLogLinesLimit() async {
@@ -250,11 +250,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Default log level'),
                     trailing: SizedBox(
-                      width: 160,
-                      child: DropdownButtonFormField<String>(
+                      width: 200,
+                      child: DropdownButtonFormField<LogLevel>(
                         initialValue: _selectedLogLevel,
                         isExpanded: true,
-                        items: buildLogLevelDropdownItems(),
+                        items: LogLevel.values
+                            .map(
+                              (level) => DropdownMenuItem<LogLevel>(
+                                value: level,
+                                child: Text(level.labelWithCode),
+                              ),
+                            )
+                            .toList(growable: false),
                         onChanged: (value) {
                           if (value == null) return;
                           setState(() => _selectedLogLevel = value);

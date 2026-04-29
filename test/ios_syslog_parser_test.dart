@@ -33,14 +33,23 @@ void main() {
 
       expect(logs, hasLength(2));
       expect(logs.first.timestamp, '2026-04-23 17:09:37.903');
-      expect(logs.first.level, 'D');
+      expect(logs.first.level, 'debug');
       expect(logs.first.tag, 'AssetCacheLocatorService');
       expect(logs.first.packageName, 'AssetCacheLocatorService');
       expect(logs.first.processName, 'AssetCacheLocatorService');
-      expect(logs.first.message, contains('cachedServersForNetworkIdentifiers -> {'));
-      expect(logs.first.message, contains('validUntil = "2026-04-24 04:39:46 +0000";'));
+      expect(
+        logs.first.message,
+        contains('cachedServersForNetworkIdentifiers -> {'),
+      );
+      expect(
+        logs.first.message,
+        contains('validUntil = "2026-04-24 04:39:46 +0000";'),
+      );
       expect(logs.first.message, contains('\n    servers =     ('));
-      expect(logs.last.message, '#65bb95e7 [AssetCacheLocatorService.queue] local cached servers=(\n) early hit=YES');
+      expect(
+        logs.last.message,
+        '#65bb95e7 [AssetCacheLocatorService.queue] local cached servers=(\n) early hit=YES',
+      );
     });
 
     test('captures process labels with spaces and parentheses', () {
@@ -59,18 +68,23 @@ void main() {
 
       expect(logs, hasLength(1));
       expect(logs.single.timestamp, '2026-04-23 17:10:40.588');
-      expect(logs.single.level, 'I');
+      expect(logs.single.level, 'default');
       expect(logs.single.tag, 'novio (R14)(Flutter)');
       expect(logs.single.packageName, 'novio');
       expect(logs.single.processName, 'novio (R14)(Flutter)');
-      expect(logs.single.message, 'flutter: ╟ x-xss-protection: [1; mode=block]');
+      expect(
+        logs.single.message,
+        'flutter: ╟ x-xss-protection: [1; mode=block]',
+      );
     });
 
     test('export round-trips parsed iOS log entries', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
-      parser.addLine(
-        'Apr 23 17:10:40.588246 novio (R14)(Flutter)[5727] <Notice>: flutter: ╟ server: [None]',
-      ).toList();
+      parser
+          .addLine(
+            'Apr 23 17:10:40.588246 novio (R14)(Flutter)[5727] <Notice>: flutter: ╟ server: [None]',
+          )
+          .toList();
 
       final entry = parser.flush();
       expect(entry, isNotNull);
@@ -84,6 +98,19 @@ void main() {
       expect(restored.processName, entry.processName);
       expect(restored.message, entry.message);
     });
+
+    test('preserves unknown iOS raw level values', () {
+      final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
+
+      parser
+          .addLine(
+            'Apr 23 17:10:40.588246 novio[5727] <Panic>: flutter: something unexpected happened',
+          )
+          .toList();
+
+      final entry = parser.flush();
+      expect(entry, isNotNull);
+      expect(entry!.level, 'panic');
+    });
   });
 }
-

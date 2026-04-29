@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../data/log_level.dart';
+
 extension ThemeModeExt on ThemeMode {
   String get label => switch (this) {
     ThemeMode.system => 'Auto',
@@ -66,11 +68,11 @@ class LogViewTheme extends ThemeExtension<LogViewTheme> {
   final Color cardShadowColor;
 
   Color logLevelColor(String level) {
-    return switch (level) {
-      'E' => errorColor,
-      'W' => warningColor,
-      'I' => infoColor,
-      'D' => debugColor,
+    return switch (LogLevel.fromStored(level).code) {
+      'fault' || 'error' => errorColor,
+      'warning' => warningColor,
+      'default' || 'info' => infoColor,
+      'debug' => debugColor,
       _ => verboseColor,
     };
   }

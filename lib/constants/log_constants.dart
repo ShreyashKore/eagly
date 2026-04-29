@@ -1,49 +1,22 @@
 import 'package:flutter/material.dart';
 
-class LogLevelOption {
-  const LogLevelOption({
-    required this.value,
-    required this.label,
-    required this.iosLabel,
-  });
+import '../data/log_level.dart';
 
-  final String value;
-  final String label;
-  final String iosLabel;
+// ════════════════════════════════════════════════════════════════════════════
+// Android (logcat) UI helpers
+// ════════════════════════════════════════════════════════════════════════════
 
-  String get labelWithValue => '$label ($value)';
-
-  String get androidLabelWithValue => labelWithValue;
-
-  String get iosLabelWithValue => '$iosLabel ($value)';
-}
-
-const logLevelOptions = <LogLevelOption>[
-  LogLevelOption(
-    value: 'E',
-    label: 'Error',
-    iosLabel: 'fault, error, critical',
-  ),
-  LogLevelOption(value: 'W', label: 'Warning', iosLabel: 'warning, warn'),
-  LogLevelOption(value: 'I', label: 'Info', iosLabel: 'notice, info, default'),
-  LogLevelOption(value: 'D', label: 'Debug', iosLabel: 'debug'),
-  LogLevelOption(value: 'V', label: 'Verbose', iosLabel: 'Verbose'),
-];
-
-List<DropdownMenuItem<String>> buildLogLevelDropdownItems({
+List<DropdownMenuItem<LogLevel>> buildLogLevelDropdownItems({
   bool includeValueInLabel = false,
-  bool isIos = false,
 }) {
-  return logLevelOptions
+  return LogLevel.androidValues
       .map(
-        (option) => DropdownMenuItem<String>(
-          value: option.value,
+        (level) => DropdownMenuItem<LogLevel>(
+          value: level,
           child: Text(
             includeValueInLabel
-                ? (isIos
-                      ? option.iosLabelWithValue
-                      : option.androidLabelWithValue)
-                : option.label,
+                ? level.labelWithDisplayCode(isIos: false)
+                : level.label,
           ),
         ),
       )
@@ -51,13 +24,47 @@ List<DropdownMenuItem<String>> buildLogLevelDropdownItems({
 }
 
 List<PlatformMenuItem> buildLogLevelMenuItems({
-  required ValueChanged<String> onSelected,
+  required ValueChanged<LogLevel> onSelected,
 }) {
-  return logLevelOptions
+  return LogLevel.androidValues
       .map(
-        (option) => PlatformMenuItem(
-          label: option.labelWithValue,
-          onSelected: () => onSelected(option.value),
+        (level) => PlatformMenuItem(
+          label: level.labelWithDisplayCode(isIos: false),
+          onSelected: () => onSelected(level),
+        ),
+      )
+      .toList(growable: false);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// iOS (os_log / syslog) UI helpers
+// ════════════════════════════════════════════════════════════════════════════
+
+List<DropdownMenuItem<LogLevel>> buildIosLogLevelDropdownItems({
+  bool includeValueInLabel = false,
+}) {
+  return LogLevel.iosValues
+      .map(
+        (level) => DropdownMenuItem<LogLevel>(
+          value: level,
+          child: Text(
+            includeValueInLabel
+                ? level.labelWithDisplayCode(isIos: true)
+                : level.label,
+          ),
+        ),
+      )
+      .toList(growable: false);
+}
+
+List<PlatformMenuItem> buildIosLogLevelMenuItems({
+  required ValueChanged<LogLevel> onSelected,
+}) {
+  return LogLevel.iosValues
+      .map(
+        (level) => PlatformMenuItem(
+          label: level.labelWithDisplayCode(isIos: true),
+          onSelected: () => onSelected(level),
         ),
       )
       .toList(growable: false);
