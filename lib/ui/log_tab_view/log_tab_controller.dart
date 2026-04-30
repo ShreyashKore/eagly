@@ -13,6 +13,7 @@ import '../../data/log_tab_settings.dart';
 import '../../services/device_repository.dart';
 import '../../services/device_session_service.dart';
 import '../../services/log_file_service.dart';
+import '../../utils/log_buffer.dart';
 import '../wireless_connection/wireless_connection_controller.dart';
 
 enum LogcatState { stopped, running, paused }
@@ -33,6 +34,9 @@ class LogTabController extends ChangeNotifier {
   }) : _title = initialTitle,
        _settings = initialSettings,
        _deviceRepository = deviceRepository ?? DeviceRepository.instance,
+       _logsBuffer = LogBuffer<LogEntry>(
+         baseCapacity: initialSettings.logLinesLimit,
+       ),
        _deviceSessionService = deviceSessionService ?? DeviceSessionService() {
     wirelessController = WirelessConnectionController(
       deviceRepository: _deviceRepository,
@@ -50,6 +54,7 @@ class LogTabController extends ChangeNotifier {
     tagFilterController.text = tagFilterQuery;
     logLinesController.text = logLinesLimit.toString();
     devices = _deviceRepository.devices.toList(growable: false);
+    _syncLogBufferFilter();
     _deviceRepository.addListener(_handleDeviceRepositoryChanged);
     unawaited(_deviceRepository.ensureStarted());
   }
@@ -74,7 +79,8 @@ class LogTabController extends ChangeNotifier {
   final FocusNode searchFocusNode = FocusNode();
   final TextEditingController logLinesController = TextEditingController();
 
-  final List<LogEntry> _buffer = [];
+  LogBuffer<LogEntry> _logsBuffer;
+  final List<LogEntry> _pendingLogs = [];
 
   StreamSubscription<LogEntry>? _logSub;
   Timer? _flushTimer;
@@ -84,7 +90,6 @@ class LogTabController extends ChangeNotifier {
 
   var devices = <Device>[];
   Device? selectedDevice;
-  var logs = <LogEntry>[];
 
   var logcatState = LogcatState.stopped;
   var searchQuery = '';
@@ -112,7 +117,7 @@ class LogTabController extends ChangeNotifier {
 
   var _editingLogLinesLimit = false;
   var _logsMemoryBytes = 0;
-  var _bufferMemoryBytes = 0;
+  var _pendingLogsMemoryBytes = 0;
   var _logViewerRevision = 0;
 
   var _disposed = false;
@@ -135,6 +140,12 @@ class LogTabController extends ChangeNotifier {
   Set<String> _smCacheHiddenCols = {};
   int _smCacheFilteredLen = -1;
 
+  List<LogEntry> get logs => _logsBuffer.getLogs();
+
+  set logs(List<LogEntry> value) {
+    _replaceStoredLogs(value);
+  }
+
   String get title {
     if (selectedDevice != null) return selectedDevice!.displayLabel.primary;
     if (_importedFileName != null) return _importedFileName!;
@@ -155,12 +166,12 @@ class LogTabController extends ChangeNotifier {
   int get logViewerRevision => _logViewerRevision;
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;
-  bool get hasLogs => logs.isNotEmpty;
-  bool get hasAnyCachedLogs => logs.isNotEmpty || _buffer.isNotEmpty;
+  bool get hasLogs => _logsBuffer.size > 0;
+  bool get hasAnyCachedLogs => hasLogs || _pendingLogs.isNotEmpty;
   bool get hasSelectedDevice => selectedDevice != null;
   bool get hasConnectedSelectedDevice => selectedDevice?.isConnected == true;
   bool get hasVisibleWorkspace => hasSelectedDevice || hasLogs;
-  int get totalLogsMemoryBytes => _logsMemoryBytes + _bufferMemoryBytes;
+  int get totalLogsMemoryBytes => _logsMemoryBytes + _pendingLogsMemoryBytes;
   String get appliedInlineSearchQuery => _appliedInlineSearchQuery;
   String get inlineSearchQuery => _inlineSearchQuery;
   bool get isLoadingDevices => _deviceRepository.isLoading;
@@ -184,7 +195,8 @@ class LogTabController extends ChangeNotifier {
     if (selectedDevice is IosDevice) return true;
     if (selectedDevice is AndroidDevice) return false;
 
-    final sampleLevel = logs.firstWhereOrNull(
+    final storedLogs = logs;
+    final sampleLevel = storedLogs.firstWhereOrNull(
       (log) => log.level.trim().isNotEmpty,
     );
     return sampleLevel != null &&
@@ -243,11 +255,9 @@ class LogTabController extends ChangeNotifier {
 
   void clearLogs() {
     clearSelectedRows(notify: false);
-    logs = [];
-    _buffer.clear();
-    _logsMemoryBytes = 0;
-    _bufferMemoryBytes = 0;
-    _invalidateFilteredLogs();
+    _clearStoredLogs();
+    _pendingLogs.clear();
+    _pendingLogsMemoryBytes = 0;
     _notify();
   }
 
@@ -266,12 +276,10 @@ class LogTabController extends ChangeNotifier {
     selectedDevice = null;
     _importedFileName = result.fileName;
     logs = result.logs!;
-    _buffer.clear();
-    _logsMemoryBytes = _estimateLogsBytes(logs);
-    _bufferMemoryBytes = 0;
+    _pendingLogs.clear();
+    _pendingLogsMemoryBytes = 0;
     logcatState = LogcatState.stopped;
     _exitGetStarted();
-    _invalidateFilteredLogs();
     _notify();
     return result;
   }
@@ -448,6 +456,7 @@ class LogTabController extends ChangeNotifier {
     _appliedPidTidFilterQuery = '';
     tagFilterQuery = '';
     _appliedTagFilterQuery = '';
+    _syncLogBufferFilter();
     _invalidateFilteredLogs();
     focusFilterInputs();
     _notify();
@@ -493,6 +502,7 @@ class LogTabController extends ChangeNotifier {
   void setSelectedLogLevel(LogLevel level) {
     _updateSettings(_settings.copyWith(selectedLogLevel: level));
     clearSelectedRows(notify: false);
+    _syncLogBufferFilter();
     _invalidateFilteredLogs();
   }
 
@@ -533,13 +543,13 @@ class LogTabController extends ChangeNotifier {
 
     _editingLogLinesLimit = false;
     logLinesController.text = parsed.toString();
+    final storedLogs = logs;
+    final previousCount = storedLogs.length;
     _updateSettings(_settings.copyWith(logLinesLimit: parsed));
 
-    if (logs.length > parsed) {
+    _replaceStoredLogs(storedLogs);
+    if (_logsBuffer.size < previousCount) {
       clearSelectedRows(notify: false);
-      logs = logs.sublist(logs.length - parsed);
-      _logsMemoryBytes = _estimateLogsBytes(logs);
-      _invalidateFilteredLogs();
     }
 
     _notify();
@@ -609,10 +619,8 @@ class LogTabController extends ChangeNotifier {
   }
 
   List<LogEntry> get filteredLogs {
-    final selectedLevel = effectiveSelectedLogLevel;
-
     if (_cachedFilteredLogs != null &&
-        _lastLogsLength == logs.length &&
+        _lastLogsLength == _logsBuffer.size &&
         _lastFilterQuery == _appliedSearchQuery &&
         _lastPackageFilterQuery == _appliedPackageFilterQuery &&
         _lastPidTidFilterQuery == _appliedPidTidFilterQuery &&
@@ -621,37 +629,14 @@ class LogTabController extends ChangeNotifier {
       return _cachedFilteredLogs!;
     }
 
-    _lastLogsLength = logs.length;
+    _lastLogsLength = _logsBuffer.size;
     _lastFilterQuery = _appliedSearchQuery;
     _lastPackageFilterQuery = _appliedPackageFilterQuery;
     _lastPidTidFilterQuery = _appliedPidTidFilterQuery;
     _lastTagFilterQuery = _appliedTagFilterQuery;
     _lastLogLevel = selectedLogLevel;
 
-    final messageQuery = _appliedSearchQuery.toLowerCase();
-    final packageQuery = _appliedPackageFilterQuery.toLowerCase();
-    final pidTidQuery = _appliedPidTidFilterQuery.toLowerCase();
-    final tagQuery = _appliedTagFilterQuery.toLowerCase();
-    _cachedFilteredLogs = logs.where((log) {
-      if (LogLevel.fromStored(log.level).hierarchy > selectedLevel.hierarchy) {
-        return false;
-      }
-      if (packageQuery.isNotEmpty &&
-          !_packageFilterValue(log).toLowerCase().contains(packageQuery)) {
-        return false;
-      }
-      if (pidTidQuery.isNotEmpty && !_matchesPidTidFilter(log, pidTidQuery)) {
-        return false;
-      }
-      if (tagQuery.isNotEmpty && !log.tag.toLowerCase().contains(tagQuery)) {
-        return false;
-      }
-      if (messageQuery.isNotEmpty &&
-          !log.message.toLowerCase().contains(messageQuery)) {
-        return false;
-      }
-      return true;
-    }).toList();
+    _cachedFilteredLogs = _logsBuffer.search(_matchesLogFilters);
 
     return _cachedFilteredLogs!;
   }
@@ -773,6 +758,7 @@ class LogTabController extends ChangeNotifier {
     _filterSaveDebounceTimer = Timer(const Duration(milliseconds: 1000), () {
       _rememberRecentFilterValues();
     });
+    _syncLogBufferFilter();
     _invalidateFilteredLogs();
     _notify();
   }
@@ -820,6 +806,70 @@ class LogTabController extends ChangeNotifier {
         '$pid:$tid'.contains(query);
   }
 
+  bool _matchesLogFilters(LogEntry log) {
+    final selectedLevel = effectiveSelectedLogLevel;
+    if (LogLevel.fromStored(log.level).hierarchy > selectedLevel.hierarchy) {
+      return false;
+    }
+
+    final packageQuery = _appliedPackageFilterQuery.toLowerCase();
+    if (packageQuery.isNotEmpty &&
+        !_packageFilterValue(log).toLowerCase().contains(packageQuery)) {
+      return false;
+    }
+
+    final pidTidQuery = _appliedPidTidFilterQuery.toLowerCase();
+    if (pidTidQuery.isNotEmpty && !_matchesPidTidFilter(log, pidTidQuery)) {
+      return false;
+    }
+
+    final tagQuery = _appliedTagFilterQuery.toLowerCase();
+    if (tagQuery.isNotEmpty && !log.tag.toLowerCase().contains(tagQuery)) {
+      return false;
+    }
+
+    final messageQuery = _appliedSearchQuery.toLowerCase();
+    if (messageQuery.isNotEmpty &&
+        !log.message.toLowerCase().contains(messageQuery)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  bool get _hasActiveRetentionFilter {
+    return effectiveSelectedLogLevel.hierarchy < LogLevel.verbose.hierarchy ||
+        _appliedSearchQuery.isNotEmpty ||
+        _appliedPackageFilterQuery.isNotEmpty ||
+        _appliedPidTidFilterQuery.isNotEmpty ||
+        _appliedTagFilterQuery.isNotEmpty;
+  }
+
+  LogFilter<LogEntry>? get _retentionFilter =>
+      _hasActiveRetentionFilter ? _matchesLogFilters : null;
+
+  void _syncLogBufferFilter() {
+    _logsBuffer.setFilter(_retentionFilter);
+  }
+
+  void _replaceStoredLogs(Iterable<LogEntry> entries) {
+    final nextBuffer = LogBuffer<LogEntry>(baseCapacity: logLinesLimit);
+    nextBuffer.setFilter(_retentionFilter);
+    for (final entry in entries) {
+      nextBuffer.append(entry);
+    }
+    nextBuffer.trimToCapacity();
+    _logsBuffer = nextBuffer;
+    _logsMemoryBytes = _estimateLogsBytes(_logsBuffer.getLogs());
+    _invalidateFilteredLogs();
+  }
+
+  void _clearStoredLogs() {
+    _logsBuffer.clear();
+    _logsMemoryBytes = 0;
+    _invalidateFilteredLogs();
+  }
+
   Future<void> _applyFetchedDevices(
     List<Device> fetchedDevices, {
     bool autoStartSingleIfAvailable = false,
@@ -840,7 +890,7 @@ class LogTabController extends ChangeNotifier {
 
     final shouldAutoStartSingleDevice =
         autoStartSingleIfAvailable &&
-        logs.isEmpty &&
+        !hasLogs &&
         selectedDevice == null &&
         fetchedDevices.where((device) => device.isConnected).length == 1 &&
         !(isDeviceSelectedInAnotherTab?.call(
@@ -893,11 +943,9 @@ class LogTabController extends ChangeNotifier {
 
     clearSelectedRows(notify: false);
     _importedFileName = null;
-    logs = [];
-    _buffer.clear();
-    _logsMemoryBytes = 0;
-    _bufferMemoryBytes = 0;
-    _invalidateFilteredLogs();
+    _clearStoredLogs();
+    _pendingLogs.clear();
+    _pendingLogsMemoryBytes = 0;
     logcatState = LogcatState.running;
     _notify();
 
@@ -905,24 +953,35 @@ class LogTabController extends ChangeNotifier {
       logEntry,
     ) {
       if (_disposed || logcatState == LogcatState.paused) return;
-      _buffer.add(logEntry);
-      _bufferMemoryBytes += _estimateLogEntryBytes(logEntry);
+      _pendingLogs.add(logEntry);
+      _pendingLogsMemoryBytes += _estimateLogEntryBytes(logEntry);
     });
 
     _flushTimer?.cancel();
     _flushTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      if (_disposed || _buffer.isEmpty) return;
+      if (_disposed || _pendingLogs.isEmpty) return;
 
-      logs = [...logs, ..._buffer];
-      _logsMemoryBytes += _bufferMemoryBytes;
-      _buffer.clear();
-      _bufferMemoryBytes = 0;
+      final pendingLogs = List<LogEntry>.of(_pendingLogs);
+      final pendingLogsMemoryBytes = _pendingLogsMemoryBytes;
+      _pendingLogs.clear();
+      _pendingLogsMemoryBytes = 0;
 
-      if (logs.length > logLinesLimit * 1.2) {
+      var evictedMemoryBytes = 0;
+      var didEvictStoredLogs = false;
+      for (final logEntry in pendingLogs) {
+        final evictedLogs = _logsBuffer.append(logEntry);
+        if (evictedLogs.isEmpty) continue;
+        didEvictStoredLogs = true;
+        evictedMemoryBytes += _estimateLogsBytes(evictedLogs);
+      }
+
+      _logsMemoryBytes += pendingLogsMemoryBytes - evictedMemoryBytes;
+      if (_logsMemoryBytes < 0) {
+        _logsMemoryBytes = 0;
+      }
+
+      if (didEvictStoredLogs) {
         clearSelectedRows(notify: false);
-        final keep = logLinesLimit.floor();
-        logs = logs.sublist(logs.length - keep);
-        _logsMemoryBytes = _estimateLogsBytes(logs);
       }
 
       _invalidateFilteredLogs();
@@ -999,11 +1058,12 @@ class LogTabController extends ChangeNotifier {
   }
 
   List<LogEntry> get _currentLogsSnapshot =>
-      List<LogEntry>.unmodifiable([...logs, ..._buffer]);
+      List<LogEntry>.unmodifiable([..._logsBuffer.getLogs(), ..._pendingLogs]);
 
   List<int> _selectionTargetIndicesForCopy(int? clickedFilteredIndex) {
-    if (clickedFilteredIndex == null || _selectedRowIndices.isNotEmpty &&
-        _selectedRowIndices.contains(clickedFilteredIndex)) {
+    if (clickedFilteredIndex == null ||
+        _selectedRowIndices.isNotEmpty &&
+            _selectedRowIndices.contains(clickedFilteredIndex)) {
       return _selectedRowIndices.toList()..sort();
     }
     return [clickedFilteredIndex];

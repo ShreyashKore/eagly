@@ -922,6 +922,7 @@ class _LogViewerState extends State<LogViewer> {
           onMounted: _registerRowContext,
           onUnmounted: _unregisterRowContext,
           child: _buildLogRow(log, i, messageWidth),
+          key: ValueKey(log.id),
         );
       },
     );
@@ -1216,6 +1217,7 @@ class _RowBoundsReporter extends StatefulWidget {
     required this.onMounted,
     required this.onUnmounted,
     required this.child,
+    required super.key,
   });
 
   final int index;

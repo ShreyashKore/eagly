@@ -25,11 +25,11 @@ void main() {
   LogTabController? controller;
   String? clipboardText;
 
-  LogTabController createController() {
+  LogTabController createController({LogTabSettings? settings}) {
     return LogTabController(
       id: 'tab-1',
       initialTitle: 'Tab 1',
-      initialSettings: _initialSettings(),
+      initialSettings: settings ?? _initialSettings(),
       deviceRepository: repository,
       deviceSessionService: sessionService,
     );
@@ -225,6 +225,56 @@ void main() {
     },
   );
 
+  test(
+    'streamed logs retain filtered matches longer while a filter is active',
+    () async {
+      adbTool.androidDevices = [
+        Device('emulator-5554', 'device', platform: DevicePlatform.android),
+      ];
+      controller = createController(
+        settings: _initialSettings(logLinesLimit: 3),
+      );
+
+      controller!.onSearchChanged('keep');
+      controller!.applyFiltersNow();
+      await controller!.bootstrapInitialLoad();
+
+      for (final (index, message) in [
+        'keep 1',
+        'drop 1',
+        'drop 2',
+        'keep 2',
+        'drop 3',
+        'drop 4',
+        'drop 5',
+        'drop 6',
+      ].indexed) {
+        sessionService.emit(
+          _testLogEntry(
+            message: message,
+            pid: '${index + 100}',
+            tid: '${index + 200}',
+            tag: 'Tag${index + 1}',
+          ),
+        );
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+
+      final storedMessages = controller!.logs
+          .map((log) => log.message)
+          .toList();
+      expect(storedMessages, hasLength(6));
+      expect(storedMessages, containsAll(['keep 1', 'keep 2']));
+      expect(storedMessages, isNot(contains('drop 1')));
+      expect(storedMessages, isNot(contains('drop 2')));
+      expect(controller!.filteredLogs.map((log) => log.message), [
+        'keep 1',
+        'keep 2',
+      ]);
+    },
+  );
+
   test('searchMatchIndices ignore hidden columns when computing matches', () {
     controller = createController();
 
@@ -396,12 +446,12 @@ void main() {
   });
 }
 
-LogTabSettings _initialSettings() {
+LogTabSettings _initialSettings({int logLinesLimit = 50000}) {
   return LogTabSettings(
     wrapText: false,
     autoScroll: true,
     selectedLogLevel: LogLevel.verbose,
-    logLinesLimit: 50000,
+    logLinesLimit: logLinesLimit,
     hiddenColumns: const {},
     columnWidths: {
       for (final column in LogColumn.values) column.name: column.defaultWidth,
@@ -414,15 +464,27 @@ class _FakeControllerSessionService extends DeviceSessionService {
     : super(adbPath: '/usr/bin/true', ideviceSyslogPath: '/usr/bin/true');
 
   List<String> startedLogStreamDeviceIds = [];
+  final StreamController<LogEntry> _logController =
+      StreamController<LogEntry>.broadcast();
 
   @override
   Stream<LogEntry> startLogStream(Device device) {
     startedLogStreamDeviceIds = [...startedLogStreamDeviceIds, device.id];
-    return const Stream<LogEntry>.empty();
+    return _logController.stream;
+  }
+
+  void emit(LogEntry entry) {
+    _logController.add(entry);
   }
 
   @override
   Future<void> stopActiveLogStream() async {}
+
+  @override
+  Future<void> dispose() async {
+    await _logController.close();
+    await super.dispose();
+  }
 }
 
 class _FakeControllerAdbTool extends AdbTool {
@@ -452,4 +514,26 @@ class _FakeControllerIdeviceIdTool extends IdeviceIdTool {
 
 class _FakeControllerIdeviceInfoTool extends IdeviceInfoTool {
   _FakeControllerIdeviceInfoTool() : super(executablePath: '/usr/bin/true');
+}
+
+LogEntry _testLogEntry({
+  required String message,
+  String pid = '123',
+  String tid = '456',
+  String level = 'I',
+  String tag = 'TestTag',
+  String timestamp = '2026-04-26 10:00:00.000',
+  String? packageName,
+  String? processName,
+}) {
+  return LogEntry(
+    timestamp: timestamp,
+    pid: pid,
+    tid: tid,
+    level: level,
+    tag: tag,
+    message: message,
+    packageName: packageName,
+    processName: processName,
+  );
 }

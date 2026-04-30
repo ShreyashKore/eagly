@@ -32,6 +32,9 @@ void main() {
       }
 
       expect(logs, hasLength(2));
+      expect(logs.first.id, greaterThanOrEqualTo(0));
+      expect(logs.last.id, logs.first.id + 1);
+      expect(logs.first.id, isNot(logs.last.id));
       expect(logs.first.timestamp, '2026-04-23 17:09:37.903');
       expect(logs.first.level, 'debug');
       expect(logs.first.tag, 'AssetCacheLocatorService');
@@ -103,9 +106,13 @@ void main() {
       final entry = parser.flush();
       expect(entry, isNotNull);
 
-      final restored = LogEntry.fromExportedMap(entry!.toExportMap());
+      final exported = entry!.toExportMap();
+      final restored = LogEntry.fromExportedMap(exported);
+
+      expect(exported.containsKey('id'), isFalse);
       expect(restored, isNotNull);
-      expect(restored!.timestamp, entry.timestamp);
+      expect(restored!.id, isNot(entry.id));
+      expect(restored.timestamp, entry.timestamp);
       expect(restored.level, entry.level);
       expect(restored.tag, entry.tag);
       expect(restored.packageName, entry.packageName);
