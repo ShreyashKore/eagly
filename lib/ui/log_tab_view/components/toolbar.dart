@@ -225,7 +225,13 @@ class Toolbar extends StatelessWidget {
             tooltip: controller.searchBarVisible
                 ? 'Close search'
                 : 'Search in logs (Ctrl+F / Cmd+F)',
-            onPressed: controller.toggleSearchBar,
+            onPressed: () {
+              if (controller.searchBarVisible) {
+                controller.closeSearchBar();
+              } else {
+                controller.activateSearchFromSelection();
+              }
+            },
           ),
           IconButton(
             onPressed: onImport,

@@ -36,12 +36,22 @@ void main() {
     WidgetTester tester, {
     List<LogEntry>? logs,
     required bool wrapText,
+    ScrollController? scrollController,
     Map<String, double> columnWidths = const <String, double>{},
+    String searchQuery = '',
+    bool caseSensitive = false,
+    bool wholeWord = false,
+    bool regexSearch = false,
+    int? currentMatchLogIndex,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
+        theme: AppTheme.lightTheme.copyWith(
+          splashFactory: NoSplash.splashFactory,
+        ),
+        darkTheme: AppTheme.darkTheme.copyWith(
+          splashFactory: NoSplash.splashFactory,
+        ),
         themeMode: ThemeMode.dark,
         home: Scaffold(
           body: SizedBox(
@@ -60,9 +70,14 @@ void main() {
                       message: 'short message',
                     ),
                   ],
-              scrollController: ScrollController(),
+              scrollController: scrollController ?? ScrollController(),
               wrapText: wrapText,
               columnWidths: columnWidths,
+              searchQuery: searchQuery,
+              caseSensitive: caseSensitive,
+              wholeWord: wholeWord,
+              regexSearch: regexSearch,
+              currentMatchLogIndex: currentMatchLogIndex,
             ),
           ),
         ),
@@ -77,8 +92,12 @@ void main() {
   }) async {
     await tester.pumpWidget(
       MaterialApp(
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
+        theme: AppTheme.lightTheme.copyWith(
+          splashFactory: NoSplash.splashFactory,
+        ),
+        darkTheme: AppTheme.darkTheme.copyWith(
+          splashFactory: NoSplash.splashFactory,
+        ),
         themeMode: ThemeMode.dark,
         home: Scaffold(
           body: _SelectableLogViewerHarness(
@@ -123,8 +142,12 @@ void main() {
   }) async {
     await tester.pumpWidget(
       MaterialApp(
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
+        theme: AppTheme.lightTheme.copyWith(
+          splashFactory: NoSplash.splashFactory,
+        ),
+        darkTheme: AppTheme.darkTheme.copyWith(
+          splashFactory: NoSplash.splashFactory,
+        ),
         themeMode: ThemeMode.dark,
         home: Scaffold(
           body: _ToggleableLogViewerHarness(
@@ -225,6 +248,47 @@ void main() {
     );
   });
 
+  testWidgets('focused search match scrolls horizontally to reveal the term', (
+    WidgetTester tester,
+  ) async {
+    final scrollController = ScrollController();
+    final message = '${List.filled(220, 'prefix').join(' ')} needle tail';
+    final logs = [
+      LogEntry(
+        timestamp: '04-20 10:00:00.000',
+        pid: '123',
+        tid: '456',
+        level: 'I',
+        tag: 'Tag',
+        message: message,
+      ),
+    ];
+
+    addTearDown(scrollController.dispose);
+
+    await pumpLogViewer(
+      tester,
+      logs: logs,
+      wrapText: false,
+      scrollController: scrollController,
+    );
+    final initialDx = tester.getTopLeft(find.text('Message')).dx;
+
+    await pumpLogViewer(
+      tester,
+      logs: logs,
+      wrapText: false,
+      scrollController: scrollController,
+      searchQuery: 'needle',
+      currentMatchLogIndex: 0,
+    );
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+
+    final revealedDx = tester.getTopLeft(find.text('Message')).dx;
+    expect(revealedDx, lessThan(initialDx - 100));
+  });
+
   testWidgets(
     'moving the mouse without dragging does not change row selection',
     (WidgetTester tester) async {
@@ -321,15 +385,18 @@ void main() {
     expect(find.byKey(const ValueKey('row-selection-rect')), findsNothing);
   });
 
-  testWidgets('turning row selection mode off rebuilds the selection area', (
+  testWidgets('turning row selection mode off keeps the selection area mounted', (
     WidgetTester tester,
   ) async {
     await pumpToggleableLogViewer(tester);
 
     expect(find.byIcon(Icons.check_box_outline_blank), findsNWidgets(2));
-    expect(find.byType(SelectionArea), findsNothing);
+    expect(find.byType(SelectionArea), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('toggle-row-selection-mode')));
+    final toggleButton = tester.widget<TextButton>(
+      find.byKey(const ValueKey('toggle-row-selection-mode')),
+    );
+    toggleButton.onPressed!.call();
     await tester.pumpAndSettle();
 
     expect(find.byType(SelectionArea), findsOneWidget);

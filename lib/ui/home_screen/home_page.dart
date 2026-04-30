@@ -403,9 +403,9 @@ class _HomeScreenState extends State<HomeScreen> {
           PlatformMenuItemGroup(
             members: [
               PlatformMenuItem(
-                label: 'Toggle Search',
+                label: 'Find',
                 onSelected: () =>
-                    _runOnActiveTab((tab) => tab.toggleSearchBar()),
+                    _runOnActiveTab((tab) => tab.activateSearchFromSelection()),
               ),
               PlatformMenuItem(
                 label: 'Previous Match',
@@ -475,7 +475,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeController = _activeController;
     final materialTheme = Theme.of(context);
     final colorScheme = materialTheme.colorScheme;
     final theme = TabbedViewThemeData.minimalist(
@@ -493,7 +492,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: <Type, Action<Intent>>{
           ActivateSearchIntent: CallbackAction<ActivateSearchIntent>(
             onInvoke: (_) {
-              activeController?.toggleSearchBar();
+              _activeController?.activateSearchFromSelection();
               return null;
             },
           ),

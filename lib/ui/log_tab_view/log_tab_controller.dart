@@ -14,6 +14,7 @@ import '../../services/device_repository.dart';
 import '../../services/device_session_service.dart';
 import '../../services/log_file_service.dart';
 import '../../utils/log_buffer.dart';
+import '../../utils/text_search_pattern.dart';
 import '../wireless_connection/wireless_connection_controller.dart';
 
 enum LogcatState { stopped, running, paused }
@@ -110,7 +111,10 @@ class LogTabController extends ChangeNotifier {
   var _inlineSearchQuery = '';
   var _appliedInlineSearchQuery = '';
   var _searchCaseSensitive = false;
+  var _searchWholeWord = false;
+  var _searchRegex = false;
   var _searchCurrentMatchIndex = 0;
+  String? _selectedSearchText;
   var _rowSelectionMode = false;
   final Set<int> _selectedRowIndices = <int>{};
   int? _rowSelectionAnchorIndex;
@@ -137,6 +141,8 @@ class LogTabController extends ChangeNotifier {
   List<int>? _cachedSearchMatchIndices;
   String _smCacheQuery = '';
   bool _smCacheCaseSensitive = false;
+  bool _smCacheWholeWord = false;
+  bool _smCacheRegex = false;
   Set<String> _smCacheHiddenCols = {};
   int _smCacheFilteredLen = -1;
 
@@ -156,7 +162,10 @@ class LogTabController extends ChangeNotifier {
   bool get showGetStarted => _showGetStarted;
   bool get searchBarVisible => _searchBarVisible;
   bool get searchCaseSensitive => _searchCaseSensitive;
+  bool get searchWholeWord => _searchWholeWord;
+  bool get searchRegex => _searchRegex;
   int get searchCurrentMatch => _searchCurrentMatchIndex;
+  String? get selectedSearchText => _selectedSearchText;
   bool get rowSelectionMode => _rowSelectionMode;
   Set<int> get selectedRowIndices => Set.unmodifiable(_selectedRowIndices);
   bool get hasSelectedRows => _selectedRowIndices.isNotEmpty;
@@ -174,6 +183,14 @@ class LogTabController extends ChangeNotifier {
   int get totalLogsMemoryBytes => _logsMemoryBytes + _pendingLogsMemoryBytes;
   String get appliedInlineSearchQuery => _appliedInlineSearchQuery;
   String get inlineSearchQuery => _inlineSearchQuery;
+  TextSearchPattern get inlineSearchPattern => TextSearchPattern(
+    query: _appliedInlineSearchQuery,
+    caseSensitive: _searchCaseSensitive,
+    wholeWord: _searchWholeWord,
+    regex: _searchRegex,
+  );
+  bool get inlineSearchHasError => inlineSearchPattern.hasError;
+  String? get inlineSearchErrorText => inlineSearchPattern.errorText;
   bool get isLoadingDevices => _deviceRepository.isLoading;
   bool get hasAttemptedDeviceLoad => _deviceRepository.hasAttemptedLoad;
   List<String> get recentMessageFilters =>
@@ -515,6 +532,14 @@ class LogTabController extends ChangeNotifier {
     _updateSettings(_settings.copyWith(autoScroll: !autoScroll));
   }
 
+  void setSelectedSearchText(String? value) {
+    final normalized = value?.trim();
+    final nextValue = normalized == null || normalized.isEmpty ? null : normalized;
+    if (_selectedSearchText == nextValue) return;
+    _selectedSearchText = nextValue;
+    _notify();
+  }
+
   void setHiddenColumns(Set<String> columns) {
     _logViewerRevision++;
     _updateSettings(_settings.copyWith(hiddenColumns: Set.of(columns)));
@@ -557,46 +582,98 @@ class LogTabController extends ChangeNotifier {
   }
 
   void toggleSearchBar() {
-    _inlineSearchDebounce?.cancel();
-    _searchBarVisible = !_searchBarVisible;
-
-    if (!_searchBarVisible) {
-      _inlineSearchQuery = '';
-      _appliedInlineSearchQuery = '';
-      searchController.clear();
-      _invalidateSearchMatches();
-      _searchCurrentMatchIndex = 0;
+    if (_searchBarVisible) {
+      closeSearchBar();
     } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_disposed) return;
-        searchFocusNode.requestFocus();
-        searchController.selection = TextSelection(
-          baseOffset: 0,
-          extentOffset: searchController.text.length,
-        );
-      });
+      openSearchBar();
+    }
+  }
+
+  void openSearchBar({String? query}) {
+    _inlineSearchDebounce?.cancel();
+    disableAutoScroll();
+
+    if (query != null) {
+      _setInlineSearchQuery(query, applyImmediately: true);
     }
 
+    if (!_searchBarVisible) {
+      _searchBarVisible = true;
+      _notify();
+    }
+
+    _focusSearchField();
+  }
+
+  void closeSearchBar() {
+    if (!_searchBarVisible) return;
+
+    _inlineSearchDebounce?.cancel();
+    _searchBarVisible = false;
+    _inlineSearchQuery = '';
+    _appliedInlineSearchQuery = '';
+    searchController.clear();
+    _invalidateSearchMatches();
+    _searchCurrentMatchIndex = 0;
     _notify();
   }
 
-  void onInlineSearchChanged(String value) {
-    _inlineSearchQuery = value;
-    _searchCurrentMatchIndex = 0;
-    _notify();
+  void activateSearchFromSelection() {
+    final selectedText = _selectedSearchText;
+    if (selectedText != null) {
+      unawaited(Clipboard.setData(ClipboardData(text: selectedText)));
+      openSearchBar(query: selectedText);
+      return;
+    }
 
-    _inlineSearchDebounce?.cancel();
-    _inlineSearchDebounce = Timer(const Duration(milliseconds: 300), () {
+    openSearchBar();
+  }
+
+  void _focusSearchField() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_disposed) return;
-      _appliedInlineSearchQuery = value;
-      _invalidateSearchMatches();
-      _notify();
+      searchFocusNode.requestFocus();
+      searchController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: searchController.text.length,
+      );
     });
   }
 
+  void onInlineSearchChanged(String value) {
+    if (value.isNotEmpty) {
+      disableAutoScroll();
+    }
+    _setInlineSearchQuery(value);
+  }
+
   void setSearchCaseSensitive(bool value) {
+    if (_searchCaseSensitive == value) return;
+    disableAutoScroll();
     _inlineSearchDebounce?.cancel();
     _searchCaseSensitive = value;
+    _appliedInlineSearchQuery = _inlineSearchQuery;
+    _invalidateSearchMatches();
+    _searchCurrentMatchIndex = 0;
+    _notify();
+  }
+
+  void setSearchWholeWord(bool value) {
+    if (_searchWholeWord == value) return;
+    disableAutoScroll();
+    _inlineSearchDebounce?.cancel();
+    _searchWholeWord = value;
+    _appliedInlineSearchQuery = _inlineSearchQuery;
+    _invalidateSearchMatches();
+    _searchCurrentMatchIndex = 0;
+    _notify();
+  }
+
+  void setSearchRegex(bool value) {
+    if (_searchRegex == value) return;
+    disableAutoScroll();
+    _inlineSearchDebounce?.cancel();
+    _searchRegex = value;
     _appliedInlineSearchQuery = _inlineSearchQuery;
     _invalidateSearchMatches();
     _searchCurrentMatchIndex = 0;
@@ -606,6 +683,7 @@ class LogTabController extends ChangeNotifier {
   void onSearchNext() {
     final matches = searchMatchIndices;
     if (matches.isEmpty) return;
+    disableAutoScroll();
     _searchCurrentMatchIndex = (_searchCurrentMatchIndex + 1) % matches.length;
     _notify();
   }
@@ -613,6 +691,7 @@ class LogTabController extends ChangeNotifier {
   void onSearchPrev() {
     final matches = searchMatchIndices;
     if (matches.isEmpty) return;
+    disableAutoScroll();
     _searchCurrentMatchIndex =
         (_searchCurrentMatchIndex - 1 + matches.length) % matches.length;
     _notify();
@@ -646,6 +725,8 @@ class LogTabController extends ChangeNotifier {
     if (_cachedSearchMatchIndices != null &&
         _smCacheQuery == _appliedInlineSearchQuery &&
         _smCacheCaseSensitive == _searchCaseSensitive &&
+        _smCacheWholeWord == _searchWholeWord &&
+        _smCacheRegex == _searchRegex &&
         _smCacheHiddenCols.length == hiddenColumns.length &&
         _smCacheHiddenCols.containsAll(hiddenColumns) &&
         _smCacheFilteredLen == filtered.length) {
@@ -654,6 +735,8 @@ class LogTabController extends ChangeNotifier {
 
     _smCacheQuery = _appliedInlineSearchQuery;
     _smCacheCaseSensitive = _searchCaseSensitive;
+    _smCacheWholeWord = _searchWholeWord;
+    _smCacheRegex = _searchRegex;
     _smCacheHiddenCols = Set.of(hiddenColumns);
     _smCacheFilteredLen = filtered.length;
     _cachedSearchMatchIndices = _computeSearchMatches(filtered);
@@ -686,6 +769,34 @@ class LogTabController extends ChangeNotifier {
 
   void _invalidateSearchMatches() {
     _cachedSearchMatchIndices = null;
+  }
+
+  void _setInlineSearchQuery(String value, {bool applyImmediately = false}) {
+    _inlineSearchQuery = value;
+    _searchCurrentMatchIndex = 0;
+
+    if (searchController.text != value) {
+      searchController.value = TextEditingValue(
+        text: value,
+        selection: TextSelection.collapsed(offset: value.length),
+      );
+    }
+
+    _inlineSearchDebounce?.cancel();
+    if (applyImmediately) {
+      _appliedInlineSearchQuery = value;
+      _invalidateSearchMatches();
+      _notify();
+      return;
+    }
+
+    _notify();
+    _inlineSearchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (_disposed) return;
+      _appliedInlineSearchQuery = value;
+      _invalidateSearchMatches();
+      _notify();
+    });
   }
 
   void _setFilterField(
@@ -1032,11 +1143,9 @@ class LogTabController extends ChangeNotifier {
   };
 
   List<int> _computeSearchMatches(List<LogEntry> items) {
-    if (_appliedInlineSearchQuery.isEmpty) return [];
+    final pattern = inlineSearchPattern;
+    if (!pattern.isActive || !pattern.isValid) return [];
 
-    final query = _searchCaseSensitive
-        ? _appliedInlineSearchQuery
-        : _appliedInlineSearchQuery.toLowerCase();
     final visibleColumns = LogColumn.values
         .where((column) => !hiddenColumns.contains(column.name))
         .toList();
@@ -1045,10 +1154,7 @@ class LogTabController extends ChangeNotifier {
     for (var index = 0; index < items.length; index++) {
       final log = items[index];
       for (final column in visibleColumns) {
-        final text = _searchCaseSensitive
-            ? _logColumnValue(log, column)
-            : _logColumnValue(log, column).toLowerCase();
-        if (text.contains(query)) {
+        if (pattern.matches(_logColumnValue(log, column))) {
           result.add(index);
           break;
         }

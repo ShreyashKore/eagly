@@ -253,14 +253,18 @@ class _LogTabViewState extends State<LogTabView> {
       scrollController: controller.scrollController,
       wrapText: controller.wrapText,
       onLogRowTap: controller.disableAutoScroll,
+      onUserScroll: controller.disableAutoScroll,
       rowSelectionMode: controller.rowSelectionMode,
       selectedRowIndices: controller.selectedRowIndices,
       onRowSelectionStart: controller.beginRowSelectionGesture,
       onSelectedRowsChanged: controller.setSelectedRows,
       onRowSelectionChanged: controller.setRowSelected,
       onRowCopyAction: _handleRowCopyAction,
+      onSelectedTextChanged: controller.setSelectedSearchText,
       searchQuery: controller.appliedInlineSearchQuery,
       caseSensitive: controller.searchCaseSensitive,
+      wholeWord: controller.searchWholeWord,
+      regexSearch: controller.searchRegex,
       currentMatchLogIndex:
           controller.searchBarVisible &&
               controller.appliedInlineSearchQuery.isNotEmpty
@@ -468,11 +472,17 @@ class _LogTabViewState extends State<LogTabView> {
               controller: controller.searchController,
               focusNode: controller.searchFocusNode,
               caseSensitive: controller.searchCaseSensitive,
+              wholeWord: controller.searchWholeWord,
+              regexSearch: controller.searchRegex,
+              hasError: controller.inlineSearchHasError,
+              errorText: controller.inlineSearchErrorText,
               onQueryChanged: controller.onInlineSearchChanged,
               onCaseSensitiveChanged: controller.setSearchCaseSensitive,
+              onWholeWordChanged: controller.setSearchWholeWord,
+              onRegexChanged: controller.setSearchRegex,
               onNext: controller.onSearchNext,
               onPrevious: controller.onSearchPrev,
-              onClose: controller.toggleSearchBar,
+              onClose: controller.closeSearchBar,
               totalMatches: matches.length,
               currentMatch: matches.isEmpty
                   ? 0

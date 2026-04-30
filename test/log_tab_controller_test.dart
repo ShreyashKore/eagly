@@ -296,6 +296,99 @@ void main() {
     expect(controller!.searchMatchIndices, isEmpty);
   });
 
+  test('searchMatchIndices support whole-word and regex options', () {
+    controller = createController();
+
+    controller!.logs = [
+      LogEntry(
+        timestamp: '2026-04-26 10:00:00.000',
+        pid: '123',
+        tid: '456',
+        level: 'I',
+        tag: 'Auth',
+        message: 'error error42 ERROR',
+      ),
+      LogEntry(
+        timestamp: '2026-04-26 10:00:01.000',
+        pid: '124',
+        tid: '457',
+        level: 'I',
+        tag: 'Auth',
+        message: 'only error42 here',
+      ),
+    ];
+
+    controller!.openSearchBar(query: 'error');
+    expect(controller!.searchMatchIndices, [0, 1]);
+
+    controller!.setSearchWholeWord(true);
+    expect(controller!.searchMatchIndices, [0]);
+
+    controller!.setSearchWholeWord(false);
+    controller!.setSearchRegex(true);
+    controller!.openSearchBar(query: r'error\d+');
+    expect(controller!.searchMatchIndices, [0, 1]);
+
+    controller!.setSearchCaseSensitive(true);
+    controller!.openSearchBar(query: r'ERROR');
+    expect(controller!.searchMatchIndices, [0]);
+  });
+
+  test('invalid regex search is surfaced without producing matches', () {
+    controller = createController();
+
+    controller!.logs = [
+      LogEntry(
+        timestamp: '2026-04-26 10:00:00.000',
+        pid: '123',
+        tid: '456',
+        level: 'I',
+        tag: 'Auth',
+        message: 'error 42',
+      ),
+    ];
+
+    controller!.setSearchRegex(true);
+    controller!.openSearchBar(query: r'(');
+
+    expect(controller!.inlineSearchHasError, isTrue);
+    expect(controller!.searchMatchIndices, isEmpty);
+  });
+
+  test('activating search from selected text copies and prefills it', () async {
+    controller = createController();
+
+    controller!.setSelectedSearchText('Selected needle');
+    controller!.activateSearchFromSelection();
+    await Future<void>.delayed(Duration.zero);
+
+    final clipboard = await Clipboard.getData('text/plain');
+    expect(controller!.searchBarVisible, isTrue);
+    expect(controller!.inlineSearchQuery, 'Selected needle');
+    expect(controller!.appliedInlineSearchQuery, 'Selected needle');
+    expect(controller!.autoScroll, isFalse);
+    expect(clipboard?.text, 'Selected needle');
+  });
+
+  test('search navigation disables auto-scroll when moving between matches', () {
+    controller = createController();
+
+    controller!.logs = [
+      _testLogEntry(message: 'needle one'),
+      _testLogEntry(message: 'needle two'),
+    ];
+
+    controller!.openSearchBar(query: 'needle');
+    expect(controller!.autoScroll, isFalse);
+
+    controller!.toggleAutoScroll();
+    expect(controller!.autoScroll, isTrue);
+
+    controller!.onSearchNext();
+    expect(controller!.searchCurrentMatch, 1);
+    expect(controller!.autoScroll, isFalse);
+  });
+
   test('filteredLogs keeps entries with unknown log levels', () {
     controller = createController();
     controller!.setSelectedLogLevel(LogLevel.info);

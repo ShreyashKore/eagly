@@ -12,6 +12,7 @@ import '../../data/log_column.dart';
 import '../../data/log_entry.dart';
 import '../../services/preferences_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/text_search_pattern.dart';
 
 enum LogViewerCopyAction { copyRow, copyMessage, copyTimestampAndMessage }
 
@@ -37,10 +38,14 @@ class LogViewer extends StatefulWidget {
 
   /// Whether the search is case-sensitive.
   final bool caseSensitive;
+  final bool wholeWord;
+  final bool regexSearch;
 
   /// Index (into [logs]) of the row that should be highlighted as the
   /// currently focused match. `null` means no focused match.
   final int? currentMatchLogIndex;
+  final ValueChanged<String?>? onSelectedTextChanged;
+  final VoidCallback? onUserScroll;
 
   /// Called whenever the user toggles column visibility so the parent can
   /// update its hidden-columns set used for search-match computation.
@@ -70,7 +75,11 @@ class LogViewer extends StatefulWidget {
     this.onRowCopyAction,
     this.searchQuery = '',
     this.caseSensitive = false,
+    this.wholeWord = false,
+    this.regexSearch = false,
     this.currentMatchLogIndex,
+    this.onSelectedTextChanged,
+    this.onUserScroll,
     this.onHiddenColumnsChanged,
     this.columnWidths = const <String, double>{},
     this.hiddenColumns = const <String>{},
@@ -120,6 +129,13 @@ class _LogViewerState extends State<LogViewer> {
   TextStyle _applyFont(TextStyle base) =>
       base.copyWith(fontSize: PreferencesService.logFontSize);
 
+  TextSearchPattern get _searchPattern => TextSearchPattern(
+    query: widget.searchQuery,
+    caseSensitive: widget.caseSensitive,
+    wholeWord: widget.wholeWord,
+    regex: widget.regexSearch,
+  );
+
   /// Key placed on the currently-focused match row so we can scroll to it.
   final GlobalKey _currentMatchKey = GlobalKey();
 
@@ -136,8 +152,13 @@ class _LogViewerState extends State<LogViewer> {
   @override
   void didUpdateWidget(LogViewer old) {
     super.didUpdateWidget(old);
-    if (widget.currentMatchLogIndex != old.currentMatchLogIndex &&
-        widget.currentMatchLogIndex != null) {
+    final didSearchTargetChange =
+        widget.currentMatchLogIndex != old.currentMatchLogIndex ||
+        widget.searchQuery != old.searchQuery ||
+        widget.caseSensitive != old.caseSensitive ||
+        widget.wholeWord != old.wholeWord ||
+        widget.regexSearch != old.regexSearch;
+    if (didSearchTargetChange && widget.currentMatchLogIndex != null) {
       _scrollToMatch(widget.currentMatchLogIndex!);
     }
     if (widget.logs.isEmpty && old.logs.isNotEmpty) {
@@ -223,6 +244,14 @@ class _LogViewerState extends State<LogViewer> {
       duration: (d) => Duration(milliseconds: 100),
       alignment: 0.3,
     );
+
+    for (var attempt = 0; attempt < 6; attempt++) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      if (_revealCurrentMatchHorizontally(index)) {
+        return;
+      }
+    }
   }
 
   void _handleVerticalScroll() {
@@ -332,14 +361,116 @@ class _LogViewerState extends State<LogViewer> {
   double _measureMessageWidth(String message) {
     var widestLine = 0.0;
     for (final line in message.split('\n')) {
-      _messageWidthPainter.text = TextSpan(
-        text: line.isEmpty ? ' ' : line,
-        style: _monoStyle,
-      );
-      _messageWidthPainter.layout();
-      widestLine = math.max(widestLine, _messageWidthPainter.width);
+      widestLine = math.max(widestLine, _measureTextWidth(line, _monoStyle));
     }
     return widestLine + _messageHorizontalPadding;
+  }
+
+  double _measureTextWidth(String text, TextStyle style) {
+    _messageWidthPainter.text = TextSpan(
+      text: text.isEmpty ? ' ' : text,
+      style: style,
+    );
+    _messageWidthPainter.layout();
+    return _messageWidthPainter.width;
+  }
+
+  double _columnStart(LogColumn column) {
+    var offset = widget.rowSelectionMode
+        ? _selectionColumnWidth + _columnSpacing
+        : 0.0;
+
+    for (final visibleColumn in _visibleFixedColumns) {
+      if (visibleColumn == column) {
+        return offset;
+      }
+      offset += _widthOf(visibleColumn) + _columnSpacing;
+    }
+
+    return offset;
+  }
+
+  _HorizontalRevealTarget? _currentMatchTarget(int index) {
+    if (index < 0 || index >= widget.logs.length) return null;
+
+    final pattern = _searchPattern;
+    if (!pattern.isActive || !pattern.isValid) return null;
+
+    final log = widget.logs[index];
+    final visibleColumns = [
+      ..._visibleFixedColumns,
+      if (_isVisible(LogColumn.message)) LogColumn.message,
+    ];
+
+    for (final column in visibleColumns) {
+      final match = pattern.firstMatch(_cellValue(column, log));
+      if (match == null) continue;
+
+      final columnStart = _columnStart(column);
+      if (column == LogColumn.level) {
+        return _HorizontalRevealTarget(
+          left: columnStart,
+          right: columnStart + _widthOf(column),
+        );
+      }
+
+      final padding = 8.0;
+      final text = _cellValue(column, log);
+      final linePrefix = _linePrefixUntilMatch(text, match.start);
+      final matchedLineText = _matchedLineSegment(text, match.start, match.end);
+      final textLeft =
+          columnStart + padding + _measureTextWidth(linePrefix, _monoStyle);
+      final textRight =
+          textLeft +
+          math.max(_measureTextWidth(matchedLineText, _monoStyle), 24.0);
+      return _HorizontalRevealTarget(left: textLeft, right: textRight);
+    }
+
+    return null;
+  }
+
+  String _linePrefixUntilMatch(String text, int matchStart) {
+    final lastLineBreak = text.lastIndexOf('\n', math.max(0, matchStart - 1));
+    final lineStart = lastLineBreak == -1 ? 0 : lastLineBreak + 1;
+    return text.substring(lineStart, matchStart);
+  }
+
+  String _matchedLineSegment(String text, int matchStart, int matchEnd) {
+    final lineBreakIndex = text.indexOf('\n', matchStart);
+    final lineEnd = lineBreakIndex == -1 ? text.length : lineBreakIndex;
+    return text.substring(matchStart, math.min(matchEnd, lineEnd));
+  }
+
+  bool _revealCurrentMatchHorizontally(int index) {
+    if (!_horizontalScrollController.hasClients) return false;
+
+    final target = _currentMatchTarget(index);
+    if (target == null) return false;
+
+    final position = _horizontalScrollController.position;
+    final viewportWidth = position.viewportDimension;
+    final currentOffset = _horizontalScrollController.offset;
+    final minOffset = math.max(0.0, target.left - 24);
+    final maxOffset = math.max(0.0, target.right + 48 - viewportWidth);
+
+    var desiredOffset = currentOffset;
+    if (target.left < currentOffset + 24) {
+      desiredOffset = minOffset;
+    } else if (target.right > currentOffset + viewportWidth - 48) {
+      desiredOffset = maxOffset;
+    }
+
+    final clampedOffset = desiredOffset.clamp(0.0, position.maxScrollExtent);
+    if ((clampedOffset - currentOffset).abs() < 1) {
+      return true;
+    }
+
+    _horizontalScrollController.animateTo(
+      clampedOffset,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+    );
+    return true;
   }
 
   void _scheduleMessageWidthRefresh() {
@@ -660,9 +791,27 @@ class _LogViewerState extends State<LogViewer> {
                   _buildHeader(messageWidth),
                   const Divider(height: 1, thickness: 1),
                   Expanded(
-                    child: Scrollbar(
-                      controller: widget.scrollController,
-                      child: GestureDetector(
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        if (notification.metrics.axis != Axis.vertical) {
+                          return false;
+                        }
+                        final isUserScroll =
+                            notification is UserScrollNotification ||
+                            notification is ScrollStartNotification &&
+                                notification.dragDetails != null ||
+                            notification is ScrollUpdateNotification &&
+                                notification.dragDetails != null ||
+                            notification is OverscrollNotification &&
+                                notification.dragDetails != null;
+                        if (isUserScroll) {
+                          widget.onUserScroll?.call();
+                        }
+                        return false;
+                      },
+                      child: Scrollbar(
+                        controller: widget.scrollController,
+                        child: GestureDetector(
                         // Support pinch-to-zoom on trackpads / touchpads to change log font size.
                         onScaleStart: (details) {
                           // Record the base font size at gesture start.
@@ -706,55 +855,62 @@ class _LogViewerState extends State<LogViewer> {
                                   )
                                 : Theme.of(context),
                             child: SelectionArea(
-                            contextMenuBuilder: (ctx, selectableRegionState) {
-                              if (widget.rowSelectionMode) {
-                                return AdaptiveTextSelectionToolbar(
-                                  anchors:
-                                      selectableRegionState.contextMenuAnchors,
-                                  children:
-                                      AdaptiveTextSelectionToolbar.getAdaptiveButtons(
-                                        ctx,
-                                        [
-                                          ContextMenuButtonItem(
-                                            label: 'Copy',
-                                            onPressed: () {
-                                              ContextMenuController.removeAny();
-                                              widget.onRowCopyAction?.call(
-                                                null,
-                                                LogViewerCopyAction.copyRow,
-                                              );
-                                            },
-                                          ),
-                                          ContextMenuButtonItem(
-                                            label: 'Copy message',
-                                            onPressed: () {
-                                              ContextMenuController.removeAny();
-                                              widget.onRowCopyAction?.call(
-                                                null,
-                                                LogViewerCopyAction.copyMessage,
-                                              );
-                                            },
-                                          ),
-                                          ContextMenuButtonItem(
-                                            label: 'Copy time + message',
-                                            onPressed: () {
-                                              ContextMenuController.removeAny();
-                                              widget.onRowCopyAction?.call(
-                                                null,
-                                                LogViewerCopyAction
-                                                    .copyTimestampAndMessage,
-                                              );
-                                            },
-                                          ),
-                                        ],
-                                      ).toList(),
+                              key: const ValueKey('log-viewer-selection-area'),
+                              onSelectionChanged: (selectedContent) {
+                                widget.onSelectedTextChanged?.call(
+                                  selectedContent?.plainText,
                                 );
-                              }
-                              return AdaptiveTextSelectionToolbar.selectableRegion(
-                                selectableRegionState: selectableRegionState,
-                              );
-                            },
-                            child: logViewport,
+                              },
+                              contextMenuBuilder: (ctx, selectableRegionState) {
+                                if (widget.rowSelectionMode) {
+                                  return AdaptiveTextSelectionToolbar(
+                                    anchors:
+                                        selectableRegionState.contextMenuAnchors,
+                                    children:
+                                        AdaptiveTextSelectionToolbar.getAdaptiveButtons(
+                                          ctx,
+                                          [
+                                            ContextMenuButtonItem(
+                                              label: 'Copy',
+                                              onPressed: () {
+                                                ContextMenuController.removeAny();
+                                                widget.onRowCopyAction?.call(
+                                                  null,
+                                                  LogViewerCopyAction.copyRow,
+                                                );
+                                              },
+                                            ),
+                                            ContextMenuButtonItem(
+                                              label: 'Copy message',
+                                              onPressed: () {
+                                                ContextMenuController.removeAny();
+                                                widget.onRowCopyAction?.call(
+                                                  null,
+                                                  LogViewerCopyAction.copyMessage,
+                                                );
+                                              },
+                                            ),
+                                            ContextMenuButtonItem(
+                                              label: 'Copy time + message',
+                                              onPressed: () {
+                                                ContextMenuController.removeAny();
+                                                widget.onRowCopyAction?.call(
+                                                  null,
+                                                  LogViewerCopyAction
+                                                      .copyTimestampAndMessage,
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        ).toList(),
+                                  );
+                                }
+                                return AdaptiveTextSelectionToolbar.selectableRegion(
+                                  selectableRegionState: selectableRegionState,
+                                );
+                              },
+                              child: logViewport,
+                            ),
                           ),
                         ),
                       ),
@@ -870,6 +1026,8 @@ class _LogViewerState extends State<LogViewer> {
       lastVisibleColumn: _lastVisibleColumn,
       searchQuery: widget.searchQuery,
       caseSensitive: widget.caseSensitive,
+      wholeWord: widget.wholeWord,
+      regexSearch: widget.regexSearch,
       currentMatchLogIndex: widget.currentMatchLogIndex,
       wrapText: widget.wrapText,
       monoStyle: _monoStyle,
@@ -940,12 +1098,13 @@ class _LogRow extends StatelessWidget {
   final LogColumn? lastVisibleColumn;
   final String searchQuery;
   final bool caseSensitive;
+  final bool wholeWord;
+  final bool regexSearch;
   final int? currentMatchLogIndex;
   final bool wrapText;
   final TextStyle monoStyle;
   final ValueChanged<PointerDownEvent>? onSelectionPointerDown;
   final ValueChanged<PointerMoveEvent>? onSelectionPointerMove;
-  final ValueChanged<Offset>? onSecondaryTap;
   final String Function(LogColumn) contentValueForColumn;
 
   const _LogRow({
@@ -960,12 +1119,13 @@ class _LogRow extends StatelessWidget {
     required this.lastVisibleColumn,
     required this.searchQuery,
     required this.caseSensitive,
+    required this.wholeWord,
+    required this.regexSearch,
     required this.currentMatchLogIndex,
     required this.wrapText,
     required this.monoStyle,
     this.onSelectionPointerDown,
     this.onSelectionPointerMove,
-    this.onSecondaryTap,
     required this.contentValueForColumn,
   });
 
@@ -985,10 +1145,15 @@ class _LogRow extends StatelessWidget {
     bool softWrap = false,
     bool appendRowTerminator = false,
   }) {
-    final query = searchQuery;
     final children = <InlineSpan>[];
+    final pattern = TextSearchPattern(
+      query: searchQuery,
+      caseSensitive: caseSensitive,
+      wholeWord: wholeWord,
+      regex: regexSearch,
+    );
 
-    if (query.isEmpty || highlightColor == null) {
+    if (!pattern.isActive || highlightColor == null || !pattern.isValid) {
       children.add(TextSpan(text: text, style: style));
       if (appendRowTerminator) {
         children.add(_rowTerminatorSpan());
@@ -1002,10 +1167,8 @@ class _LogRow extends StatelessWidget {
       );
     }
 
-    final searchIn = caseSensitive ? text : text.toLowerCase();
-    final queryNorm = caseSensitive ? query : query.toLowerCase();
-
-    if (!searchIn.contains(queryNorm)) {
+    final matches = pattern.allMatches(text);
+    if (matches.isEmpty) {
       children.add(TextSpan(text: text, style: style));
       if (appendRowTerminator) {
         children.add(_rowTerminatorSpan());
@@ -1019,23 +1182,23 @@ class _LogRow extends StatelessWidget {
       );
     }
 
-    int start = 0;
-    int idx = searchIn.indexOf(queryNorm, start);
-    while (idx != -1) {
-      if (idx > start) {
-        children.add(TextSpan(text: text.substring(start, idx), style: style));
+    var start = 0;
+    for (final match in matches) {
+      if (match.start > start) {
+        children.add(
+          TextSpan(text: text.substring(start, match.start), style: style),
+        );
       }
       children.add(
         TextSpan(
-          text: text.substring(idx, idx + queryNorm.length),
+          text: text.substring(match.start, match.end),
           style: style.copyWith(
             backgroundColor: highlightColor,
             color: context.logViewTheme.searchHighlightForeground,
           ),
         ),
       );
-      start = idx + queryNorm.length;
-      idx = searchIn.indexOf(queryNorm, start);
+      start = match.end;
     }
     if (start < text.length) {
       children.add(TextSpan(text: text.substring(start), style: style));
@@ -1142,7 +1305,6 @@ class _LogRow extends StatelessWidget {
               : logTheme.searchMatchColor);
 
     final rowContent = Container(
-      key: isCurrentMatch ? key : null,
       color: isCurrentMatch
           ? logTheme.searchCurrentRowColor
           : (isSelected ? selectedRowColor : null),
@@ -1202,13 +1364,18 @@ class _LogRow extends StatelessWidget {
           behavior: rowSelectionMode
               ? HitTestBehavior.opaque
               : HitTestBehavior.deferToChild,
-          onSecondaryTapUp: (details) =>
-              onSecondaryTap?.call(details.globalPosition),
           child: rowContent,
         ),
       ),
     );
   }
+}
+
+class _HorizontalRevealTarget {
+  const _HorizontalRevealTarget({required this.left, required this.right});
+
+  final double left;
+  final double right;
 }
 
 class _RowBoundsReporter extends StatefulWidget {
