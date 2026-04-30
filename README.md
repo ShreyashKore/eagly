@@ -62,3 +62,10 @@ See `platform-tools/README.md` for the expected bundle layout.
 fvm flutter analyze
 fvm flutter test -r compact
 ```
+
+## Windows packaging
+
+Windows MSIX packaging is configured through `pubspec.yaml` using the `msix` package.
+
+For the release signing process, certificate requirements, and the steps needed to avoid `Unknown publisher` install warnings, see `doc/windows-msix.md`.
+
