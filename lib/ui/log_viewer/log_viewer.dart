@@ -777,99 +777,105 @@ class _LogViewerState extends State<LogViewer> {
         final contentWidth = _contentWidth(viewportWidth);
         final logViewport = _buildLogViewport(messageWidth);
 
-        return Scrollbar(
-          controller: _horizontalScrollController,
-          notificationPredicate: (notification) =>
-              notification.metrics.axis == Axis.horizontal,
-          child: SingleChildScrollView(
-            controller: _horizontalScrollController,
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: contentWidth,
-              child: Column(
-                children: [
-                  _buildHeader(messageWidth),
-                  const Divider(height: 1, thickness: 1),
-                  Expanded(
-                    child: NotificationListener<ScrollNotification>(
-                      onNotification: (notification) {
-                        if (notification.metrics.axis != Axis.vertical) {
-                          return false;
-                        }
-                        final isUserScroll =
-                            notification is UserScrollNotification ||
-                            notification is ScrollStartNotification &&
-                                notification.dragDetails != null ||
-                            notification is ScrollUpdateNotification &&
-                                notification.dragDetails != null ||
-                            notification is OverscrollNotification &&
-                                notification.dragDetails != null;
-                        if (isUserScroll) {
-                          widget.onUserScroll?.call();
-                        }
-                        return false;
-                      },
-                      child: Scrollbar(
-                        controller: widget.scrollController,
-                        child: GestureDetector(
-                        // Support pinch-to-zoom on trackpads / touchpads to change log font size.
-                        onScaleStart: (details) {
-                          // Record the base font size at gesture start.
-                          _scaleBaseFontSize = PreferencesService.logFontSize;
-                        },
-                        onScaleUpdate: (details) {
-                          // Only react when there are multiple pointers (pinch gesture).
-                          if (details.pointerCount < 2) return;
-                          final base =
-                              _scaleBaseFontSize ??
-                              PreferencesService.logFontSize;
-                          final target = base * details.scale;
-                          // Use integer steps to avoid jitter; PreferencesService
-                          // will clamp and avoid redundant writes.
-                          final rounded = target.roundToDouble();
-                          PreferencesService.logFontSize = rounded;
-                        },
-                        onScaleEnd: (_) {
-                          _scaleBaseFontSize = null;
-                        },
-                        child: Listener(
-                          onPointerDown: widget.rowSelectionMode
-                              ? null
-                              : (event) {
-                                  if ((event.buttons & kPrimaryButton) == 0) {
-                                    return;
-                                  }
-                                  widget.onLogRowTap?.call();
-                                },
-                          onPointerUp: (event) =>
-                              _endRowSelectionDrag(event.pointer),
-                          onPointerCancel: (event) =>
-                              _endRowSelectionDrag(event.pointer),
-                          child: Theme(
-                            data: widget.rowSelectionMode
-                                ? Theme.of(context).copyWith(
-                                    textSelectionTheme:
-                                        const TextSelectionThemeData(
-                                      selectionColor: Colors.transparent,
-                                    ),
-                                  )
-                                : Theme.of(context),
-                            child: SelectionArea(
-                              key: const ValueKey('log-viewer-selection-area'),
-                              onSelectionChanged: (selectedContent) {
-                                widget.onSelectedTextChanged?.call(
-                                  selectedContent?.plainText,
-                                );
+        return Stack(
+          children: [
+            Scrollbar(
+              controller: _horizontalScrollController,
+              thumbVisibility: true,
+              notificationPredicate: (notification) =>
+                  notification.metrics.axis == Axis.horizontal,
+              child: SingleChildScrollView(
+                controller: _horizontalScrollController,
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: contentWidth,
+                  child: Column(
+                    children: [
+                      _buildHeader(messageWidth),
+                      const Divider(height: 1, thickness: 1),
+                      Expanded(
+                        child: NotificationListener<ScrollNotification>(
+                          onNotification: (notification) {
+                            if (notification.metrics.axis != Axis.vertical) {
+                              return false;
+                            }
+                            final isUserScroll =
+                                notification is UserScrollNotification ||
+                                notification is ScrollStartNotification &&
+                                    notification.dragDetails != null ||
+                                notification is ScrollUpdateNotification &&
+                                    notification.dragDetails != null ||
+                                notification is OverscrollNotification &&
+                                    notification.dragDetails != null;
+                            if (isUserScroll) {
+                              widget.onUserScroll?.call();
+                            }
+                            return false;
+                          },
+                          child: Scrollbar(
+                            controller: widget.scrollController,
+                            thumbVisibility: true,
+                            child: GestureDetector(
+                              // Support pinch-to-zoom on trackpads / touchpads to change log font size.
+                              onScaleStart: (details) {
+                                // Record the base font size at gesture start.
+                                _scaleBaseFontSize =
+                                    PreferencesService.logFontSize;
                               },
-                              contextMenuBuilder: (ctx, selectableRegionState) {
-                                if (widget.rowSelectionMode) {
-                                  return AdaptiveTextSelectionToolbar(
-                                    anchors:
-                                        selectableRegionState.contextMenuAnchors,
-                                    children:
-                                        AdaptiveTextSelectionToolbar.getAdaptiveButtons(
-                                          ctx,
-                                          [
+                              onScaleUpdate: (details) {
+                                // Only react when there are multiple pointers (pinch gesture).
+                                if (details.pointerCount < 2) return;
+                                final base =
+                                    _scaleBaseFontSize ??
+                                    PreferencesService.logFontSize;
+                                final target = base * details.scale;
+                                // Use integer steps to avoid jitter; PreferencesService
+                                // will clamp and avoid redundant writes.
+                                final rounded = target.roundToDouble();
+                                PreferencesService.logFontSize = rounded;
+                              },
+                              onScaleEnd: (_) {
+                                _scaleBaseFontSize = null;
+                              },
+                              child: Listener(
+                                onPointerDown: widget.rowSelectionMode
+                                    ? null
+                                    : (event) {
+                                        if ((event.buttons & kPrimaryButton) ==
+                                            0) {
+                                          return;
+                                        }
+                                        widget.onLogRowTap?.call();
+                                      },
+                                onPointerUp: (event) =>
+                                    _endRowSelectionDrag(event.pointer),
+                                onPointerCancel: (event) =>
+                                    _endRowSelectionDrag(event.pointer),
+                                child: Theme(
+                                  data: widget.rowSelectionMode
+                                      ? Theme.of(context).copyWith(
+                                          textSelectionTheme:
+                                              const TextSelectionThemeData(
+                                                selectionColor:
+                                                    Colors.transparent,
+                                              ),
+                                        )
+                                      : Theme.of(context),
+                                  child: SelectionArea(
+                                    key: const ValueKey(
+                                      'log-viewer-selection-area',
+                                    ),
+                                    onSelectionChanged: (selectedContent) {
+                                      widget.onSelectedTextChanged?.call(
+                                        selectedContent?.plainText,
+                                      );
+                                    },
+                                    contextMenuBuilder: (ctx, selectableRegionState) {
+                                      if (widget.rowSelectionMode) {
+                                        return AdaptiveTextSelectionToolbar(
+                                          anchors: selectableRegionState
+                                              .contextMenuAnchors,
+                                          children: AdaptiveTextSelectionToolbar.getAdaptiveButtons(ctx, [
                                             ContextMenuButtonItem(
                                               label: 'Copy',
                                               onPressed: () {
@@ -886,7 +892,8 @@ class _LogViewerState extends State<LogViewer> {
                                                 ContextMenuController.removeAny();
                                                 widget.onRowCopyAction?.call(
                                                   null,
-                                                  LogViewerCopyAction.copyMessage,
+                                                  LogViewerCopyAction
+                                                      .copyMessage,
                                                 );
                                               },
                                             ),
@@ -901,26 +908,61 @@ class _LogViewerState extends State<LogViewer> {
                                                 );
                                               },
                                             ),
-                                          ],
-                                        ).toList(),
-                                  );
-                                }
-                                return AdaptiveTextSelectionToolbar.selectableRegion(
-                                  selectableRegionState: selectableRegionState,
-                                );
-                              },
-                              child: logViewport,
+                                          ]).toList(),
+                                        );
+                                      }
+                                      return AdaptiveTextSelectionToolbar.selectableRegion(
+                                        selectableRegionState:
+                                            selectableRegionState,
+                                      );
+                                    },
+                                    child: logViewport,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-                ],
               ),
             ),
-          ),
+            // Sticky column-visibility button pinned to the top-right corner.
+            // It stays in place regardless of horizontal scroll.
+            Positioned(
+              top: 0,
+              right: 0,
+              height: 29, // match header + divider height (28 + 1)
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: Tooltip(
+                  message: 'Column visibility',
+                  child: InkWell(
+                    child: Icon(
+                      Icons.view_column_outlined,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    onTap: () {
+                      // Show popup anchored to the button's position.
+                      final renderBox =
+                          context.findRenderObject() as RenderBox?;
+                      final offset =
+                          renderBox?.localToGlobal(Offset.zero) ?? Offset.zero;
+                      final size = renderBox?.size ?? Size.zero;
+                      _showColumnVisibilityMenu(
+                        context,
+                        Offset(offset.dx + size.width - 4, offset.dy + 28),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -1079,8 +1121,8 @@ class _LogViewerState extends State<LogViewer> {
           index: i,
           onMounted: _registerRowContext,
           onUnmounted: _unregisterRowContext,
-          child: _buildLogRow(log, i, messageWidth),
           key: ValueKey(log.id),
+          child: _buildLogRow(log, i, messageWidth),
         );
       },
     );

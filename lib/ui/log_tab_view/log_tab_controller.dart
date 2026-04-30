@@ -534,7 +534,9 @@ class LogTabController extends ChangeNotifier {
 
   void setSelectedSearchText(String? value) {
     final normalized = value?.trim();
-    final nextValue = normalized == null || normalized.isEmpty ? null : normalized;
+    final nextValue = normalized == null || normalized.isEmpty
+        ? null
+        : normalized;
     if (_selectedSearchText == nextValue) return;
     _selectedSearchText = nextValue;
     _notify();
