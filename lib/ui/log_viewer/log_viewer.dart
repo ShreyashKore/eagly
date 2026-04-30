@@ -13,7 +13,7 @@ import '../../data/log_entry.dart';
 import '../../services/preferences_service.dart';
 import '../../theme/app_theme.dart';
 
-enum LogViewerCopyAction { copyMessage, copyTimestampAndMessage }
+enum LogViewerCopyAction { copyRow, copyMessage, copyTimestampAndMessage }
 
 typedef LogRowSelectionStart = bool? Function(int index, {bool shiftPressed});
 
@@ -29,7 +29,7 @@ class LogViewer extends StatefulWidget {
   final LogRowSelectionStart? onRowSelectionStart;
   final ValueChanged<Set<int>>? onSelectedRowsChanged;
   final void Function(int index, bool selected)? onRowSelectionChanged;
-  final Future<void> Function(int index, LogViewerCopyAction action)?
+  final Future<void> Function(int? index, LogViewerCopyAction action)?
   onRowCopyAction;
 
   /// The active inline search query (separate from the filter bar query).
@@ -100,6 +100,7 @@ class _LogViewerState extends State<LogViewer> {
   );
   double _largestBuiltMessageWidth = 0;
   bool _messageWidthRefreshScheduled = false;
+
   // For pinch-to-zoom handling
   double? _scaleBaseFontSize;
   bool _isDraggingRowSelection = false;
@@ -258,8 +259,14 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   void _startRowSelectionDrag(int index, PointerDownEvent event) {
-    if (!widget.rowSelectionMode) return;
-    if ((event.buttons & kPrimaryButton) == 0) return;
+    if (!widget.rowSelectionMode) {
+      _endRowSelectionDrag(event.pointer);
+      return;
+    }
+    if ((event.buttons & kPrimaryButton) == 0) {
+      _endRowSelectionDrag(event.pointer);
+      return;
+    }
 
     widget.onLogRowTap?.call();
     final localPosition = _globalToViewportLocal(event.position);
@@ -296,7 +303,11 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   void _extendRowSelectionDrag(int index, PointerMoveEvent event) {
-    if (!widget.rowSelectionMode || !_isDraggingRowSelection) return;
+    if (!widget.rowSelectionMode) {
+      _endRowSelectionDrag(event.pointer);
+      return;
+    }
+    if (!_isDraggingRowSelection) return;
     if (_dragSelectionPointer != event.pointer) return;
     if ((event.buttons & kPrimaryButton) == 0) {
       _endRowSelectionDrag(event.pointer);
@@ -305,32 +316,6 @@ class _LogViewerState extends State<LogViewer> {
     final localPosition = _globalToViewportLocal(event.position);
     if (localPosition == null) return;
     _applyDragSelectionForLocalPosition(localPosition);
-  }
-
-  Future<void> _showRowCopyMenu(int index, Offset position) async {
-    final result = await showMenu<LogViewerCopyAction>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy,
-        position.dx,
-        position.dy,
-      ),
-      items: const [
-        PopupMenuItem<LogViewerCopyAction>(
-          value: LogViewerCopyAction.copyMessage,
-          child: Text('Copy message'),
-        ),
-        PopupMenuItem<LogViewerCopyAction>(
-          value: LogViewerCopyAction.copyTimestampAndMessage,
-          child: Text('Copy time + message'),
-        ),
-      ],
-    );
-
-    if (result != null) {
-      await widget.onRowCopyAction?.call(index, result);
-    }
   }
 
   double _messageColumnWidth(double viewportWidth) {
@@ -659,6 +644,7 @@ class _LogViewerState extends State<LogViewer> {
         final viewportWidth = constraints.maxWidth;
         final messageWidth = _messageColumnWidth(viewportWidth);
         final contentWidth = _contentWidth(viewportWidth);
+        final logViewport = _buildLogViewport(messageWidth);
 
         return Scrollbar(
           controller: _horizontalScrollController,
@@ -677,7 +663,6 @@ class _LogViewerState extends State<LogViewer> {
                     child: Scrollbar(
                       controller: widget.scrollController,
                       child: GestureDetector(
-                        onTap: widget.onLogRowTap,
                         // Support pinch-to-zoom on trackpads / touchpads to change log font size.
                         onScaleStart: (details) {
                           // Record the base font size at gesture start.
@@ -699,21 +684,83 @@ class _LogViewerState extends State<LogViewer> {
                           _scaleBaseFontSize = null;
                         },
                         child: Listener(
+                          onPointerDown: widget.rowSelectionMode
+                              ? null
+                              : (event) {
+                                  if ((event.buttons & kPrimaryButton) == 0) {
+                                    return;
+                                  }
+                                  widget.onLogRowTap?.call();
+                                },
                           onPointerUp: (event) =>
                               _endRowSelectionDrag(event.pointer),
                           onPointerCancel: (event) =>
                               _endRowSelectionDrag(event.pointer),
-                          child: widget.rowSelectionMode
-                              ? _buildLogViewport(messageWidth)
-                              : SelectionArea(
-                                  contextMenuBuilder: (_, __) =>
-                                      const SizedBox.shrink(),
-                                  child: _buildLogViewport(messageWidth),
-                                ),
+                          child: Theme(
+                            data: widget.rowSelectionMode
+                                ? Theme.of(context).copyWith(
+                                    textSelectionTheme:
+                                        const TextSelectionThemeData(
+                                      selectionColor: Colors.transparent,
+                                    ),
+                                  )
+                                : Theme.of(context),
+                            child: SelectionArea(
+                            contextMenuBuilder: (ctx, selectableRegionState) {
+                              if (widget.rowSelectionMode) {
+                                return AdaptiveTextSelectionToolbar(
+                                  anchors:
+                                      selectableRegionState.contextMenuAnchors,
+                                  children:
+                                      AdaptiveTextSelectionToolbar.getAdaptiveButtons(
+                                        ctx,
+                                        [
+                                          ContextMenuButtonItem(
+                                            label: 'Copy',
+                                            onPressed: () {
+                                              ContextMenuController.removeAny();
+                                              widget.onRowCopyAction?.call(
+                                                null,
+                                                LogViewerCopyAction.copyRow,
+                                              );
+                                            },
+                                          ),
+                                          ContextMenuButtonItem(
+                                            label: 'Copy message',
+                                            onPressed: () {
+                                              ContextMenuController.removeAny();
+                                              widget.onRowCopyAction?.call(
+                                                null,
+                                                LogViewerCopyAction.copyMessage,
+                                              );
+                                            },
+                                          ),
+                                          ContextMenuButtonItem(
+                                            label: 'Copy time + message',
+                                            onPressed: () {
+                                              ContextMenuController.removeAny();
+                                              widget.onRowCopyAction?.call(
+                                                null,
+                                                LogViewerCopyAction
+                                                    .copyTimestampAndMessage,
+                                              );
+                                            },
+                                          ),
+                                        ],
+                                      ).toList(),
+                                );
+                              }
+                              return AdaptiveTextSelectionToolbar.selectableRegion(
+                                selectableRegionState: selectableRegionState,
+                              );
+                            },
+                            child: logViewport,
+                          ),
                         ),
                       ),
                     ),
                   ),
+                ),
                 ],
               ),
             ),
@@ -828,7 +875,6 @@ class _LogViewerState extends State<LogViewer> {
       monoStyle: _monoStyle,
       onSelectionPointerDown: (event) => _startRowSelectionDrag(index, event),
       onSelectionPointerMove: (event) => _extendRowSelectionDrag(index, event),
-      onSecondaryTap: (position) => _showRowCopyMenu(index, position),
       contentValueForColumn: (col) => _cellValue(col, log),
     );
   }
@@ -1094,68 +1140,70 @@ class _LogRow extends StatelessWidget {
               ? logTheme.searchCurrentMatchColor
               : logTheme.searchMatchColor);
 
+    final rowContent = Container(
+      key: isCurrentMatch ? key : null,
+      color: isCurrentMatch
+          ? logTheme.searchCurrentRowColor
+          : (isSelected ? selectedRowColor : null),
+      child: Row(
+        children: [
+          if (rowSelectionMode) ...[
+            _selectionCell(context),
+            const SizedBox(width: _LogViewerState._columnSpacing),
+          ],
+          for (final col in visible) ...[
+            if (col == LogColumn.level)
+              _levelCell(
+                context,
+                log.level,
+                levelColor,
+                appendRowTerminator: lastVisibleColumn == col,
+              )
+            else
+              _fixedCell(
+                context,
+                contentValueForColumn(col),
+                widthOf(col),
+                rowStyle,
+                highlightColor: highlightColor,
+                appendRowTerminator: lastVisibleColumn == col,
+              ),
+            const SizedBox(width: _LogViewerState._columnSpacing),
+          ],
+          if (isVisible(LogColumn.message))
+            SizedBox(
+              width: messageWidth,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                child: _buildSelectableText(
+                  context,
+                  log.message,
+                  rowStyle,
+                  highlightColor: highlightColor,
+                  softWrap: wrapText,
+                  appendRowTerminator: lastVisibleColumn == LogColumn.message,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+
     return MouseRegion(
       cursor: rowSelectionMode ? SystemMouseCursors.click : MouseCursor.defer,
       child: Listener(
-        behavior: HitTestBehavior.opaque,
+        behavior: rowSelectionMode
+            ? HitTestBehavior.opaque
+            : HitTestBehavior.deferToChild,
         onPointerDown: rowSelectionMode ? onSelectionPointerDown : null,
         onPointerMove: rowSelectionMode ? onSelectionPointerMove : null,
         child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
+          behavior: rowSelectionMode
+              ? HitTestBehavior.opaque
+              : HitTestBehavior.deferToChild,
           onSecondaryTapUp: (details) =>
               onSecondaryTap?.call(details.globalPosition),
-          child: Container(
-            key: isCurrentMatch ? key : null,
-            color: isCurrentMatch
-                ? logTheme.searchCurrentRowColor
-                : (isSelected ? selectedRowColor : null),
-            child: Row(
-              children: [
-                if (rowSelectionMode) ...[
-                  _selectionCell(context),
-                  const SizedBox(width: _LogViewerState._columnSpacing),
-                ],
-                for (final col in visible) ...[
-                  if (col == LogColumn.level)
-                    _levelCell(
-                      context,
-                      log.level,
-                      levelColor,
-                      appendRowTerminator: lastVisibleColumn == col,
-                    )
-                  else
-                    _fixedCell(
-                      context,
-                      contentValueForColumn(col),
-                      widthOf(col),
-                      rowStyle,
-                      highlightColor: highlightColor,
-                      appendRowTerminator: lastVisibleColumn == col,
-                    ),
-                  const SizedBox(width: _LogViewerState._columnSpacing),
-                ],
-                if (isVisible(LogColumn.message))
-                  SizedBox(
-                    width: messageWidth,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      child: _buildSelectableText(
-                        context,
-                        log.message,
-                        rowStyle,
-                        highlightColor: highlightColor,
-                        softWrap: wrapText,
-                        appendRowTerminator:
-                            lastVisibleColumn == LogColumn.message,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          child: rowContent,
         ),
       ),
     );

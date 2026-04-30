@@ -397,7 +397,7 @@ class LogTabController extends ChangeNotifier {
   }
 
   Future<int> copyRowsForContextMenu({
-    required int clickedFilteredIndex,
+    required int? clickedFilteredIndex,
     required LogCopyFormat format,
   }) {
     final selectedIndices = _selectionTargetIndicesForCopy(
@@ -1001,8 +1001,8 @@ class LogTabController extends ChangeNotifier {
   List<LogEntry> get _currentLogsSnapshot =>
       List<LogEntry>.unmodifiable([...logs, ..._buffer]);
 
-  List<int> _selectionTargetIndicesForCopy(int clickedFilteredIndex) {
-    if (_selectedRowIndices.isNotEmpty &&
+  List<int> _selectionTargetIndicesForCopy(int? clickedFilteredIndex) {
+    if (clickedFilteredIndex == null || _selectedRowIndices.isNotEmpty &&
         _selectedRowIndices.contains(clickedFilteredIndex)) {
       return _selectedRowIndices.toList()..sort();
     }

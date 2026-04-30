@@ -7,6 +7,7 @@
 
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -107,6 +108,44 @@ void main() {
                     level: 'I',
                     tag: 'Tag',
                     message: 'Third message',
+                  ),
+                ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> pumpToggleableLogViewer(
+    WidgetTester tester, {
+    List<LogEntry>? logs,
+  }) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeMode.dark,
+        home: Scaffold(
+          body: _ToggleableLogViewerHarness(
+            logs:
+                logs ??
+                [
+                  LogEntry(
+                    timestamp: '04-20 10:00:00.000',
+                    pid: '101',
+                    tid: '201',
+                    level: 'I',
+                    tag: 'Tag',
+                    message: 'First message',
+                  ),
+                  LogEntry(
+                    timestamp: '04-20 10:00:01.000',
+                    pid: '102',
+                    tid: '202',
+                    level: 'I',
+                    tag: 'Tag',
+                    message: 'Second message',
                   ),
                 ],
           ),
@@ -249,6 +288,74 @@ void main() {
 
     expect(find.byIcon(Icons.check_box), findsNWidgets(3));
   });
+
+  testWidgets('secondary click still opens the copy menu after drag selection', (
+    WidgetTester tester,
+  ) async {
+    await pumpSelectableLogViewer(tester);
+    final centers = selectionCellCenters(tester);
+
+    final mouse = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+    await mouse.addPointer(location: centers.first);
+    await tester.pump();
+    await mouse.down(centers.first);
+    await tester.pump();
+    await mouse.moveTo(centers.last);
+    await tester.pump();
+    await mouse.up();
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.check_box), findsNWidgets(3));
+
+    final secondaryMouse = await tester.startGesture(
+      centers.last,
+      kind: ui.PointerDeviceKind.mouse,
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pump();
+    await secondaryMouse.up();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Copy message'), findsOneWidget);
+    expect(find.text('Copy time + message'), findsOneWidget);
+    expect(find.byKey(const ValueKey('row-selection-rect')), findsNothing);
+  });
+
+  testWidgets('turning row selection mode off rebuilds the selection area', (
+    WidgetTester tester,
+  ) async {
+    await pumpToggleableLogViewer(tester);
+
+    expect(find.byIcon(Icons.check_box_outline_blank), findsNWidgets(2));
+    expect(find.byType(SelectionArea), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('toggle-row-selection-mode')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SelectionArea), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('log-viewer-selection-area')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.check_box_outline_blank), findsNothing);
+
+    final selectionArea = find.byType(SelectionArea);
+    final mouse = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+    final areaRect = tester.getRect(selectionArea);
+    final start = areaRect.topLeft + const Offset(360, 48);
+    final end = start + const Offset(140, 0);
+    await mouse.addPointer(location: start);
+    await tester.pump();
+    await mouse.down(start);
+    await tester.pump();
+    await mouse.moveTo(end);
+    await tester.pump();
+    await mouse.up();
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('row-selection-rect')), findsNothing);
+    expect(find.byType(SelectionArea), findsOneWidget);
+  });
 }
 
 class _SelectableLogViewerHarness extends StatefulWidget {
@@ -335,3 +442,81 @@ class _SelectableLogViewerHarnessState
     );
   }
 }
+
+class _ToggleableLogViewerHarness extends StatefulWidget {
+  const _ToggleableLogViewerHarness({required this.logs});
+
+  final List<LogEntry> logs;
+
+  @override
+  State<_ToggleableLogViewerHarness> createState() =>
+      _ToggleableLogViewerHarnessState();
+}
+
+class _ToggleableLogViewerHarnessState
+    extends State<_ToggleableLogViewerHarness> {
+  final ScrollController _scrollController = ScrollController();
+  final Set<int> _selected = <int>{};
+  bool _rowSelectionMode = true;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  bool? _beginSelection(int index, {bool shiftPressed = false}) {
+    final shouldSelect = !_selected.contains(index);
+    setState(() {
+      if (shouldSelect) {
+        _selected.add(index);
+      } else {
+        _selected.remove(index);
+      }
+    });
+    return shouldSelect;
+  }
+
+  void _setSelectedRows(Set<int> indices) {
+    setState(() {
+      _selected
+        ..clear()
+        ..addAll(indices);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TextButton(
+          key: const ValueKey('toggle-row-selection-mode'),
+          onPressed: () {
+            setState(() {
+              _rowSelectionMode = !_rowSelectionMode;
+              if (!_rowSelectionMode) {
+                _selected.clear();
+              }
+            });
+          },
+          child: const Text('Toggle row selection mode'),
+        ),
+        Expanded(
+          child: SizedBox(
+            width: 900,
+            child: LogViewer(
+              logs: widget.logs,
+              scrollController: _scrollController,
+              wrapText: true,
+              rowSelectionMode: _rowSelectionMode,
+              selectedRowIndices: _selected,
+              onRowSelectionStart: _beginSelection,
+              onSelectedRowsChanged: _setSelectedRows,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+

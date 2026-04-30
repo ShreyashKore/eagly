@@ -71,10 +71,11 @@ class _LogTabViewState extends State<LogTabView> {
   }
 
   Future<void> _handleRowCopyAction(
-    int index,
+    int? index,
     LogViewerCopyAction action,
   ) async {
     final format = switch (action) {
+      LogViewerCopyAction.copyRow => LogCopyFormat.fullLine,
       LogViewerCopyAction.copyMessage => LogCopyFormat.messageOnly,
       LogViewerCopyAction.copyTimestampAndMessage =>
         LogCopyFormat.timestampAndMessage,
@@ -87,6 +88,7 @@ class _LogTabViewState extends State<LogTabView> {
     if (!mounted || copiedCount == 0) return;
 
     final copiedLabel = switch (action) {
+      LogViewerCopyAction.copyRow => 'row',
       LogViewerCopyAction.copyMessage => 'message',
       LogViewerCopyAction.copyTimestampAndMessage => 'time + message',
     };
