@@ -330,13 +330,10 @@ class _LogTabViewState extends State<LogTabView> {
       onRowSelectionChanged: controller.setRowSelected,
       onRowCopyAction: _handleRowCopyAction,
       onSelectedTextChanged: controller.setSelectedSearchText,
-      searchQuery: controller.appliedInlineSearchQuery,
-      caseSensitive: controller.searchCaseSensitive,
-      wholeWord: controller.searchWholeWord,
-      regexSearch: controller.searchRegex,
+      search: controller.appliedInlineSearch,
       currentMatchLogIndex:
           controller.searchBarVisible &&
-              controller.appliedInlineSearchQuery.isNotEmpty
+              controller.appliedInlineSearch.isActive
           ? safeIndex
           : null,
       hiddenColumns: controller.hiddenColumns,
@@ -540,15 +537,12 @@ class _LogTabViewState extends State<LogTabView> {
             child: LogSearchBar(
               controller: controller.searchController,
               focusNode: controller.searchFocusNode,
-              caseSensitive: controller.searchCaseSensitive,
-              wholeWord: controller.searchWholeWord,
-              regexSearch: controller.searchRegex,
+              search: controller.inlineSearch,
               hasError: controller.inlineSearchHasError,
               errorText: controller.inlineSearchErrorText,
-              onQueryChanged: controller.onInlineSearchChanged,
-              onCaseSensitiveChanged: controller.setSearchCaseSensitive,
-              onWholeWordChanged: controller.setSearchWholeWord,
-              onRegexChanged: controller.setSearchRegex,
+              onSearchChanged: controller.updateInlineSearch,
+              onSearchOptionsChanged: (search) =>
+                  controller.updateInlineSearch(search, applyImmediately: true),
               onNext: controller.onSearchNext,
               onPrevious: controller.onSearchPrev,
               onClose: controller.closeSearchBar,

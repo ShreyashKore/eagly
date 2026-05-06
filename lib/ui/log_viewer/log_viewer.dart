@@ -14,6 +14,8 @@ import '../../services/preferences_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/text_search_pattern.dart';
 import 'components/log_row.dart';
+import 'components/log_viewer_header.dart';
+import 'log_viewer_constants.dart';
 
 enum LogViewerCopyAction { copyRow, copyMessage, copyTimestampAndMessage }
 
@@ -36,13 +38,8 @@ class LogViewer extends StatefulWidget {
   final Future<void> Function(int? index, LogViewerCopyAction action)?
   onRowCopyAction;
 
-  /// The active inline search query (separate from the filter bar query).
-  final String searchQuery;
-
-  /// Whether the search is case-sensitive.
-  final bool caseSensitive;
-  final bool wholeWord;
-  final bool regexSearch;
+  /// The active inline search configuration (separate from the filter bar).
+  final TextSearchConfig search;
 
   /// Index (into [logs]) of the row that should be highlighted as the
   /// currently focused match. `null` means no focused match.
@@ -76,10 +73,7 @@ class LogViewer extends StatefulWidget {
     this.onSelectedRowsChanged,
     this.onRowSelectionChanged,
     this.onRowCopyAction,
-    this.searchQuery = '',
-    this.caseSensitive = false,
-    this.wholeWord = false,
-    this.regexSearch = false,
+    this.search = const TextSearchConfig(),
     this.currentMatchLogIndex,
     this.onSelectedTextChanged,
     this.onUserScroll,
@@ -94,10 +88,6 @@ class LogViewer extends StatefulWidget {
 }
 
 class _LogViewerState extends State<LogViewer> {
-  static const double _columnDragHandleWidth = 8;
-  static const double _messageMinWidth = 320;
-  static const double _messageHorizontalPadding = 16;
-
   late Map<String, double> _widths;
   late Set<String> _hiddenColumns;
   Timer? _saveWidthsTimer;
@@ -130,12 +120,8 @@ class _LogViewerState extends State<LogViewer> {
   TextStyle _applyFont(TextStyle base) =>
       base.copyWith(fontSize: PreferencesService.logFontSize);
 
-  TextSearchPattern get _searchPattern => TextSearchPattern(
-    query: widget.searchQuery,
-    caseSensitive: widget.caseSensitive,
-    wholeWord: widget.wholeWord,
-    regex: widget.regexSearch,
-  );
+  TextSearchPattern get _searchPattern =>
+      TextSearchPattern.fromConfig(widget.search);
 
   /// Key placed on the currently-focused match row so we can scroll to it.
   final GlobalKey _currentMatchKey = GlobalKey();
@@ -155,10 +141,7 @@ class _LogViewerState extends State<LogViewer> {
     super.didUpdateWidget(old);
     final didSearchTargetChange =
         widget.currentMatchLogIndex != old.currentMatchLogIndex ||
-        widget.searchQuery != old.searchQuery ||
-        widget.caseSensitive != old.caseSensitive ||
-        widget.wholeWord != old.wholeWord ||
-        widget.regexSearch != old.regexSearch;
+        widget.search != old.search;
     if (didSearchTargetChange && widget.currentMatchLogIndex != null) {
       _scrollToMatch(widget.currentMatchLogIndex!);
     }
@@ -274,10 +257,10 @@ class _LogViewerState extends State<LogViewer> {
 
   double get _fixedColumnsExtent {
     var width = widget.rowSelectionMode
-        ? LogViewer.selectionColumnWidth + LogViewer.columnSpacing
+        ? kSelectionColumnWidth + kColumnSpacing
         : 0.0;
     for (final col in _visibleFixedColumns) {
-      width += _widthOf(col) + LogViewer.columnSpacing;
+      width += _widthOf(col) + kColumnSpacing;
     }
     return width;
   }
@@ -361,7 +344,7 @@ class _LogViewerState extends State<LogViewer> {
   double _messageColumnWidth(double viewportWidth) {
     if (!_isVisible(LogColumn.message)) return 0;
     if (widget.wrapText) {
-      return math.max(_messageMinWidth, viewportWidth - _fixedColumnsExtent);
+      return math.max(kMessageMinWidth, viewportWidth - _fixedColumnsExtent);
     }
     return math.max(
       LogViewer.defaultUnwrappedMessageWidth,
@@ -374,7 +357,7 @@ class _LogViewerState extends State<LogViewer> {
     for (final line in message.split('\n')) {
       widestLine = math.max(widestLine, _measureTextWidth(line, _monoStyle));
     }
-    return widestLine + _messageHorizontalPadding;
+    return widestLine + kMessageHorizontalPadding;
   }
 
   double _measureTextWidth(String text, TextStyle style) {
@@ -388,14 +371,14 @@ class _LogViewerState extends State<LogViewer> {
 
   double _columnStart(LogColumn column) {
     var offset = widget.rowSelectionMode
-        ? LogViewer.selectionColumnWidth + LogViewer.columnSpacing
+        ? kSelectionColumnWidth + kColumnSpacing
         : 0.0;
 
     for (final visibleColumn in _visibleFixedColumns) {
       if (visibleColumn == column) {
         return offset;
       }
-      offset += _widthOf(visibleColumn) + LogViewer.columnSpacing;
+      offset += _widthOf(visibleColumn) + kColumnSpacing;
     }
 
     return offset;
@@ -422,7 +405,8 @@ class _LogViewerState extends State<LogViewer> {
     ];
 
     for (final column in visibleColumns) {
-      final match = pattern.firstMatch(_cellValue(column, log));
+      final value = log.valueForColumn(column);
+      final match = pattern.firstMatch(value);
       if (match == null) continue;
 
       final columnStart = _columnStart(column);
@@ -434,9 +418,12 @@ class _LogViewerState extends State<LogViewer> {
       }
 
       final padding = 8.0;
-      final text = _cellValue(column, log);
-      final linePrefix = _linePrefixUntilMatch(text, match.start);
-      final matchedLineText = _matchedLineSegment(text, match.start, match.end);
+      final linePrefix = _linePrefixUntilMatch(value, match.start);
+      final matchedLineText = _matchedLineSegment(
+        value,
+        match.start,
+        match.end,
+      );
       final textLeft =
           columnStart + padding + _measureTextWidth(linePrefix, _monoStyle);
       final textRight =
@@ -516,7 +503,7 @@ class _LogViewerState extends State<LogViewer> {
         _messageColumnWidth(viewportWidth) +
         (!_isVisible(LogColumn.message) || widget.wrapText
             ? 0
-            : _columnDragHandleWidth);
+            : kColumnDragHandleWidth);
     return math.max(viewportWidth, width);
   }
 
@@ -554,7 +541,7 @@ class _LogViewerState extends State<LogViewer> {
   void _updateMessageWidth(double dx, double currentWidth) {
     setState(() {
       _widths[LogColumn.message.name] = math.max(
-        _messageMinWidth,
+        kMessageMinWidth,
         currentWidth + dx,
       );
     });
@@ -620,17 +607,6 @@ class _LogViewerState extends State<LogViewer> {
       });
       widget.onHiddenColumnsChanged?.call(Set.of(_hiddenColumns));
     }
-  }
-
-  String _cellValue(LogColumn col, LogEntry log) {
-    return switch (col) {
-      LogColumn.timestamp => log.timestamp,
-      LogColumn.pid => log.packageName ?? log.pid,
-      LogColumn.tid => log.tid,
-      LogColumn.level => log.level,
-      LogColumn.tag => log.tag,
-      LogColumn.message => log.message,
-    };
   }
 
   void _registerRowContext(int index, BuildContext context) {
@@ -996,88 +972,18 @@ class _LogViewerState extends State<LogViewer> {
 
   Widget _buildHeader(double messageWidth) {
     final headerStyle = _applyFont(context.logViewTheme.logHeaderStyle);
-    final visible = _visibleFixedColumns;
-
-    return GestureDetector(
-      onSecondaryTapUp: (details) =>
-          _showColumnVisibilityMenu(context, details.globalPosition),
-      child: Container(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        height: 28,
-        child: Row(
-          children: [
-            if (widget.rowSelectionMode) ...[
-              SizedBox(
-                width: LogViewer.selectionColumnWidth,
-                child: Center(
-                  child: Icon(
-                    Icons.checklist_rounded,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              const SizedBox(width: LogViewer.columnSpacing),
-            ],
-            for (final col in visible) ...[
-              _headerCell(col.label, _widthOf(col), headerStyle),
-              _columnDragHandle((dx) {
-                _updateWidth(col, dx);
-              }),
-            ],
-            if (_isVisible(LogColumn.message))
-              Row(
-                children: [
-                  SizedBox(
-                    width: messageWidth,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Text(LogColumn.message.label, style: headerStyle),
-                    ),
-                  ),
-                  if (!widget.wrapText)
-                    _columnDragHandle((dx) {
-                      _updateMessageWidth(dx, messageWidth);
-                    }),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _headerCell(String text, double width, TextStyle style) {
-    return SizedBox(
-      width: width,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(text, style: style, overflow: TextOverflow.ellipsis),
-        ),
-      ),
-    );
-  }
-
-  Widget _columnDragHandle(void Function(double dx) onDrag) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.resizeColumn,
-      child: GestureDetector(
-        onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
-        behavior: HitTestBehavior.opaque,
-        // This ensures the entire area captures touches
-        child: SizedBox(
-          width: _columnDragHandleWidth,
-          child: Center(
-            child: VerticalDivider(
-              width: 1,
-              thickness: 1,
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.4),
-            ),
-          ),
-        ),
-      ),
+    return LogViewerHeader(
+      rowSelectionMode: widget.rowSelectionMode,
+      headerStyle: headerStyle,
+      visibleFixedColumns: _visibleFixedColumns,
+      messageVisible: _isVisible(LogColumn.message),
+      messageWidth: messageWidth,
+      wrapText: widget.wrapText,
+      widthOf: _widthOf,
+      onFixedColumnResize: _updateWidth,
+      onMessageResize: (dx) => _updateMessageWidth(dx, messageWidth),
+      onShowColumnVisibilityMenu: (position) =>
+          _showColumnVisibilityMenu(context, position),
     );
   }
 
@@ -1092,17 +998,14 @@ class _LogViewerState extends State<LogViewer> {
       widthOf: _widthOf,
       isVisible: _isVisible,
       lastVisibleColumn: _lastVisibleColumn,
-      searchQuery: widget.searchQuery,
-      caseSensitive: widget.caseSensitive,
-      wholeWord: widget.wholeWord,
-      regexSearch: widget.regexSearch,
+      search: widget.search,
       currentMatchLogIndex: widget.currentMatchLogIndex,
       wrapText: widget.wrapText,
       monoStyle: _monoStyle,
       allowSelectionStart: log.isUserSelectable,
       onSelectionPointerDown: (event) => _startRowSelectionDrag(index, event),
       onSelectionPointerMove: (event) => _extendRowSelectionDrag(index, event),
-      contentValueForColumn: (col) => _cellValue(col, log),
+      contentValueForColumn: log.valueForColumn,
     );
   }
 
@@ -1146,6 +1049,7 @@ class _LogViewerState extends State<LogViewer> {
         _recordBuiltMessageWidth(log.message);
         return _RowBoundsReporter(
           index: i,
+          key: ValueKey(log.id),
           onMounted: _registerRowContext,
           onUnmounted: _unregisterRowContext,
           key: ValueKey(log.id),
@@ -1155,7 +1059,6 @@ class _LogViewerState extends State<LogViewer> {
     );
   }
 }
-
 
 class _HorizontalRevealTarget {
   const _HorizontalRevealTarget({required this.left, required this.right});

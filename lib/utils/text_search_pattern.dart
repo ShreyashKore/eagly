@@ -1,6 +1,50 @@
 import 'package:flutter/foundation.dart';
 
 @immutable
+class TextSearchConfig {
+  const TextSearchConfig({
+    this.query = '',
+    this.caseSensitive = false,
+    this.wholeWord = false,
+    this.regex = false,
+  });
+
+  final String query;
+  final bool caseSensitive;
+  final bool wholeWord;
+  final bool regex;
+
+  bool get isActive => query.isNotEmpty;
+
+  TextSearchConfig copyWith({
+    String? query,
+    bool? caseSensitive,
+    bool? wholeWord,
+    bool? regex,
+  }) {
+    return TextSearchConfig(
+      query: query ?? this.query,
+      caseSensitive: caseSensitive ?? this.caseSensitive,
+      wholeWord: wholeWord ?? this.wholeWord,
+      regex: regex ?? this.regex,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is TextSearchConfig &&
+        other.query == query &&
+        other.caseSensitive == caseSensitive &&
+        other.wholeWord == wholeWord &&
+        other.regex == regex;
+  }
+
+  @override
+  int get hashCode => Object.hash(query, caseSensitive, wholeWord, regex);
+}
+
+@immutable
 class TextSearchMatch {
   const TextSearchMatch({required this.start, required this.end});
 
@@ -12,6 +56,15 @@ class TextSearchMatch {
 
 @immutable
 class TextSearchPattern {
+  factory TextSearchPattern.fromConfig(TextSearchConfig config) {
+    return TextSearchPattern(
+      query: config.query,
+      caseSensitive: config.caseSensitive,
+      wholeWord: config.wholeWord,
+      regex: config.regex,
+    );
+  }
+
   factory TextSearchPattern({
     required String query,
     required bool caseSensitive,

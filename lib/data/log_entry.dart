@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../utils/log_entry_id_generator.dart';
 import '../utils/timestamp_utils.dart';
+import 'log_column.dart';
 import 'log_level.dart';
 
 enum LogEntryType {
@@ -134,6 +135,15 @@ class LogEntry {
       message,
     ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' ');
   }
+
+  String valueForColumn(LogColumn column) => switch (column) {
+    LogColumn.timestamp => timestamp,
+    LogColumn.pid => packageName ?? pid,
+    LogColumn.tid => tid,
+    LogColumn.level => level,
+    LogColumn.tag => tag,
+    LogColumn.message => message,
+  };
 
   @override
   String toString() {

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+
 import '../../../data/log_column.dart';
 import '../../../data/log_entry.dart';
 import '../../../theme/app_theme.dart';
 import '../../../utils/text_search_pattern.dart';
 import '../log_viewer.dart';
+import '../log_viewer_constants.dart';
 
 class LogRow extends StatelessWidget {
   final LogEntry log;
@@ -14,10 +16,7 @@ class LogRow extends StatelessWidget {
   final double Function(LogColumn) widthOf;
   final bool Function(LogColumn) isVisible;
   final LogColumn? lastVisibleColumn;
-  final String searchQuery;
-  final bool caseSensitive;
-  final bool wholeWord;
-  final bool regexSearch;
+  final TextSearchConfig search;
   final int? currentMatchLogIndex;
   final bool wrapText;
   final TextStyle monoStyle;
@@ -36,10 +35,7 @@ class LogRow extends StatelessWidget {
     required this.widthOf,
     required this.isVisible,
     required this.lastVisibleColumn,
-    required this.searchQuery,
-    required this.caseSensitive,
-    required this.wholeWord,
-    required this.regexSearch,
+    required this.search,
     required this.currentMatchLogIndex,
     required this.wrapText,
     required this.monoStyle,
@@ -88,21 +84,16 @@ class LogRow extends StatelessWidget {
   }
 
   Widget _buildSelectableText(
-      BuildContext context,
-      String text,
-      TextStyle style, {
-        Color? highlightColor,
-        TextOverflow? overflow,
-        bool softWrap = false,
-        bool appendRowTerminator = false,
-      }) {
+    BuildContext context,
+    String text,
+    TextStyle style, {
+    Color? highlightColor,
+    TextOverflow? overflow,
+    bool softWrap = false,
+    bool appendRowTerminator = false,
+  }) {
     final children = <InlineSpan>[];
-    final pattern = TextSearchPattern(
-      query: searchQuery,
-      caseSensitive: caseSensitive,
-      wholeWord: wholeWord,
-      regex: regexSearch,
-    );
+    final pattern = TextSearchPattern.fromConfig(search);
 
     if (!pattern.isActive || highlightColor == null || !pattern.isValid) {
       children.add(TextSpan(text: text, style: style));
@@ -167,11 +158,11 @@ class LogRow extends StatelessWidget {
   }
 
   Widget _levelCell(
-      BuildContext context,
-      String level,
-      Color levelColor, {
-        bool appendRowTerminator = false,
-      }) {
+    BuildContext context,
+    String level,
+    Color levelColor, {
+    bool appendRowTerminator = false,
+  }) {
     return SizedBox(
       width: widthOf(LogColumn.level),
       child: Padding(
@@ -197,13 +188,13 @@ class LogRow extends StatelessWidget {
   }
 
   Widget _fixedCell(
-      BuildContext context,
-      String text,
-      double width,
-      TextStyle style, {
-        Color? highlightColor,
-        bool appendRowTerminator = false,
-      }) {
+    BuildContext context,
+    String text,
+    double width,
+    TextStyle style, {
+    Color? highlightColor,
+    bool appendRowTerminator = false,
+  }) {
     return SizedBox(
       width: width,
       child: Padding(
@@ -222,7 +213,7 @@ class LogRow extends StatelessWidget {
   Widget _selectionCell(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return SizedBox(
-      width: LogViewer.selectionColumnWidth,
+      width: kSelectionColumnWidth,
       child: Center(
         child: Icon(
           isSelected ? Icons.check_box : Icons.check_box_outline_blank,
@@ -254,7 +245,9 @@ class LogRow extends StatelessWidget {
 
     return SelectionContainer.disabled(
       child: Container(
-        color: isCurrentMatch ? context.logViewTheme.searchCurrentRowColor : null,
+        color: isCurrentMatch
+            ? context.logViewTheme.searchCurrentRowColor
+            : null,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         child: Align(
           alignment: Alignment.centerLeft,
@@ -266,7 +259,9 @@ class LogRow extends StatelessWidget {
                 color: tileColor,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: accentColor.withValues(alpha: isCurrentMatch ? 0.32 : 0.18),
+                  color: accentColor.withValues(
+                    alpha: isCurrentMatch ? 0.32 : 0.18,
+                  ),
                   width: 0.8,
                 ),
               ),
@@ -336,8 +331,8 @@ class LogRow extends StatelessWidget {
     final Color? highlightColor = searchQuery.isEmpty
         ? null
         : (isCurrentMatch
-        ? logTheme.searchCurrentMatchColor
-        : logTheme.searchMatchColor);
+              ? logTheme.searchCurrentMatchColor
+              : logTheme.searchMatchColor);
 
     if (log.isSpecialEntry) {
       final rowContent = _buildSpecialRow(
@@ -371,7 +366,7 @@ class LogRow extends StatelessWidget {
         children: [
           if (rowSelectionMode) ...[
             _selectionCell(context),
-            const SizedBox(width: LogViewer.columnSpacing),
+            const SizedBox(width: kColumnSpacing),
           ],
           for (final col in visible) ...[
             if (col == LogColumn.level)
@@ -390,7 +385,7 @@ class LogRow extends StatelessWidget {
                 highlightColor: highlightColor,
                 appendRowTerminator: lastVisibleColumn == col,
               ),
-            const SizedBox(width: LogViewer.columnSpacing),
+            const SizedBox(width: kColumnSpacing),
           ],
           if (isVisible(LogColumn.message))
             SizedBox(
