@@ -45,6 +45,7 @@ class LogTabView extends StatefulWidget {
 
 class _LogTabViewState extends State<LogTabView> {
   final _dropdownButtonKey = GlobalKey(debugLabel: 'DeviceDropdown');
+  var _isInstallDropActive = false;
 
   LogTabController get controller => widget.controller;
 
@@ -65,6 +66,27 @@ class _LogTabViewState extends State<LogTabView> {
     if (!mounted || result.cancelled) return;
 
     _showSnackBar(formatExportLogsMessage(result));
+  }
+
+  Future<void> _handleInstallApp({Device? device}) async {
+    final result = await controller.installAppFromPicker(device: device);
+    if (!mounted || result.cancelled) return;
+
+    _showSnackBar(formatAppInstallMessage(result));
+  }
+
+  Future<void> _handleInstallDrop(List<String> paths) async {
+    final result = await controller.installDroppedPaths(paths);
+    if (!mounted || result.cancelled) return;
+
+    _showSnackBar(formatAppInstallMessage(result));
+  }
+
+  void _setInstallDropActive(bool value) {
+    if (_isInstallDropActive == value) return;
+    setState(() {
+      _isInstallDropActive = value;
+    });
   }
 
   Future<void> _handleCopyAllLogs() async {
@@ -196,6 +218,8 @@ class _LogTabViewState extends State<LogTabView> {
                                   (device) => AvailableDeviceCard(
                                     device: device,
                                     onSelected: () => _selectDevice(device),
+                                    onInstallApp: () =>
+                                        _handleInstallApp(device: device),
                                     onShowMessage: _showSnackBar,
                                   ),
                                 )
@@ -452,6 +476,14 @@ class _LogTabViewState extends State<LogTabView> {
       onImport: () async {
         await _handleImportLogs();
       },
+      onInstallApp: controller.hasConnectedSelectedDevice
+          ? () async {
+              await _handleInstallApp();
+            }
+          : null,
+      onInstallDrop: _handleInstallDrop,
+      onInstallDropActiveChanged: _setInstallDropActive,
+      isInstallDropActive: _isInstallDropActive,
       onExport: controller.logs.isEmpty
           ? null
           : () async {

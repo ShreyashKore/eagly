@@ -5,11 +5,13 @@ import '../data/log_entry.dart';
 import '../data/wireless_debug_models.dart';
 import '../features/app_log/app_logger.dart';
 import 'tools/adb_tool.dart';
+import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
 import 'tools/tool_process_runner.dart';
 
 class DeviceSessionService {
   final AdbTool _adbTool;
+  final IdeviceInstallerTool _ideviceInstallerTool;
   final IdeviceSyslogTool _ideviceSyslogTool;
   final AppLogger _logger = AppLogger(source: 'DeviceSessionService');
   final Map<String, String> _pidToPackageCache = {};
@@ -23,10 +25,15 @@ class DeviceSessionService {
 
   DeviceSessionService({
     String? adbPath,
+    String? ideviceInstallerPath,
     String? ideviceSyslogPath,
     AdbTool? adbTool,
+    IdeviceInstallerTool? ideviceInstallerTool,
     IdeviceSyslogTool? ideviceSyslogTool,
   }) : _adbTool = adbTool ?? AdbTool(executablePath: adbPath),
+       _ideviceInstallerTool =
+           ideviceInstallerTool ??
+           IdeviceInstallerTool(executablePath: ideviceInstallerPath),
        _ideviceSyslogTool =
            ideviceSyslogTool ??
            IdeviceSyslogTool(executablePath: ideviceSyslogPath);
@@ -151,6 +158,17 @@ class DeviceSessionService {
 
   Future<DeviceCommandResult> connectDevice(String address) =>
       _adbTool.connectDevice(address);
+
+  Future<DeviceCommandResult> installApp({
+    required Device device,
+    required String filePath,
+  }) {
+    return switch (device) {
+      AndroidDevice() => _adbTool.installApk(deviceId: device.id, apkPath: filePath),
+      IosDevice() =>
+        _ideviceInstallerTool.installApp(deviceId: device.id, appPath: filePath),
+    };
+  }
 
   /// Refresh the PID to package name mapping.
   Future<void> refreshPidToPackageMap(String deviceId) async {

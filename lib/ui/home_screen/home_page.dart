@@ -320,6 +320,16 @@ class _HomeScreenState extends State<HomeScreen> {
     _showSnackBar(formatExportLogsMessage(result));
   }
 
+  Future<void> _handleInstallApp() async {
+    final controller = _activeController;
+    if (controller == null) return;
+
+    final result = await controller.installAppFromPicker();
+    if (!mounted || result.cancelled) return;
+
+    _showSnackBar(formatAppInstallMessage(result));
+  }
+
   void _runOnActiveTab(void Function(LogTabController tab) action) {
     final controller = _activeController;
     if (controller == null) return;
@@ -362,6 +372,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   meta: true,
                 ),
                 onSelected: () => unawaited(_handleImportLogs()),
+              ),
+              PlatformMenuItem(
+                label: 'Install App on Selected Device…',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyI,
+                  meta: true,
+                  shift: true,
+                ),
+                onSelected:
+                    _activeController?.hasConnectedSelectedDevice == true
+                    ? () => unawaited(_handleInstallApp())
+                    : null,
               ),
               PlatformMenuItem(
                 label: 'Export Logs…',

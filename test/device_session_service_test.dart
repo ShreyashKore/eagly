@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:eagly/data/device.dart';
 import 'package:eagly/services/device_session_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -8,6 +9,7 @@ void main() {
 
   late Directory tempDir;
   late String adbPath;
+  late String ideviceInstallerPath;
   late String ideviceSyslogPath;
 
   setUp(() async {
@@ -29,8 +31,24 @@ if [ "$1" = "pair" ]; then
   echo "Successfully paired"
   exit 0
 fi
+if [ "$1" = "-s" ] && [ "$3" = "install" ]; then
+  echo "Performing Streamed Install"
+  echo "Success"
+  exit 0
+fi
 exit 0
 ''');
+    ideviceInstallerPath = await _writeExecutable(
+      tempDir,
+      'ideviceinstaller',
+      r'''#!/bin/sh
+if [ "$1" = "-u" ] && [ "$3" = "-i" ]; then
+  echo "Complete"
+  exit 0
+fi
+exit 0
+''',
+    );
     ideviceSyslogPath = await _writeExecutable(
       tempDir,
       'idevicesyslog',
@@ -47,6 +65,7 @@ exit 0
   DeviceSessionService buildService() {
     return DeviceSessionService(
       adbPath: adbPath,
+      ideviceInstallerPath: ideviceInstallerPath,
       ideviceSyslogPath: ideviceSyslogPath,
     );
   }
@@ -72,6 +91,33 @@ exit 0
 
       expect(result.isSuccess, isFalse);
       expect(result.error, contains('failed to connect to 127.0.0.1:5555'));
+    },
+  );
+
+  test('installApp installs APKs on Android devices via adb', () async {
+    final service = buildService();
+
+    final result = await service.installApp(
+      device: Device.android('emulator-5554', 'device'),
+      filePath: '${tempDir.path}/sample.apk',
+    );
+
+    expect(result.isSuccess, isTrue);
+    expect(result.message, contains('Success'));
+  });
+
+  test(
+    'installApp installs IPA or app bundles on iOS devices via ideviceinstaller',
+    () async {
+      final service = buildService();
+
+      final result = await service.installApp(
+        device: Device.ios('00008110-001234567890801E', 'device'),
+        filePath: '${tempDir.path}/Sample.ipa',
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(result.message, contains('Complete'));
     },
   );
 }

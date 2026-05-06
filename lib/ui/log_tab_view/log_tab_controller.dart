@@ -11,6 +11,7 @@ import '../../data/log_entry.dart';
 import '../../data/log_level.dart';
 import '../../data/log_tab_settings.dart';
 import '../../data/log_view_mode.dart';
+import '../../services/app_install_service.dart';
 import '../../services/device_repository.dart';
 import '../../services/device_session_service.dart';
 import '../../services/log_file_service.dart';
@@ -129,6 +130,8 @@ class LogTabController extends ChangeNotifier {
   var _logsMemoryBytes = 0;
   var _pendingLogsMemoryBytes = 0;
   var _logViewerRevision = 0;
+  var _isInstallingApp = false;
+  String? _installingAppName;
 
   var _disposed = false;
   var _showGetStarted = true;
@@ -182,6 +185,8 @@ class LogTabController extends ChangeNotifier {
   bool get editingLogLinesLimit => _editingLogLinesLimit;
   int get logViewerRevision => _logViewerRevision;
   bool get isReadingFromFile => _importedFileName != null;
+  bool get isInstallingApp => _isInstallingApp;
+  String? get installingAppName => _installingAppName;
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;
   bool get hasLogs => _logsBuffer.size > 0;
@@ -345,6 +350,122 @@ class LogTabController extends ChangeNotifier {
     _exitGetStarted();
     _notify();
     return result;
+  }
+
+  Future<AppInstallResult> installAppFromPicker({Device? device}) async {
+    final targetDevice = device ?? selectedDevice;
+    if (targetDevice == null || !targetDevice.isConnected) {
+      return AppInstallResult.failure(
+        device: targetDevice,
+        error: 'Select a connected device before installing an app.',
+      );
+    }
+
+    final selection = await AppInstallService.pickInstallable(targetDevice);
+    if (_disposed || selection.cancelled) {
+      return AppInstallResult.cancelled();
+    }
+    if (!selection.isSuccess || selection.filePath == null) {
+      return AppInstallResult.failure(
+        fileName: selection.fileName,
+        device: targetDevice,
+        error: selection.error ?? 'Failed to select an app to install.',
+      );
+    }
+
+    return installAppFromPath(
+      selection.filePath!,
+      preferredDevice: targetDevice,
+    );
+  }
+
+  Future<AppInstallResult> installDroppedPaths(Iterable<String> paths) async {
+    final normalizedPaths = paths
+        .map((path) => path.trim())
+        .where((path) => path.isNotEmpty)
+        .toList(growable: false);
+    if (normalizedPaths.isEmpty) {
+      return AppInstallResult.failure(error: 'No installable app was dropped.');
+    }
+    if (normalizedPaths.length > 1) {
+      return AppInstallResult.failure(
+        error: 'Drop a single app binary at a time.',
+      );
+    }
+
+    return installAppFromPath(normalizedPaths.single);
+  }
+
+  Future<AppInstallResult> installAppFromPath(
+    String path, {
+    Device? preferredDevice,
+  }) async {
+    final normalizedPath = path.trim();
+    final fileName = AppInstallService.extractFileName(normalizedPath);
+    if (_isInstallingApp) {
+      return AppInstallResult.failure(
+        fileName: fileName,
+        error: 'Another app installation is already in progress.',
+      );
+    }
+
+    final resolution = _resolveInstallTargetForPath(
+      normalizedPath,
+      preferredDevice: preferredDevice,
+    );
+    if (resolution.error != null || resolution.device == null) {
+      return AppInstallResult.failure(
+        fileName: fileName,
+        device: preferredDevice,
+        error: resolution.error ?? 'Unable to determine an install target.',
+      );
+    }
+
+    final device = resolution.device!;
+    final validationError = AppInstallService.validateInstallableForDevice(
+      device,
+      normalizedPath,
+    );
+    if (validationError != null) {
+      return AppInstallResult.failure(
+        fileName: fileName,
+        device: device,
+        error: validationError,
+      );
+    }
+
+    _isInstallingApp = true;
+    _installingAppName = fileName;
+    _notify();
+
+    try {
+      await AppInstallService.rememberDialogDirectoryFromPath(normalizedPath);
+      final result = await _deviceSessionService.installApp(
+        device: device,
+        filePath: normalizedPath,
+      );
+      if (_disposed) {
+        return AppInstallResult.cancelled();
+      }
+      if (!result.isSuccess) {
+        return AppInstallResult.failure(
+          fileName: fileName,
+          device: device,
+          error:
+              'Failed to install $fileName on ${device.displayName}: ${result.error ?? 'Unknown error.'}',
+        );
+      }
+
+      return AppInstallResult.success(
+        fileName: fileName,
+        device: device,
+        message: 'Installed $fileName on ${device.displayName}.',
+      );
+    } finally {
+      _isInstallingApp = false;
+      _installingAppName = null;
+      _notify();
+    }
   }
 
   void scrollToEnd() {
@@ -1739,6 +1860,64 @@ class LogTabController extends ChangeNotifier {
     return total;
   }
 
+  _InstallTargetResolution _resolveInstallTargetForPath(
+    String path, {
+    Device? preferredDevice,
+  }) {
+    final fileName = AppInstallService.extractFileName(path);
+    final explicitTarget = preferredDevice;
+    if (explicitTarget != null) {
+      if (!explicitTarget.isConnected) {
+        return _InstallTargetResolution.failure(
+          'The selected device is disconnected. Choose a connected device before installing $fileName.',
+        );
+      }
+
+      final validationError = AppInstallService.validateInstallableForDevice(
+        explicitTarget,
+        path,
+      );
+      if (validationError != null) {
+        return _InstallTargetResolution.failure(validationError);
+      }
+
+      return _InstallTargetResolution.success(explicitTarget);
+    }
+
+    final selectedConnectedDevice = selectedDevice?.isConnected == true
+        ? selectedDevice
+        : null;
+    if (selectedConnectedDevice != null) {
+      final validationError = AppInstallService.validateInstallableForDevice(
+        selectedConnectedDevice,
+        path,
+      );
+      if (validationError == null) {
+        return _InstallTargetResolution.success(selectedConnectedDevice);
+      }
+      return _InstallTargetResolution.failure(validationError);
+    }
+
+    final compatibleDevices = devices
+        .where((device) {
+          return device.isConnected &&
+              AppInstallService.supportsInstallableForDevice(device, path);
+        })
+        .toList(growable: false);
+    if (compatibleDevices.isEmpty) {
+      return _InstallTargetResolution.failure(
+        'No connected compatible device is available for $fileName.',
+      );
+    }
+    if (compatibleDevices.length > 1) {
+      return _InstallTargetResolution.failure(
+        'Select a target device before installing $fileName.',
+      );
+    }
+
+    return _InstallTargetResolution.success(compatibleDevices.single);
+  }
+
   void _handleDeviceRepositoryChanged() {
     if (_disposed) return;
 
@@ -1812,4 +1991,19 @@ class _ParsedLogFilters {
   final List<String> pidTidTerms;
   final List<String> tagTerms;
   final LogLevel level;
+}
+
+class _InstallTargetResolution {
+  const _InstallTargetResolution({this.device, this.error});
+
+  final Device? device;
+  final String? error;
+
+  factory _InstallTargetResolution.success(Device device) {
+    return _InstallTargetResolution(device: device);
+  }
+
+  factory _InstallTargetResolution.failure(String error) {
+    return _InstallTargetResolution(error: error);
+  }
 }

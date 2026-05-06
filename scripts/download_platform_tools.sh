@@ -13,6 +13,10 @@ LINUX_URL="https://dl.google.com/android/repository/platform-tools-latest-linux.
 WINDOWS_URL="https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
 LIBIMOBILEDEVICE_PACKAGE_URL="https://github.com/libimobiledevice-win32/imobiledevice-net/releases/download/v1.3.17/iMobileDevice-net.1.3.17.nupkg"
 MACOS_OPENSSL_URL="https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1w/openssl-1.1.1w.tar.gz"
+MACOS_HOMEBREW_LIBZIP_BOTTLE_URL="https://ghcr.io/v2/homebrew/core/libzip/blobs/sha256:5b808617db89e546465d756a8d8e0ee7068806e7dc58ae06952eea528ebdce8f"
+MACOS_HOMEBREW_LIBUSB_BOTTLE_URL="https://ghcr.io/v2/homebrew/core/libusb/blobs/sha256:1387aea9bbed3a1e57884b5b43166fc83cfdae415e5f3803a8259ff77a4ba613"
+MACOS_HOMEBREW_XZ_BOTTLE_URL="https://ghcr.io/v2/homebrew/core/xz/blobs/sha256:fcd2df6962b5b94ef14232d02df71ee0b329482c2d8478942e07287f016ebe73"
+MACOS_HOMEBREW_ZSTD_BOTTLE_URL="https://ghcr.io/v2/homebrew/core/zstd/blobs/sha256:8b8656acd6f30bcbbb9a033ae840afea299c9f0852f71b7540492b0fe7a36742"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -44,16 +48,89 @@ copy_directory_contents_flat() {
   local source_dir="$1"
   local target_dir="$2"
 
-  find "$source_dir" -type f | while IFS= read -r source_path; do
+  find "$source_dir" \( -type f -o -type l \) | while IFS= read -r source_path; do
+    if [ -L "$source_path" ] && [ -d "$source_path" ]; then
+      continue
+    fi
+
     cp -f "$source_path" "$target_dir/$(basename "$source_path")"
   done
+}
+
+copy_matching_contents_flat() {
+  local source_dir="$1"
+  local target_dir="$2"
+  local path_pattern="$3"
+
+  find "$source_dir" \( -type f -o -type l \) -path "$path_pattern" | while IFS= read -r source_path; do
+    if [ -L "$source_path" ] && [ -d "$source_path" ]; then
+      continue
+    fi
+
+    cp -f "$source_path" "$target_dir/$(basename "$source_path")"
+  done
+}
+
+download_public_ghcr_blob() {
+  local repository="$1"
+  local blob_url="$2"
+  local output_path="$3"
+  local token
+
+  token="$(
+    (curl -fsSL "https://ghcr.io/token?scope=repository:$repository:pull&service=ghcr.io" || true) |
+      sed -n 's/.*"token":"\([^"]*\)".*/\1/p'
+  )"
+
+  if [ -z "$token" ]; then
+    echo "Failed to acquire a GitHub Container Registry token for $repository" >&2
+    exit 1
+  fi
+
+  curl -L --fail \
+    -H "Authorization: Bearer $token" \
+    -H 'Accept: application/vnd.oci.image.layer.v1.tar+gzip' \
+    -o "$output_path" \
+    "$blob_url"
+}
+
+stage_macos_runtime_formula_libs() {
+  local target_dir="$1"
+  local formula_name="$2"
+  local bottle_url="$3"
+  local expected_file="$4"
+  local archive_path="$TMP_DIR/${formula_name}.bottle.tar.gz"
+  local extracted_dir="$TMP_DIR/${formula_name}.bottle"
+
+  if bundle_contains_file "$target_dir" "$expected_file"; then
+    return
+  fi
+
+  echo "Downloading macOS runtime dylibs for $formula_name..."
+  download_public_ghcr_blob "homebrew/core/$formula_name" "$bottle_url" "$archive_path"
+
+  rm -rf "$extracted_dir"
+  mkdir -p "$extracted_dir"
+  tar -xzf "$archive_path" -C "$extracted_dir"
+
+  copy_matching_contents_flat "$extracted_dir" "$target_dir" '*/lib/*.dylib'
+}
+
+stage_macos_runtime_dependencies() {
+  local target_dir="$1"
+
+  stage_macos_runtime_formula_libs "$target_dir" xz "$MACOS_HOMEBREW_XZ_BOTTLE_URL" 'liblzma.5.dylib'
+  stage_macos_runtime_formula_libs "$target_dir" zstd "$MACOS_HOMEBREW_ZSTD_BOTTLE_URL" 'libzstd.1.dylib'
+  stage_macos_runtime_formula_libs "$target_dir" libzip "$MACOS_HOMEBREW_LIBZIP_BOTTLE_URL" 'libzip.5.dylib'
+  stage_macos_runtime_formula_libs "$target_dir" libusb "$MACOS_HOMEBREW_LIBUSB_BOTTLE_URL" 'libusb-1.0.0.dylib'
 }
 
 extract_archive_flat() {
   local archive_path="$1"
   local target_dir="$2"
   local source_subdir="${3:-}"
-  local extracted_dir="$TMP_DIR/extracted-$(basename "$archive_path")"
+  local extracted_dir
+  extracted_dir="$TMP_DIR/extracted-$(basename "$archive_path")"
   local copy_source_dir="$extracted_dir"
 
   rm -rf "$extracted_dir"
@@ -155,12 +232,14 @@ rewrite_macos_bundle_load_paths() {
     target_name="$(basename "$target_path")"
 
     case "$target_name" in
-      idevice_*|inetcat|ios_webkit_debug_proxy|iproxy|irecovery|plistutil|usbmuxd|lib*.dylib)
+      idevice*|inetcat|ios_webkit_debug_proxy|iproxy|irecovery|plistutil|usbmuxd|lib*.dylib)
         ;;
       *)
         continue
         ;;
     esac
+
+    chmod u+w "$target_path" || true
 
     if [[ "$target_name" == *.dylib ]]; then
       install_name_tool -id "@loader_path/$target_name" "$target_path"
@@ -187,11 +266,46 @@ rewrite_macos_bundle_load_paths() {
   done
 }
 
+verify_macos_bundle_linkage() {
+  local target_dir="$1"
+  local issues_file="$TMP_DIR/macos-linkage-issues.txt"
+
+  : > "$issues_file"
+
+  find "$target_dir" -maxdepth 1 -type f | while IFS= read -r target_path; do
+    if ! file "$target_path" | grep -q 'Mach-O'; then
+      continue
+    fi
+
+    local unresolved_paths
+    unresolved_paths="$(
+      otool -L "$target_path" | tail -n +2 | awk '{print $1}' |
+        grep -E '^(/usr/local/opt/|/opt/homebrew/|@@HOMEBREW_PREFIX@@/opt/)' || true
+    )"
+
+    if [ -n "$unresolved_paths" ]; then
+      {
+        echo "$(basename "$target_path")"
+        printf '%s\n' "$unresolved_paths"
+        echo
+      } >> "$issues_file"
+    fi
+  done
+
+  if [ -s "$issues_file" ]; then
+    echo "error: macOS bundle still references host-only libraries after staging:" >&2
+    cat "$issues_file" >&2
+    exit 1
+  fi
+}
+
 prepare_macos_bundle_runtime() {
   local target_dir="$1"
 
   build_macos_openssl_runtime "$target_dir"
+  stage_macos_runtime_dependencies "$target_dir"
   rewrite_macos_bundle_load_paths "$target_dir"
+  verify_macos_bundle_linkage "$target_dir"
 }
 
 stage_optional_bundle() {
@@ -244,16 +358,18 @@ verify_expected_tools() {
   local adb_name="adb"
   local idevice_id_name="idevice_id"
   local ideviceinfo_name="ideviceinfo"
+  local ideviceinstaller_name="ideviceinstaller"
   local idevicesyslog_name="idevicesyslog"
 
   if [ "$platform" = "windows" ]; then
     adb_name="adb.exe"
     idevice_id_name="idevice_id.exe"
     ideviceinfo_name="ideviceinfo.exe"
+    ideviceinstaller_name="ideviceinstaller.exe"
     idevicesyslog_name="idevicesyslog.exe"
   fi
 
-  for tool_name in "$adb_name" "$idevice_id_name" "$ideviceinfo_name" "$idevicesyslog_name"; do
+  for tool_name in "$adb_name" "$idevice_id_name" "$ideviceinfo_name" "$ideviceinstaller_name" "$idevicesyslog_name"; do
     if [ ! -f "$target_dir/$tool_name" ]; then
       echo "warning: Expected bundled tool missing for $platform: $tool_name"
       missing=1
