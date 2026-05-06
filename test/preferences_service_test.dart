@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logview/data/log_level.dart';
+import 'package:logview/data/log_view_mode.dart';
 import 'package:logview/services/preferences_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,9 +14,14 @@ void main() {
 
   test('selectedLogLevel defaults to verbose', () {
     expect(PreferencesService.selectedLogLevel, LogLevel.verbose);
+    expect(PreferencesService.filterViewMode, LogFilterViewMode.classic);
     expect(
       PreferencesService.defaultTabSettings.selectedLogLevel,
       LogLevel.verbose,
+    );
+    expect(
+      PreferencesService.defaultTabSettings.filterViewMode,
+      LogFilterViewMode.classic,
     );
   });
 
@@ -29,4 +35,12 @@ void main() {
       expect(prefs.getString('selectedLogLevel'), LogLevel.error.code);
     },
   );
+
+  test('filterViewMode setter persists the canonical preference key', () async {
+    PreferencesService.filterViewMode = LogFilterViewMode.inline;
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(PreferencesService.filterViewMode, LogFilterViewMode.inline);
+    expect(prefs.getString('filterViewMode'), LogFilterViewMode.inline.name);
+  });
 }

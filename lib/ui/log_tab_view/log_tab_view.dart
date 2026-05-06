@@ -5,6 +5,7 @@ import 'package:gap/gap.dart';
 import '../../constants/app_constants.dart';
 import '../../data/device.dart';
 import '../../data/log_entry.dart';
+import '../../data/log_view_mode.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/log_feedback.dart';
 import '../../utils/widget_extensions.dart';
@@ -12,8 +13,9 @@ import '../log_viewer/log_viewer.dart';
 import '../wireless_connection/wireless_connection_dialog.dart';
 import 'components/available_device_card.dart';
 import 'components/centered_state_message.dart';
-import 'components/filter_bar.dart';
+import 'components/classic_filter_bar.dart';
 import 'components/get_started_action_card.dart';
+import 'components/inline_filter_bar.dart';
 import 'components/log_search_bar.dart';
 import 'components/scroll_to_end_button.dart';
 import 'components/toolbar.dart';
@@ -199,7 +201,8 @@ class _LogTabViewState extends State<LogTabView> {
                         ),
                       ],
                     )
-                  : (controller.isLoadingDevices || controller.hasAttemptedDeviceLoad)
+                  : (controller.isLoadingDevices ||
+                        controller.hasAttemptedDeviceLoad)
                   ? Container(
                       key: const ValueKey('status-box'),
                       width: double.infinity,
@@ -332,8 +335,7 @@ class _LogTabViewState extends State<LogTabView> {
       onSelectedTextChanged: controller.setSelectedSearchText,
       search: controller.appliedInlineSearch,
       currentMatchLogIndex:
-          controller.searchBarVisible &&
-              controller.appliedInlineSearch.isActive
+          controller.searchBarVisible && controller.appliedInlineSearch.isActive
           ? safeIndex
           : null,
       hiddenColumns: controller.hiddenColumns,
@@ -422,37 +424,7 @@ class _LogTabViewState extends State<LogTabView> {
     return Column(
       children: [
         _buildToolbar(context),
-        if (controller.hasVisibleWorkspace)
-          FilterBar(
-            messageController: controller.filterController,
-            messageFocusNode: controller.filterFocusNode,
-            onMessageFilterChanged: controller.onSearchChanged,
-            onMessageFilterSelected: controller.selectMessageFilterSuggestion,
-            recentMessageFilters: controller.recentMessageFilters,
-            packageController: controller.packageFilterController,
-            packageFocusNode: controller.packageFilterFocusNode,
-            onPackageFilterChanged: controller.onPackageFilterChanged,
-            onPackageFilterSelected: controller.selectPackageFilterSuggestion,
-            recentPackageFilters: controller.recentPackageFilters,
-            pidTidController: controller.pidTidFilterController,
-            pidTidFocusNode: controller.pidTidFilterFocusNode,
-            onPidTidFilterChanged: controller.onPidTidFilterChanged,
-            onPidTidFilterSelected: controller.selectPidTidFilterSuggestion,
-            recentPidTidFilters: controller.recentPidTidFilters,
-            tagController: controller.tagFilterController,
-            tagFocusNode: controller.tagFilterFocusNode,
-            onTagFilterChanged: controller.onTagFilterChanged,
-            onTagFilterSelected: controller.selectTagFilterSuggestion,
-            recentTagFilters: controller.recentTagFilters,
-            onSubmitFilters: controller.applyFiltersNow,
-            selectedLogLevel: controller.selectedLogLevel,
-            onLogLevelChanged: (level) {
-              if (level != null) {
-                controller.setSelectedLogLevel(level);
-              }
-            },
-            isIos: controller.isIosLogContext,
-          ),
+        if (controller.hasVisibleWorkspace) _buildFilterArea(context),
         Expanded(
           child: controller.hasVisibleWorkspace
               ? _buildViewerArea(context)
@@ -486,6 +458,87 @@ class _LogTabViewState extends State<LogTabView> {
             }
           : null,
       onOpenSettings: widget.onOpenSettings,
+    );
+  }
+
+  Widget _buildFilterArea(BuildContext context) {
+    final isInline = controller.filterViewMode == LogFilterViewMode.inline;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          IconButton(
+            tooltip: isInline
+                ? 'Inline filter mode active. Switch to classic fields.'
+                : 'Classic filter mode active. Switch to inline filter.',
+            onPressed: () {
+              controller.setFilterViewMode(
+                isInline ? LogFilterViewMode.classic : LogFilterViewMode.inline,
+              );
+            },
+            icon: Icon(
+              isInline ? Icons.filter_alt_outlined : Icons.filter_list_rounded,
+            ),
+          ),
+          const Gap(4),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              child: isInline
+                  ? InlineFilterBar(
+                      key: const ValueKey('inline-filter-bar'),
+                      controller: controller.inlineFilterController,
+                      focusNode: controller.inlineFilterFocusNode,
+                      onChanged: controller.onInlineFilterChanged,
+                      onSubmitted: controller.applyFiltersNow,
+                      onSuggestionApplied: controller.setInlineFilterText,
+                      recentMessageFilters: controller.recentMessageFilters,
+                      recentPackageFilters: controller.recentPackageFilters,
+                      recentPidTidFilters: controller.recentPidTidFilters,
+                      recentTagFilters: controller.recentTagFilters,
+                      isIos: controller.isIosLogContext,
+                    )
+                  : ClassicFilterBar(
+                      key: const ValueKey('classic-filter-bar'),
+                      messageController: controller.filterController,
+                      messageFocusNode: controller.filterFocusNode,
+                      onMessageFilterChanged: controller.onSearchChanged,
+                      onMessageFilterSelected:
+                          controller.selectMessageFilterSuggestion,
+                      recentMessageFilters: controller.recentMessageFilters,
+                      packageController: controller.packageFilterController,
+                      packageFocusNode: controller.packageFilterFocusNode,
+                      onPackageFilterChanged: controller.onPackageFilterChanged,
+                      onPackageFilterSelected:
+                          controller.selectPackageFilterSuggestion,
+                      recentPackageFilters: controller.recentPackageFilters,
+                      pidTidController: controller.pidTidFilterController,
+                      pidTidFocusNode: controller.pidTidFilterFocusNode,
+                      onPidTidFilterChanged: controller.onPidTidFilterChanged,
+                      onPidTidFilterSelected:
+                          controller.selectPidTidFilterSuggestion,
+                      recentPidTidFilters: controller.recentPidTidFilters,
+                      tagController: controller.tagFilterController,
+                      tagFocusNode: controller.tagFilterFocusNode,
+                      onTagFilterChanged: controller.onTagFilterChanged,
+                      onTagFilterSelected: controller.selectTagFilterSuggestion,
+                      recentTagFilters: controller.recentTagFilters,
+                      onSubmitFilters: controller.applyFiltersNow,
+                      selectedLogLevel: controller.selectedLogLevel,
+                      onLogLevelChanged: (level) {
+                        if (level != null) {
+                          controller.setSelectedLogLevel(level);
+                        }
+                      },
+                      isIos: controller.isIosLogContext,
+                    ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -641,6 +694,7 @@ class _LogTabViewState extends State<LogTabView> {
                 ? 'Live'
                 : 'Stopped',
             style: TextStyle(
+              fontSize: 12,
               color: controller.isPaused
                   ? logTheme.statusPausedColor
                   : controller.isRunning
@@ -670,7 +724,7 @@ class _LogTabViewState extends State<LogTabView> {
                 child: Text(
                   'Max lines: ${controller.logLinesLimit}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 13,
+                    fontSize: 12,
                     decoration: TextDecoration.underline,
                     decorationStyle: TextDecorationStyle.dotted,
                     color: Theme.of(context).colorScheme.primary,

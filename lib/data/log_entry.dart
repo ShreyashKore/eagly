@@ -53,7 +53,16 @@ class LogEntry {
     this.packageName,
     this.processName,
   }) : id = _resolveId(id),
-       lowercaseSearchable = '$tag $message ${type.label}'.toLowerCase();
+       lowercaseSearchable = [
+         timestamp,
+         pid,
+         tid,
+         level,
+         tag,
+         message,
+         if (packageName != null && packageName.trim().isNotEmpty) packageName,
+         if (processName != null && processName.trim().isNotEmpty) processName,
+       ].join(' ').toLowerCase();
 
   factory LogEntry.special({
     required LogEntryType type,
@@ -138,9 +147,9 @@ class LogEntry {
 
   String valueForColumn(LogColumn column) => switch (column) {
     LogColumn.timestamp => timestamp,
-    LogColumn.pid => packageName ?? pid,
+    LogColumn.pid => packageName ?? processName ?? pid,
     LogColumn.tid => tid,
-    LogColumn.level => level,
+    LogColumn.level => isSpecialEntry ? typeLabel : level,
     LogColumn.tag => tag,
     LogColumn.message => message,
   };

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../../data/log_level.dart';
+import '../../data/log_view_mode.dart';
 import '../../services/app_info_service.dart';
 import '../../services/preferences_service.dart';
 
@@ -17,6 +18,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _wrapText;
   late bool _autoScroll;
   late LogLevel _selectedLogLevel;
+  late LogFilterViewMode _filterViewMode;
   late double _logFontSize;
   late final TextEditingController _logLinesController;
 
@@ -27,6 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _wrapText = PreferencesService.wrapText;
     _autoScroll = PreferencesService.autoScroll;
     _selectedLogLevel = PreferencesService.selectedLogLevel;
+    _filterViewMode = PreferencesService.filterViewMode;
     _logFontSize = PreferencesService.logFontSize;
     _logLinesController = TextEditingController(
       text: PreferencesService.logLinesLimit.toString(),
@@ -268,6 +271,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           PreferencesService.selectedLogLevel = value;
                         },
                       ),
+                    ),
+                  ),
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Default filter style'),
+                    subtitle: Text(_filterViewMode.description),
+                    trailing: SegmentedButton<LogFilterViewMode>(
+                      segments: LogFilterViewMode.values
+                          .map(
+                            (mode) => ButtonSegment<LogFilterViewMode>(
+                              value: mode,
+                              label: Text(mode.label),
+                            ),
+                          )
+                          .toList(growable: false),
+                      selected: {_filterViewMode},
+                      onSelectionChanged: (selection) {
+                        final mode = selection.first;
+                        setState(() => _filterViewMode = mode);
+                        PreferencesService.filterViewMode = mode;
+                      },
                     ),
                   ),
                   // (no explicit Divider here)

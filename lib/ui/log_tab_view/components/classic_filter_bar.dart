@@ -34,7 +34,7 @@ InputDecoration _filterInputDecoration(
   );
 }
 
-class FilterBar extends StatelessWidget {
+class ClassicFilterBar extends StatelessWidget {
   final TextEditingController messageController;
   final FocusNode messageFocusNode;
   final ValueChanged<String> onMessageFilterChanged;
@@ -60,7 +60,7 @@ class FilterBar extends StatelessWidget {
   final ValueChanged<LogLevel?> onLogLevelChanged;
   final bool isIos;
 
-  const FilterBar({
+  const ClassicFilterBar({
     super.key,
     required this.messageController,
     required this.messageFocusNode,
@@ -109,77 +109,74 @@ class FilterBar extends StatelessWidget {
     required LogLevel currentValue,
     required ValueChanged<LogLevel?> onChanged,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-      child: Row(
-        spacing: 8,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            flex: 2,
-            child: SizedBox(
-              height: _kFilterFieldHeight,
-              child: DropdownButtonFormField<LogLevel>(
-                initialValue: currentValue,
-                isExpanded: true,
-                isDense: true,
-                decoration: _filterInputDecoration(context, labelText: 'Level'),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-                items: buildLogLevelDropdownItems(
-                  includeValueInLabel: true,
-                  isIos: isIos,
-                ),
-                onChanged: onLogLevelChanged,
+    return Row(
+      spacing: 8,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          flex: 2,
+          child: SizedBox(
+            height: _kFilterFieldHeight,
+            child: DropdownButtonFormField<LogLevel>(
+              initialValue: currentValue,
+              isExpanded: true,
+              isDense: true,
+              decoration: _filterInputDecoration(context, labelText: 'Level'),
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
+              items: buildLogLevelDropdownItems(
+                includeValueInLabel: true,
+                isIos: isIos,
+              ),
+              onChanged: onLogLevelChanged,
             ),
           ),
-          Expanded(
-            flex: 3,
-            child: _RecentFilterField(
-              controller: packageController,
-              focusNode: packageFocusNode,
-              onChanged: onPackageFilterChanged,
-              onSuggestionSelected: onPackageFilterSelected,
-              onSubmitted: (_) => onSubmitFilters(),
-              recentValues: recentPackageFilters,
-              labelText: 'Package',
-              hintText: 'Package / process',
-              prefixIcon: Icons.apps_outlined,
-            ),
+        ),
+        Expanded(
+          flex: 3,
+          child: _RecentFilterField(
+            controller: packageController,
+            focusNode: packageFocusNode,
+            onChanged: onPackageFilterChanged,
+            onSuggestionSelected: onPackageFilterSelected,
+            onSubmitted: (_) => onSubmitFilters(),
+            recentValues: recentPackageFilters,
+            labelText: 'Package',
+            hintText: 'Package / process',
+            prefixIcon: Icons.apps_outlined,
           ),
-          Expanded(
-            flex: 3,
-            child: _RecentFilterField(
-              controller: tagController,
-              focusNode: tagFocusNode,
-              onChanged: onTagFilterChanged,
-              onSuggestionSelected: onTagFilterSelected,
-              onSubmitted: (_) => onSubmitFilters(),
-              recentValues: recentTagFilters,
-              labelText: 'Tag',
-              hintText: 'Filter tag…',
-              prefixIcon: Icons.sell_outlined,
-            ),
+        ),
+        Expanded(
+          flex: 3,
+          child: _RecentFilterField(
+            controller: tagController,
+            focusNode: tagFocusNode,
+            onChanged: onTagFilterChanged,
+            onSuggestionSelected: onTagFilterSelected,
+            onSubmitted: (_) => onSubmitFilters(),
+            recentValues: recentTagFilters,
+            labelText: 'Tag',
+            hintText: 'Filter tag…',
+            prefixIcon: Icons.sell_outlined,
           ),
-          Expanded(
-            flex: 10,
-            child: _RecentFilterField(
-              controller: messageController,
-              focusNode: messageFocusNode,
-              onChanged: onMessageFilterChanged,
-              onSuggestionSelected: onMessageFilterSelected,
-              onSubmitted: (_) => onSubmitFilters(),
-              recentValues: recentMessageFilters,
-              labelText: 'Message',
-              hintText: 'Filter message text…',
-              prefixIcon: Icons.message_outlined,
-            ),
+        ),
+        Expanded(
+          flex: 10,
+          child: _RecentFilterField(
+            controller: messageController,
+            focusNode: messageFocusNode,
+            onChanged: onMessageFilterChanged,
+            onSuggestionSelected: onMessageFilterSelected,
+            onSubmitted: (_) => onSubmitFilters(),
+            recentValues: recentMessageFilters,
+            labelText: 'Message',
+            hintText: 'Filter message text…',
+            prefixIcon: Icons.message_outlined,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

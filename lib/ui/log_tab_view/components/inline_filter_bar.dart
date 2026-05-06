@@ -1,0 +1,700 @@
+import 'package:flutter/material.dart';
+
+import '../../../data/log_level.dart';
+
+const double _kInlineFilterFieldHeight = 40.0;
+
+typedef InlineFilterSuggestionApplied =
+    void Function(
+      String text, {
+      TextSelection selection,
+      bool applyImmediately,
+    });
+
+class InlineFilterTextController extends TextEditingController {
+  InlineFilterTextController({super.text});
+
+  static const Set<String> _knownAliases = {
+    'package',
+    'pkg',
+    'app',
+    'process',
+    'tag',
+    'message',
+    'msg',
+    'text',
+    'pid',
+    'tid',
+    'thread',
+    'pidtid',
+    'level',
+    'lvl',
+    'priority',
+  };
+
+  static bool isKnownKeyValueToken(String token) {
+    final colonIndex = token.indexOf(':');
+    if (colonIndex <= 0 || colonIndex == token.length - 1) return false;
+    final key = token.substring(0, colonIndex).trim().toLowerCase();
+    return _knownAliases.contains(key);
+  }
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    final baseStyle = style ?? DefaultTextStyle.of(context).style;
+    final theme = Theme.of(context);
+    final textValue = text;
+    final tokens = _InlineFilterContext.scanTokens(textValue);
+    if (tokens.isEmpty) {
+      return TextSpan(text: textValue, style: baseStyle);
+    }
+
+    final children = <InlineSpan>[];
+    var cursor = 0;
+    for (final token in tokens) {
+      if (cursor < token.start) {
+        children.add(
+          TextSpan(
+            text: textValue.substring(cursor, token.start),
+            style: baseStyle,
+          ),
+        );
+      }
+
+      final tokenText = token.text;
+      if (isKnownKeyValueToken(tokenText)) {
+        final colonIndex = tokenText.indexOf(':');
+        final keyText = tokenText.substring(0, colonIndex + 1);
+        final valueText = tokenText.substring(colonIndex + 1);
+        final backgroundColor = theme.colorScheme.primaryContainer.withValues(
+          alpha: 0.9,
+        );
+        children.add(
+          TextSpan(
+            style: baseStyle.copyWith(backgroundColor: backgroundColor),
+            children: [
+              TextSpan(
+                text: keyText,
+                style: baseStyle.copyWith(
+                  backgroundColor: backgroundColor,
+                  color: theme.colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              TextSpan(
+                text: valueText,
+                style: baseStyle.copyWith(
+                  backgroundColor: backgroundColor,
+                  color: theme.colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        children.add(TextSpan(text: tokenText, style: baseStyle));
+      }
+      cursor = token.end;
+    }
+
+    if (cursor < textValue.length) {
+      children.add(
+        TextSpan(text: textValue.substring(cursor), style: baseStyle),
+      );
+    }
+
+    return TextSpan(style: baseStyle, children: children);
+  }
+}
+
+InputDecoration _inlineFilterDecoration(BuildContext context) {
+  final colorScheme = Theme.of(context).colorScheme;
+  InputBorder inputBorder(Color color) =>
+      OutlineInputBorder(borderSide: BorderSide(color: color, width: 1.5));
+  return InputDecoration(
+    labelText: 'Filter',
+    hintText:
+        'Try package:com.example.app tag:Auth level:error or just type text',
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+    border: inputBorder(Colors.transparent),
+    enabledBorder: inputBorder(Colors.transparent),
+    focusedBorder: inputBorder(colorScheme.primary),
+    filled: true,
+    fillColor: colorScheme.surfaceContainerHighest,
+  );
+}
+
+class InlineFilterBar extends StatefulWidget {
+  const InlineFilterBar({
+    super.key,
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+    required this.onSubmitted,
+    required this.onSuggestionApplied,
+    required this.recentMessageFilters,
+    required this.recentPackageFilters,
+    required this.recentPidTidFilters,
+    required this.recentTagFilters,
+    required this.isIos,
+  });
+
+  final InlineFilterTextController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onSubmitted;
+  final InlineFilterSuggestionApplied onSuggestionApplied;
+  final List<String> recentMessageFilters;
+  final List<String> recentPackageFilters;
+  final List<String> recentPidTidFilters;
+  final List<String> recentTagFilters;
+  final bool isIos;
+
+  static const List<_InlineFilterKeyDefinition> keyDefinitions = [
+    _InlineFilterKeyDefinition(
+      canonicalKey: 'package',
+      aliases: {'package', 'pkg', 'app', 'process'},
+      icon: Icons.apps_outlined,
+      label: 'package:',
+      description: 'Filter by package or process name',
+    ),
+    _InlineFilterKeyDefinition(
+      canonicalKey: 'tag',
+      aliases: {'tag'},
+      icon: Icons.sell_outlined,
+      label: 'tag:',
+      description: 'Filter by tag',
+    ),
+    _InlineFilterKeyDefinition(
+      canonicalKey: 'message',
+      aliases: {'message', 'msg', 'text'},
+      icon: Icons.message_outlined,
+      label: 'message:',
+      description: 'Filter the log message text only',
+    ),
+    _InlineFilterKeyDefinition(
+      canonicalKey: 'pid',
+      aliases: {'pid', 'tid', 'thread', 'pidtid'},
+      icon: Icons.tag_outlined,
+      label: 'pid:',
+      description: 'Filter by PID, TID, or PID/TID pair',
+    ),
+    _InlineFilterKeyDefinition(
+      canonicalKey: 'level',
+      aliases: {'level', 'lvl', 'priority'},
+      icon: Icons.flag_outlined,
+      label: 'level:',
+      description: 'Filter by log level',
+    ),
+  ];
+
+  @override
+  State<InlineFilterBar> createState() => _InlineFilterBarState();
+}
+
+class _InlineFilterBarState extends State<InlineFilterBar> {
+  bool _helpVisible = false;
+  // Notifier to force the autocomplete to rebuild/open on focus
+  final _suggestionTrigger = ValueNotifier<int>(0);
+  TextEditingValue? _lastSuggestionEditingValue;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.focusNode.addListener(_onFocusChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.focusNode.removeListener(_onFocusChanged);
+    _suggestionTrigger.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChanged() {
+    if (widget.focusNode.hasFocus) {
+      // Trigger a rebuild so optionsBuilder is called and dropdown opens
+      _suggestionTrigger.value++;
+    }
+  }
+
+  List<_InlineFilterSuggestion> _buildSuggestions(TextEditingValue value) {
+    _lastSuggestionEditingValue = value;
+    final context = _InlineFilterContext.fromEditingValue(value);
+    final activeToken = context.activeToken;
+    final colonIndex = activeToken.text.indexOf(':');
+    if (colonIndex > 0 &&
+        context.cursorOffset > activeToken.start + colonIndex) {
+      final keyText = activeToken.text
+          .substring(0, colonIndex)
+          .trim()
+          .toLowerCase();
+      final valueText = activeToken.text.substring(colonIndex + 1);
+      final keyDefinition = InlineFilterBar.keyDefinitions.firstWhere(
+        (definition) => definition.aliases.contains(keyText),
+        orElse: () => const _InlineFilterKeyDefinition.unknown(),
+      );
+      if (keyDefinition.canonicalKey == null) {
+        return _matchingKeySuggestions(activeToken.text);
+      }
+      return _valueSuggestionsForKey(keyDefinition, valueText);
+    }
+    return _matchingKeySuggestions(activeToken.text);
+  }
+
+  List<_InlineFilterSuggestion> _matchingKeySuggestions(String query) {
+    final normalizedQuery = query.trim().toLowerCase();
+    return InlineFilterBar.keyDefinitions
+        .where((definition) {
+          if (normalizedQuery.isEmpty) return true;
+          return definition.aliases.any(
+            (alias) => alias.startsWith(normalizedQuery),
+          );
+        })
+        .map(
+          (definition) => _InlineFilterSuggestion(
+            label: definition.label,
+            subtitle: definition.description,
+            icon: definition.icon,
+            replacementText: '${definition.canonicalKey}:',
+            addTrailingSpace: false,
+            applyImmediately: false,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  List<_InlineFilterSuggestion> _valueSuggestionsForKey(
+    _InlineFilterKeyDefinition keyDefinition,
+    String rawValue,
+  ) {
+    final normalizedValue = _normalizeValue(rawValue).toLowerCase();
+    if (keyDefinition.canonicalKey == 'level') {
+      final supportedLevels = widget.isIos
+          ? LogLevel.iosValues
+          : LogLevel.androidValues;
+      return supportedLevels
+          .where((level) {
+            if (normalizedValue.isEmpty) return true;
+            return level.code.contains(normalizedValue) ||
+                level.label.toLowerCase().contains(normalizedValue) ||
+                level
+                    .displayCode(isIos: widget.isIos)
+                    .toLowerCase()
+                    .contains(normalizedValue);
+          })
+          .map(
+            (level) => _InlineFilterSuggestion(
+              label: 'level:${level.code}',
+              subtitle: level.labelWithDisplayCode(isIos: widget.isIos),
+              icon: keyDefinition.icon,
+              replacementText: 'level:${level.code}',
+              addTrailingSpace: true,
+              applyImmediately: true,
+            ),
+          )
+          .toList(growable: false);
+    }
+
+    final recentValues = switch (keyDefinition.canonicalKey) {
+      'package' => widget.recentPackageFilters,
+      'tag' => widget.recentTagFilters,
+      'message' => widget.recentMessageFilters,
+      'pid' => widget.recentPidTidFilters,
+      _ => const <String>[],
+    };
+
+    return recentValues
+        .where((entry) {
+          if (normalizedValue.isEmpty) return true;
+          return entry.toLowerCase().contains(normalizedValue);
+        })
+        .map(
+          (entry) => _InlineFilterSuggestion(
+            label: '${keyDefinition.canonicalKey}:${_formatInlineValue(entry)}',
+            subtitle: 'Recent ${keyDefinition.canonicalKey} filter',
+            icon: keyDefinition.icon,
+            replacementText:
+                '${keyDefinition.canonicalKey}:${_formatInlineValue(entry)}',
+            addTrailingSpace: true,
+            applyImmediately: true,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  String _formatInlineValue(String value) {
+    final trimmed = value.trim();
+    final needsQuotes =
+        trimmed.contains(RegExp(r'\s')) || trimmed.contains('"');
+    if (!needsQuotes) return trimmed;
+    return '"${trimmed.replaceAll('"', r'\"')}"';
+  }
+
+  String _normalizeValue(String rawValue) {
+    var normalized = rawValue.trim();
+    if (normalized.length >= 2 &&
+        normalized.startsWith('"') &&
+        normalized.endsWith('"')) {
+      normalized = normalized.substring(1, normalized.length - 1);
+    }
+    return normalized.replaceAll(r'\"', '"');
+  }
+
+  void _applySuggestion(_InlineFilterSuggestion suggestion) {
+    final value = _lastSuggestionEditingValue ?? widget.controller.value;
+    final context = _InlineFilterContext.fromEditingValue(value);
+    final activeToken = context.activeToken;
+    final replacement = suggestion.addTrailingSpace
+        ? '${suggestion.replacementText} '
+        : suggestion.replacementText;
+    final nextText =
+        value.text.substring(0, activeToken.start) +
+        replacement +
+        value.text.substring(activeToken.end);
+    final offset = activeToken.start + replacement.length;
+    widget.onSuggestionApplied(
+      nextText,
+      selection: TextSelection.collapsed(offset: offset),
+      applyImmediately: suggestion.applyImmediately,
+    );
+  }
+
+  void _appendToken(String token, {required bool applyImmediately}) {
+    final existingText = widget.controller.text;
+    final prefix = existingText.trim().isEmpty
+        ? ''
+        : RegExp(r'\s$').hasMatch(existingText)
+        ? ''
+        : ' ';
+    final suffix = applyImmediately ? ' ' : '';
+    final nextText = '$existingText$prefix$token$suffix';
+    widget.onSuggestionApplied(
+      nextText,
+      selection: TextSelection.collapsed(offset: nextText.length),
+      applyImmediately: applyImmediately,
+    );
+  }
+
+  Widget _buildHelpSection(BuildContext context) {
+    final theme = Theme.of(context);
+    return AnimatedCrossFade(
+      duration: const Duration(milliseconds: 180),
+      firstCurve: Curves.easeOut,
+      secondCurve: Curves.easeIn,
+      crossFadeState: _helpVisible
+          ? CrossFadeState.showSecond
+          : CrossFadeState.showFirst,
+      firstChild: const SizedBox.shrink(),
+      secondChild: Container(
+        key: const ValueKey('inline-filter-help'),
+        width: double.infinity,
+        margin: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Icon(
+              Icons.tips_and_updates_outlined,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            Text(
+              'Bare words search the whole log entry. Use key:value for package, tag, pid, message, or level. Quote values with spaces.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            ActionChip(
+              label: const Text('package:'),
+              onPressed: () =>
+                  _appendToken('package:', applyImmediately: false),
+            ),
+            ActionChip(
+              label: const Text('tag:'),
+              onPressed: () => _appendToken('tag:', applyImmediately: false),
+            ),
+            ActionChip(
+              label: const Text('message:'),
+              onPressed: () =>
+                  _appendToken('message:', applyImmediately: false),
+            ),
+            ActionChip(
+              label: const Text('level:error'),
+              onPressed: () =>
+                  _appendToken('level:error', applyImmediately: true),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: _kInlineFilterFieldHeight,
+                    child: ValueListenableBuilder<int>(
+                      valueListenable: _suggestionTrigger,
+                      builder: (_, __, ___) =>
+                          RawAutocomplete<_InlineFilterSuggestion>(
+                            textEditingController: widget.controller,
+                            focusNode: widget.focusNode,
+                            optionsBuilder: _buildSuggestions,
+                            displayStringForOption: (option) => option.label,
+                            onSelected: _applySuggestion,
+                            fieldViewBuilder:
+                                (
+                                  context,
+                                  fieldController,
+                                  fieldFocusNode,
+                                  onFieldSubmitted,
+                                ) {
+                                  return TextField(
+                                    controller: fieldController,
+                                    focusNode: fieldFocusNode,
+                                    style: const TextStyle(fontSize: 12),
+                                    decoration: _inlineFilterDecoration(
+                                      context,
+                                    ),
+                                    onChanged: widget.onChanged,
+                                    onSubmitted: (_) {
+                                      widget.onSubmitted();
+                                      onFieldSubmitted();
+                                    },
+                                  );
+                                },
+                            optionsViewBuilder: (context, onSelected, options) {
+                              final materialOptions = options.toList(
+                                growable: false,
+                              );
+                              if (materialOptions.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              return Align(
+                                alignment: Alignment.topLeft,
+                                child: Material(
+                                  elevation: 6,
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxHeight: 200,
+                                      maxWidth: 540,
+                                    ),
+                                    child: ListView.separated(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 4,
+                                      ),
+                                      shrinkWrap: true,
+                                      itemCount: materialOptions.length,
+                                      separatorBuilder: (_, _) =>
+                                          const Divider(height: 1),
+                                      itemBuilder: (context, index) {
+                                        final option = materialOptions[index];
+                                        return InkWell(
+                                          onTap: () => onSelected(option),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 5,
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(option.icon, size: 12),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  option.label,
+                                                  style: theme
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                ),
+                                                Spacer(),
+                                                if (option
+                                                    .subtitle
+                                                    .isNotEmpty) ...[
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    option.subtitle,
+                                                    style: theme
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          fontSize: 10,
+                                                          color: theme
+                                                              .colorScheme
+                                                              .onSurfaceVariant,
+                                                        ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: _helpVisible ? 'Hide filter help' : 'Show filter help',
+              onPressed: () => setState(() => _helpVisible = !_helpVisible),
+              icon: Icon(_helpVisible ? Icons.help : Icons.help_outline),
+            ),
+          ],
+        ),
+        _buildHelpSection(context),
+      ],
+    );
+  }
+}
+
+class _InlineFilterSuggestion {
+  const _InlineFilterSuggestion({
+    required this.label,
+    required this.subtitle,
+    required this.icon,
+    required this.replacementText,
+    required this.addTrailingSpace,
+    required this.applyImmediately,
+  });
+
+  final String label;
+  final String subtitle;
+  final IconData icon;
+  final String replacementText;
+  final bool addTrailingSpace;
+  final bool applyImmediately;
+}
+
+class _InlineFilterKeyDefinition {
+  const _InlineFilterKeyDefinition({
+    required this.canonicalKey,
+    required this.aliases,
+    required this.icon,
+    required this.label,
+    required this.description,
+  });
+
+  const _InlineFilterKeyDefinition.unknown()
+    : canonicalKey = null,
+      aliases = const <String>{},
+      icon = Icons.help_outline,
+      label = '',
+      description = '';
+
+  final String? canonicalKey;
+  final Set<String> aliases;
+  final IconData icon;
+  final String label;
+  final String description;
+}
+
+class _InlineFilterContext {
+  const _InlineFilterContext({
+    required this.activeToken,
+    required this.cursorOffset,
+  });
+
+  final _InlineFilterToken activeToken;
+  final int cursorOffset;
+
+  static _InlineFilterContext fromEditingValue(TextEditingValue value) {
+    final text = value.text;
+    final cursor = value.selection.isValid
+        ? value.selection.extentOffset.clamp(0, text.length)
+        : text.length;
+    final tokens = scanTokens(text);
+    final activeToken = tokens.firstWhere(
+      (token) => cursor >= token.start && cursor <= token.end,
+      orElse: () => _InlineFilterToken(start: cursor, end: cursor, text: ''),
+    );
+    return _InlineFilterContext(activeToken: activeToken, cursorOffset: cursor);
+  }
+
+  static List<_InlineFilterToken> scanTokens(String text) {
+    final tokens = <_InlineFilterToken>[];
+    var start = -1;
+    var inQuotes = false;
+    for (var index = 0; index < text.length; index++) {
+      final char = text[index];
+      if (char == '"') {
+        inQuotes = !inQuotes;
+      }
+      if (!inQuotes && char.trim().isEmpty) {
+        if (start >= 0) {
+          tokens.add(
+            _InlineFilterToken(
+              start: start,
+              end: index,
+              text: text.substring(start, index),
+            ),
+          );
+          start = -1;
+        }
+        continue;
+      }
+      if (start < 0) {
+        start = index;
+      }
+    }
+    if (start >= 0) {
+      tokens.add(
+        _InlineFilterToken(
+          start: start,
+          end: text.length,
+          text: text.substring(start),
+        ),
+      );
+    }
+    return tokens;
+  }
+}
+
+class _InlineFilterToken {
+  const _InlineFilterToken({
+    required this.start,
+    required this.end,
+    required this.text,
+  });
+
+  final int start;
+  final int end;
+  final String text;
+}

@@ -66,6 +66,9 @@ void main() {
     );
 
     expect(find.text('Default log level'), findsOneWidget);
+    expect(find.text('Default filter style'), findsOneWidget);
+    expect(find.text('Classic'), findsWidgets);
+    expect(find.text('Inline'), findsWidgets);
     expect(find.text('Default log level (Android)'), findsNothing);
     expect(find.text('Default log level (iOS)'), findsNothing);
   });

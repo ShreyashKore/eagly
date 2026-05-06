@@ -53,6 +53,7 @@ class _LogSearchBarState extends State<LogSearchBar> {
   late final FocusNode _internalFocusNode = FocusNode();
 
   FocusNode get _focusNode => widget.focusNode ?? _internalFocusNode;
+
   bool get _ownsFocusNode => widget.focusNode == null;
 
   @override
@@ -140,27 +141,33 @@ class _LogSearchBarState extends State<LogSearchBar> {
                         _SearchToggleButton(
                           label: 'W',
                           tooltip:
-                              'Match whole word (${widget.wholeWord ? "on" : "off"})',
-                          value: widget.wholeWord,
-                          onPressed: () =>
-                              widget.onWholeWordChanged(!widget.wholeWord),
+                              'Match whole word (${widget.search.wholeWord ? "on" : "off"})',
+                          value: widget.search.wholeWord,
+                          onPressed: () => widget.onSearchChanged(
+                            widget.search.copyWith(
+                              wholeWord: !widget.search.wholeWord,
+                            ),
+                          ),
                         ),
                         _SearchToggleButton(
                           label: 'Aa',
                           tooltip:
-                              'Match case (${widget.caseSensitive ? "on" : "off"})',
-                          value: widget.caseSensitive,
-                          onPressed: () => widget.onCaseSensitiveChanged(
-                            !widget.caseSensitive,
+                              'Match case (${widget.search.caseSensitive ? "on" : "off"})',
+                          value: widget.search.caseSensitive,
+                          onPressed: () => widget.onSearchChanged(
+                            widget.search.copyWith(
+                              caseSensitive: !widget.search.caseSensitive,
+                            ),
                           ),
                         ),
                         _SearchToggleButton(
                           label: '.*',
                           tooltip:
-                              'Use regex (${widget.regexSearch ? "on" : "off"})',
-                          value: widget.regexSearch,
-                          onPressed: () =>
-                              widget.onRegexChanged(!widget.regexSearch),
+                              'Use regex (${widget.search.regex ? "on" : "off"})',
+                          value: widget.search.regex,
+                          onPressed: () => widget.onSearchChanged(
+                            widget.search.copyWith(regex: !widget.search.regex),
+                          ),
                         ),
                       ],
                     ),
@@ -209,37 +216,6 @@ class _LogSearchBarState extends State<LogSearchBar> {
               ),
 
             const SizedBox(width: 2),
-
-            _SearchToggleButton(
-              label: '.*',
-              tooltip: 'Use regex (${widget.search.regex ? "on" : "off"})',
-              value: widget.search.regex,
-              onPressed: () => widget.onSearchOptionsChanged(
-                widget.search.copyWith(regex: !widget.search.regex),
-              ),
-            ),
-            const SizedBox(width: 4),
-            _SearchToggleButton(
-              label: 'W',
-              tooltip:
-                  'Match whole word (${widget.search.wholeWord ? "on" : "off"})',
-              value: widget.search.wholeWord,
-              onPressed: () => widget.onSearchOptionsChanged(
-                widget.search.copyWith(wholeWord: !widget.search.wholeWord),
-              ),
-            ),
-            const SizedBox(width: 4),
-            _SearchToggleButton(
-              label: 'Aa',
-              tooltip:
-                  'Match case (${widget.search.caseSensitive ? "on" : "off"})',
-              value: widget.search.caseSensitive,
-              onPressed: () => widget.onSearchOptionsChanged(
-                widget.search.copyWith(
-                  caseSensitive: !widget.search.caseSensitive,
-                ),
-              ),
-            ),
 
             // Previous match
             IconButton(

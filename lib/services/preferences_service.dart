@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/log_column.dart';
 import '../data/log_level.dart';
 import '../data/log_tab_settings.dart';
+import '../data/log_view_mode.dart';
 
 extension SharedPreferencesJson on SharedPreferences {
   /// Reads a JSON-encoded value from persistent storage and decodes it.
@@ -40,6 +41,7 @@ class PreferencesService {
   static const _keySelectedLogLevel = 'selectedLogLevel';
   static const _keySelectedAndroidLogLevel = 'selectedAndroidLogLevel';
   static const _keySelectedIosLogLevel = 'selectedIosLogLevel';
+  static const _keyFilterViewMode = 'filterViewMode';
   static const _keyColumnWidths = 'columnWidths';
   static const _keyHiddenColumns = 'hiddenColumns';
   static const _keyLogLinesLimit = 'logLinesLimit';
@@ -63,6 +65,12 @@ class PreferencesService {
   );
   static set selectedLogLevel(LogLevel v) =>
       _prefs.setString(_keySelectedLogLevel, v.code);
+
+  static LogFilterViewMode get filterViewMode => LogFilterViewMode.fromStored(
+    _prefs.getString(_keyFilterViewMode),
+  );
+  static set filterViewMode(LogFilterViewMode v) =>
+      _prefs.setString(_keyFilterViewMode, v.name);
 
   static int get logLinesLimit => _prefs.getInt(_keyLogLinesLimit) ?? 50000;
   static set logLinesLimit(int v) => _prefs.setInt(_keyLogLinesLimit, v);
@@ -107,6 +115,7 @@ class PreferencesService {
     wrapText: wrapText,
     autoScroll: autoScroll,
     selectedLogLevel: selectedLogLevel,
+    filterViewMode: filterViewMode,
     logLinesLimit: logLinesLimit,
     hiddenColumns: hiddenColumns,
     columnWidths: columnWidths,

@@ -7,6 +7,7 @@ import 'package:logview/data/log_column.dart';
 import 'package:logview/data/log_entry.dart';
 import 'package:logview/data/log_level.dart';
 import 'package:logview/data/log_tab_settings.dart';
+import 'package:logview/data/log_view_mode.dart';
 import 'package:logview/services/device_repository.dart';
 import 'package:logview/services/device_session_service.dart';
 import 'package:logview/services/tools/adb_tool.dart';
@@ -275,6 +276,134 @@ void main() {
       expect(controller!.recentTagFilters, ['auth']);
     },
   );
+
+  test(
+    'inline filter syntax applies package, tag, message, pid, and level filters together',
+    () {
+      controller = createController(
+        settings: _initialSettings(filterViewMode: LogFilterViewMode.inline),
+      );
+
+      controller!.logs = [
+        LogEntry(
+          timestamp: '2026-04-26 10:00:00.000',
+          pid: '101',
+          tid: '202',
+          level: 'E',
+          tag: 'AuthService',
+          message: 'User signed in successfully',
+          packageName: 'com.example.auth',
+        ),
+        LogEntry(
+          timestamp: '2026-04-26 10:00:01.000',
+          pid: '101',
+          tid: '202',
+          level: 'I',
+          tag: 'AuthService',
+          message: 'User signed in successfully',
+          packageName: 'com.example.auth',
+        ),
+      ];
+
+      controller!.onInlineFilterChanged(
+        'package:com.example.auth tag:Auth pid:101/202 level:error "signed in"',
+      );
+      controller!.applyFiltersNow();
+
+      expect(controller!.selectedLogLevel, LogLevel.error);
+      expect(controller!.filteredLogs, hasLength(1));
+      expect(controller!.filteredLogs.single.level, 'E');
+      expect(controller!.filterController.text, 'signed in');
+      expect(controller!.packageFilterController.text, 'com.example.auth');
+      expect(controller!.tagFilterController.text, 'Auth');
+      expect(controller!.pidTidFilterController.text, '101/202');
+    },
+  );
+
+  test('inline filter syntax supports quoted values and repeated keys', () {
+    controller = createController(
+      settings: _initialSettings(filterViewMode: LogFilterViewMode.inline),
+    );
+
+    controller!.logs = [
+      LogEntry(
+        timestamp: '2026-04-26 10:00:00.000',
+        pid: '500',
+        tid: '600',
+        level: 'I',
+        tag: 'SyncWorker',
+        message: 'Background sync retry scheduled by worker',
+        packageName: 'com.example.sync',
+      ),
+      LogEntry(
+        timestamp: '2026-04-26 10:00:01.000',
+        pid: '500',
+        tid: '601',
+        level: 'I',
+        tag: 'SyncWorker',
+        message: 'Background upload scheduled',
+        packageName: 'com.example.sync',
+      ),
+    ];
+
+    controller!.onInlineFilterChanged(
+      'message:"background sync" message:worker tag:SyncWorker',
+    );
+    controller!.applyFiltersNow();
+
+    expect(controller!.filteredLogs, hasLength(1));
+    expect(controller!.filteredLogs.single.message, contains('worker'));
+    expect(controller!.recentMessageFilters, isEmpty);
+  });
+
+  test('inline bare text matches the whole log entry, not only the message', () {
+    controller = createController(
+      settings: _initialSettings(filterViewMode: LogFilterViewMode.inline),
+    );
+
+    controller!.logs = [
+      LogEntry(
+        timestamp: '2026-04-26 10:00:00.000',
+        pid: '900',
+        tid: '901',
+        level: 'I',
+        tag: 'AuthService',
+        message: 'No matching message text here',
+        packageName: 'com.example.auth',
+      ),
+      LogEntry(
+        timestamp: '2026-04-26 10:00:01.000',
+        pid: '902',
+        tid: '903',
+        level: 'I',
+        tag: 'SyncService',
+        message: 'No matching message text here either',
+        packageName: 'com.example.sync',
+      ),
+    ];
+
+    controller!.onInlineFilterChanged('AuthService');
+    controller!.applyFiltersNow();
+
+    expect(controller!.filteredLogs, hasLength(1));
+    expect(controller!.filteredLogs.single.tag, 'AuthService');
+
+    controller!.onInlineFilterChanged('com.example.sync');
+    controller!.applyFiltersNow();
+
+    expect(controller!.filteredLogs, hasLength(1));
+    expect(controller!.filteredLogs.single.packageName, 'com.example.sync');
+  });
+
+  test('changing filter mode updates the active per-tab setting', () {
+    controller = createController();
+
+    controller!.setFilterViewMode(LogFilterViewMode.inline);
+    expect(controller!.filterViewMode, LogFilterViewMode.inline);
+
+    controller!.setFilterViewMode(LogFilterViewMode.classic);
+    expect(controller!.filterViewMode, LogFilterViewMode.classic);
+  });
 
   test(
     'streamed logs retain filtered matches longer while a filter is active',
@@ -638,11 +767,15 @@ void main() {
   });
 }
 
-LogTabSettings _initialSettings({int logLinesLimit = 50000}) {
+LogTabSettings _initialSettings({
+  int logLinesLimit = 50000,
+  LogFilterViewMode filterViewMode = LogFilterViewMode.classic,
+}) {
   return LogTabSettings(
     wrapText: false,
     autoScroll: true,
     selectedLogLevel: LogLevel.verbose,
+    filterViewMode: filterViewMode,
     logLinesLimit: logLinesLimit,
     hiddenColumns: const {},
     columnWidths: {
