@@ -51,3 +51,9 @@ app.*.map.json
 platform-tools/macos/
 platform-tools/linux/
 platform-tools/windows/
+
+# Windows MSIX signing material
+windows/certificates/*.pfx
+windows/certificates/*.p12
+windows/certificates/*.cer
+windows/certificates/*.crt

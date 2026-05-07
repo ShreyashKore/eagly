@@ -2,9 +2,9 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-import '../log_tab_controller.dart';
 import '../../../data/device.dart';
 import '../../../theme/app_theme.dart';
+import '../log_tab_controller.dart';
 import 'device_presentation.dart';
 
 typedef LoadDevicesCallback =
@@ -21,6 +21,7 @@ class Toolbar extends StatelessWidget {
   final Future<void> Function(Device) onSelectDevice;
   final VoidCallback? onImport;
   final VoidCallback? onExport;
+  final VoidCallback? onCopyAll;
   final VoidCallback? onOpenSettings;
 
   const Toolbar({
@@ -32,6 +33,7 @@ class Toolbar extends StatelessWidget {
     required this.onSelectDevice,
     required this.onImport,
     required this.onExport,
+    required this.onCopyAll,
     required this.onOpenSettings,
   });
 
@@ -41,6 +43,15 @@ class Toolbar extends StatelessWidget {
     final logTheme = context.logViewTheme;
     final selectedValue = controller.devices.firstWhereOrNull(
       (device) => device.id == controller.selectedDevice?.id,
+    );
+
+    final divier = SizedBox(
+      height: 18,
+      child: VerticalDivider(
+        width: 2,
+        thickness: 2,
+        radius: BorderRadius.circular(2),
+      ),
     );
 
     return Padding(
@@ -127,14 +138,7 @@ class Toolbar extends StatelessWidget {
             onPressed: onShowWirelessConnectionDialog,
           ),
           const Gap(4),
-          SizedBox(
-            height: 18,
-            child: VerticalDivider(
-              width: 2,
-              thickness: 2,
-              radius: BorderRadius.circular(2),
-            ),
-          ),
+          divier,
           const Gap(4),
           IconButton(
             icon: Icon(
@@ -175,8 +179,42 @@ class Toolbar extends StatelessWidget {
                 : 'No logs to clear',
             onPressed: controller.logs.isNotEmpty ? controller.clearLogs : null,
           ),
-          const Spacer(),
-          // Action icons (previously ActionToolbar)
+          Spacer(),
+          IconButton(
+            icon: const Icon(Icons.copy_all_outlined),
+            tooltip: controller.hasAnyCachedLogs
+                ? 'Copy all logs'
+                : 'No logs to copy',
+            onPressed: controller.hasAnyCachedLogs ? onCopyAll : null,
+          ),
+          IconButton(
+            icon: Icon(
+              controller.rowSelectionMode
+                  ? Icons.checklist_rounded
+                  : Icons.checklist_outlined,
+            ),
+            tooltip: controller.rowSelectionMode
+                ? 'Disable row selection mode'
+                : 'Enable row selection mode',
+            onPressed: controller.filteredLogs.isNotEmpty
+                ? controller.toggleRowSelectionMode
+                : null,
+            color: controller.rowSelectionMode
+                ? theme.colorScheme.primary
+                : null,
+          ),
+          IconButton(
+            icon: const Icon(Icons.deselect_outlined),
+            tooltip: controller.hasSelectedRows
+                ? 'Clear selected rows'
+                : 'No selected rows',
+            onPressed: controller.hasSelectedRows
+                ? controller.clearSelectedRows
+                : null,
+          ),
+          Gap(4),
+          divier,
+          Gap(4),
           IconButton(
             icon: Icon(
               Icons.search,
@@ -187,7 +225,13 @@ class Toolbar extends StatelessWidget {
             tooltip: controller.searchBarVisible
                 ? 'Close search'
                 : 'Search in logs (Ctrl+F / Cmd+F)',
-            onPressed: controller.toggleSearchBar,
+            onPressed: () {
+              if (controller.searchBarVisible) {
+                controller.closeSearchBar();
+              } else {
+                controller.activateSearchFromSelection();
+              }
+            },
           ),
           IconButton(
             onPressed: onImport,
@@ -217,14 +261,7 @@ class Toolbar extends StatelessWidget {
             color: controller.autoScroll ? theme.colorScheme.primary : null,
           ),
           Gap(4),
-          SizedBox(
-            height: 18,
-            child: VerticalDivider(
-              width: 2,
-              thickness: 2,
-              radius: BorderRadius.circular(2),
-            ),
-          ),
+          divier,
           Gap(4),
           IconButton(
             onPressed: onOpenSettings,

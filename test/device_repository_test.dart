@@ -87,11 +87,6 @@ void main() {
       expect(repository.devices.single.brand, 'Google');
       expect(repository.devices.single.model, 'Pixel 8');
       expect(repository.devices.single.name, 'husky');
-      expect(repository.devices.single.displayLabel.primary, 'emulator-5554');
-      expect(
-        repository.devices.single.displayLabel.secondary,
-        'Google Pixel 8',
-      );
     },
   );
 

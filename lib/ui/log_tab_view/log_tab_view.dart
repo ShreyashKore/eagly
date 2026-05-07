@@ -62,6 +62,43 @@ class _LogTabViewState extends State<LogTabView> {
     _showSnackBar(formatExportLogsMessage(result));
   }
 
+  Future<void> _handleCopyAllLogs() async {
+    final copiedCount = await controller.copyAllLogs();
+    if (!mounted || copiedCount == 0) return;
+    _showSnackBar(
+      copiedCount == 1 ? 'Copied 1 log.' : 'Copied $copiedCount logs.',
+    );
+  }
+
+  Future<void> _handleRowCopyAction(
+    int? index,
+    LogViewerCopyAction action,
+  ) async {
+    final format = switch (action) {
+      LogViewerCopyAction.copyRow => LogCopyFormat.fullLine,
+      LogViewerCopyAction.copyMessage => LogCopyFormat.messageOnly,
+      LogViewerCopyAction.copyTimestampAndMessage =>
+        LogCopyFormat.timestampAndMessage,
+    };
+
+    final copiedCount = await controller.copyRowsForContextMenu(
+      clickedFilteredIndex: index,
+      format: format,
+    );
+    if (!mounted || copiedCount == 0) return;
+
+    final copiedLabel = switch (action) {
+      LogViewerCopyAction.copyRow => 'row',
+      LogViewerCopyAction.copyMessage => 'message',
+      LogViewerCopyAction.copyTimestampAndMessage => 'time + message',
+    };
+    _showSnackBar(
+      copiedCount == 1
+          ? 'Copied $copiedLabel for 1 row.'
+          : 'Copied $copiedLabel for $copiedCount rows.',
+    );
+  }
+
   Future<void> _handleLoadDevices({bool openPickerWhenNeeded = false}) async {
     await controller.loadDevices();
     if (!mounted || !openPickerWhenNeeded) return;
@@ -118,60 +155,129 @@ class _LogTabViewState extends State<LogTabView> {
             ),
           ],
           children: [
-            if (controller.devices.isNotEmpty) ...[
-              const Gap(4),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Available devices',
-                  style: theme.textTheme.titleMedium,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.06),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
                 ),
               ),
-              SingleChildScrollView(
-                child: Column(
-                  spacing: 8,
-                  children: controller.devices
-                      .map(
-                        (device) => AvailableDeviceCard(
-                          device: device,
-                          onSelected: () => _selectDevice(device),
-                          onShowMessage: _showSnackBar,
+              child: controller.devices.isNotEmpty
+                  ? Column(
+                      key: const ValueKey('devices'),
+
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Gap(4),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Available devices',
+                            style: theme.textTheme.titleMedium,
+                          ),
                         ),
-                      )
-                      .toList(),
-                ),
-              ),
-            ] else if (controller.hasAttemptedDeviceLoad &&
-                !controller.isLoadingDevices) ...[
-              const Gap(8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: theme.colorScheme.outlineVariant),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.usb_off,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const Gap(10),
-                    Text('No devices found', style: theme.textTheme.titleSmall),
-                    const Gap(6),
-                    Text(
-                      'Connect an Android device with ADB enabled, or an iOS device supported by libimobiledevice.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        SingleChildScrollView(
+                          child: Column(
+                            spacing: 8,
+                            children: controller.devices
+                                .map(
+                                  (device) => AvailableDeviceCard(
+                                    device: device,
+                                    onSelected: () => _selectDevice(device),
+                                    onShowMessage: _showSnackBar,
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ],
+                    )
+                  : (controller.isLoadingDevices || controller.hasAttemptedDeviceLoad)
+                  ? Container(
+                      key: const ValueKey('status-box'),
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant,
+                        ),
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ],
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        switchInCurve: Curves.easeOut,
+                        switchOutCurve: Curves.easeIn,
+                        transitionBuilder: (child, animation) => FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.06),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        ),
+                        child: controller.isLoadingDevices
+                            ? Column(
+                                key: const ValueKey('loading'),
+                                children: [
+                                  SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                  const Gap(10),
+                                  Text(
+                                    'Searching for devices…',
+                                    style: theme.textTheme.titleSmall,
+                                  ),
+                                  const Gap(6),
+                                  Text(
+                                    'Looking for connected Android and iOS devices.',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                key: const ValueKey('no-devices'),
+                                children: [
+                                  Icon(
+                                    Icons.usb_off,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                  const Gap(10),
+                                  Text(
+                                    'No devices found',
+                                    style: theme.textTheme.titleSmall,
+                                  ),
+                                  const Gap(6),
+                                  Text(
+                                    'Connect an Android device with ADB enabled, or an iOS device supported by libimobiledevice.',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                      ),
+                    )
+                  : const SizedBox.shrink(key: ValueKey('empty')),
+            ),
           ],
         ),
         GetStartedActionCard(
@@ -216,8 +322,18 @@ class _LogTabViewState extends State<LogTabView> {
       scrollController: controller.scrollController,
       wrapText: controller.wrapText,
       onLogRowTap: controller.disableAutoScroll,
+      onUserScroll: controller.disableAutoScroll,
+      rowSelectionMode: controller.rowSelectionMode,
+      selectedRowIndices: controller.selectedRowIndices,
+      onRowSelectionStart: controller.beginRowSelectionGesture,
+      onSelectedRowsChanged: controller.setSelectedRows,
+      onRowSelectionChanged: controller.setRowSelected,
+      onRowCopyAction: _handleRowCopyAction,
+      onSelectedTextChanged: controller.setSelectedSearchText,
       searchQuery: controller.appliedInlineSearchQuery,
       caseSensitive: controller.searchCaseSensitive,
+      wholeWord: controller.searchWholeWord,
+      regexSearch: controller.searchRegex,
       currentMatchLogIndex:
           controller.searchBarVisible &&
               controller.appliedInlineSearchQuery.isNotEmpty
@@ -311,10 +427,27 @@ class _LogTabViewState extends State<LogTabView> {
         _buildToolbar(context),
         if (controller.hasVisibleWorkspace)
           FilterBar(
-            filterQuery: controller.searchQuery,
-            controller: controller.filterController,
-            focusNode: controller.filterFocusNode,
-            onFilterChanged: controller.onSearchChanged,
+            messageController: controller.filterController,
+            messageFocusNode: controller.filterFocusNode,
+            onMessageFilterChanged: controller.onSearchChanged,
+            onMessageFilterSelected: controller.selectMessageFilterSuggestion,
+            recentMessageFilters: controller.recentMessageFilters,
+            packageController: controller.packageFilterController,
+            packageFocusNode: controller.packageFilterFocusNode,
+            onPackageFilterChanged: controller.onPackageFilterChanged,
+            onPackageFilterSelected: controller.selectPackageFilterSuggestion,
+            recentPackageFilters: controller.recentPackageFilters,
+            pidTidController: controller.pidTidFilterController,
+            pidTidFocusNode: controller.pidTidFilterFocusNode,
+            onPidTidFilterChanged: controller.onPidTidFilterChanged,
+            onPidTidFilterSelected: controller.selectPidTidFilterSuggestion,
+            recentPidTidFilters: controller.recentPidTidFilters,
+            tagController: controller.tagFilterController,
+            tagFocusNode: controller.tagFilterFocusNode,
+            onTagFilterChanged: controller.onTagFilterChanged,
+            onTagFilterSelected: controller.selectTagFilterSuggestion,
+            recentTagFilters: controller.recentTagFilters,
+            onSubmitFilters: controller.applyFiltersNow,
             selectedLogLevel: controller.selectedLogLevel,
             onLogLevelChanged: (level) {
               if (level != null) {
@@ -350,6 +483,11 @@ class _LogTabViewState extends State<LogTabView> {
           : () async {
               await _handleExportLogs();
             },
+      onCopyAll: controller.hasAnyCachedLogs
+          ? () async {
+              await _handleCopyAllLogs();
+            }
+          : null,
       onOpenSettings: widget.onOpenSettings,
     );
   }
@@ -403,11 +541,17 @@ class _LogTabViewState extends State<LogTabView> {
               controller: controller.searchController,
               focusNode: controller.searchFocusNode,
               caseSensitive: controller.searchCaseSensitive,
+              wholeWord: controller.searchWholeWord,
+              regexSearch: controller.searchRegex,
+              hasError: controller.inlineSearchHasError,
+              errorText: controller.inlineSearchErrorText,
               onQueryChanged: controller.onInlineSearchChanged,
               onCaseSensitiveChanged: controller.setSearchCaseSensitive,
+              onWholeWordChanged: controller.setSearchWholeWord,
+              onRegexChanged: controller.setSearchRegex,
               onNext: controller.onSearchNext,
               onPrevious: controller.onSearchPrev,
-              onClose: controller.toggleSearchBar,
+              onClose: controller.closeSearchBar,
               totalMatches: matches.length,
               currentMatch: matches.isEmpty
                   ? 0
@@ -467,6 +611,13 @@ class _LogTabViewState extends State<LogTabView> {
             'Filtered: ${controller.filteredLogs.length}',
             style: logTheme.statusBarStyle,
           ),
+          if (controller.rowSelectionMode || controller.hasSelectedRows) ...[
+            const Gap(16),
+            Text(
+              'Selected: ${controller.selectedRowCount}',
+              style: logTheme.statusBarStyle,
+            ),
+          ],
           const Spacer(),
           Text(
             'App mem: ${controller.formatBytes(widget.appMemoryBytesListenable.value)}',

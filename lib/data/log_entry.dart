@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 
+import '../utils/log_entry_id_generator.dart';
 import '../utils/timestamp_utils.dart';
 import 'log_level.dart';
 
 class LogEntry {
+  final int id;
   final String timestamp;
   final String pid;
   final String tid;
@@ -15,6 +17,7 @@ class LogEntry {
   String? processName;
 
   LogEntry({
+    int? id,
     required this.timestamp,
     required this.pid,
     required this.tid,
@@ -23,11 +26,12 @@ class LogEntry {
     required this.message,
     this.packageName,
     this.processName,
-  }) : lowercaseSearchable = '$tag $message'.toLowerCase();
+  }) : id = _resolveId(id),
+       lowercaseSearchable = '$tag $message'.toLowerCase();
 
   @override
   String toString() {
-    return 'LogEntry(timestamp: $timestamp, pid: $pid, tid: $tid, level: $level, tag: $tag, message: $message, packageName: $packageName, processName: $processName)';
+    return 'LogEntry(id: $id, timestamp: $timestamp, pid: $pid, tid: $tid, level: $level, tag: $tag, message: $message, packageName: $packageName, processName: $processName)';
   }
 
   @override
@@ -164,5 +168,12 @@ class LogEntry {
 
     final iosLevel = LogLevel.normalizeIosStoredLevel(raw);
     return iosLevel;
+  }
+
+  static int _resolveId(int? value) {
+    if (value != null) {
+      return value;
+    }
+    return LogEntryIdGenerator.instance.next();
   }
 }

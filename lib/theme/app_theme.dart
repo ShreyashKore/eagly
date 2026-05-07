@@ -278,6 +278,8 @@ class AppTheme {
     return baseTheme.copyWith(
       scaffoldBackgroundColor: colorScheme.surfaceContainerLowest,
       textTheme: textTheme,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
       dividerTheme: DividerThemeData(
         color: colorScheme.outlineVariant,
         thickness: 1,
@@ -311,8 +313,20 @@ class AppTheme {
         color: colorScheme.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           side: BorderSide(color: colorScheme.outlineVariant),
+        ),
+        menuPadding: EdgeInsets.symmetric(vertical: 4),
+      ),
+      dropdownMenuTheme: const DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+          ),
+          padding: WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 4)),
+          visualDensity: VisualDensity.compact,
         ),
       ),
       dataTableTheme: DataTableThemeData(

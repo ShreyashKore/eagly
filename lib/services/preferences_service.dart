@@ -106,7 +106,7 @@ class PreferencesService {
   static LogTabSettings get defaultTabSettings => LogTabSettings(
     wrapText: wrapText,
     autoScroll: autoScroll,
-    selectedLogLevel: selectedLogLevel.code,
+    selectedLogLevel: selectedLogLevel,
     logLinesLimit: logLinesLimit,
     hiddenColumns: hiddenColumns,
     columnWidths: columnWidths,

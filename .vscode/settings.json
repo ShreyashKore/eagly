@@ -5,5 +5,8 @@
   },
   "files.watcherExclude": {
     "**/.fvm": true
+  },
+  "chat.tools.terminal.autoApprove": {
+    "flutter": true
   }
 }

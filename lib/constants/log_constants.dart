@@ -2,20 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../data/log_level.dart';
 
-// ════════════════════════════════════════════════════════════════════════════
-// Android (logcat) UI helpers
-// ════════════════════════════════════════════════════════════════════════════
+List<LogLevel> _logLevelsForPlatform({required bool isIos}) =>
+    isIos ? LogLevel.iosValues : LogLevel.androidValues;
 
 List<DropdownMenuItem<LogLevel>> buildLogLevelDropdownItems({
   bool includeValueInLabel = false,
+  bool isIos = false,
 }) {
-  return LogLevel.androidValues
+  return _logLevelsForPlatform(isIos: isIos)
       .map(
         (level) => DropdownMenuItem<LogLevel>(
           value: level,
           child: Text(
             includeValueInLabel
-                ? level.labelWithDisplayCode(isIos: false)
+                ? level.labelWithDisplayCode(isIos: isIos)
                 : level.label,
           ),
         ),
@@ -25,45 +25,12 @@ List<DropdownMenuItem<LogLevel>> buildLogLevelDropdownItems({
 
 List<PlatformMenuItem> buildLogLevelMenuItems({
   required ValueChanged<LogLevel> onSelected,
+  bool isIos = false,
 }) {
-  return LogLevel.androidValues
+  return _logLevelsForPlatform(isIos: isIos)
       .map(
         (level) => PlatformMenuItem(
-          label: level.labelWithDisplayCode(isIos: false),
-          onSelected: () => onSelected(level),
-        ),
-      )
-      .toList(growable: false);
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// iOS (os_log / syslog) UI helpers
-// ════════════════════════════════════════════════════════════════════════════
-
-List<DropdownMenuItem<LogLevel>> buildIosLogLevelDropdownItems({
-  bool includeValueInLabel = false,
-}) {
-  return LogLevel.iosValues
-      .map(
-        (level) => DropdownMenuItem<LogLevel>(
-          value: level,
-          child: Text(
-            includeValueInLabel
-                ? level.labelWithDisplayCode(isIos: true)
-                : level.label,
-          ),
-        ),
-      )
-      .toList(growable: false);
-}
-
-List<PlatformMenuItem> buildIosLogLevelMenuItems({
-  required ValueChanged<LogLevel> onSelected,
-}) {
-  return LogLevel.iosValues
-      .map(
-        (level) => PlatformMenuItem(
-          label: level.labelWithDisplayCode(isIos: true),
+          label: level.labelWithDisplayCode(isIos: isIos),
           onSelected: () => onSelected(level),
         ),
       )

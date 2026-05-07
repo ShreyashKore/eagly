@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/services.dart';
 
 import 'package:flutter/material.dart';
 import 'package:tabbed_view/tabbed_view.dart';
@@ -327,47 +328,80 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<PlatformMenuItem> _logLevelFilterMenuItems() {
     final isIos = _activeController?.isIosLogContext ?? false;
-    if (isIos) {
-      return buildIosLogLevelMenuItems(
-        onSelected: (level) =>
-            _runOnActiveTab((tab) => tab.setSelectedLogLevel(level.code)),
-      );
-    }
     return buildLogLevelMenuItems(
+      isIos: isIos,
       onSelected: (level) =>
-          _runOnActiveTab((tab) => tab.setSelectedLogLevel(level.code)),
+          _runOnActiveTab((tab) => tab.setSelectedLogLevel(level)),
     );
   }
 
   List<PlatformMenuItem> _buildDesktopMenus() {
     return [
+      // ── File ──────────────────────────────────────────────────────────────
       PlatformMenu(
         label: 'File',
         menus: [
           PlatformMenuItemGroup(
             members: [
-              PlatformMenuItem(label: 'New Tab', onSelected: _createTab),
               PlatformMenuItem(
-                label: 'Import Logs',
-                onSelected: () {
-                  unawaited(_handleImportLogs());
-                },
-              ),
-              PlatformMenuItem(
-                label: 'Export Logs',
-                onSelected: () {
-                  unawaited(_handleExportLogs());
-                },
+                label: 'New Tab',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyT,
+                  meta: true,
+                ),
+                onSelected: _createTab,
               ),
             ],
           ),
           PlatformMenuItemGroup(
             members: [
-              PlatformMenuItem(label: 'Settings', onSelected: _openSettings),
+              PlatformMenuItem(
+                label: 'Import Logs…',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyO,
+                  meta: true,
+                ),
+                onSelected: () => unawaited(_handleImportLogs()),
+              ),
+              PlatformMenuItem(
+                label: 'Export Logs…',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyS,
+                  meta: true,
+                  shift: true,
+                ),
+                onSelected: () => unawaited(_handleExportLogs()),
+              ),
+            ],
+          ),
+          PlatformMenuItemGroup(
+            members: [
+              PlatformMenuItem(
+                label: 'Settings…',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.comma,
+                  meta: true,
+                ),
+                onSelected: _openSettings,
+              ),
+            ],
+          ),
+          PlatformMenuItemGroup(
+            members: [
+              PlatformMenuItem(
+                label: 'Quit ${AppConstants.appName}',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyQ,
+                  meta: true,
+                ),
+                onSelected: () => SystemNavigator.pop(),
+              ),
             ],
           ),
         ],
       ),
+
+      // ── Logs ──────────────────────────────────────────────────────────────
       PlatformMenu(
         label: 'Logs',
         menus: [
@@ -375,19 +409,40 @@ class _HomeScreenState extends State<HomeScreen> {
             members: [
               PlatformMenuItem(
                 label: 'Reload Devices',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyR,
+                  meta: true,
+                  shift: true,
+                ),
                 onSelected: () => _runOnActiveTab((tab) => tab.loadDevices()),
               ),
+            ],
+          ),
+          PlatformMenuItemGroup(
+            members: [
               PlatformMenuItem(
                 label: 'Start / Restart Logcat',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyR,
+                  meta: true,
+                ),
                 onSelected: () => _runOnActiveTab((tab) => tab.startLogcat()),
               ),
               PlatformMenuItem(
                 label: 'Pause / Resume Logcat',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.space,
+                  meta: true,
+                ),
                 onSelected: () =>
                     _runOnActiveTab((tab) => tab.togglePauseResume()),
               ),
               PlatformMenuItem(
                 label: 'Clear Logs',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyK,
+                  meta: true,
+                ),
                 onSelected: () => _runOnActiveTab((tab) => tab.clearLogs()),
               ),
             ],
@@ -396,34 +451,60 @@ class _HomeScreenState extends State<HomeScreen> {
             members: [
               PlatformMenuItem(
                 label: 'Scroll to End',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.end,
+                  meta: true,
+                ),
                 onSelected: () => _runOnActiveTab((tab) => tab.scrollToEnd()),
               ),
             ],
           ),
         ],
       ),
+
+      // ── Search ────────────────────────────────────────────────────────────
       PlatformMenu(
         label: 'Search',
         menus: [
           PlatformMenuItemGroup(
             members: [
               PlatformMenuItem(
-                label: 'Toggle Search',
-                onSelected: () =>
-                    _runOnActiveTab((tab) => tab.toggleSearchBar()),
+                label: 'Find…',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyF,
+                  meta: true,
+                ),
+                onSelected: () => _runOnActiveTab(
+                  (tab) => tab.activateSearchFromSelection(),
+                ),
               ),
+            ],
+          ),
+          PlatformMenuItemGroup(
+            members: [
               PlatformMenuItem(
                 label: 'Previous Match',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyG,
+                  meta: true,
+                  shift: true,
+                ),
                 onSelected: () => _runOnActiveTab((tab) => tab.onSearchPrev()),
               ),
               PlatformMenuItem(
                 label: 'Next Match',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyG,
+                  meta: true,
+                ),
                 onSelected: () => _runOnActiveTab((tab) => tab.onSearchNext()),
               ),
             ],
           ),
         ],
       ),
+
+      // ── Filter ────────────────────────────────────────────────────────────
       PlatformMenu(
         label: 'Filter',
         menus: [
@@ -431,6 +512,10 @@ class _HomeScreenState extends State<HomeScreen> {
             members: [
               PlatformMenuItem(
                 label: 'Focus Filter Input',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyL,
+                  meta: true,
+                ),
                 onSelected: () =>
                     _runOnActiveTab((tab) => tab.focusFilterInputs()),
               ),
@@ -443,6 +528,8 @@ class _HomeScreenState extends State<HomeScreen> {
           PlatformMenuItemGroup(members: _logLevelFilterMenuItems()),
         ],
       ),
+
+      // ── View ──────────────────────────────────────────────────────────────
       PlatformMenu(
         label: 'View',
         menus: [
@@ -460,15 +547,37 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+          PlatformMenuItemGroup(
+            members: [
+              PlatformMenuItem(
+                label: 'Increase Font Size',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.equal,
+                  meta: true,
+                ),
+                onSelected: () => _changeLogFontSize(1),
+              ),
+              PlatformMenuItem(
+                label: 'Decrease Font Size',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.minus,
+                  meta: true,
+                ),
+                onSelected: () => _changeLogFontSize(-1),
+              ),
+            ],
+          ),
         ],
       ),
+
+      // ── Help ──────────────────────────────────────────────────────────────
       PlatformMenu(
         label: 'Help',
         menus: [
           PlatformMenuItemGroup(
             members: [
               PlatformMenuItem(
-                label: 'About / Version',
+                label: 'About ${AppConstants.appName}',
                 onSelected: _showAboutApp,
               ),
             ],
@@ -480,7 +589,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeController = _activeController;
     final materialTheme = Theme.of(context);
     final colorScheme = materialTheme.colorScheme;
     final theme = TabbedViewThemeData.minimalist(
@@ -498,7 +606,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: <Type, Action<Intent>>{
           ActivateSearchIntent: CallbackAction<ActivateSearchIntent>(
             onInvoke: (_) {
-              activeController?.toggleSearchBar();
+              _activeController?.activateSearchFromSelection();
               return null;
             },
           ),

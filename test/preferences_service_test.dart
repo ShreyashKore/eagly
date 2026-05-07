@@ -15,7 +15,7 @@ void main() {
     expect(PreferencesService.selectedLogLevel, LogLevel.verbose);
     expect(
       PreferencesService.defaultTabSettings.selectedLogLevel,
-      LogLevel.verbose.code,
+      LogLevel.verbose,
     );
   });
 

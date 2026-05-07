@@ -37,6 +37,10 @@ class DeviceRepository extends ChangeNotifier {
   static const Duration _androidRefreshDebounce = Duration(milliseconds: 350);
   static const Duration _androidWatcherRestartDelay = Duration(seconds: 2);
   static const Duration _iosRefreshInterval = Duration(seconds: 4);
+  static const Duration _manualRetryInterval = Duration(milliseconds: 500);
+  static const int _manualRetryCountMax = 10;
+  static const Duration _mdnsRetryInterval = Duration(milliseconds: 500);
+  static const int _mdnsRetryCountMax = 20;
 
   final AdbTool _adbTool;
   final IdeviceIdTool _ideviceIdTool;
@@ -102,7 +106,7 @@ class DeviceRepository extends ChangeNotifier {
       _notify();
     }
 
-    final refresh = _reloadDevices();
+    final refresh = _reloadDevicesWith(retry: showLoading);
     _refreshInFlight = refresh;
 
     try {
@@ -121,9 +125,34 @@ class DeviceRepository extends ChangeNotifier {
     }
   }
 
+  Future<void> _reloadDevicesWith({required bool retry}) async {
+    await _reloadDevices();
 
-  Future<WirelessServiceDiscoveryResult> discoverMdnsServices() =>
-      _adbTool.discoverMdnsServices();
+    if (retry) {
+      for (int attempt = 0; attempt < _manualRetryCountMax; attempt++) {
+        if (_disposed) return;
+        if (_devices.isNotEmpty) return;
+        await Future.delayed(_manualRetryInterval);
+        if (_disposed) return;
+        await _reloadDevices();
+      }
+    }
+  }
+
+  Future<WirelessServiceDiscoveryResult> discoverMdnsServices() async {
+    WirelessServiceDiscoveryResult result = await _adbTool
+        .discoverMdnsServices();
+
+    for (int attempt = 0; attempt < _mdnsRetryCountMax; attempt++) {
+      if (_disposed) break;
+      if (result.isSuccess && result.services.isNotEmpty) break;
+      await Future.delayed(_mdnsRetryInterval);
+      if (_disposed) break;
+      result = await _adbTool.discoverMdnsServices();
+    }
+
+    return result;
+  }
 
   Future<void> _reloadDevices() async {
     final androidDevices = await _adbTool.getDevices();
