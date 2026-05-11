@@ -1,5 +1,5 @@
 class AppConstants {
-  static const appName = 'Logview';
+  static const appName = 'devspect';
   static const appDescription =
       'Desktop log viewer for Android logcat and iOS syslog output.';
   static const newTabActionId = '__new-tab-action__';

@@ -1,4 +1,4 @@
-name: logview
+name: devspect
 description: "Logs viewer"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -100,15 +100,15 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 msix_config:
-  display_name: Logview
-  publisher_display_name: dev.shreyash
-  identity_name: dev.shreyash.logview
+  display_name: devspect
+  publisher_display_name: com.gyanoba
+  identity_name: com.gyanoba.devspect
   msix_version: 1.0.3.0
   architecture: x64
   logo_path: macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png
-  publisher: CN=dev.shreyash
+  publisher: CN=com.gyanoba
   install_certificate: false
   # Keep the signing certificate out of source control and pass it when packaging.
   # Example:
-  # dart run msix:create --certificate-path windows/certificates/logview-release.pfx --certificate-password "<password>"
+  # dart run msix:create --certificate-path windows/certificates/devspect-release.pfx --certificate-password "<password>"
 

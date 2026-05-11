@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:logview/utils/timestamp_utils.dart';
+import 'package:devspect/utils/timestamp_utils.dart';
 
 import '../../data/log_entry.dart';
 import '../../utils/adb_path.dart';

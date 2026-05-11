@@ -1,4 +1,4 @@
-# Contributing to Logview
+# Contributing to devspect
 
 Thank you for your interest in contributing!
 

@@ -18,10 +18,10 @@ Important:
 
 `pubspec.yaml` currently uses:
 
-- `display_name`: `Logview`
-- `publisher_display_name`: `dev.shreyash`
-- `identity_name`: `dev.shreyash.logview`
-- `publisher`: `CN=dev.shreyash`
+- `display_name`: `devspect`
+- `publisher_display_name`: `com.gyanoba`
+- `identity_name`: `com.gyanoba.devspect`
+- `publisher`: `CN=com.gyanoba`
 
 The signing certificate subject must match the configured `publisher` value exactly.
 
@@ -32,7 +32,7 @@ If your certificate subject is different, update `msix_config.publisher` in `pub
 Place your release signing certificate at:
 
 ```text
-windows/certificates/logview-release.pfx
+windows/certificates/devspect-release.pfx
 ```
 
 That folder is intentionally gitignored for `.pfx`, `.p12`, `.cer`, and `.crt` files.
@@ -60,7 +60,7 @@ flutter pub get
 flutter build windows --release
 
 dart run msix:create \
-  --certificate-path windows/certificates/logview-release.pfx \
+  --certificate-path windows/certificates/devspect-release.pfx \
   --certificate-password $env:MSIX_CERT_PASSWORD
 ```
 
@@ -71,7 +71,7 @@ set MSIX_CERT_PASSWORD=<your-password>
 flutter pub get
 flutter build windows --release
 
-dart run msix:create --certificate-path windows/certificates/logview-release.pfx --certificate-password %MSIX_CERT_PASSWORD%
+dart run msix:create --certificate-path windows/certificates/devspect-release.pfx --certificate-password %MSIX_CERT_PASSWORD%
 ```
 
 ## Developer checklist before shipping

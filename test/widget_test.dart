@@ -12,11 +12,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:logview/data/log_column.dart';
-import 'package:logview/data/log_entry.dart';
-import 'package:logview/services/preferences_service.dart';
-import 'package:logview/theme/app_theme.dart';
-import 'package:logview/ui/log_viewer/log_viewer.dart';
+import 'package:devspect/data/log_column.dart';
+import 'package:devspect/data/log_entry.dart';
+import 'package:devspect/services/preferences_service.dart';
+import 'package:devspect/theme/app_theme.dart';
+import 'package:devspect/ui/log_viewer/log_viewer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

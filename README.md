@@ -1,4 +1,4 @@
-# Logview
+# devspect
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev)
@@ -51,13 +51,13 @@ No external dependencies need to be installed — the app ships with all require
 1. Enable **Developer Options** on your Android device.
 2. Turn on **USB Debugging** (Settings → Developer Options → USB debugging).
 3. Connect your device via USB (or use wireless debugging).
-4. Launch Logview — your device should appear automatically.
+4. Launch devspect — your device should appear automatically.
 
 ### iOS — macOS / Linux
 
 1. Connect your iPhone or iPad via USB.
 2. When prompted on the device, tap **Trust This Computer** and enter your passcode.
-3. Launch Logview — your device should appear automatically.
+3. Launch devspect — your device should appear automatically.
 
 ### iOS — Windows
 
@@ -67,7 +67,7 @@ No external dependencies need to be installed — the app ships with all require
 1. Install [iTunes](https://www.apple.com/itunes/).
 2. Connect your iPhone or iPad via USB.
 3. When prompted on the device, tap **Trust This Computer** and enter your passcode.
-4. Launch Logview — your device should appear automatically.
+4. Launch devspect — your device should appear automatically.
 
 ---
 

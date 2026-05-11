@@ -1,4 +1,4 @@
-import 'package:logview/data/log_level.dart';
+import 'package:devspect/data/log_level.dart';
 
 class LogTabSettings {
   const LogTabSettings({

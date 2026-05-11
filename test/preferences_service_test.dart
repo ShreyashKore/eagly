@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logview/data/log_level.dart';
-import 'package:logview/services/preferences_service.dart';
+import 'package:devspect/data/log_level.dart';
+import 'package:devspect/services/preferences_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

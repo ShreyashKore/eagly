@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logview/services/device_session_service.dart';
+import 'package:devspect/services/device_session_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

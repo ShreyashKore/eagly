@@ -1,14 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logview/data/device.dart';
-import 'package:logview/data/wireless_debug_models.dart';
-import 'package:logview/services/device_repository.dart';
-import 'package:logview/services/device_session_service.dart';
-import 'package:logview/services/tools/adb_tool.dart';
-import 'package:logview/services/tools/idevice_id_tool.dart';
-import 'package:logview/services/tools/idevice_info_tool.dart';
-import 'package:logview/ui/wireless_connection/wireless_connection_controller.dart';
+import 'package:devspect/data/device.dart';
+import 'package:devspect/data/wireless_debug_models.dart';
+import 'package:devspect/services/device_repository.dart';
+import 'package:devspect/services/device_session_service.dart';
+import 'package:devspect/services/tools/adb_tool.dart';
+import 'package:devspect/services/tools/idevice_id_tool.dart';
+import 'package:devspect/services/tools/idevice_info_tool.dart';
+import 'package:devspect/ui/wireless_connection/wireless_connection_controller.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

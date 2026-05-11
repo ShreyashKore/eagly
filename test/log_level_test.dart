@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logview/data/log_level.dart';
+import 'package:devspect/data/log_level.dart';
 
 void main() {
   group('LogLevel', () {
