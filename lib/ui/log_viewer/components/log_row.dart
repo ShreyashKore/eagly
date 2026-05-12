@@ -21,6 +21,7 @@ class LogRow extends StatelessWidget {
   final int? currentMatchLogIndex;
   final bool wrapText;
   final TextStyle monoStyle;
+  final bool allowSelectionStart;
   final ValueChanged<PointerDownEvent>? onSelectionPointerDown;
   final ValueChanged<PointerMoveEvent>? onSelectionPointerMove;
   final String Function(LogColumn) contentValueForColumn;
@@ -42,10 +43,42 @@ class LogRow extends StatelessWidget {
     required this.currentMatchLogIndex,
     required this.wrapText,
     required this.monoStyle,
+    required this.allowSelectionStart,
     this.onSelectionPointerDown,
     this.onSelectionPointerMove,
     required this.contentValueForColumn,
   });
+
+  Color _specialAccentColor(BuildContext context) {
+    final logTheme = context.logViewTheme;
+    return switch (log.type) {
+      LogEntryType.started || LogEntryType.resumed => logTheme.statusLiveColor,
+      LogEntryType.paused => logTheme.statusPausedColor,
+      LogEntryType.stopped => logTheme.statusStoppedColor,
+      LogEntryType.error => logTheme.errorColor,
+      LogEntryType.notice => logTheme.inlineNoticeForeground,
+      LogEntryType.log => logTheme.infoColor,
+    };
+  }
+
+  IconData _specialIcon() {
+    return switch (log.type) {
+      LogEntryType.started => Icons.play_arrow_rounded,
+      LogEntryType.resumed => Icons.play_circle_outline_rounded,
+      LogEntryType.paused => Icons.pause_circle_outline_rounded,
+      LogEntryType.stopped => Icons.stop_circle_outlined,
+      LogEntryType.error => Icons.error_outline_rounded,
+      LogEntryType.notice => Icons.info_outline_rounded,
+      LogEntryType.log => Icons.article_outlined,
+    };
+  }
+
+  String _specialMetaText() {
+    return [
+      if (log.timestamp.trim().isNotEmpty) log.timestamp.trim(),
+      if (log.processName?.trim().isNotEmpty ?? false) log.processName!.trim(),
+    ].join(' • ');
+  }
 
   TextSpan _rowTerminatorSpan() {
     return const TextSpan(
@@ -202,6 +235,90 @@ class LogRow extends StatelessWidget {
     );
   }
 
+  Widget _buildSpecialRow(
+    BuildContext context, {
+    Color? highlightColor,
+    required bool isCurrentMatch,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final accentColor = _specialAccentColor(context);
+    final tileColor = accentColor.withValues(
+      alpha: Theme.of(context).brightness == Brightness.dark ? 0.07 : 0.045,
+    );
+    final captionStyle = monoStyle.copyWith(
+      color: colorScheme.onSurfaceVariant,
+      fontSize: (monoStyle.fontSize ?? 12) - 1,
+    );
+    final messageStyle = monoStyle.copyWith(color: colorScheme.onSurface);
+    final metaText = _specialMetaText();
+
+    return SelectionContainer.disabled(
+      child: Container(
+        color: isCurrentMatch ? context.logViewTheme.searchCurrentRowColor : null,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: ConstrainedBox(
+            key: const ValueKey('special-log-row'),
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Container(
+              decoration: BoxDecoration(
+                color: tileColor,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: accentColor.withValues(alpha: isCurrentMatch ? 0.32 : 0.18),
+                  width: 0.8,
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(_specialIcon(), size: 13, color: accentColor),
+                  const SizedBox(width: 6),
+                  _buildSelectableText(
+                    context,
+                    log.typeLabel,
+                    monoStyle.copyWith(
+                      color: accentColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    highlightColor: highlightColor,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (log.message.trim().isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildSelectableText(
+                        context,
+                        log.message,
+                        messageStyle,
+                        highlightColor: highlightColor,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                  if (metaText.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: _buildSelectableText(
+                        context,
+                        metaText,
+                        captionStyle,
+                        highlightColor: highlightColor,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final logTheme = context.logViewTheme;
@@ -221,6 +338,30 @@ class LogRow extends StatelessWidget {
         : (isCurrentMatch
         ? logTheme.searchCurrentMatchColor
         : logTheme.searchMatchColor);
+
+    if (log.isSpecialEntry) {
+      final rowContent = _buildSpecialRow(
+        context,
+        highlightColor: highlightColor,
+        isCurrentMatch: isCurrentMatch,
+      );
+
+      return MouseRegion(
+        cursor: rowSelectionMode && allowSelectionStart
+            ? SystemMouseCursors.click
+            : MouseCursor.defer,
+        child: Listener(
+          behavior: rowSelectionMode
+              ? HitTestBehavior.opaque
+              : HitTestBehavior.deferToChild,
+          onPointerDown: rowSelectionMode && allowSelectionStart
+              ? onSelectionPointerDown
+              : null,
+          onPointerMove: rowSelectionMode ? onSelectionPointerMove : null,
+          child: rowContent,
+        ),
+      );
+    }
 
     final rowContent = Container(
       color: isCurrentMatch
@@ -271,12 +412,16 @@ class LogRow extends StatelessWidget {
     );
 
     return MouseRegion(
-      cursor: rowSelectionMode ? SystemMouseCursors.click : MouseCursor.defer,
+      cursor: rowSelectionMode && allowSelectionStart
+          ? SystemMouseCursors.click
+          : MouseCursor.defer,
       child: Listener(
         behavior: rowSelectionMode
             ? HitTestBehavior.opaque
             : HitTestBehavior.deferToChild,
-        onPointerDown: rowSelectionMode ? onSelectionPointerDown : null,
+        onPointerDown: rowSelectionMode && allowSelectionStart
+            ? onSelectionPointerDown
+            : null,
         onPointerMove: rowSelectionMode ? onSelectionPointerMove : null,
         child: GestureDetector(
           behavior: rowSelectionMode

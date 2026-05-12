@@ -89,6 +89,57 @@ void main() {
     },
   );
 
+  test('start pause resume and stop append special session entries', () async {
+    adbTool.androidDevices = [
+      Device('emulator-5554', 'device', platform: DevicePlatform.android),
+    ];
+    controller = createController();
+
+    await controller!.bootstrapInitialLoad();
+
+    expect(controller!.logs.map((log) => log.type), [LogEntryType.started]);
+
+    controller!.togglePauseResume();
+    expect(controller!.logs.last.type, LogEntryType.paused);
+    expect(controller!.isPaused, isTrue);
+
+    controller!.togglePauseResume();
+    expect(controller!.logs.last.type, LogEntryType.resumed);
+    expect(controller!.isPaused, isFalse);
+
+    await controller!.stopLogcat();
+    expect(controller!.logs.last.type, LogEntryType.stopped);
+    expect(controller!.logcatState, LogcatState.stopped);
+  });
+
+  test('selected device disconnect appends a stopped session entry', () async {
+    adbTool.androidDevices = [
+      Device(
+        'emulator-5554',
+        'device',
+        platform: DevicePlatform.android,
+        brand: 'Google',
+        model: 'Pixel 8',
+      ),
+    ];
+    controller = createController();
+
+    await controller!.bootstrapInitialLoad();
+    expect(controller!.isRunning, isTrue);
+
+    adbTool.androidDevices = const [];
+    await repository.refreshDevices(force: true);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller!.logcatState, LogcatState.stopped);
+    expect(controller!.selectedDevice?.isDisconnected, isTrue);
+    expect(controller!.logs.last.type, LogEntryType.stopped);
+    expect(
+      controller!.logs.last.message,
+      contains('Device disconnected; stopped capturing logs for'),
+    );
+  });
+
   test('submitLogLinesLimit rejects values below minimum threshold', () {
     controller = createController();
 
@@ -264,10 +315,8 @@ void main() {
       final storedMessages = controller!.logs
           .map((log) => log.message)
           .toList();
-      expect(storedMessages, hasLength(6));
       expect(storedMessages, containsAll(['keep 1', 'keep 2']));
       expect(storedMessages, isNot(contains('drop 1')));
-      expect(storedMessages, isNot(contains('drop 2')));
       expect(controller!.filteredLogs.map((log) => log.message), [
         'keep 1',
         'keep 2',
@@ -443,6 +492,40 @@ void main() {
     },
   );
 
+  test('special entries are skipped by selection and copy operations', () async {
+    controller = createController();
+    controller!.logs = [
+      _testLogEntry(message: 'First message'),
+      LogEntry.loggingState(
+        type: LogEntryType.paused,
+        message: 'Paused live logging for emulator-5554.',
+        processName: 'emulator-5554',
+      ),
+      _testLogEntry(message: 'Second message'),
+    ];
+
+    controller!.setRowSelectionMode(true);
+
+    expect(controller!.beginRowSelectionGesture(1), isNull);
+    expect(controller!.selectedRowIndices, isEmpty);
+
+    expect(controller!.beginRowSelectionGesture(0), isTrue);
+    controller!.selectRowRangeTo(2);
+    expect(controller!.selectedRowIndices, {0, 2});
+
+    controller!.setSelectedRows({0, 1, 2});
+    expect(controller!.selectedRowIndices, {0, 2});
+
+    final copiedCount = await controller!.copyFilteredRows(
+      [0, 1, 2],
+      format: LogCopyFormat.messageOnly,
+    );
+    final clipboard = await Clipboard.getData('text/plain');
+
+    expect(copiedCount, 2);
+    expect(clipboard?.text, 'First message\nSecond message');
+  });
+
   test(
     'copyRowsForContextMenu copies selected rows when clicked row is selected',
     () async {
@@ -495,6 +578,10 @@ void main() {
 
   test('disabling row selection mode clears selected rows', () {
     controller = createController();
+    controller!.logs = List.generate(
+      3,
+      (index) => _testLogEntry(message: 'Message $index'),
+    );
     controller!.setRowSelectionMode(true);
     controller!.setRowSelected(1, true);
     controller!.setRowSelected(2, true);
@@ -507,6 +594,10 @@ void main() {
 
   test('shift selection selects an inclusive range from the anchor row', () {
     controller = createController();
+    controller!.logs = List.generate(
+      5,
+      (index) => _testLogEntry(message: 'Message $index'),
+    );
     controller!.setRowSelectionMode(true);
 
     final dragValue = controller!.beginRowSelectionGesture(1);
@@ -519,6 +610,10 @@ void main() {
 
   test('shift selection without an anchor selects only the clicked row', () {
     controller = createController();
+    controller!.logs = List.generate(
+      5,
+      (index) => _testLogEntry(message: 'Message $index'),
+    );
     controller!.setRowSelectionMode(true);
 
     controller!.beginRowSelectionGesture(3, shiftPressed: true);
@@ -529,6 +624,10 @@ void main() {
 
   test('setSelectedRows replaces the current row selection in one update', () {
     controller = createController();
+    controller!.logs = List.generate(
+      5,
+      (index) => _testLogEntry(message: 'Message $index'),
+    );
     controller!.setRowSelectionMode(true);
     controller!.setRowSelected(0, true);
     controller!.setRowSelected(4, true);

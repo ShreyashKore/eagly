@@ -334,11 +334,18 @@ class LogTabController extends ChangeNotifier {
     return _selectedRowIndices.contains(filteredIndex);
   }
 
+  bool _isSelectableFilteredIndex(int filteredIndex, [List<LogEntry>? snapshot]) {
+    final filteredSnapshot = snapshot ?? filteredLogs;
+    return filteredIndex >= 0 &&
+        filteredIndex < filteredSnapshot.length &&
+        filteredSnapshot[filteredIndex].isUserSelectable;
+  }
+
   bool? beginRowSelectionGesture(
     int filteredIndex, {
     bool shiftPressed = false,
   }) {
-    if (filteredIndex < 0) return null;
+    if (!_isSelectableFilteredIndex(filteredIndex)) return null;
 
     if (shiftPressed) {
       selectRowRangeTo(filteredIndex);
@@ -358,7 +365,7 @@ class LogTabController extends ChangeNotifier {
   }
 
   void setRowSelected(int filteredIndex, bool selected) {
-    if (filteredIndex < 0) return;
+    if (!_isSelectableFilteredIndex(filteredIndex)) return;
 
     final changed = selected
         ? _selectedRowIndices.add(filteredIndex)
@@ -369,7 +376,10 @@ class LogTabController extends ChangeNotifier {
   }
 
   void setSelectedRows(Set<int> indices) {
-    final next = indices.where((index) => index >= 0).toSet();
+    final filteredSnapshot = filteredLogs;
+    final next = indices
+        .where((index) => _isSelectableFilteredIndex(index, filteredSnapshot))
+        .toSet();
     if (const SetEquality<int>().equals(_selectedRowIndices, next)) {
       return;
     }
@@ -381,7 +391,8 @@ class LogTabController extends ChangeNotifier {
   }
 
   void selectRowRangeTo(int filteredIndex) {
-    if (filteredIndex < 0) return;
+    final filteredSnapshot = filteredLogs;
+    if (!_isSelectableFilteredIndex(filteredIndex, filteredSnapshot)) return;
 
     if (_rowSelectionAnchorIndex == null) {
       final anchorChanged = _rowSelectionAnchorIndex != filteredIndex;
@@ -397,6 +408,9 @@ class LogTabController extends ChangeNotifier {
     final end = math.max(_rowSelectionAnchorIndex!, filteredIndex);
     var changed = false;
     for (var index = start; index <= end; index++) {
+      if (!_isSelectableFilteredIndex(index, filteredSnapshot)) {
+        continue;
+      }
       changed = _selectedRowIndices.add(index) || changed;
     }
     if (changed) {
@@ -417,7 +431,7 @@ class LogTabController extends ChangeNotifier {
 
   Future<int> copyAllLogs() {
     return _copyLogsToClipboard(
-      _currentLogsSnapshot,
+      _currentLogsSnapshot.where((entry) => entry.isCopyable),
       format: LogCopyFormat.fullLine,
     );
   }
@@ -445,7 +459,10 @@ class LogTabController extends ChangeNotifier {
       return Future<int>.value(0);
     }
 
-    final entries = [for (final index in indices) filteredSnapshot[index]];
+    final entries = [
+      for (final index in indices)
+        if (filteredSnapshot[index].isCopyable) filteredSnapshot[index],
+    ];
     return _copyLogsToClipboard(entries, format: format);
   }
 
@@ -984,17 +1001,113 @@ class LogTabController extends ChangeNotifier {
     _invalidateFilteredLogs();
   }
 
+  String _loggingSubjectLabel() {
+    return selectedDevice?.displayLabel.primary ??
+        selectedDevice?.displayName ??
+        selectedDevice?.id ??
+        'device';
+  }
+
+  LogEntry _buildSessionStateEntry(
+    LogEntryType type, {
+    String? message,
+    String? tag,
+  }) {
+    final subject = _loggingSubjectLabel();
+    final effectiveMessage = switch (type) {
+      LogEntryType.started => message ?? 'Started capturing logs for $subject.',
+      LogEntryType.resumed => message ?? 'Resumed live logging for $subject.',
+      LogEntryType.paused => message ?? 'Paused live logging for $subject.',
+      LogEntryType.stopped => message ?? 'Stopped capturing logs for $subject.',
+      LogEntryType.error => message ?? 'A logging error occurred for $subject.',
+      LogEntryType.notice => message ?? 'Logging state updated for $subject.',
+      LogEntryType.log => message ?? '',
+    };
+
+    return LogEntry.loggingState(
+      type: type,
+      tag: tag ?? 'logview session',
+      message: effectiveMessage,
+      packageName: selectedDevice?.id,
+      processName: subject,
+    );
+  }
+
+  void _appendImmediateLogEntry(LogEntry entry) {
+    final evictedLogs = _logsBuffer.append(entry);
+    final addedBytes = _estimateLogEntryBytes(entry);
+    final evictedBytes = _estimateLogsBytes(evictedLogs);
+
+    _logsMemoryBytes += addedBytes - evictedBytes;
+    if (_logsMemoryBytes < 0) {
+      _logsMemoryBytes = 0;
+    }
+
+    if (evictedLogs.isNotEmpty) {
+      clearSelectedRows(notify: false);
+    }
+
+    _invalidateFilteredLogs();
+    _notify();
+
+    if (autoScroll && scrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!scrollController.hasClients) return;
+        scrollController.animateTo(
+          scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+        );
+      });
+    }
+  }
+
+  void _appendSessionStateEntry(
+    LogEntryType type, {
+    String? message,
+    String? tag,
+  }) {
+    _appendImmediateLogEntry(
+      _buildSessionStateEntry(type, message: message, tag: tag),
+    );
+  }
+
+  Future<void> _stopLogcatForDisconnectedDevice(Device device) async {
+    if (!isRunning) return;
+
+    await _stopLogcatInternal(resetState: false);
+    if (_disposed) return;
+
+    logcatState = LogcatState.stopped;
+    _appendSessionStateEntry(
+      LogEntryType.stopped,
+      message: 'Device disconnected; stopped capturing logs for ${device.displayName}.',
+      tag: 'device connection',
+    );
+  }
+
   Future<void> _applyFetchedDevices(
     List<Device> fetchedDevices, {
     bool autoStartSingleIfAvailable = false,
   }) async {
     final currentSelectionId = selectedDevice?.id;
+    final previousSelectedDevice = selectedDevice;
     devices = fetchedDevices;
 
     if (currentSelectionId != null) {
       selectedDevice = fetchedDevices.firstWhereOrNull(
         (device) => device.id == currentSelectionId,
       );
+    }
+
+    final selectedDeviceJustDisconnected =
+        previousSelectedDevice != null &&
+        previousSelectedDevice.isConnected &&
+        selectedDevice != null &&
+        selectedDevice!.isDisconnected;
+
+    if (selectedDeviceJustDisconnected) {
+      await _stopLogcatForDisconnectedDevice(selectedDevice!);
     }
 
     if (currentSelectionId != null && selectedDevice == null) {
@@ -1061,12 +1174,18 @@ class LogTabController extends ChangeNotifier {
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
     logcatState = LogcatState.running;
+    _appendSessionStateEntry(LogEntryType.started);
     _notify();
 
     _logSub = _deviceSessionService.startLogStream(selectedDevice!).listen((
       logEntry,
     ) {
-      if (_disposed || logcatState == LogcatState.paused) return;
+      if (_disposed) return;
+      if (logEntry.isSpecialEntry) {
+        _appendImmediateLogEntry(logEntry);
+        return;
+      }
+      if (logcatState == LogcatState.paused) return;
       _pendingLogs.add(logEntry);
       _pendingLogsMemoryBytes += _estimateLogEntryBytes(logEntry);
     });
@@ -1126,21 +1245,26 @@ class LogTabController extends ChangeNotifier {
 
     if (resetState && !_disposed) {
       logcatState = LogcatState.stopped;
+      _appendSessionStateEntry(LogEntryType.stopped);
       _notify();
     }
   }
 
   void togglePauseResume() {
     if (!isRunning) return;
-    logcatState = isPaused ? LogcatState.running : LogcatState.paused;
+    final wasPaused = isPaused;
+    logcatState = wasPaused ? LogcatState.running : LogcatState.paused;
+    _appendSessionStateEntry(
+      wasPaused ? LogEntryType.resumed : LogEntryType.paused,
+    );
     _notify();
   }
 
   String _logColumnValue(LogEntry log, LogColumn column) => switch (column) {
     LogColumn.timestamp => log.timestamp,
-    LogColumn.pid => log.packageName ?? log.pid,
+    LogColumn.pid => log.packageName ?? log.processName ?? log.pid,
     LogColumn.tid => log.tid,
-    LogColumn.level => log.level,
+    LogColumn.level => log.isSpecialEntry ? log.typeLabel : log.level,
     LogColumn.tag => log.tag,
     LogColumn.message => log.message,
   };
@@ -1156,6 +1280,12 @@ class LogTabController extends ChangeNotifier {
     final result = <int>[];
     for (var index = 0; index < items.length; index++) {
       final log = items[index];
+      if (log.isSpecialEntry) {
+        if (pattern.matches(log.specialSearchableText)) {
+          result.add(index);
+        }
+        continue;
+      }
       for (final column in visibleColumns) {
         if (pattern.matches(_logColumnValue(log, column))) {
           result.add(index);
@@ -1170,10 +1300,26 @@ class LogTabController extends ChangeNotifier {
       List<LogEntry>.unmodifiable([..._logsBuffer.getLogs(), ..._pendingLogs]);
 
   List<int> _selectionTargetIndicesForCopy(int? clickedFilteredIndex) {
-    if (clickedFilteredIndex == null ||
-        _selectedRowIndices.isNotEmpty &&
-            _selectedRowIndices.contains(clickedFilteredIndex)) {
-      return _selectedRowIndices.toList()..sort();
+    final filteredSnapshot = filteredLogs;
+    final selectedIndices = _selectedRowIndices
+        .where((index) => _isSelectableFilteredIndex(index, filteredSnapshot))
+        .toList()
+      ..sort();
+
+    if (clickedFilteredIndex == null) {
+      return selectedIndices;
+    }
+
+    final clickedIsCopyable = _isSelectableFilteredIndex(
+      clickedFilteredIndex,
+      filteredSnapshot,
+    );
+    if (!clickedIsCopyable) {
+      return selectedIndices;
+    }
+
+    if (selectedIndices.isNotEmpty && selectedIndices.contains(clickedFilteredIndex)) {
+      return selectedIndices;
     }
     return [clickedFilteredIndex];
   }
@@ -1203,6 +1349,7 @@ class LogTabController extends ChangeNotifier {
     int stringBytes(String value) => value.length * 2;
 
     return 128 +
+        stringBytes(log.type.name) +
         stringBytes(log.timestamp) +
         stringBytes(log.pid) +
         stringBytes(log.tid) +

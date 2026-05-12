@@ -288,6 +288,12 @@ class _LogViewerState extends State<LogViewer> {
     setState(_resetDragSelectionState);
   }
 
+  bool _isSelectableRowIndex(int index) {
+    return index >= 0 &&
+        index < widget.logs.length &&
+        widget.logs[index].isUserSelectable;
+  }
+
   void _startRowSelectionDrag(int index, PointerDownEvent event) {
     if (!widget.rowSelectionMode) {
       _endRowSelectionDrag(event.pointer);
@@ -303,6 +309,10 @@ class _LogViewerState extends State<LogViewer> {
     final startIndex = localPosition != null
         ? (_indexForViewportY(localPosition.dy) ?? index)
         : index;
+    if (!_isSelectableRowIndex(startIndex)) {
+      _endRowSelectionDrag(event.pointer);
+      return;
+    }
     final shouldSelect = widget.onRowSelectionStart?.call(
       startIndex,
       shiftPressed: HardwareKeyboard.instance.isShiftPressed,
@@ -398,6 +408,14 @@ class _LogViewerState extends State<LogViewer> {
     if (!pattern.isActive || !pattern.isValid) return null;
 
     final log = widget.logs[index];
+    if (log.isSpecialEntry) {
+      final match = pattern.firstMatch(log.specialSearchableText);
+      if (match != null) {
+        return const _HorizontalRevealTarget(left: 0, right: 320);
+      }
+      return null;
+    }
+
     final visibleColumns = [
       ..._visibleFixedColumns,
       if (_isVisible(LogColumn.message)) LogColumn.message,
@@ -718,6 +736,9 @@ class _LogViewerState extends State<LogViewer> {
     final rangeEnd = math.max(startIndex, currentIndex);
     final selection = Set<int>.of(_dragBaseSelection);
     for (var index = rangeStart; index <= rangeEnd; index++) {
+      if (!_isSelectableRowIndex(index)) {
+        continue;
+      }
       if (_dragSelectionValue) {
         selection.add(index);
       } else {
@@ -1078,6 +1099,7 @@ class _LogViewerState extends State<LogViewer> {
       currentMatchLogIndex: widget.currentMatchLogIndex,
       wrapText: widget.wrapText,
       monoStyle: _monoStyle,
+      allowSelectionStart: log.isUserSelectable,
       onSelectionPointerDown: (event) => _startRowSelectionDrag(index, event),
       onSelectionPointerMove: (event) => _extendRowSelectionDrag(index, event),
       contentValueForColumn: (col) => _cellValue(col, log),

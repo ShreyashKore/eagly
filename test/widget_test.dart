@@ -289,6 +289,57 @@ void main() {
     expect(revealedDx, lessThan(initialDx - 100));
   });
 
+  testWidgets('special entries render as status tiles without selection cells', (
+    WidgetTester tester,
+  ) async {
+    await pumpSelectableLogViewer(
+      tester,
+      logs: [
+        LogEntry(
+          timestamp: '04-20 10:00:00.000',
+          pid: '101',
+          tid: '201',
+          level: 'I',
+          tag: 'Tag',
+          message: 'First message',
+        ),
+        LogEntry.loggingState(
+          type: LogEntryType.paused,
+          message: 'Paused live logging for emulator-5554.',
+          processName: 'emulator-5554',
+        ),
+      ],
+    );
+
+    expect(find.text('Paused'), findsOneWidget);
+    expect(find.text('Paused live logging for emulator-5554.'), findsOneWidget);
+    expect(find.byIcon(Icons.pause_circle_outline_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.check_box_outline_blank), findsOneWidget);
+    expect(tester.getSize(find.byKey(const ValueKey('special-log-row'))).height, lessThan(36));
+  });
+
+  testWidgets('special entries stay compact when wrapText is disabled', (
+    WidgetTester tester,
+  ) async {
+    await pumpLogViewer(
+      tester,
+      wrapText: false,
+      logs: [
+        LogEntry.loggingState(
+          type: LogEntryType.stopped,
+          message:
+              'Device disconnected; stopped capturing logs for Pixel 8 (emulator-5554) after a very long session message that should remain visually compact.',
+          processName: 'Pixel 8 (emulator-5554)',
+        ),
+      ],
+    );
+
+    final specialRow = find.byKey(const ValueKey('special-log-row'));
+    expect(specialRow, findsOneWidget);
+    expect(tester.getSize(specialRow).width, lessThanOrEqualTo(720));
+    expect(tester.getSize(specialRow).height, lessThan(36));
+  });
+
   testWidgets(
     'moving the mouse without dragging does not change row selection',
     (WidgetTester tester) async {
@@ -310,6 +361,53 @@ void main() {
       expect(find.byIcon(Icons.check_box), findsOneWidget);
     },
   );
+
+  testWidgets('dragging across a special row only selects real log rows', (
+    WidgetTester tester,
+  ) async {
+    await pumpSelectableLogViewer(
+      tester,
+      logs: [
+        LogEntry(
+          timestamp: '04-20 10:00:00.000',
+          pid: '101',
+          tid: '201',
+          level: 'I',
+          tag: 'Tag',
+          message: 'First message',
+        ),
+        LogEntry.loggingState(
+          type: LogEntryType.paused,
+          message: 'Paused live logging for emulator-5554.',
+          processName: 'emulator-5554',
+        ),
+        LogEntry(
+          timestamp: '04-20 10:00:02.000',
+          pid: '103',
+          tid: '203',
+          level: 'I',
+          tag: 'Tag',
+          message: 'Third message',
+        ),
+      ],
+    );
+    final centers = selectionCellCenters(tester);
+
+    expect(centers, hasLength(2));
+
+    final mouse = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+    await mouse.addPointer(location: centers.first);
+    await tester.pump();
+    await mouse.down(centers.first);
+    await tester.pump();
+    await mouse.moveTo(centers.last);
+    await tester.pump();
+    await mouse.up();
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.check_box), findsNWidgets(2));
+    expect(find.byIcon(Icons.check_box_outline_blank), findsNothing);
+  });
 
   testWidgets('dragging with the primary button selects each crossed row', (
     WidgetTester tester,
