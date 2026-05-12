@@ -557,29 +557,33 @@ class _LogViewerState extends State<LogViewer> {
           child: StatefulBuilder(
             builder: (context, setMenuState) {
               final visible = _isVisible(col);
-              return CheckboxListTile.adaptive(
-                dense: true,
-                value: visible,
-                title: Text(
-                  col.label,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(fontSize: 12),
-                ),
-                visualDensity: VisualDensity.compact,
-                contentPadding: EdgeInsets.zero,
-                onChanged: (_) {
-                  setState(() {
-                    if (visible) {
-                      _hiddenColumns.add(col.name);
-                    } else {
-                      _hiddenColumns.remove(col.name);
-                    }
-                  });
-                  widget.onHiddenColumnsChanged?.call(Set.of(_hiddenColumns));
-                  setMenuState(() {});
-                },
-                controlAffinity: ListTileControlAffinity.leading,
+              return Row(
+                children: [
+                  Checkbox(
+                    visualDensity: VisualDensity.compact,
+                    value: visible,
+                    onChanged: (_) {
+                      setState(() {
+                        if (visible) {
+                          _hiddenColumns.add(col.name);
+                        } else {
+                          _hiddenColumns.remove(col.name);
+                        }
+                        widget.onHiddenColumnsChanged?.call(
+                          Set.of(_hiddenColumns),
+                        );
+                        setMenuState(() {});
+                        Navigator.of(context).pop();
+                      });
+                    },
+                  ),
+                  Text(
+                    col.label,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(fontSize: 12),
+                  ),
+                ],
               );
             },
           ),

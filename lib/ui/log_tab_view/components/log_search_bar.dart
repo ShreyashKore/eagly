@@ -138,6 +138,35 @@ class _LogSearchBarState extends State<LogSearchBar> {
                   fillColor: widget.hasError
                       ? theme.colorScheme.errorContainer.withValues(alpha: 0.5)
                       : (noResults ? logTheme.searchNoResultsFillColor : null),
+                  suffixIcon: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 4,
+                      children: [
+                        _SearchToggleButton(
+                          label: 'W',
+                          tooltip: 'Match whole word (${widget.wholeWord ? "on" : "off"})',
+                          value: widget.wholeWord,
+                          onPressed: () => widget.onWholeWordChanged(!widget.wholeWord),
+                        ),
+                        _SearchToggleButton(
+                          label: 'Aa',
+                          tooltip: 'Match case (${widget.caseSensitive ? "on" : "off"})',
+                          value: widget.caseSensitive,
+                          onPressed: () =>
+                              widget.onCaseSensitiveChanged(!widget.caseSensitive),
+                        ),
+                        _SearchToggleButton(
+                          label: '.*',
+                          tooltip: 'Use regex (${widget.regexSearch ? "on" : "off"})',
+                          value: widget.regexSearch,
+                          onPressed: () => widget.onRegexChanged(!widget.regexSearch),
+                        ),
+                      ],
+                    ),
+                  ),
+                  suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
                 ),
                 onChanged: widget.onQueryChanged,
                 onSubmitted: (_) {
@@ -176,29 +205,6 @@ class _LogSearchBarState extends State<LogSearchBar> {
               ),
 
             const SizedBox(width: 2),
-
-            _SearchToggleButton(
-              label: '.*',
-              tooltip: 'Use regex (${widget.regexSearch ? "on" : "off"})',
-              value: widget.regexSearch,
-              onPressed: () => widget.onRegexChanged(!widget.regexSearch),
-            ),
-            const SizedBox(width: 4),
-            _SearchToggleButton(
-              label: 'W',
-              tooltip: 'Match whole word (${widget.wholeWord ? "on" : "off"})',
-              value: widget.wholeWord,
-              onPressed: () => widget.onWholeWordChanged(!widget.wholeWord),
-            ),
-            const SizedBox(width: 4),
-            _SearchToggleButton(
-              label: 'Aa',
-              tooltip: 'Match case (${widget.caseSensitive ? "on" : "off"})',
-              value: widget.caseSensitive,
-              onPressed: () =>
-                  widget.onCaseSensitiveChanged(!widget.caseSensitive),
-            ),
-
             // Previous match
             IconButton(
               iconSize: 16,
@@ -262,8 +268,8 @@ class _SearchToggleButton extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            width: 28,
-            height: 28,
+            width: 26,
+            height: 26,
             decoration: value
                 ? BoxDecoration(
                     color: theme.colorScheme.primaryContainer,

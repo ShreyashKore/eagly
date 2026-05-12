@@ -173,6 +173,7 @@ class LogTabController extends ChangeNotifier {
   int? get rowSelectionAnchorIndex => _rowSelectionAnchorIndex;
   bool get editingLogLinesLimit => _editingLogLinesLimit;
   int get logViewerRevision => _logViewerRevision;
+  bool get isReadingFromFile => _importedFileName != null;
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;
   bool get hasLogs => _logsBuffer.size > 0;
