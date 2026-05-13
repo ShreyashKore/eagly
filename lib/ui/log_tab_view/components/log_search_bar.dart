@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../theme/app_theme.dart';
+import '../../../utils/text_search_pattern.dart';
 
 /// Floating search bar for searching within filtered log content.
 ///
@@ -15,15 +16,11 @@ import '../../../theme/app_theme.dart';
 class LogSearchBar extends StatefulWidget {
   final TextEditingController controller;
   final FocusNode? focusNode;
-  final bool caseSensitive;
-  final bool wholeWord;
-  final bool regexSearch;
+  final TextSearchConfig search;
   final bool hasError;
   final String? errorText;
-  final ValueChanged<String> onQueryChanged;
-  final ValueChanged<bool> onCaseSensitiveChanged;
-  final ValueChanged<bool> onWholeWordChanged;
-  final ValueChanged<bool> onRegexChanged;
+  final ValueChanged<TextSearchConfig> onSearchChanged;
+  final ValueChanged<TextSearchConfig> onSearchOptionsChanged;
   final VoidCallback onNext;
   final VoidCallback onPrevious;
   final VoidCallback onClose;
@@ -36,15 +33,11 @@ class LogSearchBar extends StatefulWidget {
     super.key,
     required this.controller,
     this.focusNode,
-    required this.caseSensitive,
-    required this.wholeWord,
-    required this.regexSearch,
+    required this.search,
     this.hasError = false,
     this.errorText,
-    required this.onQueryChanged,
-    required this.onCaseSensitiveChanged,
-    required this.onWholeWordChanged,
-    required this.onRegexChanged,
+    required this.onSearchChanged,
+    required this.onSearchOptionsChanged,
     required this.onNext,
     required this.onPrevious,
     required this.onClose,
@@ -138,8 +131,48 @@ class _LogSearchBarState extends State<LogSearchBar> {
                   fillColor: widget.hasError
                       ? theme.colorScheme.errorContainer.withValues(alpha: 0.5)
                       : (noResults ? logTheme.searchNoResultsFillColor : null),
+                  suffixIcon: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 4,
+                      children: [
+                        _SearchToggleButton(
+                          label: 'W',
+                          tooltip:
+                              'Match whole word (${widget.wholeWord ? "on" : "off"})',
+                          value: widget.wholeWord,
+                          onPressed: () =>
+                              widget.onWholeWordChanged(!widget.wholeWord),
+                        ),
+                        _SearchToggleButton(
+                          label: 'Aa',
+                          tooltip:
+                              'Match case (${widget.caseSensitive ? "on" : "off"})',
+                          value: widget.caseSensitive,
+                          onPressed: () => widget.onCaseSensitiveChanged(
+                            !widget.caseSensitive,
+                          ),
+                        ),
+                        _SearchToggleButton(
+                          label: '.*',
+                          tooltip:
+                              'Use regex (${widget.regexSearch ? "on" : "off"})',
+                          value: widget.regexSearch,
+                          onPressed: () =>
+                              widget.onRegexChanged(!widget.regexSearch),
+                        ),
+                      ],
+                    ),
+                  ),
+                  suffixIconConstraints: const BoxConstraints(
+                    minWidth: 0,
+                    minHeight: 0,
+                  ),
                 ),
-                onChanged: widget.onQueryChanged,
+                onChanged: (value) => widget.onSearchChanged(
+                  widget.search.copyWith(query: value),
+                ),
                 onSubmitted: (_) {
                   widget.onNext();
                   // Re-request focus after the submission so the TextField
@@ -179,24 +212,33 @@ class _LogSearchBarState extends State<LogSearchBar> {
 
             _SearchToggleButton(
               label: '.*',
-              tooltip: 'Use regex (${widget.regexSearch ? "on" : "off"})',
-              value: widget.regexSearch,
-              onPressed: () => widget.onRegexChanged(!widget.regexSearch),
+              tooltip: 'Use regex (${widget.search.regex ? "on" : "off"})',
+              value: widget.search.regex,
+              onPressed: () => widget.onSearchOptionsChanged(
+                widget.search.copyWith(regex: !widget.search.regex),
+              ),
             ),
             const SizedBox(width: 4),
             _SearchToggleButton(
               label: 'W',
-              tooltip: 'Match whole word (${widget.wholeWord ? "on" : "off"})',
-              value: widget.wholeWord,
-              onPressed: () => widget.onWholeWordChanged(!widget.wholeWord),
+              tooltip:
+                  'Match whole word (${widget.search.wholeWord ? "on" : "off"})',
+              value: widget.search.wholeWord,
+              onPressed: () => widget.onSearchOptionsChanged(
+                widget.search.copyWith(wholeWord: !widget.search.wholeWord),
+              ),
             ),
             const SizedBox(width: 4),
             _SearchToggleButton(
               label: 'Aa',
-              tooltip: 'Match case (${widget.caseSensitive ? "on" : "off"})',
-              value: widget.caseSensitive,
-              onPressed: () =>
-                  widget.onCaseSensitiveChanged(!widget.caseSensitive),
+              tooltip:
+                  'Match case (${widget.search.caseSensitive ? "on" : "off"})',
+              value: widget.search.caseSensitive,
+              onPressed: () => widget.onSearchOptionsChanged(
+                widget.search.copyWith(
+                  caseSensitive: !widget.search.caseSensitive,
+                ),
+              ),
             ),
 
             // Previous match
@@ -262,8 +304,8 @@ class _SearchToggleButton extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            width: 28,
-            height: 28,
+            width: 26,
+            height: 26,
             decoration: value
                 ? BoxDecoration(
                     color: theme.colorScheme.primaryContainer,
@@ -291,4 +333,3 @@ class _SearchToggleButton extends StatelessWidget {
     );
   }
 }
-

@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:logview/utils/timestamp_utils.dart';
-
 import '../../data/log_entry.dart';
 import '../../utils/adb_path.dart';
 
@@ -124,14 +122,9 @@ abstract class ToolProcessRunner {
     required String tag,
     required String processName,
   }) {
-    return LogEntry(
-      timestamp: TimestampUtils.formatDate(DateTime.now()),
-      pid: '0',
-      tid: '0',
-      level: 'E',
-      tag: tag,
+    return LogEntry.toolError(
       message: message,
-      packageName: processName,
+      tag: tag,
       processName: processName,
     );
   }

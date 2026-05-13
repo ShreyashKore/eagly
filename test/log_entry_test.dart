@@ -36,6 +36,7 @@ void main() {
       expect(restored!.id, isNot(entry.id));
       expect(restored.message, entry.message);
       expect(restored.tag, entry.tag);
+      expect(restored.type, LogEntryType.log);
     });
 
     test('uses a provided ID unchanged', () {
@@ -51,6 +52,38 @@ void main() {
       );
 
       expect(entry.id, customId);
+    });
+
+    test('special state factories create non-selectable entries', () {
+      final paused = LogEntry.loggingState(
+        type: LogEntryType.paused,
+        message: 'Paused live logging for Pixel 8.',
+        processName: 'Pixel 8',
+      );
+
+      expect(paused.isSpecialEntry, isTrue);
+      expect(paused.isUserSelectable, isFalse);
+      expect(paused.isCopyable, isFalse);
+      expect(paused.typeLabel, 'Paused');
+      expect(paused.level, 'I');
+      expect(paused.message, 'Paused live logging for Pixel 8.');
+      expect(paused.specialSearchableText, contains('Paused'));
+    });
+
+    test('exports and restores special entry types', () {
+      final error = LogEntry.toolError(
+        message: 'Failed to start adb logcat.',
+        tag: 'adb logcat',
+        processName: 'emulator-5554',
+      );
+
+      final restored = LogEntry.fromExportedMap(error.toExportMap());
+
+      expect(restored, isNotNull);
+      expect(restored!.type, LogEntryType.error);
+      expect(restored.isSpecialEntry, isTrue);
+      expect(restored.message, error.message);
+      expect(restored.processName, error.processName);
     });
   });
 }

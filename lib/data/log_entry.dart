@@ -2,10 +2,35 @@ import 'package:flutter/foundation.dart';
 
 import '../utils/log_entry_id_generator.dart';
 import '../utils/timestamp_utils.dart';
+import 'log_column.dart';
 import 'log_level.dart';
+
+enum LogEntryType {
+  log('Log'),
+  started('Started'),
+  resumed('Resumed'),
+  paused('Paused'),
+  stopped('Stopped'),
+  error('Error occurred'),
+  notice('Notice');
+
+  const LogEntryType(this.label);
+
+  final String label;
+
+  bool get isSpecial => this != LogEntryType.log;
+
+  static LogEntryType fromString(String? raw) {
+    return LogEntryType.values.firstWhere(
+      (value) => value.name == raw,
+      orElse: () => LogEntryType.log,
+    );
+  }
+}
 
 class LogEntry {
   final int id;
+  final LogEntryType type;
   final String timestamp;
   final String pid;
   final String tid;
@@ -18,6 +43,7 @@ class LogEntry {
 
   LogEntry({
     int? id,
+    this.type = LogEntryType.log,
     required this.timestamp,
     required this.pid,
     required this.tid,
@@ -27,17 +53,108 @@ class LogEntry {
     this.packageName,
     this.processName,
   }) : id = _resolveId(id),
-       lowercaseSearchable = '$tag $message'.toLowerCase();
+       lowercaseSearchable = '$tag $message ${type.label}'.toLowerCase();
+
+  factory LogEntry.special({
+    required LogEntryType type,
+    required String message,
+    String? timestamp,
+    String tag = 'logview',
+    String level = 'I',
+    String pid = '',
+    String tid = '',
+    String? packageName,
+    String? processName,
+  }) {
+    assert(type != LogEntryType.log, 'Use the default constructor for logs.');
+    return LogEntry(
+      type: type,
+      timestamp: timestamp ?? TimestampUtils.formatDate(DateTime.now()),
+      pid: pid,
+      tid: tid,
+      level: level,
+      tag: tag,
+      message: message.trim(),
+      packageName: packageName,
+      processName: processName,
+    );
+  }
+
+  factory LogEntry.loggingState({
+    required LogEntryType type,
+    String? message,
+    String tag = 'logview',
+    String? packageName,
+    String? processName,
+    String? timestamp,
+  }) {
+    return LogEntry.special(
+      type: type,
+      timestamp: timestamp,
+      tag: tag,
+      level: type == LogEntryType.error ? 'E' : 'I',
+      message: (message == null || message.trim().isEmpty)
+          ? _defaultMessageForType(type)
+          : message.trim(),
+      packageName: packageName,
+      processName: processName,
+    );
+  }
+
+  factory LogEntry.toolError({
+    required String message,
+    required String tag,
+    required String processName,
+  }) {
+    return LogEntry.loggingState(
+      type: LogEntryType.error,
+      tag: tag,
+      message: message,
+      packageName: processName,
+      processName: processName,
+    );
+  }
+
+  bool get isSpecialEntry => type.isSpecial;
+
+  bool get isActualLog => type == LogEntryType.log;
+
+  bool get isUserSelectable => isActualLog;
+
+  bool get isCopyable => isActualLog;
+
+  String get typeLabel => type.label;
+
+  String get specialSearchableText {
+    return [
+      type.label,
+      timestamp,
+      tag,
+      packageName,
+      processName,
+      message,
+    ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' ');
+  }
+
+  String valueForColumn(LogColumn column) => switch (column) {
+    LogColumn.timestamp => timestamp,
+    LogColumn.pid => packageName ?? pid,
+    LogColumn.tid => tid,
+    LogColumn.level => level,
+    LogColumn.tag => tag,
+    LogColumn.message => message,
+  };
 
   @override
   String toString() {
-    return 'LogEntry(id: $id, timestamp: $timestamp, pid: $pid, tid: $tid, level: $level, tag: $tag, message: $message, packageName: $packageName, processName: $processName)';
+    return 'LogEntry(id: $id, type: ${type.name}, timestamp: $timestamp, pid: $pid, tid: $tid, level: $level, tag: $tag, message: $message, packageName: $packageName, processName: $processName)';
   }
 
   @override
   int get hashCode {
     return Object.hash(
       timestamp,
+      type,
       pid,
       tid,
       level,
@@ -53,6 +170,7 @@ class LogEntry {
     if (identical(this, other)) return true;
     return other is LogEntry &&
         other.timestamp == timestamp &&
+        other.type == type &&
         other.pid == pid &&
         other.tid == tid &&
         other.level == level &&
@@ -84,6 +202,7 @@ class LogEntry {
     final timestampObj = TimestampUtils.parseTimestampToSecondsNanos(timestamp);
     return {
       'header': {
+        'entryType': type.name,
         'logLevel': level,
         'pid': int.tryParse(pid) ?? 0,
         'tid': int.tryParse(tid) ?? 0,
@@ -104,6 +223,7 @@ class LogEntry {
       // Support both legacy full names (ERROR/WARN/…) and current codes (E/W/…
       // for Android, fault/debug/… for iOS). Try Android name lookup first,
       // then fall back to treating the value as a literal code.
+      final type = LogEntryType.fromString(header['entryType']?.toString());
       final rawLevel = header['logLevel']?.toString() ?? '';
       final level = _resolveLevel(rawLevel);
       final pid = header['pid']?.toString() ?? '0';
@@ -128,6 +248,7 @@ class LogEntry {
       final message = map['message']?.toString() ?? '';
 
       return LogEntry(
+        type: type,
         timestamp: timestamp,
         pid: pid,
         tid: tid,
@@ -175,5 +296,17 @@ class LogEntry {
       return value;
     }
     return LogEntryIdGenerator.instance.next();
+  }
+
+  static String _defaultMessageForType(LogEntryType type) {
+    return switch (type) {
+      LogEntryType.log => '',
+      LogEntryType.started => 'Started capturing logs.',
+      LogEntryType.resumed => 'Resumed live logging.',
+      LogEntryType.paused => 'Paused live logging.',
+      LogEntryType.stopped => 'Stopped capturing logs.',
+      LogEntryType.error => 'A logging error occurred.',
+      LogEntryType.notice => 'Logging state updated.',
+    };
   }
 }

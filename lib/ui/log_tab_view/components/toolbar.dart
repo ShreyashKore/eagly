@@ -1,6 +1,5 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
-import 'package:gap/gap.dart';
 
 import '../../../data/device.dart';
 import '../../../theme/app_theme.dart';
@@ -45,8 +44,9 @@ class Toolbar extends StatelessWidget {
       (device) => device.id == controller.selectedDevice?.id,
     );
 
-    final divier = SizedBox(
+    final divider = Container(
       height: 18,
+      padding: EdgeInsets.symmetric(horizontal: 4),
       child: VerticalDivider(
         width: 2,
         thickness: 2,
@@ -137,94 +137,75 @@ class Toolbar extends StatelessWidget {
             tooltip: 'Wireless ADB connect',
             onPressed: onShowWirelessConnectionDialog,
           ),
-          const Gap(4),
-          divier,
-          const Gap(4),
-          IconButton(
-            icon: Icon(
-              controller.isRunning
-                  ? Icons.restart_alt_rounded
-                  : Icons.play_arrow,
-              color: controller.hasConnectedSelectedDevice
-                  ? logTheme.statusLiveColor
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
+          divider,
+          // ── Start / Restart ───────────────────────────────────────────────
+          ToolbarIconButton(
+            icon: controller.isRunning
+                ? Icons.restart_alt_rounded
+                : Icons.play_arrow,
             tooltip: controller.selectedDevice?.isDisconnected == true
                 ? 'Selected device is disconnected'
                 : controller.isRunning
-                ? 'Restart'
-                : 'Start',
+                    ? 'Restart'
+                    : 'Start',
+            isActive: controller.isRunning,
             onPressed: !controller.hasConnectedSelectedDevice
                 ? null
                 : controller.startLogcat,
           ),
-          IconButton(
-            icon: Icon(
-              controller.isPaused ? Icons.play_arrow : Icons.pause,
-              color: controller.isRunning
-                  ? logTheme.statusPausedColor
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
+          // ── Pause / Resume ────────────────────────────────────────────────
+          ToolbarIconButton(
+            icon: controller.isPaused ? Icons.play_arrow : Icons.pause,
             tooltip: controller.isRunning
                 ? (controller.isPaused ? 'Resume' : 'Pause')
                 : 'Not running',
-            onPressed: controller.isRunning
-                ? controller.togglePauseResume
-                : null,
+            isActive: controller.isPaused,
+            onPressed: controller.isRunning ? controller.togglePauseResume : null,
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline),
-            tooltip: controller.logs.isNotEmpty
-                ? 'Clear logs'
-                : 'No logs to clear',
-            onPressed: controller.logs.isNotEmpty ? controller.clearLogs : null,
+            tooltip: controller.isReadingFromFile
+                ? 'Cannot clear logs from a file'
+                : controller.logs.isNotEmpty
+                    ? 'Clear logs'
+                    : 'No logs to clear',
+            onPressed: !controller.isReadingFromFile && controller.logs.isNotEmpty
+                ? controller.clearLogs
+                : null,
           ),
-          Spacer(),
+          const Spacer(),
           IconButton(
             icon: const Icon(Icons.copy_all_outlined),
-            tooltip: controller.hasAnyCachedLogs
-                ? 'Copy all logs'
-                : 'No logs to copy',
+            tooltip: controller.hasAnyCachedLogs ? 'Copy all logs' : 'No logs to copy',
             onPressed: controller.hasAnyCachedLogs ? onCopyAll : null,
           ),
-          IconButton(
-            icon: Icon(
-              controller.rowSelectionMode
-                  ? Icons.checklist_rounded
-                  : Icons.checklist_outlined,
-            ),
+          // ── Row selection mode ────────────────────────────────────────────
+          ToolbarIconButton(
+            icon: controller.rowSelectionMode
+                ? Icons.checklist_rounded
+                : Icons.checklist_outlined,
             tooltip: controller.rowSelectionMode
                 ? 'Disable row selection mode'
                 : 'Enable row selection mode',
+            isActive: controller.rowSelectionMode,
             onPressed: controller.filteredLogs.isNotEmpty
                 ? controller.toggleRowSelectionMode
                 : null,
-            color: controller.rowSelectionMode
-                ? theme.colorScheme.primary
-                : null,
           ),
-          IconButton(
-            icon: const Icon(Icons.deselect_outlined),
-            tooltip: controller.hasSelectedRows
-                ? 'Clear selected rows'
-                : 'No selected rows',
-            onPressed: controller.hasSelectedRows
-                ? controller.clearSelectedRows
-                : null,
-          ),
-          Gap(4),
-          divier,
-          Gap(4),
-          IconButton(
-            icon: Icon(
-              Icons.search,
-              color: controller.searchBarVisible
-                  ? Theme.of(context).colorScheme.primary
-                  : null,
+          if (controller.hasSelectedRows)
+            IconButton(
+              icon: const Icon(Icons.deselect_outlined),
+              tooltip: 'Clear selected rows',
+              onPressed: controller.clearSelectedRows,
             ),
+          divider,
+          // ── Search ────────────────────────────────────────────────────────
+          ToolbarIconButton(
+            icon: Icons.search,
             tooltip: controller.searchBarVisible
                 ? 'Close search'
                 : 'Search in logs (Ctrl+F / Cmd+F)',
+            isActive: controller.searchBarVisible,
             onPressed: () {
               if (controller.searchBarVisible) {
                 controller.closeSearchBar();
@@ -243,29 +224,26 @@ class Toolbar extends StatelessWidget {
             icon: const Icon(Icons.file_upload),
             tooltip: 'Export Logs',
           ),
-          IconButton(
-            onPressed: controller.toggleWrapText,
-            icon: Icon(controller.wrapText ? Icons.wrap_text : Icons.notes),
+          // ── Wrap text ─────────────────────────────────────────────────────
+          ToolbarIconButton(
+            icon: controller.wrapText ? Icons.wrap_text : Icons.notes,
             tooltip: controller.wrapText ? 'Disable Wrap' : 'Enable Wrap',
+            isActive: controller.wrapText,
+            onPressed: controller.toggleWrapText,
           ),
-          IconButton(
+          // ── Auto-scroll ───────────────────────────────────────────────────
+          ToolbarIconButton(
+            icon: controller.autoScroll
+                ? Icons.vertical_align_bottom
+                : Icons.swipe_down,
+            tooltip: controller.autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF',
+            isActive: controller.autoScroll,
             onPressed: controller.toggleAutoScroll,
-            icon: Icon(
-              controller.autoScroll
-                  ? Icons.vertical_align_bottom
-                  : Icons.swipe_down,
-            ),
-            tooltip: controller.autoScroll
-                ? 'Auto-scroll ON'
-                : 'Auto-scroll OFF',
-            color: controller.autoScroll ? theme.colorScheme.primary : null,
           ),
-          Gap(4),
-          divier,
-          Gap(4),
+          divider,
           IconButton(
             onPressed: onOpenSettings,
-            icon: Icon(Icons.settings_rounded),
+            icon: const Icon(Icons.settings_rounded),
             tooltip: 'View settings',
           ),
         ],
@@ -273,3 +251,58 @@ class Toolbar extends StatelessWidget {
     );
   }
 }
+
+/// An icon button for the toolbar that shows a tinted rounded background when
+/// [isActive] is true, making the toggled / enabled state clearly visible.
+class ToolbarIconButton extends StatelessWidget {
+  const ToolbarIconButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    this.onPressed,
+    this.isActive = false,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  /// When true the button renders with a tinted rounded background.
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final activeColor = colorScheme.primary;
+    final activeBg = colorScheme.primaryContainer.withValues(alpha: 0.55);
+
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        mouseCursor: onPressed == null ? MouseCursor.defer : SystemMouseCursors.click,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: isActive ? activeBg : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: isActive
+                ? activeColor
+                : onPressed == null
+                    ? colorScheme.onSurface.withValues(alpha: 0.38)
+                    : colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+

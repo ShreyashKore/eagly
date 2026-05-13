@@ -108,11 +108,8 @@ class LogTabController extends ChangeNotifier {
   final List<String> _recentTagFilters = [];
 
   var _searchBarVisible = false;
-  var _inlineSearchQuery = '';
-  var _appliedInlineSearchQuery = '';
-  var _searchCaseSensitive = false;
-  var _searchWholeWord = false;
-  var _searchRegex = false;
+  var _inlineSearch = const TextSearchConfig();
+  var _appliedInlineSearch = const TextSearchConfig();
   var _searchCurrentMatchIndex = 0;
   String? _selectedSearchText;
   var _rowSelectionMode = false;
@@ -139,10 +136,7 @@ class LogTabController extends ChangeNotifier {
   LogLevel _lastLogLevel = LogLevel.verbose;
 
   List<int>? _cachedSearchMatchIndices;
-  String _smCacheQuery = '';
-  bool _smCacheCaseSensitive = false;
-  bool _smCacheWholeWord = false;
-  bool _smCacheRegex = false;
+  TextSearchConfig _smCacheSearch = const TextSearchConfig();
   Set<String> _smCacheHiddenCols = {};
   int _smCacheFilteredLen = -1;
 
@@ -161,9 +155,9 @@ class LogTabController extends ChangeNotifier {
 
   bool get showGetStarted => _showGetStarted;
   bool get searchBarVisible => _searchBarVisible;
-  bool get searchCaseSensitive => _searchCaseSensitive;
-  bool get searchWholeWord => _searchWholeWord;
-  bool get searchRegex => _searchRegex;
+  bool get searchCaseSensitive => _inlineSearch.caseSensitive;
+  bool get searchWholeWord => _inlineSearch.wholeWord;
+  bool get searchRegex => _inlineSearch.regex;
   int get searchCurrentMatch => _searchCurrentMatchIndex;
   String? get selectedSearchText => _selectedSearchText;
   bool get rowSelectionMode => _rowSelectionMode;
@@ -173,6 +167,7 @@ class LogTabController extends ChangeNotifier {
   int? get rowSelectionAnchorIndex => _rowSelectionAnchorIndex;
   bool get editingLogLinesLimit => _editingLogLinesLimit;
   int get logViewerRevision => _logViewerRevision;
+  bool get isReadingFromFile => _importedFileName != null;
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;
   bool get hasLogs => _logsBuffer.size > 0;
@@ -181,14 +176,12 @@ class LogTabController extends ChangeNotifier {
   bool get hasConnectedSelectedDevice => selectedDevice?.isConnected == true;
   bool get hasVisibleWorkspace => hasSelectedDevice || hasLogs;
   int get totalLogsMemoryBytes => _logsMemoryBytes + _pendingLogsMemoryBytes;
-  String get appliedInlineSearchQuery => _appliedInlineSearchQuery;
-  String get inlineSearchQuery => _inlineSearchQuery;
-  TextSearchPattern get inlineSearchPattern => TextSearchPattern(
-    query: _appliedInlineSearchQuery,
-    caseSensitive: _searchCaseSensitive,
-    wholeWord: _searchWholeWord,
-    regex: _searchRegex,
-  );
+  String get appliedInlineSearchQuery => _appliedInlineSearch.query;
+  String get inlineSearchQuery => _inlineSearch.query;
+  TextSearchConfig get inlineSearch => _inlineSearch;
+  TextSearchConfig get appliedInlineSearch => _appliedInlineSearch;
+  TextSearchPattern get inlineSearchPattern =>
+      TextSearchPattern.fromConfig(_appliedInlineSearch);
   bool get inlineSearchHasError => inlineSearchPattern.hasError;
   String? get inlineSearchErrorText => inlineSearchPattern.errorText;
   bool get isLoadingDevices => _deviceRepository.isLoading;
@@ -333,11 +326,21 @@ class LogTabController extends ChangeNotifier {
     return _selectedRowIndices.contains(filteredIndex);
   }
 
+  bool _isSelectableFilteredIndex(
+    int filteredIndex, [
+    List<LogEntry>? snapshot,
+  ]) {
+    final filteredSnapshot = snapshot ?? filteredLogs;
+    return filteredIndex >= 0 &&
+        filteredIndex < filteredSnapshot.length &&
+        filteredSnapshot[filteredIndex].isUserSelectable;
+  }
+
   bool? beginRowSelectionGesture(
     int filteredIndex, {
     bool shiftPressed = false,
   }) {
-    if (filteredIndex < 0) return null;
+    if (!_isSelectableFilteredIndex(filteredIndex)) return null;
 
     if (shiftPressed) {
       selectRowRangeTo(filteredIndex);
@@ -357,7 +360,7 @@ class LogTabController extends ChangeNotifier {
   }
 
   void setRowSelected(int filteredIndex, bool selected) {
-    if (filteredIndex < 0) return;
+    if (!_isSelectableFilteredIndex(filteredIndex)) return;
 
     final changed = selected
         ? _selectedRowIndices.add(filteredIndex)
@@ -368,7 +371,10 @@ class LogTabController extends ChangeNotifier {
   }
 
   void setSelectedRows(Set<int> indices) {
-    final next = indices.where((index) => index >= 0).toSet();
+    final filteredSnapshot = filteredLogs;
+    final next = indices
+        .where((index) => _isSelectableFilteredIndex(index, filteredSnapshot))
+        .toSet();
     if (const SetEquality<int>().equals(_selectedRowIndices, next)) {
       return;
     }
@@ -380,7 +386,8 @@ class LogTabController extends ChangeNotifier {
   }
 
   void selectRowRangeTo(int filteredIndex) {
-    if (filteredIndex < 0) return;
+    final filteredSnapshot = filteredLogs;
+    if (!_isSelectableFilteredIndex(filteredIndex, filteredSnapshot)) return;
 
     if (_rowSelectionAnchorIndex == null) {
       final anchorChanged = _rowSelectionAnchorIndex != filteredIndex;
@@ -396,6 +403,9 @@ class LogTabController extends ChangeNotifier {
     final end = math.max(_rowSelectionAnchorIndex!, filteredIndex);
     var changed = false;
     for (var index = start; index <= end; index++) {
+      if (!_isSelectableFilteredIndex(index, filteredSnapshot)) {
+        continue;
+      }
       changed = _selectedRowIndices.add(index) || changed;
     }
     if (changed) {
@@ -416,7 +426,7 @@ class LogTabController extends ChangeNotifier {
 
   Future<int> copyAllLogs() {
     return _copyLogsToClipboard(
-      _currentLogsSnapshot,
+      _currentLogsSnapshot.where((entry) => entry.isCopyable),
       format: LogCopyFormat.fullLine,
     );
   }
@@ -444,7 +454,10 @@ class LogTabController extends ChangeNotifier {
       return Future<int>.value(0);
     }
 
-    final entries = [for (final index in indices) filteredSnapshot[index]];
+    final entries = [
+      for (final index in indices)
+        if (filteredSnapshot[index].isCopyable) filteredSnapshot[index],
+    ];
     return _copyLogsToClipboard(entries, format: format);
   }
 
@@ -596,7 +609,10 @@ class LogTabController extends ChangeNotifier {
     disableAutoScroll();
 
     if (query != null) {
-      _setInlineSearchQuery(query, applyImmediately: true);
+      updateInlineSearch(
+        _inlineSearch.copyWith(query: query),
+        applyImmediately: true,
+      );
     }
 
     if (!_searchBarVisible) {
@@ -612,8 +628,8 @@ class LogTabController extends ChangeNotifier {
 
     _inlineSearchDebounce?.cancel();
     _searchBarVisible = false;
-    _inlineSearchQuery = '';
-    _appliedInlineSearchQuery = '';
+    _inlineSearch = _inlineSearch.copyWith(query: '');
+    _appliedInlineSearch = _appliedInlineSearch.copyWith(query: '');
     searchController.clear();
     _invalidateSearchMatches();
     _searchCurrentMatchIndex = 0;
@@ -643,43 +659,28 @@ class LogTabController extends ChangeNotifier {
   }
 
   void onInlineSearchChanged(String value) {
-    if (value.isNotEmpty) {
-      disableAutoScroll();
-    }
-    _setInlineSearchQuery(value);
+    updateInlineSearch(_inlineSearch.copyWith(query: value));
   }
 
   void setSearchCaseSensitive(bool value) {
-    if (_searchCaseSensitive == value) return;
-    disableAutoScroll();
-    _inlineSearchDebounce?.cancel();
-    _searchCaseSensitive = value;
-    _appliedInlineSearchQuery = _inlineSearchQuery;
-    _invalidateSearchMatches();
-    _searchCurrentMatchIndex = 0;
-    _notify();
+    updateInlineSearch(
+      _inlineSearch.copyWith(caseSensitive: value),
+      applyImmediately: true,
+    );
   }
 
   void setSearchWholeWord(bool value) {
-    if (_searchWholeWord == value) return;
-    disableAutoScroll();
-    _inlineSearchDebounce?.cancel();
-    _searchWholeWord = value;
-    _appliedInlineSearchQuery = _inlineSearchQuery;
-    _invalidateSearchMatches();
-    _searchCurrentMatchIndex = 0;
-    _notify();
+    updateInlineSearch(
+      _inlineSearch.copyWith(wholeWord: value),
+      applyImmediately: true,
+    );
   }
 
   void setSearchRegex(bool value) {
-    if (_searchRegex == value) return;
-    disableAutoScroll();
-    _inlineSearchDebounce?.cancel();
-    _searchRegex = value;
-    _appliedInlineSearchQuery = _inlineSearchQuery;
-    _invalidateSearchMatches();
-    _searchCurrentMatchIndex = 0;
-    _notify();
+    updateInlineSearch(
+      _inlineSearch.copyWith(regex: value),
+      applyImmediately: true,
+    );
   }
 
   void onSearchNext() {
@@ -725,20 +726,14 @@ class LogTabController extends ChangeNotifier {
   List<int> get searchMatchIndices {
     final filtered = filteredLogs;
     if (_cachedSearchMatchIndices != null &&
-        _smCacheQuery == _appliedInlineSearchQuery &&
-        _smCacheCaseSensitive == _searchCaseSensitive &&
-        _smCacheWholeWord == _searchWholeWord &&
-        _smCacheRegex == _searchRegex &&
+        _smCacheSearch == _appliedInlineSearch &&
         _smCacheHiddenCols.length == hiddenColumns.length &&
         _smCacheHiddenCols.containsAll(hiddenColumns) &&
         _smCacheFilteredLen == filtered.length) {
       return _cachedSearchMatchIndices!;
     }
 
-    _smCacheQuery = _appliedInlineSearchQuery;
-    _smCacheCaseSensitive = _searchCaseSensitive;
-    _smCacheWholeWord = _searchWholeWord;
-    _smCacheRegex = _searchRegex;
+    _smCacheSearch = _appliedInlineSearch;
     _smCacheHiddenCols = Set.of(hiddenColumns);
     _smCacheFilteredLen = filtered.length;
     _cachedSearchMatchIndices = _computeSearchMatches(filtered);
@@ -773,20 +768,39 @@ class LogTabController extends ChangeNotifier {
     _cachedSearchMatchIndices = null;
   }
 
-  void _setInlineSearchQuery(String value, {bool applyImmediately = false}) {
-    _inlineSearchQuery = value;
+  void updateInlineSearch(
+    TextSearchConfig value, {
+    bool applyImmediately = false,
+  }) {
+    final optionsChanged =
+        value.caseSensitive != _inlineSearch.caseSensitive ||
+        value.wholeWord != _inlineSearch.wholeWord ||
+        value.regex != _inlineSearch.regex;
+    final queryChanged = value.query != _inlineSearch.query;
+    final appliedChanged = value != _appliedInlineSearch;
+    if (!queryChanged &&
+        !optionsChanged &&
+        (!applyImmediately || !appliedChanged)) {
+      return;
+    }
+
+    if (value.query.isNotEmpty || optionsChanged) {
+      disableAutoScroll();
+    }
+
+    _inlineSearch = value;
     _searchCurrentMatchIndex = 0;
 
-    if (searchController.text != value) {
+    if (searchController.text != value.query) {
       searchController.value = TextEditingValue(
-        text: value,
-        selection: TextSelection.collapsed(offset: value.length),
+        text: value.query,
+        selection: TextSelection.collapsed(offset: value.query.length),
       );
     }
 
     _inlineSearchDebounce?.cancel();
-    if (applyImmediately) {
-      _appliedInlineSearchQuery = value;
+    if (applyImmediately || optionsChanged) {
+      _appliedInlineSearch = value;
       _invalidateSearchMatches();
       _notify();
       return;
@@ -795,7 +809,7 @@ class LogTabController extends ChangeNotifier {
     _notify();
     _inlineSearchDebounce = Timer(const Duration(milliseconds: 300), () {
       if (_disposed) return;
-      _appliedInlineSearchQuery = value;
+      _appliedInlineSearch = value;
       _invalidateSearchMatches();
       _notify();
     });
@@ -983,17 +997,114 @@ class LogTabController extends ChangeNotifier {
     _invalidateFilteredLogs();
   }
 
+  String _loggingSubjectLabel() {
+    return selectedDevice?.displayLabel.primary ??
+        selectedDevice?.displayName ??
+        selectedDevice?.id ??
+        'device';
+  }
+
+  LogEntry _buildSessionStateEntry(
+    LogEntryType type, {
+    String? message,
+    String? tag,
+  }) {
+    final subject = _loggingSubjectLabel();
+    final effectiveMessage = switch (type) {
+      LogEntryType.started => message ?? 'Started capturing logs for $subject.',
+      LogEntryType.resumed => message ?? 'Resumed live logging for $subject.',
+      LogEntryType.paused => message ?? 'Paused live logging for $subject.',
+      LogEntryType.stopped => message ?? 'Stopped capturing logs for $subject.',
+      LogEntryType.error => message ?? 'A logging error occurred for $subject.',
+      LogEntryType.notice => message ?? 'Logging state updated for $subject.',
+      LogEntryType.log => message ?? '',
+    };
+
+    return LogEntry.loggingState(
+      type: type,
+      tag: tag ?? 'logview session',
+      message: effectiveMessage,
+      packageName: selectedDevice?.id,
+      processName: subject,
+    );
+  }
+
+  void _appendImmediateLogEntry(LogEntry entry) {
+    final evictedLogs = _logsBuffer.append(entry);
+    final addedBytes = _estimateLogEntryBytes(entry);
+    final evictedBytes = _estimateLogsBytes(evictedLogs);
+
+    _logsMemoryBytes += addedBytes - evictedBytes;
+    if (_logsMemoryBytes < 0) {
+      _logsMemoryBytes = 0;
+    }
+
+    if (evictedLogs.isNotEmpty) {
+      clearSelectedRows(notify: false);
+    }
+
+    _invalidateFilteredLogs();
+    _notify();
+
+    if (autoScroll && scrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!scrollController.hasClients) return;
+        scrollController.animateTo(
+          scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+        );
+      });
+    }
+  }
+
+  void _appendSessionStateEntry(
+    LogEntryType type, {
+    String? message,
+    String? tag,
+  }) {
+    _appendImmediateLogEntry(
+      _buildSessionStateEntry(type, message: message, tag: tag),
+    );
+  }
+
+  Future<void> _stopLogcatForDisconnectedDevice(Device device) async {
+    if (!isRunning) return;
+
+    await _stopLogcatInternal(resetState: false);
+    if (_disposed) return;
+
+    logcatState = LogcatState.stopped;
+    _appendSessionStateEntry(
+      LogEntryType.stopped,
+      message:
+          'Device disconnected; stopped capturing logs for ${device.displayName}.',
+      tag: 'device connection',
+    );
+  }
+
   Future<void> _applyFetchedDevices(
     List<Device> fetchedDevices, {
     bool autoStartSingleIfAvailable = false,
   }) async {
     final currentSelectionId = selectedDevice?.id;
+    final previousSelectedDevice = selectedDevice;
     devices = fetchedDevices;
 
     if (currentSelectionId != null) {
       selectedDevice = fetchedDevices.firstWhereOrNull(
         (device) => device.id == currentSelectionId,
       );
+    }
+
+    final selectedDeviceJustDisconnected =
+        previousSelectedDevice != null &&
+        previousSelectedDevice.isConnected &&
+        selectedDevice != null &&
+        selectedDevice!.isDisconnected;
+
+    if (selectedDeviceJustDisconnected) {
+      await _stopLogcatForDisconnectedDevice(selectedDevice!);
     }
 
     if (currentSelectionId != null && selectedDevice == null) {
@@ -1060,12 +1171,18 @@ class LogTabController extends ChangeNotifier {
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
     logcatState = LogcatState.running;
+    _appendSessionStateEntry(LogEntryType.started);
     _notify();
 
     _logSub = _deviceSessionService.startLogStream(selectedDevice!).listen((
       logEntry,
     ) {
-      if (_disposed || logcatState == LogcatState.paused) return;
+      if (_disposed) return;
+      if (logEntry.isSpecialEntry) {
+        _appendImmediateLogEntry(logEntry);
+        return;
+      }
+      if (logcatState == LogcatState.paused) return;
       _pendingLogs.add(logEntry);
       _pendingLogsMemoryBytes += _estimateLogEntryBytes(logEntry);
     });
@@ -1125,21 +1242,26 @@ class LogTabController extends ChangeNotifier {
 
     if (resetState && !_disposed) {
       logcatState = LogcatState.stopped;
+      _appendSessionStateEntry(LogEntryType.stopped);
       _notify();
     }
   }
 
   void togglePauseResume() {
     if (!isRunning) return;
-    logcatState = isPaused ? LogcatState.running : LogcatState.paused;
+    final wasPaused = isPaused;
+    logcatState = wasPaused ? LogcatState.running : LogcatState.paused;
+    _appendSessionStateEntry(
+      wasPaused ? LogEntryType.resumed : LogEntryType.paused,
+    );
     _notify();
   }
 
   String _logColumnValue(LogEntry log, LogColumn column) => switch (column) {
     LogColumn.timestamp => log.timestamp,
-    LogColumn.pid => log.packageName ?? log.pid,
+    LogColumn.pid => log.packageName ?? log.processName ?? log.pid,
     LogColumn.tid => log.tid,
-    LogColumn.level => log.level,
+    LogColumn.level => log.isSpecialEntry ? log.typeLabel : log.level,
     LogColumn.tag => log.tag,
     LogColumn.message => log.message,
   };
@@ -1155,8 +1277,14 @@ class LogTabController extends ChangeNotifier {
     final result = <int>[];
     for (var index = 0; index < items.length; index++) {
       final log = items[index];
+      if (log.isSpecialEntry) {
+        if (pattern.matches(log.specialSearchableText)) {
+          result.add(index);
+        }
+        continue;
+      }
       for (final column in visibleColumns) {
-        if (pattern.matches(_logColumnValue(log, column))) {
+        if (pattern.matches(log.valueForColumn(column))) {
           result.add(index);
           break;
         }
@@ -1169,10 +1297,30 @@ class LogTabController extends ChangeNotifier {
       List<LogEntry>.unmodifiable([..._logsBuffer.getLogs(), ..._pendingLogs]);
 
   List<int> _selectionTargetIndicesForCopy(int? clickedFilteredIndex) {
-    if (clickedFilteredIndex == null ||
-        _selectedRowIndices.isNotEmpty &&
-            _selectedRowIndices.contains(clickedFilteredIndex)) {
-      return _selectedRowIndices.toList()..sort();
+    final filteredSnapshot = filteredLogs;
+    final selectedIndices =
+        _selectedRowIndices
+            .where(
+              (index) => _isSelectableFilteredIndex(index, filteredSnapshot),
+            )
+            .toList()
+          ..sort();
+
+    if (clickedFilteredIndex == null) {
+      return selectedIndices;
+    }
+
+    final clickedIsCopyable = _isSelectableFilteredIndex(
+      clickedFilteredIndex,
+      filteredSnapshot,
+    );
+    if (!clickedIsCopyable) {
+      return selectedIndices;
+    }
+
+    if (selectedIndices.isNotEmpty &&
+        selectedIndices.contains(clickedFilteredIndex)) {
+      return selectedIndices;
     }
     return [clickedFilteredIndex];
   }
@@ -1202,6 +1350,7 @@ class LogTabController extends ChangeNotifier {
     int stringBytes(String value) => value.length * 2;
 
     return 128 +
+        stringBytes(log.type.name) +
         stringBytes(log.timestamp) +
         stringBytes(log.pid) +
         stringBytes(log.tid) +
