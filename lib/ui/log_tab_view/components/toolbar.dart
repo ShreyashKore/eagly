@@ -179,19 +179,6 @@ class Toolbar extends StatelessWidget {
             tooltip: controller.hasAnyCachedLogs ? 'Copy all logs' : 'No logs to copy',
             onPressed: controller.hasAnyCachedLogs ? onCopyAll : null,
           ),
-          // ── Row selection mode ────────────────────────────────────────────
-          ToolbarIconButton(
-            icon: controller.rowSelectionMode
-                ? Icons.checklist_rounded
-                : Icons.checklist_outlined,
-            tooltip: controller.rowSelectionMode
-                ? 'Disable row selection mode'
-                : 'Enable row selection mode',
-            isActive: controller.rowSelectionMode,
-            onPressed: controller.filteredLogs.isNotEmpty
-                ? controller.toggleRowSelectionMode
-                : null,
-          ),
           if (controller.hasSelectedRows)
             IconButton(
               icon: const Icon(Icons.deselect_outlined),

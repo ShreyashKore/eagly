@@ -329,6 +329,7 @@ class _LogTabViewState extends State<LogTabView> {
       onSelectedRowsChanged: controller.setSelectedRows,
       onRowSelectionChanged: controller.setRowSelected,
       onRowCopyAction: _handleRowCopyAction,
+      onClearRowSelection: controller.clearSelectedRows,
       onSelectedTextChanged: controller.setSelectedSearchText,
       searchQuery: controller.appliedInlineSearchQuery,
       caseSensitive: controller.searchCaseSensitive,

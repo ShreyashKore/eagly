@@ -21,9 +21,11 @@ class LogRow extends StatelessWidget {
   final int? currentMatchLogIndex;
   final bool wrapText;
   final TextStyle monoStyle;
+  final bool wholeRowSelectionEnabled;
   final bool allowSelectionStart;
   final ValueChanged<PointerDownEvent>? onSelectionPointerDown;
   final ValueChanged<PointerMoveEvent>? onSelectionPointerMove;
+  final ValueChanged<Offset>? onRowContextMenuRequested;
   final String Function(LogColumn) contentValueForColumn;
 
   const LogRow({
@@ -43,9 +45,11 @@ class LogRow extends StatelessWidget {
     required this.currentMatchLogIndex,
     required this.wrapText,
     required this.monoStyle,
+    required this.wholeRowSelectionEnabled,
     required this.allowSelectionStart,
     this.onSelectionPointerDown,
     this.onSelectionPointerMove,
+    this.onRowContextMenuRequested,
     required this.contentValueForColumn,
   });
 
@@ -219,20 +223,28 @@ class LogRow extends StatelessWidget {
     );
   }
 
-  Widget _selectionCell(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: LogViewer.selectionColumnWidth,
-      child: Center(
-        child: Icon(
-          isSelected ? Icons.check_box : Icons.check_box_outline_blank,
-          size: 18,
-          color: isSelected
-              ? colorScheme.primary
-              : colorScheme.onSurfaceVariant,
+  Widget _selectionDetector(int detectorIndex) {
+    final enabled = allowSelectionStart && onSelectionPointerDown != null;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+      child: Listener(
+        key: ValueKey('row-selection-detector-$index-$detectorIndex'),
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: enabled ? onSelectionPointerDown : null,
+        onPointerMove: onSelectionPointerMove,
+        child: const ColoredBox(
+          color: Colors.transparent,
+          child: SizedBox(width: LogViewer.columnSpacing, height: 24),
         ),
       ),
     );
+  }
+
+  Widget _columnGap(int detectorIndex) {
+    if (wholeRowSelectionEnabled) {
+      return const SizedBox(width: LogViewer.columnSpacing);
+    }
+    return _selectionDetector(detectorIndex);
   }
 
   Widget _buildSpecialRow(
@@ -340,96 +352,84 @@ class LogRow extends StatelessWidget {
         : logTheme.searchMatchColor);
 
     if (log.isSpecialEntry) {
-      final rowContent = _buildSpecialRow(
+      return _buildSpecialRow(
         context,
         highlightColor: highlightColor,
         isCurrentMatch: isCurrentMatch,
       );
+    }
 
-      return MouseRegion(
-        cursor: rowSelectionMode && allowSelectionStart
-            ? SystemMouseCursors.click
-            : MouseCursor.defer,
-        child: Listener(
-          behavior: rowSelectionMode
-              ? HitTestBehavior.opaque
-              : HitTestBehavior.deferToChild,
-          onPointerDown: rowSelectionMode && allowSelectionStart
-              ? onSelectionPointerDown
-              : null,
-          onPointerMove: rowSelectionMode ? onSelectionPointerMove : null,
-          child: rowContent,
+    final rowCells = <Widget>[
+      for (final col in visible)
+        if (col == LogColumn.level)
+          _levelCell(
+            context,
+            log.level,
+            levelColor,
+            appendRowTerminator: lastVisibleColumn == col,
+          )
+        else
+          _fixedCell(
+            context,
+            contentValueForColumn(col),
+            widthOf(col),
+            rowStyle,
+            highlightColor: highlightColor,
+            appendRowTerminator: lastVisibleColumn == col,
+          ),
+      if (isVisible(LogColumn.message))
+        SizedBox(
+          width: messageWidth,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            child: _buildSelectableText(
+              context,
+              log.message,
+              rowStyle,
+              highlightColor: highlightColor,
+              softWrap: wrapText,
+              appendRowTerminator: lastVisibleColumn == LogColumn.message,
+            ),
+          ),
         ),
-      );
+    ];
+
+    final rowChildren = <Widget>[];
+    for (var cellIndex = 0; cellIndex < rowCells.length; cellIndex++) {
+      if (cellIndex > 0) {
+        rowChildren.add(_columnGap(cellIndex - 1));
+      }
+      rowChildren.add(rowCells[cellIndex]);
     }
 
     final rowContent = Container(
       color: isCurrentMatch
           ? logTheme.searchCurrentRowColor
           : (isSelected ? selectedRowColor : null),
-      child: Row(
-        children: [
-          if (rowSelectionMode) ...[
-            _selectionCell(context),
-            const SizedBox(width: LogViewer.columnSpacing),
-          ],
-          for (final col in visible) ...[
-            if (col == LogColumn.level)
-              _levelCell(
-                context,
-                log.level,
-                levelColor,
-                appendRowTerminator: lastVisibleColumn == col,
-              )
-            else
-              _fixedCell(
-                context,
-                contentValueForColumn(col),
-                widthOf(col),
-                rowStyle,
-                highlightColor: highlightColor,
-                appendRowTerminator: lastVisibleColumn == col,
-              ),
-            const SizedBox(width: LogViewer.columnSpacing),
-          ],
-          if (isVisible(LogColumn.message))
-            SizedBox(
-              width: messageWidth,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                child: _buildSelectableText(
-                  context,
-                  log.message,
-                  rowStyle,
-                  highlightColor: highlightColor,
-                  softWrap: wrapText,
-                  appendRowTerminator: lastVisibleColumn == LogColumn.message,
-                ),
-              ),
-            ),
-        ],
-      ),
+      child: Row(children: rowChildren),
     );
 
+    if (!wholeRowSelectionEnabled) {
+      return rowContent;
+    }
+
+    final selectionEnabled = allowSelectionStart && onSelectionPointerDown != null;
     return MouseRegion(
-      cursor: rowSelectionMode && allowSelectionStart
-          ? SystemMouseCursors.click
-          : MouseCursor.defer,
+      cursor: selectionEnabled ? SystemMouseCursors.click : MouseCursor.defer,
       child: Listener(
-        behavior: rowSelectionMode
-            ? HitTestBehavior.opaque
-            : HitTestBehavior.deferToChild,
-        onPointerDown: rowSelectionMode && allowSelectionStart
-            ? onSelectionPointerDown
-            : null,
-        onPointerMove: rowSelectionMode ? onSelectionPointerMove : null,
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: selectionEnabled ? onSelectionPointerDown : null,
+        onPointerMove: selectionEnabled ? onSelectionPointerMove : null,
         child: GestureDetector(
-          behavior: rowSelectionMode
-              ? HitTestBehavior.opaque
-              : HitTestBehavior.deferToChild,
+          behavior: HitTestBehavior.opaque,
+          onSecondaryTapDown: onRowContextMenuRequested == null
+              ? null
+              : (details) => onRowContextMenuRequested!(details.globalPosition),
           child: rowContent,
         ),
       ),
     );
+
+    return rowContent;
   }
 }

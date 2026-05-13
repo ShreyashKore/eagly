@@ -526,6 +526,28 @@ void main() {
     expect(clipboard?.text, 'First message\nSecond message');
   });
 
+  test('beginRowSelectionGesture auto-enables row selection mode', () {
+    controller = createController();
+    controller!.logs = List.generate(
+      3,
+      (index) => _testLogEntry(message: 'Message $index'),
+    );
+
+    expect(controller!.rowSelectionMode, isFalse);
+
+    final shouldSelect = controller!.beginRowSelectionGesture(1);
+
+    expect(shouldSelect, isTrue);
+    expect(controller!.rowSelectionMode, isTrue);
+    expect(controller!.selectedRowIndices, {1});
+
+    final shouldDeselect = controller!.beginRowSelectionGesture(1);
+
+    expect(shouldDeselect, isFalse);
+    expect(controller!.selectedRowIndices, isEmpty);
+    expect(controller!.rowSelectionMode, isFalse);
+  });
+
   test(
     'copyRowsForContextMenu copies selected rows when clicked row is selected',
     () async {
