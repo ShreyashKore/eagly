@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -16,14 +15,16 @@ import '../../services/log_file_service.dart';
 import '../../utils/log_buffer.dart';
 import '../../utils/text_search_pattern.dart';
 import '../wireless_connection/wireless_connection_controller.dart';
+import 'log_filter_controller.dart';
+import 'log_inline_search_controller.dart';
+import 'log_row_selection_controller.dart';
+import 'log_stream_controller.dart';
 
-enum LogcatState { stopped, running, paused }
+export 'log_stream_controller.dart' show LogcatState;
 
 enum LogCopyFormat { messageOnly, timestampAndMessage, fullLine }
 
 class LogTabController extends ChangeNotifier {
-  static const int _maxRecentFilterValues = 8;
-
   LogTabController({
     required this.id,
     required String initialTitle,
@@ -35,10 +36,36 @@ class LogTabController extends ChangeNotifier {
   }) : _title = initialTitle,
        _settings = initialSettings,
        _deviceRepository = deviceRepository ?? DeviceRepository.instance,
-       _logsBuffer = LogBuffer<LogEntry>(
-         baseCapacity: initialSettings.logLinesLimit,
-       ),
-       _deviceSessionService = deviceSessionService ?? DeviceSessionService() {
+       _deviceSessionService =
+           deviceSessionService ?? DeviceSessionService() {
+    filterCtrl = LogFilterController(
+      selectedLogLevelProvider: () => selectedLogLevel,
+    )..onFiltersApplied = _onFiltersApplied;
+
+    streamCtrl = LogStreamController(
+      initialLogLinesLimit: initialSettings.logLinesLimit,
+      deviceSessionService: _deviceSessionService,
+      retentionFilterProvider: () => _retentionFilter,
+      scrollController: scrollController,
+      autoScrollProvider: () => autoScroll,
+      onRowsEvicted: () => rowSelectionCtrl.clearSelectedRows(notify: false),
+      onLogsChanged: _invalidateFilteredLogs,
+    );
+
+    rowSelectionCtrl = LogRowSelectionController(
+      filteredLogsProvider: () => filteredLogs,
+    );
+
+    inlineSearchCtrl = LogInlineSearchController(
+      hiddenColumnsProvider: () => hiddenColumns,
+      filteredLogsProvider: () => filteredLogs,
+    )..onDisableAutoScroll = disableAutoScroll;
+
+    filterCtrl.addListener(_notify);
+    streamCtrl.addListener(_notify);
+    rowSelectionCtrl.addListener(_notify);
+    inlineSearchCtrl.addListener(_notify);
+
     wirelessController = WirelessConnectionController(
       deviceRepository: _deviceRepository,
       deviceSessionService: _deviceSessionService,
@@ -49,10 +76,13 @@ class LogTabController extends ChangeNotifier {
       selectedDeviceIdProvider: () => selectedDevice?.id,
       isRunningProvider: () => isRunning,
     );
-    filterController.text = searchQuery;
-    packageFilterController.text = packageFilterQuery;
-    pidTidFilterController.text = pidTidFilterQuery;
-    tagFilterController.text = tagFilterQuery;
+
+    filterCtrl.initFromSettings(
+      searchQuery: '',
+      packageFilterQuery: '',
+      pidTidFilterQuery: '',
+      tagFilterQuery: '',
+    );
     logLinesController.text = logLinesLimit.toString();
     devices = _deviceRepository.devices.toList(growable: false);
     _syncLogBufferFilter();
@@ -67,63 +97,17 @@ class LogTabController extends ChangeNotifier {
   final DeviceSessionService _deviceSessionService;
   late final WirelessConnectionController wirelessController;
 
+  late final LogFilterController filterCtrl;
+  late final LogStreamController streamCtrl;
+  late final LogRowSelectionController rowSelectionCtrl;
+  late final LogInlineSearchController inlineSearchCtrl;
+
   final ScrollController scrollController = ScrollController();
-  final TextEditingController filterController = TextEditingController();
-  final FocusNode filterFocusNode = FocusNode();
-  final TextEditingController packageFilterController = TextEditingController();
-  final FocusNode packageFilterFocusNode = FocusNode();
-  final TextEditingController pidTidFilterController = TextEditingController();
-  final FocusNode pidTidFilterFocusNode = FocusNode();
-  final TextEditingController tagFilterController = TextEditingController();
-  final FocusNode tagFilterFocusNode = FocusNode();
-  final TextEditingController searchController = TextEditingController();
-  final FocusNode searchFocusNode = FocusNode();
   final TextEditingController logLinesController = TextEditingController();
 
-  LogBuffer<LogEntry> _logsBuffer;
-  final List<LogEntry> _pendingLogs = [];
-
-  StreamSubscription<LogEntry>? _logSub;
-  Timer? _flushTimer;
-  Timer? _debounceTimer;
-  Timer? _filterSaveDebounceTimer;
-  Timer? _inlineSearchDebounce;
-
   var devices = <Device>[];
-  Device? selectedDevice;
-
-  var logcatState = LogcatState.stopped;
-  var searchQuery = '';
-  var _appliedSearchQuery = '';
-  var packageFilterQuery = '';
-  var _appliedPackageFilterQuery = '';
-  var pidTidFilterQuery = '';
-  var _appliedPidTidFilterQuery = '';
-  var tagFilterQuery = '';
-  var _appliedTagFilterQuery = '';
-
-  final List<String> _recentMessageFilters = [];
-  final List<String> _recentPackageFilters = [];
-  final List<String> _recentPidTidFilters = [];
-  final List<String> _recentTagFilters = [];
-
-  var _searchBarVisible = false;
-  var _inlineSearchQuery = '';
-  var _appliedInlineSearchQuery = '';
-  var _searchCaseSensitive = false;
-  var _searchWholeWord = false;
-  var _searchRegex = false;
-  var _searchCurrentMatchIndex = 0;
-  String? _selectedSearchText;
-  var _rowSelectionMode = false;
-  final Set<int> _selectedRowIndices = <int>{};
-  int? _rowSelectionAnchorIndex;
-
   var _editingLogLinesLimit = false;
-  var _logsMemoryBytes = 0;
-  var _pendingLogsMemoryBytes = 0;
   var _logViewerRevision = 0;
-
   var _disposed = false;
   var _showGetStarted = true;
   final String _title;
@@ -138,19 +122,87 @@ class LogTabController extends ChangeNotifier {
   String _lastTagFilterQuery = '';
   LogLevel _lastLogLevel = LogLevel.verbose;
 
-  List<int>? _cachedSearchMatchIndices;
-  String _smCacheQuery = '';
-  bool _smCacheCaseSensitive = false;
-  bool _smCacheWholeWord = false;
-  bool _smCacheRegex = false;
-  Set<String> _smCacheHiddenCols = {};
-  int _smCacheFilteredLen = -1;
+  // ── filter forwarders ────────────────────────────────────────────────
+  TextEditingController get filterController => filterCtrl.filterController;
+  FocusNode get filterFocusNode => filterCtrl.filterFocusNode;
+  TextEditingController get packageFilterController =>
+      filterCtrl.packageFilterController;
+  FocusNode get packageFilterFocusNode => filterCtrl.packageFilterFocusNode;
+  TextEditingController get pidTidFilterController =>
+      filterCtrl.pidTidFilterController;
+  FocusNode get pidTidFilterFocusNode => filterCtrl.pidTidFilterFocusNode;
+  TextEditingController get tagFilterController =>
+      filterCtrl.tagFilterController;
+  FocusNode get tagFilterFocusNode => filterCtrl.tagFilterFocusNode;
 
-  List<LogEntry> get logs => _logsBuffer.getLogs();
+  String get searchQuery => filterCtrl.searchQuery;
+  String get packageFilterQuery => filterCtrl.packageFilterQuery;
+  String get pidTidFilterQuery => filterCtrl.pidTidFilterQuery;
+  String get tagFilterQuery => filterCtrl.tagFilterQuery;
 
-  set logs(List<LogEntry> value) {
-    _replaceStoredLogs(value);
-  }
+  List<String> get recentMessageFilters => filterCtrl.recentMessageFilters;
+  List<String> get recentPackageFilters => filterCtrl.recentPackageFilters;
+  List<String> get recentPidTidFilters => filterCtrl.recentPidTidFilters;
+  List<String> get recentTagFilters => filterCtrl.recentTagFilters;
+
+  // ── inline search forwarders ─────────────────────────────────────────
+  TextEditingController get searchController =>
+      inlineSearchCtrl.searchController;
+  FocusNode get searchFocusNode => inlineSearchCtrl.searchFocusNode;
+
+  bool get searchBarVisible => inlineSearchCtrl.searchBarVisible;
+  bool get searchCaseSensitive => inlineSearchCtrl.searchCaseSensitive;
+  bool get searchWholeWord => inlineSearchCtrl.searchWholeWord;
+  bool get searchRegex => inlineSearchCtrl.searchRegex;
+  int get searchCurrentMatch => inlineSearchCtrl.searchCurrentMatch;
+  String? get selectedSearchText => inlineSearchCtrl.selectedSearchText;
+  String get appliedInlineSearchQuery =>
+      inlineSearchCtrl.appliedInlineSearchQuery;
+  String get inlineSearchQuery => inlineSearchCtrl.inlineSearchQuery;
+  TextSearchPattern get inlineSearchPattern =>
+      inlineSearchCtrl.inlineSearchPattern;
+  bool get inlineSearchHasError => inlineSearchCtrl.inlineSearchHasError;
+  String? get inlineSearchErrorText => inlineSearchCtrl.inlineSearchErrorText;
+
+  // ── row selection forwarders ─────────────────────────────────────────
+  bool get rowSelectionMode => rowSelectionCtrl.rowSelectionMode;
+  Set<int> get selectedRowIndices => rowSelectionCtrl.selectedRowIndices;
+  bool get hasSelectedRows => rowSelectionCtrl.hasSelectedRows;
+  int get selectedRowCount => rowSelectionCtrl.selectedRowCount;
+  int? get rowSelectionAnchorIndex => rowSelectionCtrl.rowSelectionAnchorIndex;
+
+  // ── stream / logcat forwarders ───────────────────────────────────────
+  LogcatState get logcatState => streamCtrl.logcatState;
+  bool get isRunning => streamCtrl.isRunning;
+  bool get isPaused => streamCtrl.isPaused;
+  bool get hasLogs => streamCtrl.hasLogs;
+  bool get hasAnyCachedLogs => streamCtrl.hasAnyCachedLogs;
+  int get totalLogsMemoryBytes => streamCtrl.totalLogsMemoryBytes;
+
+  Device? get selectedDevice => streamCtrl.selectedDevice;
+  set selectedDevice(Device? v) => streamCtrl.selectedDevice = v;
+
+  // ── settings ─────────────────────────────────────────────────────────
+  bool get wrapText => _settings.wrapText;
+  bool get autoScroll => _settings.autoScroll;
+  LogLevel get selectedLogLevel => _settings.selectedLogLevel;
+  int get logLinesLimit => _settings.logLinesLimit;
+  Set<String> get hiddenColumns => _settings.hiddenColumns;
+  Map<String, double> get columnWidths => _settings.columnWidths;
+
+  bool get showGetStarted => _showGetStarted;
+  bool get editingLogLinesLimit => _editingLogLinesLimit;
+  int get logViewerRevision => _logViewerRevision;
+  bool get isReadingFromFile => _importedFileName != null;
+  bool get hasSelectedDevice => selectedDevice != null;
+  bool get hasConnectedSelectedDevice => selectedDevice?.isConnected == true;
+  bool get hasVisibleWorkspace => hasSelectedDevice || hasLogs;
+  bool get isLoadingDevices => _deviceRepository.isLoading;
+  bool get hasAttemptedDeviceLoad => _deviceRepository.hasAttemptedLoad;
+
+  List<LogEntry> get logs => streamCtrl.getLogs();
+  set logs(List<LogEntry> value) =>
+      streamCtrl.replaceStoredLogs(value, logLinesLimit);
 
   String get title {
     if (selectedDevice != null) return selectedDevice!.displayLabel.primary;
@@ -159,60 +211,9 @@ class LogTabController extends ChangeNotifier {
     return _title;
   }
 
-  bool get showGetStarted => _showGetStarted;
-  bool get searchBarVisible => _searchBarVisible;
-  bool get searchCaseSensitive => _searchCaseSensitive;
-  bool get searchWholeWord => _searchWholeWord;
-  bool get searchRegex => _searchRegex;
-  int get searchCurrentMatch => _searchCurrentMatchIndex;
-  String? get selectedSearchText => _selectedSearchText;
-  bool get rowSelectionMode => _rowSelectionMode;
-  Set<int> get selectedRowIndices => Set.unmodifiable(_selectedRowIndices);
-  bool get hasSelectedRows => _selectedRowIndices.isNotEmpty;
-  int get selectedRowCount => _selectedRowIndices.length;
-  int? get rowSelectionAnchorIndex => _rowSelectionAnchorIndex;
-  bool get editingLogLinesLimit => _editingLogLinesLimit;
-  int get logViewerRevision => _logViewerRevision;
-  bool get isReadingFromFile => _importedFileName != null;
-  bool get isRunning => logcatState != LogcatState.stopped;
-  bool get isPaused => logcatState == LogcatState.paused;
-  bool get hasLogs => _logsBuffer.size > 0;
-  bool get hasAnyCachedLogs => hasLogs || _pendingLogs.isNotEmpty;
-  bool get hasSelectedDevice => selectedDevice != null;
-  bool get hasConnectedSelectedDevice => selectedDevice?.isConnected == true;
-  bool get hasVisibleWorkspace => hasSelectedDevice || hasLogs;
-  int get totalLogsMemoryBytes => _logsMemoryBytes + _pendingLogsMemoryBytes;
-  String get appliedInlineSearchQuery => _appliedInlineSearchQuery;
-  String get inlineSearchQuery => _inlineSearchQuery;
-  TextSearchPattern get inlineSearchPattern => TextSearchPattern(
-    query: _appliedInlineSearchQuery,
-    caseSensitive: _searchCaseSensitive,
-    wholeWord: _searchWholeWord,
-    regex: _searchRegex,
-  );
-  bool get inlineSearchHasError => inlineSearchPattern.hasError;
-  String? get inlineSearchErrorText => inlineSearchPattern.errorText;
-  bool get isLoadingDevices => _deviceRepository.isLoading;
-  bool get hasAttemptedDeviceLoad => _deviceRepository.hasAttemptedLoad;
-  List<String> get recentMessageFilters =>
-      List.unmodifiable(_recentMessageFilters);
-  List<String> get recentPackageFilters =>
-      List.unmodifiable(_recentPackageFilters);
-  List<String> get recentPidTidFilters =>
-      List.unmodifiable(_recentPidTidFilters);
-  List<String> get recentTagFilters => List.unmodifiable(_recentTagFilters);
-
-  bool get wrapText => _settings.wrapText;
-  bool get autoScroll => _settings.autoScroll;
-  LogLevel get selectedLogLevel => _settings.selectedLogLevel;
-  int get logLinesLimit => _settings.logLinesLimit;
-  Set<String> get hiddenColumns => _settings.hiddenColumns;
-  Map<String, double> get columnWidths => _settings.columnWidths;
-
   bool get isIosLogContext {
     if (selectedDevice is IosDevice) return true;
     if (selectedDevice is AndroidDevice) return false;
-
     final storedLogs = logs;
     final sampleLevel = storedLogs.firstWhereOrNull(
       (log) => log.level.trim().isNotEmpty,
@@ -224,9 +225,7 @@ class LogTabController extends ChangeNotifier {
   LogLevel get effectiveSelectedLogLevel => selectedLogLevel;
 
   void _notify() {
-    if (!_disposed) {
-      notifyListeners();
-    }
+    if (!_disposed) notifyListeners();
   }
 
   void _updateSettings(LogTabSettings settings) {
@@ -241,25 +240,32 @@ class LogTabController extends ChangeNotifier {
   }
 
   void _exitGetStartedIfWorkspaceReady() {
-    if (selectedDevice != null || logs.isNotEmpty) {
-      _exitGetStarted();
-    }
+    if (selectedDevice != null || logs.isNotEmpty) _exitGetStarted();
   }
+
+  void _onFiltersApplied() {
+    rowSelectionCtrl.clearSelectedRows(notify: false);
+    _syncLogBufferFilter();
+    _invalidateFilteredLogs();
+  }
+
+  LogFilter<LogEntry>? get _retentionFilter =>
+      filterCtrl.hasActiveRetentionFilter ? filterCtrl.matchesLogFilters : null;
+
+  void _syncLogBufferFilter() => streamCtrl.syncFilter();
+
+  void _invalidateFilteredLogs() {
+    _cachedFilteredLogs = null;
+    inlineSearchCtrl.invalidateSearchMatches();
+  }
+
+  // ── public API ────────────────────────────────────────────────────────
 
   Future<void> bootstrapInitialLoad() async {
     await loadDevices(autoStartSingleIfAvailable: true);
   }
 
-  void focusFilterInputs() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_disposed) return;
-      filterFocusNode.requestFocus();
-      filterController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: filterController.text.length,
-      );
-    });
-  }
+  void focusFilterInputs() => filterCtrl.focusFilterInputs();
 
   Future<void> loadDevices({bool autoStartSingleIfAvailable = false}) async {
     await _deviceRepository.refreshDevices(force: true, showLoading: true);
@@ -272,10 +278,9 @@ class LogTabController extends ChangeNotifier {
   }
 
   void clearLogs() {
-    clearSelectedRows(notify: false);
-    _clearStoredLogs();
-    _pendingLogs.clear();
-    _pendingLogsMemoryBytes = 0;
+    rowSelectionCtrl.clearSelectedRows(notify: false);
+    streamCtrl.clearStoredLogs();
+    streamCtrl.clearPendingLogs();
     _notify();
   }
 
@@ -287,16 +292,15 @@ class LogTabController extends ChangeNotifier {
     final result = await LogFileService.importLogs();
     if (_disposed || !result.isSuccess || result.logs == null) return result;
 
-    await _stopLogcatInternal(resetState: false);
+    await streamCtrl.stopInternal(resetState: false);
     if (_disposed) return result;
 
-    clearSelectedRows(notify: false);
+    rowSelectionCtrl.clearSelectedRows(notify: false);
     selectedDevice = null;
     _importedFileName = result.fileName;
     logs = result.logs!;
-    _pendingLogs.clear();
-    _pendingLogsMemoryBytes = 0;
-    logcatState = LogcatState.stopped;
+    streamCtrl.clearPendingLogs();
+    streamCtrl.logcatState = LogcatState.stopped;
     _exitGetStarted();
     _notify();
     return result;
@@ -316,122 +320,22 @@ class LogTabController extends ChangeNotifier {
     _updateSettings(_settings.copyWith(autoScroll: false));
   }
 
-  void toggleRowSelectionMode() {
-    setRowSelectionMode(!rowSelectionMode);
-  }
+  // row selection
+  void toggleRowSelectionMode() => rowSelectionCtrl.toggleRowSelectionMode();
+  void setRowSelectionMode(bool value) => rowSelectionCtrl.setRowSelectionMode(value);
+  bool isRowSelected(int filteredIndex) => rowSelectionCtrl.isRowSelected(filteredIndex);
+  bool? beginRowSelectionGesture(int filteredIndex, {bool shiftPressed = false}) =>
+      rowSelectionCtrl.beginRowSelectionGesture(filteredIndex, shiftPressed: shiftPressed);
+  void setRowSelected(int filteredIndex, bool selected) =>
+      rowSelectionCtrl.setRowSelected(filteredIndex, selected);
+  void setSelectedRows(Set<int> indices) => rowSelectionCtrl.setSelectedRows(indices);
+  void selectRowRangeTo(int filteredIndex) => rowSelectionCtrl.selectRowRangeTo(filteredIndex);
+  void clearSelectedRows({bool notify = true}) => rowSelectionCtrl.clearSelectedRows(notify: notify);
 
-  void setRowSelectionMode(bool value) {
-    if (_rowSelectionMode == value) return;
-
-    _rowSelectionMode = value;
-    if (!value) {
-      clearSelectedRows(notify: false);
-    }
-    _notify();
-  }
-
-  bool isRowSelected(int filteredIndex) {
-    return _selectedRowIndices.contains(filteredIndex);
-  }
-
-  bool _isSelectableFilteredIndex(int filteredIndex, [List<LogEntry>? snapshot]) {
-    final filteredSnapshot = snapshot ?? filteredLogs;
-    return filteredIndex >= 0 &&
-        filteredIndex < filteredSnapshot.length &&
-        filteredSnapshot[filteredIndex].isUserSelectable;
-  }
-
-  bool? beginRowSelectionGesture(
-    int filteredIndex, {
-    bool shiftPressed = false,
-  }) {
-    if (!_isSelectableFilteredIndex(filteredIndex)) return null;
-
-    if (shiftPressed) {
-      selectRowRangeTo(filteredIndex);
-      return null;
-    }
-
-    final shouldSelect = !_selectedRowIndices.contains(filteredIndex);
-    final anchorChanged = _rowSelectionAnchorIndex != filteredIndex;
-    _rowSelectionAnchorIndex = filteredIndex;
-    final changed = shouldSelect
-        ? _selectedRowIndices.add(filteredIndex)
-        : _selectedRowIndices.remove(filteredIndex);
-    if (changed || anchorChanged) {
-      _notify();
-    }
-    return shouldSelect;
-  }
-
-  void setRowSelected(int filteredIndex, bool selected) {
-    if (!_isSelectableFilteredIndex(filteredIndex)) return;
-
-    final changed = selected
-        ? _selectedRowIndices.add(filteredIndex)
-        : _selectedRowIndices.remove(filteredIndex);
-    if (changed) {
-      _notify();
-    }
-  }
-
-  void setSelectedRows(Set<int> indices) {
-    final filteredSnapshot = filteredLogs;
-    final next = indices
-        .where((index) => _isSelectableFilteredIndex(index, filteredSnapshot))
-        .toSet();
-    if (const SetEquality<int>().equals(_selectedRowIndices, next)) {
-      return;
-    }
-
-    _selectedRowIndices
-      ..clear()
-      ..addAll(next);
-    _notify();
-  }
-
-  void selectRowRangeTo(int filteredIndex) {
-    final filteredSnapshot = filteredLogs;
-    if (!_isSelectableFilteredIndex(filteredIndex, filteredSnapshot)) return;
-
-    if (_rowSelectionAnchorIndex == null) {
-      final anchorChanged = _rowSelectionAnchorIndex != filteredIndex;
-      _rowSelectionAnchorIndex = filteredIndex;
-      final changed = _selectedRowIndices.add(filteredIndex);
-      if (changed || anchorChanged) {
-        _notify();
-      }
-      return;
-    }
-
-    final start = math.min(_rowSelectionAnchorIndex!, filteredIndex);
-    final end = math.max(_rowSelectionAnchorIndex!, filteredIndex);
-    var changed = false;
-    for (var index = start; index <= end; index++) {
-      if (!_isSelectableFilteredIndex(index, filteredSnapshot)) {
-        continue;
-      }
-      changed = _selectedRowIndices.add(index) || changed;
-    }
-    if (changed) {
-      _notify();
-    }
-  }
-
-  void clearSelectedRows({bool notify = true}) {
-    final changed =
-        _selectedRowIndices.isNotEmpty || _rowSelectionAnchorIndex != null;
-    if (!changed) return;
-    _selectedRowIndices.clear();
-    _rowSelectionAnchorIndex = null;
-    if (notify) {
-      _notify();
-    }
-  }
-
+  // copy
   Future<int> copyAllLogs() {
     return _copyLogsToClipboard(
-      _currentLogsSnapshot.where((entry) => entry.isCopyable),
+      streamCtrl.currentLogsSnapshot.where((entry) => entry.isCopyable),
       format: LogCopyFormat.fullLine,
     );
   }
@@ -440,10 +344,10 @@ class LogTabController extends ChangeNotifier {
     required int? clickedFilteredIndex,
     required LogCopyFormat format,
   }) {
-    final selectedIndices = _selectionTargetIndicesForCopy(
-      clickedFilteredIndex,
+    return copyFilteredRows(
+      _selectionTargetIndicesForCopy(clickedFilteredIndex),
+      format: format,
     );
-    return copyFilteredRows(selectedIndices, format: format);
   }
 
   Future<int> copyFilteredRows(
@@ -453,11 +357,10 @@ class LogTabController extends ChangeNotifier {
     final filteredSnapshot = List<LogEntry>.of(filteredLogs);
     final indices = filteredIndices.toSet().where((index) {
       return index >= 0 && index < filteredSnapshot.length;
-    }).toList()..sort();
+    }).toList()
+      ..sort();
 
-    if (indices.isEmpty) {
-      return Future<int>.value(0);
-    }
+    if (indices.isEmpty) return Future<int>.value(0);
 
     final entries = [
       for (final index in indices)
@@ -470,73 +373,24 @@ class LogTabController extends ChangeNotifier {
     Iterable<LogEntry> entries, {
     required LogCopyFormat format,
   }) {
-    return entries
-        .map((entry) => _formatLogEntryForCopy(entry, format))
-        .join('\n');
+    return entries.map((e) => _formatLogEntryForCopy(e, format)).join('\n');
   }
 
-  void clearFilter() {
-    _debounceTimer?.cancel();
-    _filterSaveDebounceTimer?.cancel();
-    clearSelectedRows(notify: false);
-    filterController.clear();
-    packageFilterController.clear();
-    pidTidFilterController.clear();
-    tagFilterController.clear();
-    searchQuery = '';
-    _appliedSearchQuery = '';
-    packageFilterQuery = '';
-    _appliedPackageFilterQuery = '';
-    pidTidFilterQuery = '';
-    _appliedPidTidFilterQuery = '';
-    tagFilterQuery = '';
-    _appliedTagFilterQuery = '';
-    _syncLogBufferFilter();
-    _invalidateFilteredLogs();
-    focusFilterInputs();
-    _notify();
-  }
-
-  void onSearchChanged(String value) {
-    _setFilterField(_LogFilterField.message, value);
-  }
-
-  void onPackageFilterChanged(String value) {
-    _setFilterField(_LogFilterField.packageName, value);
-  }
-
-  void onPidTidFilterChanged(String value) {
-    _setFilterField(_LogFilterField.pidTid, value);
-  }
-
-  void onTagFilterChanged(String value) {
-    _setFilterField(_LogFilterField.tag, value);
-  }
-
-  void selectMessageFilterSuggestion(String value) {
-    _setFilterField(_LogFilterField.message, value, applyImmediately: true);
-  }
-
-  void selectPackageFilterSuggestion(String value) {
-    _setFilterField(_LogFilterField.packageName, value, applyImmediately: true);
-  }
-
-  void selectPidTidFilterSuggestion(String value) {
-    _setFilterField(_LogFilterField.pidTid, value, applyImmediately: true);
-  }
-
-  void selectTagFilterSuggestion(String value) {
-    _setFilterField(_LogFilterField.tag, value, applyImmediately: true);
-  }
-
-  void applyFiltersNow() {
-    _debounceTimer?.cancel();
-    _applyTextFilters();
-  }
+  // filter delegation
+  void clearFilter() => filterCtrl.clearFilter();
+  void onSearchChanged(String value) => filterCtrl.onSearchChanged(value);
+  void onPackageFilterChanged(String value) => filterCtrl.onPackageFilterChanged(value);
+  void onPidTidFilterChanged(String value) => filterCtrl.onPidTidFilterChanged(value);
+  void onTagFilterChanged(String value) => filterCtrl.onTagFilterChanged(value);
+  void selectMessageFilterSuggestion(String value) => filterCtrl.selectMessageFilterSuggestion(value);
+  void selectPackageFilterSuggestion(String value) => filterCtrl.selectPackageFilterSuggestion(value);
+  void selectPidTidFilterSuggestion(String value) => filterCtrl.selectPidTidFilterSuggestion(value);
+  void selectTagFilterSuggestion(String value) => filterCtrl.selectTagFilterSuggestion(value);
+  void applyFiltersNow() => filterCtrl.applyFiltersNow();
 
   void setSelectedLogLevel(LogLevel level) {
     _updateSettings(_settings.copyWith(selectedLogLevel: level));
-    clearSelectedRows(notify: false);
+    rowSelectionCtrl.clearSelectedRows(notify: false);
     _syncLogBufferFilter();
     _invalidateFilteredLogs();
   }
@@ -546,35 +400,20 @@ class LogTabController extends ChangeNotifier {
     _updateSettings(_settings.copyWith(wrapText: !wrapText));
   }
 
-  void toggleAutoScroll() {
-    _updateSettings(_settings.copyWith(autoScroll: !autoScroll));
-  }
-
-  void setSelectedSearchText(String? value) {
-    final normalized = value?.trim();
-    final nextValue = normalized == null || normalized.isEmpty
-        ? null
-        : normalized;
-    if (_selectedSearchText == nextValue) return;
-    _selectedSearchText = nextValue;
-    _notify();
-  }
+  void toggleAutoScroll() => _updateSettings(_settings.copyWith(autoScroll: !autoScroll));
 
   void setHiddenColumns(Set<String> columns) {
     _logViewerRevision++;
     _updateSettings(_settings.copyWith(hiddenColumns: Set.of(columns)));
-    _invalidateSearchMatches();
+    inlineSearchCtrl.invalidateSearchMatches();
   }
 
-  void setColumnWidths(Map<String, double> widths) {
-    _updateSettings(_settings.copyWith(columnWidths: Map.of(widths)));
-  }
+  void setColumnWidths(Map<String, double> widths) =>
+      _updateSettings(_settings.copyWith(columnWidths: Map.of(widths)));
 
   void setEditingLogLinesLimit(bool value) {
     _editingLogLinesLimit = value;
-    if (value) {
-      logLinesController.text = logLinesLimit.toString();
-    }
+    if (value) logLinesController.text = logLinesLimit.toString();
     _notify();
   }
 
@@ -591,499 +430,85 @@ class LogTabController extends ChangeNotifier {
     final storedLogs = logs;
     final previousCount = storedLogs.length;
     _updateSettings(_settings.copyWith(logLinesLimit: parsed));
-
-    _replaceStoredLogs(storedLogs);
-    if (_logsBuffer.size < previousCount) {
-      clearSelectedRows(notify: false);
+    streamCtrl.replaceStoredLogs(storedLogs, parsed);
+    if (streamCtrl.getLogs().length < previousCount) {
+      rowSelectionCtrl.clearSelectedRows(notify: false);
     }
-
     _notify();
     return true;
   }
 
-  void toggleSearchBar() {
-    if (_searchBarVisible) {
-      closeSearchBar();
-    } else {
-      openSearchBar();
-    }
-  }
-
-  void openSearchBar({String? query}) {
-    _inlineSearchDebounce?.cancel();
-    disableAutoScroll();
-
-    if (query != null) {
-      _setInlineSearchQuery(query, applyImmediately: true);
-    }
-
-    if (!_searchBarVisible) {
-      _searchBarVisible = true;
-      _notify();
-    }
-
-    _focusSearchField();
-  }
-
-  void closeSearchBar() {
-    if (!_searchBarVisible) return;
-
-    _inlineSearchDebounce?.cancel();
-    _searchBarVisible = false;
-    _inlineSearchQuery = '';
-    _appliedInlineSearchQuery = '';
-    searchController.clear();
-    _invalidateSearchMatches();
-    _searchCurrentMatchIndex = 0;
-    _notify();
-  }
-
-  void activateSearchFromSelection() {
-    final selectedText = _selectedSearchText;
-    if (selectedText != null) {
-      unawaited(Clipboard.setData(ClipboardData(text: selectedText)));
-      openSearchBar(query: selectedText);
-      return;
-    }
-
-    openSearchBar();
-  }
-
-  void _focusSearchField() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_disposed) return;
-      searchFocusNode.requestFocus();
-      searchController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: searchController.text.length,
-      );
-    });
-  }
-
-  void onInlineSearchChanged(String value) {
-    if (value.isNotEmpty) {
-      disableAutoScroll();
-    }
-    _setInlineSearchQuery(value);
-  }
-
-  void setSearchCaseSensitive(bool value) {
-    if (_searchCaseSensitive == value) return;
-    disableAutoScroll();
-    _inlineSearchDebounce?.cancel();
-    _searchCaseSensitive = value;
-    _appliedInlineSearchQuery = _inlineSearchQuery;
-    _invalidateSearchMatches();
-    _searchCurrentMatchIndex = 0;
-    _notify();
-  }
-
-  void setSearchWholeWord(bool value) {
-    if (_searchWholeWord == value) return;
-    disableAutoScroll();
-    _inlineSearchDebounce?.cancel();
-    _searchWholeWord = value;
-    _appliedInlineSearchQuery = _inlineSearchQuery;
-    _invalidateSearchMatches();
-    _searchCurrentMatchIndex = 0;
-    _notify();
-  }
-
-  void setSearchRegex(bool value) {
-    if (_searchRegex == value) return;
-    disableAutoScroll();
-    _inlineSearchDebounce?.cancel();
-    _searchRegex = value;
-    _appliedInlineSearchQuery = _inlineSearchQuery;
-    _invalidateSearchMatches();
-    _searchCurrentMatchIndex = 0;
-    _notify();
-  }
-
-  void onSearchNext() {
-    final matches = searchMatchIndices;
-    if (matches.isEmpty) return;
-    disableAutoScroll();
-    _searchCurrentMatchIndex = (_searchCurrentMatchIndex + 1) % matches.length;
-    _notify();
-  }
-
-  void onSearchPrev() {
-    final matches = searchMatchIndices;
-    if (matches.isEmpty) return;
-    disableAutoScroll();
-    _searchCurrentMatchIndex =
-        (_searchCurrentMatchIndex - 1 + matches.length) % matches.length;
-    _notify();
-  }
+  // inline search delegation
+  void setSelectedSearchText(String? value) => inlineSearchCtrl.setSelectedSearchText(value);
+  void toggleSearchBar() => inlineSearchCtrl.toggleSearchBar();
+  void openSearchBar({String? query}) => inlineSearchCtrl.openSearchBar(query: query);
+  void closeSearchBar() => inlineSearchCtrl.closeSearchBar();
+  void activateSearchFromSelection() => inlineSearchCtrl.activateSearchFromSelection();
+  void onInlineSearchChanged(String value) => inlineSearchCtrl.onInlineSearchChanged(value);
+  void setSearchCaseSensitive(bool value) => inlineSearchCtrl.setSearchCaseSensitive(value);
+  void setSearchWholeWord(bool value) => inlineSearchCtrl.setSearchWholeWord(value);
+  void setSearchRegex(bool value) => inlineSearchCtrl.setSearchRegex(value);
+  void onSearchNext() => inlineSearchCtrl.onSearchNext();
+  void onSearchPrev() => inlineSearchCtrl.onSearchPrev();
 
   List<LogEntry> get filteredLogs {
     if (_cachedFilteredLogs != null &&
-        _lastLogsLength == _logsBuffer.size &&
-        _lastFilterQuery == _appliedSearchQuery &&
-        _lastPackageFilterQuery == _appliedPackageFilterQuery &&
-        _lastPidTidFilterQuery == _appliedPidTidFilterQuery &&
-        _lastTagFilterQuery == _appliedTagFilterQuery &&
+        _lastLogsLength == streamCtrl.logsBufferSize &&
+        _lastFilterQuery == filterCtrl.appliedSearchQuery &&
+        _lastPackageFilterQuery == filterCtrl.appliedPackageFilterQuery &&
+        _lastPidTidFilterQuery == filterCtrl.appliedPidTidFilterQuery &&
+        _lastTagFilterQuery == filterCtrl.appliedTagFilterQuery &&
         _lastLogLevel == selectedLogLevel) {
       return _cachedFilteredLogs!;
     }
 
-    _lastLogsLength = _logsBuffer.size;
-    _lastFilterQuery = _appliedSearchQuery;
-    _lastPackageFilterQuery = _appliedPackageFilterQuery;
-    _lastPidTidFilterQuery = _appliedPidTidFilterQuery;
-    _lastTagFilterQuery = _appliedTagFilterQuery;
+    _lastLogsLength = streamCtrl.logsBufferSize;
+    _lastFilterQuery = filterCtrl.appliedSearchQuery;
+    _lastPackageFilterQuery = filterCtrl.appliedPackageFilterQuery;
+    _lastPidTidFilterQuery = filterCtrl.appliedPidTidFilterQuery;
+    _lastTagFilterQuery = filterCtrl.appliedTagFilterQuery;
     _lastLogLevel = selectedLogLevel;
-
-    _cachedFilteredLogs = _logsBuffer.search(_matchesLogFilters);
-
+    _cachedFilteredLogs = streamCtrl.searchLogs(filterCtrl.matchesLogFilters);
     return _cachedFilteredLogs!;
   }
 
-  List<int> get searchMatchIndices {
-    final filtered = filteredLogs;
-    if (_cachedSearchMatchIndices != null &&
-        _smCacheQuery == _appliedInlineSearchQuery &&
-        _smCacheCaseSensitive == _searchCaseSensitive &&
-        _smCacheWholeWord == _searchWholeWord &&
-        _smCacheRegex == _searchRegex &&
-        _smCacheHiddenCols.length == hiddenColumns.length &&
-        _smCacheHiddenCols.containsAll(hiddenColumns) &&
-        _smCacheFilteredLen == filtered.length) {
-      return _cachedSearchMatchIndices!;
-    }
+  List<int> get searchMatchIndices => inlineSearchCtrl.searchMatchIndices;
 
-    _smCacheQuery = _appliedInlineSearchQuery;
-    _smCacheCaseSensitive = _searchCaseSensitive;
-    _smCacheWholeWord = _searchWholeWord;
-    _smCacheRegex = _searchRegex;
-    _smCacheHiddenCols = Set.of(hiddenColumns);
-    _smCacheFilteredLen = filtered.length;
-    _cachedSearchMatchIndices = _computeSearchMatches(filtered);
-    return _cachedSearchMatchIndices!;
+  int currentSearchMatchLogIndex(List<int> matches) =>
+      inlineSearchCtrl.currentSearchMatchLogIndex(matches);
+
+  // logcat delegation
+  Future<void> startLogcat() async {
+    if (selectedDevice == null) return;
+    _exitGetStartedIfWorkspaceReady();
+    rowSelectionCtrl.clearSelectedRows(notify: false);
+    _importedFileName = null;
+    await streamCtrl.start();
   }
 
-  int currentSearchMatchLogIndex(List<int> matches) {
-    if (matches.isEmpty) return -1;
-    return matches[_searchCurrentMatchIndex.clamp(0, matches.length - 1)];
-  }
+  Future<void> stopLogcat() => streamCtrl.stop();
+  void togglePauseResume() => streamCtrl.togglePauseResume();
 
-  String formatBytes(int bytes) {
-    const units = ['B', 'KB', 'MB', 'GB'];
-    var value = bytes.toDouble();
-    var unitIndex = 0;
-
-    while (value >= 1024 && unitIndex < units.length - 1) {
-      value /= 1024;
-      unitIndex++;
-    }
-
-    final precision = value >= 100 || unitIndex == 0 ? 0 : 1;
-    return '${value.toStringAsFixed(precision)} ${units[unitIndex]}';
-  }
-
-  void _invalidateFilteredLogs() {
-    _cachedFilteredLogs = null;
-    _invalidateSearchMatches();
-  }
-
-  void _invalidateSearchMatches() {
-    _cachedSearchMatchIndices = null;
-  }
-
-  void _setInlineSearchQuery(String value, {bool applyImmediately = false}) {
-    _inlineSearchQuery = value;
-    _searchCurrentMatchIndex = 0;
-
-    if (searchController.text != value) {
-      searchController.value = TextEditingValue(
-        text: value,
-        selection: TextSelection.collapsed(offset: value.length),
-      );
-    }
-
-    _inlineSearchDebounce?.cancel();
-    if (applyImmediately) {
-      _appliedInlineSearchQuery = value;
-      _invalidateSearchMatches();
+  Future<void> setSelectedDevice(Device? device) async {
+    if (device == null) {
+      if (selectedDevice == null) return;
+      rowSelectionCtrl.clearSelectedRows(notify: false);
+      selectedDevice = null;
+      if (isRunning) await streamCtrl.stopInternal(resetState: true);
       _notify();
       return;
     }
+    await selectDeviceAndStart(device);
+  }
 
+  Future<void> selectDeviceAndStart(Device device) async {
+    final sameDevice = selectedDevice?.id == device.id;
+    _importedFileName = null;
+    selectedDevice = device;
+    _exitGetStarted();
     _notify();
-    _inlineSearchDebounce = Timer(const Duration(milliseconds: 300), () {
-      if (_disposed) return;
-      _appliedInlineSearchQuery = value;
-      _invalidateSearchMatches();
-      _notify();
-    });
-  }
-
-  void _setFilterField(
-    _LogFilterField field,
-    String value, {
-    bool applyImmediately = false,
-  }) {
-    final selection = TextSelection.collapsed(offset: value.length);
-
-    switch (field) {
-      case _LogFilterField.message:
-        searchQuery = value;
-        if (filterController.text != value) {
-          filterController.value = TextEditingValue(
-            text: value,
-            selection: selection,
-          );
-        }
-        break;
-      case _LogFilterField.packageName:
-        packageFilterQuery = value;
-        if (packageFilterController.text != value) {
-          packageFilterController.value = TextEditingValue(
-            text: value,
-            selection: selection,
-          );
-        }
-        break;
-      case _LogFilterField.pidTid:
-        pidTidFilterQuery = value;
-        if (pidTidFilterController.text != value) {
-          pidTidFilterController.value = TextEditingValue(
-            text: value,
-            selection: selection,
-          );
-        }
-        break;
-      case _LogFilterField.tag:
-        tagFilterQuery = value;
-        if (tagFilterController.text != value) {
-          tagFilterController.value = TextEditingValue(
-            text: value,
-            selection: selection,
-          );
-        }
-        break;
-    }
-
-    if (applyImmediately) {
-      _applyTextFilters();
-      return;
-    }
-
-    _notify();
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      if (_disposed) return;
-      _applyTextFilters();
-    });
-  }
-
-  void _applyTextFilters() {
-    _appliedSearchQuery = searchQuery.trim();
-    _appliedPackageFilterQuery = packageFilterQuery.trim();
-    _appliedPidTidFilterQuery = pidTidFilterQuery.trim();
-    _appliedTagFilterQuery = tagFilterQuery.trim();
-    clearSelectedRows(notify: false);
-
-    _filterSaveDebounceTimer?.cancel();
-    _filterSaveDebounceTimer = Timer(const Duration(milliseconds: 1000), () {
-      _rememberRecentFilterValues();
-    });
-    _syncLogBufferFilter();
-    _invalidateFilteredLogs();
-    _notify();
-  }
-
-  void _rememberRecentFilterValues() {
-    _rememberRecentFilterValue(_recentMessageFilters, _appliedSearchQuery);
-    _rememberRecentFilterValue(
-      _recentPackageFilters,
-      _appliedPackageFilterQuery,
-    );
-    _rememberRecentFilterValue(_recentPidTidFilters, _appliedPidTidFilterQuery);
-    _rememberRecentFilterValue(_recentTagFilters, _appliedTagFilterQuery);
-  }
-
-  void _rememberRecentFilterValue(List<String> recentValues, String value) {
-    final normalized = value.trim();
-    if (normalized.isEmpty) return;
-
-    recentValues.removeWhere(
-      (existing) => existing.toLowerCase() == normalized.toLowerCase(),
-    );
-    recentValues.insert(0, normalized);
-
-    if (recentValues.length > _maxRecentFilterValues) {
-      recentValues.removeRange(_maxRecentFilterValues, recentValues.length);
-    }
-  }
-
-  String _packageFilterValue(LogEntry log) {
-    final packageName = log.packageName?.trim();
-    if (packageName != null && packageName.isNotEmpty) return packageName;
-
-    final processName = log.processName?.trim();
-    if (processName != null && processName.isNotEmpty) return processName;
-
-    return '';
-  }
-
-  bool _matchesPidTidFilter(LogEntry log, String query) {
-    final pid = log.pid.toLowerCase();
-    final tid = log.tid.toLowerCase();
-    return pid.contains(query) ||
-        tid.contains(query) ||
-        '$pid/$tid'.contains(query) ||
-        '$pid:$tid'.contains(query);
-  }
-
-  bool _matchesLogFilters(LogEntry log) {
-    final selectedLevel = effectiveSelectedLogLevel;
-    if (LogLevel.fromStored(log.level).hierarchy > selectedLevel.hierarchy) {
-      return false;
-    }
-
-    final packageQuery = _appliedPackageFilterQuery.toLowerCase();
-    if (packageQuery.isNotEmpty &&
-        !_packageFilterValue(log).toLowerCase().contains(packageQuery)) {
-      return false;
-    }
-
-    final pidTidQuery = _appliedPidTidFilterQuery.toLowerCase();
-    if (pidTidQuery.isNotEmpty && !_matchesPidTidFilter(log, pidTidQuery)) {
-      return false;
-    }
-
-    final tagQuery = _appliedTagFilterQuery.toLowerCase();
-    if (tagQuery.isNotEmpty && !log.tag.toLowerCase().contains(tagQuery)) {
-      return false;
-    }
-
-    final messageQuery = _appliedSearchQuery.toLowerCase();
-    if (messageQuery.isNotEmpty &&
-        !log.message.toLowerCase().contains(messageQuery)) {
-      return false;
-    }
-
-    return true;
-  }
-
-  bool get _hasActiveRetentionFilter {
-    return effectiveSelectedLogLevel.hierarchy < LogLevel.verbose.hierarchy ||
-        _appliedSearchQuery.isNotEmpty ||
-        _appliedPackageFilterQuery.isNotEmpty ||
-        _appliedPidTidFilterQuery.isNotEmpty ||
-        _appliedTagFilterQuery.isNotEmpty;
-  }
-
-  LogFilter<LogEntry>? get _retentionFilter =>
-      _hasActiveRetentionFilter ? _matchesLogFilters : null;
-
-  void _syncLogBufferFilter() {
-    _logsBuffer.setFilter(_retentionFilter);
-  }
-
-  void _replaceStoredLogs(Iterable<LogEntry> entries) {
-    final nextBuffer = LogBuffer<LogEntry>(baseCapacity: logLinesLimit);
-    nextBuffer.setFilter(_retentionFilter);
-    for (final entry in entries) {
-      nextBuffer.append(entry);
-    }
-    nextBuffer.trimToCapacity();
-    _logsBuffer = nextBuffer;
-    _logsMemoryBytes = _estimateLogsBytes(_logsBuffer.getLogs());
-    _invalidateFilteredLogs();
-  }
-
-  void _clearStoredLogs() {
-    _logsBuffer.clear();
-    _logsMemoryBytes = 0;
-    _invalidateFilteredLogs();
-  }
-
-  String _loggingSubjectLabel() {
-    return selectedDevice?.displayLabel.primary ??
-        selectedDevice?.displayName ??
-        selectedDevice?.id ??
-        'device';
-  }
-
-  LogEntry _buildSessionStateEntry(
-    LogEntryType type, {
-    String? message,
-    String? tag,
-  }) {
-    final subject = _loggingSubjectLabel();
-    final effectiveMessage = switch (type) {
-      LogEntryType.started => message ?? 'Started capturing logs for $subject.',
-      LogEntryType.resumed => message ?? 'Resumed live logging for $subject.',
-      LogEntryType.paused => message ?? 'Paused live logging for $subject.',
-      LogEntryType.stopped => message ?? 'Stopped capturing logs for $subject.',
-      LogEntryType.error => message ?? 'A logging error occurred for $subject.',
-      LogEntryType.notice => message ?? 'Logging state updated for $subject.',
-      LogEntryType.log => message ?? '',
-    };
-
-    return LogEntry.loggingState(
-      type: type,
-      tag: tag ?? 'logview session',
-      message: effectiveMessage,
-      packageName: selectedDevice?.id,
-      processName: subject,
-    );
-  }
-
-  void _appendImmediateLogEntry(LogEntry entry) {
-    final evictedLogs = _logsBuffer.append(entry);
-    final addedBytes = _estimateLogEntryBytes(entry);
-    final evictedBytes = _estimateLogsBytes(evictedLogs);
-
-    _logsMemoryBytes += addedBytes - evictedBytes;
-    if (_logsMemoryBytes < 0) {
-      _logsMemoryBytes = 0;
-    }
-
-    if (evictedLogs.isNotEmpty) {
-      clearSelectedRows(notify: false);
-    }
-
-    _invalidateFilteredLogs();
-    _notify();
-
-    if (autoScroll && scrollController.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!scrollController.hasClients) return;
-        scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOut,
-        );
-      });
-    }
-  }
-
-  void _appendSessionStateEntry(
-    LogEntryType type, {
-    String? message,
-    String? tag,
-  }) {
-    _appendImmediateLogEntry(
-      _buildSessionStateEntry(type, message: message, tag: tag),
-    );
-  }
-
-  Future<void> _stopLogcatForDisconnectedDevice(Device device) async {
-    if (!isRunning) return;
-
-    await _stopLogcatInternal(resetState: false);
-    if (_disposed) return;
-
-    logcatState = LogcatState.stopped;
-    _appendSessionStateEntry(
-      LogEntryType.stopped,
-      message: 'Device disconnected; stopped capturing logs for ${device.displayName}.',
-      tag: 'device connection',
-    );
+    if (sameDevice && isRunning) return;
+    await startLogcat();
   }
 
   Future<void> _applyFetchedDevices(
@@ -1100,8 +525,7 @@ class LogTabController extends ChangeNotifier {
       );
     }
 
-    final selectedDeviceJustDisconnected =
-        previousSelectedDevice != null &&
+    final selectedDeviceJustDisconnected = previousSelectedDevice != null &&
         previousSelectedDevice.isConnected &&
         selectedDevice != null &&
         selectedDevice!.isDisconnected;
@@ -1112,11 +536,10 @@ class LogTabController extends ChangeNotifier {
 
     if (currentSelectionId != null && selectedDevice == null) {
       selectedDevice = null;
-      await _stopLogcatInternal(resetState: true);
+      await streamCtrl.stopInternal(resetState: true);
     }
 
-    final shouldAutoStartSingleDevice =
-        autoStartSingleIfAvailable &&
+    final shouldAutoStartSingleDevice = autoStartSingleIfAvailable &&
         !hasLogs &&
         selectedDevice == null &&
         fetchedDevices.where((device) => device.isConnected).length == 1 &&
@@ -1135,190 +558,65 @@ class LogTabController extends ChangeNotifier {
     _exitGetStartedIfWorkspaceReady();
   }
 
-  Future<void> setSelectedDevice(Device? device) async {
-    if (device == null) {
-      if (selectedDevice == null) return;
-      clearSelectedRows(notify: false);
-      selectedDevice = null;
-      if (isRunning) {
-        await _stopLogcatInternal(resetState: true);
-      }
+  Future<void> _stopLogcatForDisconnectedDevice(Device device) async {
+    if (!isRunning) return;
+    await streamCtrl.stopInternal(resetState: false);
+    if (_disposed) return;
+    streamCtrl.logcatState = LogcatState.stopped;
+    streamCtrl.appendSessionStateEntry(
+      LogEntryType.stopped,
+      message:
+          'Device disconnected; stopped capturing logs for ${device.displayName}.',
+      tag: 'device connection',
+    );
+  }
+
+  void _handleDeviceRepositoryChanged() {
+    if (_disposed) return;
+    final nextDevices = _deviceRepository.devices;
+    if (const ListEquality<Device>().equals(devices, nextDevices)) {
       _notify();
       return;
     }
-
-    await selectDeviceAndStart(device);
+    unawaited(_applyRepositoryDevices(nextDevices));
   }
 
-  Future<void> selectDeviceAndStart(Device device) async {
-    final sameDevice = selectedDevice?.id == device.id;
-    _importedFileName = null;
-    selectedDevice = device;
-    _exitGetStarted();
+  Future<void> _applyRepositoryDevices(List<Device> nextDevices) async {
+    await _applyFetchedDevices(nextDevices);
     _notify();
-
-    if (sameDevice && isRunning) return;
-    await startLogcat();
   }
 
-  Future<void> startLogcat() async {
-    if (selectedDevice == null) return;
-    _exitGetStartedIfWorkspaceReady();
-
-    await _stopLogcatInternal(resetState: false);
-    if (_disposed) return;
-
-    clearSelectedRows(notify: false);
-    _importedFileName = null;
-    _clearStoredLogs();
-    _pendingLogs.clear();
-    _pendingLogsMemoryBytes = 0;
-    logcatState = LogcatState.running;
-    _appendSessionStateEntry(LogEntryType.started);
-    _notify();
-
-    _logSub = _deviceSessionService.startLogStream(selectedDevice!).listen((
-      logEntry,
-    ) {
-      if (_disposed) return;
-      if (logEntry.isSpecialEntry) {
-        _appendImmediateLogEntry(logEntry);
-        return;
-      }
-      if (logcatState == LogcatState.paused) return;
-      _pendingLogs.add(logEntry);
-      _pendingLogsMemoryBytes += _estimateLogEntryBytes(logEntry);
-    });
-
-    _flushTimer?.cancel();
-    _flushTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      if (_disposed || _pendingLogs.isEmpty) return;
-
-      final pendingLogs = List<LogEntry>.of(_pendingLogs);
-      final pendingLogsMemoryBytes = _pendingLogsMemoryBytes;
-      _pendingLogs.clear();
-      _pendingLogsMemoryBytes = 0;
-
-      var evictedMemoryBytes = 0;
-      var didEvictStoredLogs = false;
-      for (final logEntry in pendingLogs) {
-        final evictedLogs = _logsBuffer.append(logEntry);
-        if (evictedLogs.isEmpty) continue;
-        didEvictStoredLogs = true;
-        evictedMemoryBytes += _estimateLogsBytes(evictedLogs);
-      }
-
-      _logsMemoryBytes += pendingLogsMemoryBytes - evictedMemoryBytes;
-      if (_logsMemoryBytes < 0) {
-        _logsMemoryBytes = 0;
-      }
-
-      if (didEvictStoredLogs) {
-        clearSelectedRows(notify: false);
-      }
-
-      _invalidateFilteredLogs();
-      _notify();
-
-      if (autoScroll && scrollController.hasClients) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!scrollController.hasClients) return;
-          scrollController.animateTo(
-            scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 100),
-            curve: Curves.easeOut,
-          );
-        });
-      }
-    });
-  }
-
-  Future<void> stopLogcat() => _stopLogcatInternal(resetState: true);
-
-  Future<void> _stopLogcatInternal({required bool resetState}) async {
-    _flushTimer?.cancel();
-    _flushTimer = null;
-
-    await _logSub?.cancel();
-    _logSub = null;
-    await _deviceSessionService.stopActiveLogStream();
-
-    if (resetState && !_disposed) {
-      logcatState = LogcatState.stopped;
-      _appendSessionStateEntry(LogEntryType.stopped);
-      _notify();
+  String formatBytes(int bytes) {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    var value = bytes.toDouble();
+    var unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex++;
     }
+    final precision = value >= 100 || unitIndex == 0 ? 0 : 1;
+    return '${value.toStringAsFixed(precision)} ${units[unitIndex]}';
   }
-
-  void togglePauseResume() {
-    if (!isRunning) return;
-    final wasPaused = isPaused;
-    logcatState = wasPaused ? LogcatState.running : LogcatState.paused;
-    _appendSessionStateEntry(
-      wasPaused ? LogEntryType.resumed : LogEntryType.paused,
-    );
-    _notify();
-  }
-
-  String _logColumnValue(LogEntry log, LogColumn column) => switch (column) {
-    LogColumn.timestamp => log.timestamp,
-    LogColumn.pid => log.packageName ?? log.processName ?? log.pid,
-    LogColumn.tid => log.tid,
-    LogColumn.level => log.isSpecialEntry ? log.typeLabel : log.level,
-    LogColumn.tag => log.tag,
-    LogColumn.message => log.message,
-  };
-
-  List<int> _computeSearchMatches(List<LogEntry> items) {
-    final pattern = inlineSearchPattern;
-    if (!pattern.isActive || !pattern.isValid) return [];
-
-    final visibleColumns = LogColumn.values
-        .where((column) => !hiddenColumns.contains(column.name))
-        .toList();
-
-    final result = <int>[];
-    for (var index = 0; index < items.length; index++) {
-      final log = items[index];
-      if (log.isSpecialEntry) {
-        if (pattern.matches(log.specialSearchableText)) {
-          result.add(index);
-        }
-        continue;
-      }
-      for (final column in visibleColumns) {
-        if (pattern.matches(_logColumnValue(log, column))) {
-          result.add(index);
-          break;
-        }
-      }
-    }
-    return result;
-  }
-
-  List<LogEntry> get _currentLogsSnapshot =>
-      List<LogEntry>.unmodifiable([..._logsBuffer.getLogs(), ..._pendingLogs]);
 
   List<int> _selectionTargetIndicesForCopy(int? clickedFilteredIndex) {
     final filteredSnapshot = filteredLogs;
-    final selectedIndices = _selectedRowIndices
-        .where((index) => _isSelectableFilteredIndex(index, filteredSnapshot))
+    final selectedIndices = rowSelectionCtrl.selectedRowIndices
+        .where((index) =>
+            index >= 0 &&
+            index < filteredSnapshot.length &&
+            filteredSnapshot[index].isUserSelectable)
         .toList()
       ..sort();
 
-    if (clickedFilteredIndex == null) {
-      return selectedIndices;
-    }
+    if (clickedFilteredIndex == null) return selectedIndices;
 
-    final clickedIsCopyable = _isSelectableFilteredIndex(
-      clickedFilteredIndex,
-      filteredSnapshot,
-    );
-    if (!clickedIsCopyable) {
-      return selectedIndices;
-    }
+    final clickedIsCopyable = clickedFilteredIndex >= 0 &&
+        clickedFilteredIndex < filteredSnapshot.length &&
+        filteredSnapshot[clickedFilteredIndex].isUserSelectable;
 
-    if (selectedIndices.isNotEmpty && selectedIndices.contains(clickedFilteredIndex)) {
+    if (!clickedIsCopyable) return selectedIndices;
+    if (selectedIndices.isNotEmpty &&
+        selectedIndices.contains(clickedFilteredIndex)) {
       return selectedIndices;
     }
     return [clickedFilteredIndex];
@@ -1330,7 +628,6 @@ class LogTabController extends ChangeNotifier {
   }) async {
     final snapshot = List<LogEntry>.of(entries);
     if (snapshot.isEmpty) return 0;
-
     final text = formatLogsForClipboard(snapshot, format: format);
     await Clipboard.setData(ClipboardData(text: text));
     return snapshot.length;
@@ -1345,70 +642,19 @@ class LogTabController extends ChangeNotifier {
     };
   }
 
-  int _estimateLogEntryBytes(LogEntry log) {
-    int stringBytes(String value) => value.length * 2;
-
-    return 128 +
-        stringBytes(log.type.name) +
-        stringBytes(log.timestamp) +
-        stringBytes(log.pid) +
-        stringBytes(log.tid) +
-        stringBytes(log.level) +
-        stringBytes(log.tag) +
-        stringBytes(log.message) +
-        stringBytes(log.lowercaseSearchable) +
-        (log.packageName == null ? 0 : stringBytes(log.packageName!));
-  }
-
-  int _estimateLogsBytes(Iterable<LogEntry> entries) {
-    var total = 0;
-    for (final entry in entries) {
-      total += _estimateLogEntryBytes(entry);
-    }
-    return total;
-  }
-
-  void _handleDeviceRepositoryChanged() {
-    if (_disposed) return;
-
-    final nextDevices = _deviceRepository.devices;
-    if (const ListEquality<Device>().equals(devices, nextDevices)) {
-      _notify();
-      return;
-    }
-
-    unawaited(_applyRepositoryDevices(nextDevices));
-  }
-
-  Future<void> _applyRepositoryDevices(List<Device> nextDevices) async {
-    await _applyFetchedDevices(nextDevices);
-    _notify();
-  }
-
   @override
   void dispose() {
     _disposed = true;
     _deviceRepository.removeListener(_handleDeviceRepositoryChanged);
-    _flushTimer?.cancel();
-    _debounceTimer?.cancel();
-    _inlineSearchDebounce?.cancel();
     wirelessController.dispose();
-    unawaited(_logSub?.cancel());
+    filterCtrl.dispose();
+    streamCtrl.dispose();
+    rowSelectionCtrl.dispose();
+    inlineSearchCtrl.dispose();
     unawaited(_deviceSessionService.dispose());
     scrollController.dispose();
-    filterController.dispose();
-    filterFocusNode.dispose();
-    packageFilterController.dispose();
-    packageFilterFocusNode.dispose();
-    pidTidFilterController.dispose();
-    pidTidFilterFocusNode.dispose();
-    tagFilterController.dispose();
-    tagFilterFocusNode.dispose();
-    searchController.dispose();
-    searchFocusNode.dispose();
     logLinesController.dispose();
     super.dispose();
   }
 }
 
-enum _LogFilterField { message, packageName, pidTid, tag }
