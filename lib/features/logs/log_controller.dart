@@ -341,14 +341,22 @@ class LogController extends FeatureController {
   }
 
   void setRowSelectionMode(bool value) {
-    if (_rowSelectionMode == value) return;
-
-    _rowSelectionMode = value;
+    final modeChanged = _setRowSelectionModeInternal(value);
+    if (!modeChanged) return;
     if (!value) {
       clearSelectedRows(notify: false);
     }
     _notify();
   }
+
+
+  bool _setRowSelectionModeInternal(bool value) {
+    if (_rowSelectionMode == value) return false;
+    _rowSelectionMode = value;
+    return true;
+  }
+
+  bool _enableRowSelectionMode() => _setRowSelectionModeInternal(true);
 
   bool isRowSelected(int filteredIndex) {
     return _selectedRowIndices.contains(filteredIndex);
@@ -365,13 +373,15 @@ class LogController extends FeatureController {
   }
 
   bool? beginRowSelectionGesture(
-    int filteredIndex, {
-    bool shiftPressed = false,
-  }) {
+      int filteredIndex, {
+        bool shiftPressed = false,
+      }) {
     if (!_isSelectableFilteredIndex(filteredIndex)) return null;
 
+    final modeChanged = _enableRowSelectionMode();
+
     if (shiftPressed) {
-      selectRowRangeTo(filteredIndex);
+      selectRowRangeTo(filteredIndex, modeChanged: modeChanged);
       return null;
     }
 
@@ -381,7 +391,11 @@ class LogController extends FeatureController {
     final changed = shouldSelect
         ? _selectedRowIndices.add(filteredIndex)
         : _selectedRowIndices.remove(filteredIndex);
-    if (changed || anchorChanged) {
+    final clearedMode =
+    !shouldSelect && _selectedRowIndices.isEmpty
+        ? _setRowSelectionModeInternal(false)
+        : false;
+    if (changed || anchorChanged || modeChanged || clearedMode) {
       _notify();
     }
     return shouldSelect;
@@ -390,10 +404,16 @@ class LogController extends FeatureController {
   void setRowSelected(int filteredIndex, bool selected) {
     if (!_isSelectableFilteredIndex(filteredIndex)) return;
 
+    final modeChanged = selected ? _enableRowSelectionMode() : false;
+
     final changed = selected
         ? _selectedRowIndices.add(filteredIndex)
         : _selectedRowIndices.remove(filteredIndex);
-    if (changed) {
+    final clearedMode =
+    !selected && _selectedRowIndices.isEmpty
+        ? _setRowSelectionModeInternal(false)
+        : false;
+    if (changed || modeChanged || clearedMode) {
       _notify();
     }
   }
@@ -404,24 +424,31 @@ class LogController extends FeatureController {
         .where((index) => _isSelectableFilteredIndex(index, filteredSnapshot))
         .toSet();
     if (const SetEquality<int>().equals(_selectedRowIndices, next)) {
+      final modeChanged = _setRowSelectionModeInternal(next.isNotEmpty);
+      if (modeChanged) {
+        _notify();
+      }
       return;
     }
 
     _selectedRowIndices
       ..clear()
       ..addAll(next);
+    _setRowSelectionModeInternal(next.isNotEmpty);
     _notify();
   }
 
-  void selectRowRangeTo(int filteredIndex) {
+  void selectRowRangeTo(int filteredIndex, {bool modeChanged = false}) {
     final filteredSnapshot = filteredLogs;
     if (!_isSelectableFilteredIndex(filteredIndex, filteredSnapshot)) return;
+
+    modeChanged = _enableRowSelectionMode() || modeChanged;
 
     if (_rowSelectionAnchorIndex == null) {
       final anchorChanged = _rowSelectionAnchorIndex != filteredIndex;
       _rowSelectionAnchorIndex = filteredIndex;
       final changed = _selectedRowIndices.add(filteredIndex);
-      if (changed || anchorChanged) {
+      if (changed || anchorChanged || modeChanged) {
         _notify();
       }
       return;
@@ -436,17 +463,20 @@ class LogController extends FeatureController {
       }
       changed = _selectedRowIndices.add(index) || changed;
     }
-    if (changed) {
+    if (changed || modeChanged) {
       _notify();
     }
   }
 
   void clearSelectedRows({bool notify = true}) {
     final changed =
-        _selectedRowIndices.isNotEmpty || _rowSelectionAnchorIndex != null;
+        _selectedRowIndices.isNotEmpty ||
+            _rowSelectionAnchorIndex != null ||
+            _rowSelectionMode;
     if (!changed) return;
     _selectedRowIndices.clear();
     _rowSelectionAnchorIndex = null;
+    _rowSelectionMode = false;
     if (notify) {
       _notify();
     }
