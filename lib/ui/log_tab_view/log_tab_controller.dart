@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +14,9 @@ import '../../services/device_session_service.dart';
 import '../../services/log_file_service.dart';
 import '../../utils/log_buffer.dart';
 import '../../utils/text_search_pattern.dart';
+import 'controllers/log_tab_filter_controller.dart';
+import 'controllers/log_tab_search_controller.dart';
+import 'controllers/log_tab_selection_controller.dart';
 import '../wireless_connection/wireless_connection_controller.dart';
 
 enum LogcatState { stopped, running, paused }
@@ -22,8 +24,6 @@ enum LogcatState { stopped, running, paused }
 enum LogCopyFormat { messageOnly, timestampAndMessage, fullLine }
 
 class LogTabController extends ChangeNotifier {
-  static const int _maxRecentFilterValues = 8;
-
   LogTabController({
     required this.id,
     required String initialTitle,
@@ -39,6 +39,24 @@ class LogTabController extends ChangeNotifier {
          baseCapacity: initialSettings.logLinesLimit,
        ),
        _deviceSessionService = deviceSessionService ?? DeviceSessionService() {
+    _filterState = LogTabFilterController(
+      onChanged: _notify,
+      onFiltersApplied: () {
+        _syncLogBufferFilter();
+        _invalidateFilteredLogs();
+      },
+      onSelectionCleared: () => clearSelectedRows(notify: false),
+      isDisposed: () => _disposed,
+    );
+    _searchState = LogTabSearchController(
+      onChanged: _notify,
+      onAutoScrollInterrupt: disableAutoScroll,
+      isDisposed: () => _disposed,
+    );
+    _selectionState = LogTabSelectionController(
+      onChanged: _notify,
+      filteredLogsProvider: () => filteredLogs,
+    );
     wirelessController = WirelessConnectionController(
       deviceRepository: _deviceRepository,
       deviceSessionService: _deviceSessionService,
@@ -49,10 +67,6 @@ class LogTabController extends ChangeNotifier {
       selectedDeviceIdProvider: () => selectedDevice?.id,
       isRunningProvider: () => isRunning,
     );
-    filterController.text = searchQuery;
-    packageFilterController.text = packageFilterQuery;
-    pidTidFilterController.text = pidTidFilterQuery;
-    tagFilterController.text = tagFilterQuery;
     logLinesController.text = logLinesLimit.toString();
     devices = _deviceRepository.devices.toList(growable: false);
     _syncLogBufferFilter();
@@ -65,19 +79,12 @@ class LogTabController extends ChangeNotifier {
   final bool Function(String deviceId)? isDeviceSelectedInAnotherTab;
   final DeviceRepository _deviceRepository;
   final DeviceSessionService _deviceSessionService;
+  late final LogTabFilterController _filterState;
+  late final LogTabSearchController _searchState;
+  late final LogTabSelectionController _selectionState;
   late final WirelessConnectionController wirelessController;
 
   final ScrollController scrollController = ScrollController();
-  final TextEditingController filterController = TextEditingController();
-  final FocusNode filterFocusNode = FocusNode();
-  final TextEditingController packageFilterController = TextEditingController();
-  final FocusNode packageFilterFocusNode = FocusNode();
-  final TextEditingController pidTidFilterController = TextEditingController();
-  final FocusNode pidTidFilterFocusNode = FocusNode();
-  final TextEditingController tagFilterController = TextEditingController();
-  final FocusNode tagFilterFocusNode = FocusNode();
-  final TextEditingController searchController = TextEditingController();
-  final FocusNode searchFocusNode = FocusNode();
   final TextEditingController logLinesController = TextEditingController();
 
   LogBuffer<LogEntry> _logsBuffer;
@@ -85,39 +92,11 @@ class LogTabController extends ChangeNotifier {
 
   StreamSubscription<LogEntry>? _logSub;
   Timer? _flushTimer;
-  Timer? _debounceTimer;
-  Timer? _filterSaveDebounceTimer;
-  Timer? _inlineSearchDebounce;
 
   var devices = <Device>[];
   Device? selectedDevice;
 
   var logcatState = LogcatState.stopped;
-  var searchQuery = '';
-  var _appliedSearchQuery = '';
-  var packageFilterQuery = '';
-  var _appliedPackageFilterQuery = '';
-  var pidTidFilterQuery = '';
-  var _appliedPidTidFilterQuery = '';
-  var tagFilterQuery = '';
-  var _appliedTagFilterQuery = '';
-
-  final List<String> _recentMessageFilters = [];
-  final List<String> _recentPackageFilters = [];
-  final List<String> _recentPidTidFilters = [];
-  final List<String> _recentTagFilters = [];
-
-  var _searchBarVisible = false;
-  var _inlineSearchQuery = '';
-  var _appliedInlineSearchQuery = '';
-  var _searchCaseSensitive = false;
-  var _searchWholeWord = false;
-  var _searchRegex = false;
-  var _searchCurrentMatchIndex = 0;
-  String? _selectedSearchText;
-  var _rowSelectionMode = false;
-  final Set<int> _selectedRowIndices = <int>{};
-  int? _rowSelectionAnchorIndex;
 
   var _editingLogLinesLimit = false;
   var _logsMemoryBytes = 0;
@@ -138,14 +117,6 @@ class LogTabController extends ChangeNotifier {
   String _lastTagFilterQuery = '';
   LogLevel _lastLogLevel = LogLevel.verbose;
 
-  List<int>? _cachedSearchMatchIndices;
-  String _smCacheQuery = '';
-  bool _smCacheCaseSensitive = false;
-  bool _smCacheWholeWord = false;
-  bool _smCacheRegex = false;
-  Set<String> _smCacheHiddenCols = {};
-  int _smCacheFilteredLen = -1;
-
   List<LogEntry> get logs => _logsBuffer.getLogs();
 
   set logs(List<LogEntry> value) {
@@ -160,17 +131,33 @@ class LogTabController extends ChangeNotifier {
   }
 
   bool get showGetStarted => _showGetStarted;
-  bool get searchBarVisible => _searchBarVisible;
-  bool get searchCaseSensitive => _searchCaseSensitive;
-  bool get searchWholeWord => _searchWholeWord;
-  bool get searchRegex => _searchRegex;
-  int get searchCurrentMatch => _searchCurrentMatchIndex;
-  String? get selectedSearchText => _selectedSearchText;
-  bool get rowSelectionMode => _rowSelectionMode;
-  Set<int> get selectedRowIndices => Set.unmodifiable(_selectedRowIndices);
-  bool get hasSelectedRows => _selectedRowIndices.isNotEmpty;
-  int get selectedRowCount => _selectedRowIndices.length;
-  int? get rowSelectionAnchorIndex => _rowSelectionAnchorIndex;
+  TextEditingController get filterController => _filterState.messageController;
+  FocusNode get filterFocusNode => _filterState.messageFocusNode;
+  TextEditingController get packageFilterController =>
+      _filterState.packageController;
+  FocusNode get packageFilterFocusNode => _filterState.packageFocusNode;
+  TextEditingController get pidTidFilterController =>
+      _filterState.pidTidController;
+  FocusNode get pidTidFilterFocusNode => _filterState.pidTidFocusNode;
+  TextEditingController get tagFilterController => _filterState.tagController;
+  FocusNode get tagFilterFocusNode => _filterState.tagFocusNode;
+  TextEditingController get searchController => _searchState.searchController;
+  FocusNode get searchFocusNode => _searchState.searchFocusNode;
+  String get searchQuery => _filterState.searchQuery;
+  String get packageFilterQuery => _filterState.packageFilterQuery;
+  String get pidTidFilterQuery => _filterState.pidTidFilterQuery;
+  String get tagFilterQuery => _filterState.tagFilterQuery;
+  bool get searchBarVisible => _searchState.searchBarVisible;
+  bool get searchCaseSensitive => _searchState.searchCaseSensitive;
+  bool get searchWholeWord => _searchState.searchWholeWord;
+  bool get searchRegex => _searchState.searchRegex;
+  int get searchCurrentMatch => _searchState.searchCurrentMatch;
+  String? get selectedSearchText => _searchState.selectedSearchText;
+  bool get rowSelectionMode => _selectionState.rowSelectionMode;
+  Set<int> get selectedRowIndices => _selectionState.selectedRowIndices;
+  bool get hasSelectedRows => _selectionState.hasSelectedRows;
+  int get selectedRowCount => _selectionState.selectedRowCount;
+  int? get rowSelectionAnchorIndex => _selectionState.rowSelectionAnchorIndex;
   bool get editingLogLinesLimit => _editingLogLinesLimit;
   int get logViewerRevision => _logViewerRevision;
   bool get isReadingFromFile => _importedFileName != null;
@@ -182,25 +169,17 @@ class LogTabController extends ChangeNotifier {
   bool get hasConnectedSelectedDevice => selectedDevice?.isConnected == true;
   bool get hasVisibleWorkspace => hasSelectedDevice || hasLogs;
   int get totalLogsMemoryBytes => _logsMemoryBytes + _pendingLogsMemoryBytes;
-  String get appliedInlineSearchQuery => _appliedInlineSearchQuery;
-  String get inlineSearchQuery => _inlineSearchQuery;
-  TextSearchPattern get inlineSearchPattern => TextSearchPattern(
-    query: _appliedInlineSearchQuery,
-    caseSensitive: _searchCaseSensitive,
-    wholeWord: _searchWholeWord,
-    regex: _searchRegex,
-  );
-  bool get inlineSearchHasError => inlineSearchPattern.hasError;
-  String? get inlineSearchErrorText => inlineSearchPattern.errorText;
+  String get appliedInlineSearchQuery => _searchState.appliedInlineSearchQuery;
+  String get inlineSearchQuery => _searchState.inlineSearchQuery;
+  TextSearchPattern get inlineSearchPattern => _searchState.inlineSearchPattern;
+  bool get inlineSearchHasError => _searchState.inlineSearchHasError;
+  String? get inlineSearchErrorText => _searchState.inlineSearchErrorText;
   bool get isLoadingDevices => _deviceRepository.isLoading;
   bool get hasAttemptedDeviceLoad => _deviceRepository.hasAttemptedLoad;
-  List<String> get recentMessageFilters =>
-      List.unmodifiable(_recentMessageFilters);
-  List<String> get recentPackageFilters =>
-      List.unmodifiable(_recentPackageFilters);
-  List<String> get recentPidTidFilters =>
-      List.unmodifiable(_recentPidTidFilters);
-  List<String> get recentTagFilters => List.unmodifiable(_recentTagFilters);
+  List<String> get recentMessageFilters => _filterState.recentMessageFilters;
+  List<String> get recentPackageFilters => _filterState.recentPackageFilters;
+  List<String> get recentPidTidFilters => _filterState.recentPidTidFilters;
+  List<String> get recentTagFilters => _filterState.recentTagFilters;
 
   bool get wrapText => _settings.wrapText;
   bool get autoScroll => _settings.autoScroll;
@@ -251,14 +230,7 @@ class LogTabController extends ChangeNotifier {
   }
 
   void focusFilterInputs() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_disposed) return;
-      filterFocusNode.requestFocus();
-      filterController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: filterController.text.length,
-      );
-    });
+    _filterState.focusPrimaryField();
   }
 
   Future<void> loadDevices({bool autoStartSingleIfAvailable = false}) async {
@@ -317,116 +289,41 @@ class LogTabController extends ChangeNotifier {
   }
 
   void toggleRowSelectionMode() {
-    setRowSelectionMode(!rowSelectionMode);
+    _selectionState.toggleRowSelectionMode();
   }
 
   void setRowSelectionMode(bool value) {
-    if (_rowSelectionMode == value) return;
-
-    _rowSelectionMode = value;
-    if (!value) {
-      clearSelectedRows(notify: false);
-    }
-    _notify();
+    _selectionState.setRowSelectionMode(value);
   }
 
   bool isRowSelected(int filteredIndex) {
-    return _selectedRowIndices.contains(filteredIndex);
-  }
-
-  bool _isSelectableFilteredIndex(int filteredIndex, [List<LogEntry>? snapshot]) {
-    final filteredSnapshot = snapshot ?? filteredLogs;
-    return filteredIndex >= 0 &&
-        filteredIndex < filteredSnapshot.length &&
-        filteredSnapshot[filteredIndex].isUserSelectable;
+    return _selectionState.isRowSelected(filteredIndex);
   }
 
   bool? beginRowSelectionGesture(
     int filteredIndex, {
     bool shiftPressed = false,
   }) {
-    if (!_isSelectableFilteredIndex(filteredIndex)) return null;
-
-    if (shiftPressed) {
-      selectRowRangeTo(filteredIndex);
-      return null;
-    }
-
-    final shouldSelect = !_selectedRowIndices.contains(filteredIndex);
-    final anchorChanged = _rowSelectionAnchorIndex != filteredIndex;
-    _rowSelectionAnchorIndex = filteredIndex;
-    final changed = shouldSelect
-        ? _selectedRowIndices.add(filteredIndex)
-        : _selectedRowIndices.remove(filteredIndex);
-    if (changed || anchorChanged) {
-      _notify();
-    }
-    return shouldSelect;
+    return _selectionState.beginRowSelectionGesture(
+      filteredIndex,
+      shiftPressed: shiftPressed,
+    );
   }
 
   void setRowSelected(int filteredIndex, bool selected) {
-    if (!_isSelectableFilteredIndex(filteredIndex)) return;
-
-    final changed = selected
-        ? _selectedRowIndices.add(filteredIndex)
-        : _selectedRowIndices.remove(filteredIndex);
-    if (changed) {
-      _notify();
-    }
+    _selectionState.setRowSelected(filteredIndex, selected);
   }
 
   void setSelectedRows(Set<int> indices) {
-    final filteredSnapshot = filteredLogs;
-    final next = indices
-        .where((index) => _isSelectableFilteredIndex(index, filteredSnapshot))
-        .toSet();
-    if (const SetEquality<int>().equals(_selectedRowIndices, next)) {
-      return;
-    }
-
-    _selectedRowIndices
-      ..clear()
-      ..addAll(next);
-    _notify();
+    _selectionState.setSelectedRows(indices);
   }
 
   void selectRowRangeTo(int filteredIndex) {
-    final filteredSnapshot = filteredLogs;
-    if (!_isSelectableFilteredIndex(filteredIndex, filteredSnapshot)) return;
-
-    if (_rowSelectionAnchorIndex == null) {
-      final anchorChanged = _rowSelectionAnchorIndex != filteredIndex;
-      _rowSelectionAnchorIndex = filteredIndex;
-      final changed = _selectedRowIndices.add(filteredIndex);
-      if (changed || anchorChanged) {
-        _notify();
-      }
-      return;
-    }
-
-    final start = math.min(_rowSelectionAnchorIndex!, filteredIndex);
-    final end = math.max(_rowSelectionAnchorIndex!, filteredIndex);
-    var changed = false;
-    for (var index = start; index <= end; index++) {
-      if (!_isSelectableFilteredIndex(index, filteredSnapshot)) {
-        continue;
-      }
-      changed = _selectedRowIndices.add(index) || changed;
-    }
-    if (changed) {
-      _notify();
-    }
+    _selectionState.selectRowRangeTo(filteredIndex);
   }
 
   void clearSelectedRows({bool notify = true}) {
-    final changed =
-        _selectedRowIndices.isNotEmpty || _rowSelectionAnchorIndex != null;
-    if (!changed) return;
-    _selectedRowIndices.clear();
-    _rowSelectionAnchorIndex = null;
-    if (notify) {
-      _notify();
-    }
+    _selectionState.clearSelectedRows(notify: notify);
   }
 
   Future<int> copyAllLogs() {
@@ -440,7 +337,7 @@ class LogTabController extends ChangeNotifier {
     required int? clickedFilteredIndex,
     required LogCopyFormat format,
   }) {
-    final selectedIndices = _selectionTargetIndicesForCopy(
+    final selectedIndices = _selectionState.selectionTargetIndicesForCopy(
       clickedFilteredIndex,
     );
     return copyFilteredRows(selectedIndices, format: format);
@@ -476,62 +373,43 @@ class LogTabController extends ChangeNotifier {
   }
 
   void clearFilter() {
-    _debounceTimer?.cancel();
-    _filterSaveDebounceTimer?.cancel();
-    clearSelectedRows(notify: false);
-    filterController.clear();
-    packageFilterController.clear();
-    pidTidFilterController.clear();
-    tagFilterController.clear();
-    searchQuery = '';
-    _appliedSearchQuery = '';
-    packageFilterQuery = '';
-    _appliedPackageFilterQuery = '';
-    pidTidFilterQuery = '';
-    _appliedPidTidFilterQuery = '';
-    tagFilterQuery = '';
-    _appliedTagFilterQuery = '';
-    _syncLogBufferFilter();
-    _invalidateFilteredLogs();
-    focusFilterInputs();
-    _notify();
+    _filterState.clear();
   }
 
   void onSearchChanged(String value) {
-    _setFilterField(_LogFilterField.message, value);
+    _filterState.onSearchChanged(value);
   }
 
   void onPackageFilterChanged(String value) {
-    _setFilterField(_LogFilterField.packageName, value);
+    _filterState.onPackageFilterChanged(value);
   }
 
   void onPidTidFilterChanged(String value) {
-    _setFilterField(_LogFilterField.pidTid, value);
+    _filterState.onPidTidFilterChanged(value);
   }
 
   void onTagFilterChanged(String value) {
-    _setFilterField(_LogFilterField.tag, value);
+    _filterState.onTagFilterChanged(value);
   }
 
   void selectMessageFilterSuggestion(String value) {
-    _setFilterField(_LogFilterField.message, value, applyImmediately: true);
+    _filterState.selectMessageFilterSuggestion(value);
   }
 
   void selectPackageFilterSuggestion(String value) {
-    _setFilterField(_LogFilterField.packageName, value, applyImmediately: true);
+    _filterState.selectPackageFilterSuggestion(value);
   }
 
   void selectPidTidFilterSuggestion(String value) {
-    _setFilterField(_LogFilterField.pidTid, value, applyImmediately: true);
+    _filterState.selectPidTidFilterSuggestion(value);
   }
 
   void selectTagFilterSuggestion(String value) {
-    _setFilterField(_LogFilterField.tag, value, applyImmediately: true);
+    _filterState.selectTagFilterSuggestion(value);
   }
 
   void applyFiltersNow() {
-    _debounceTimer?.cancel();
-    _applyTextFilters();
+    _filterState.applyFiltersNow();
   }
 
   void setSelectedLogLevel(LogLevel level) {
@@ -551,13 +429,7 @@ class LogTabController extends ChangeNotifier {
   }
 
   void setSelectedSearchText(String? value) {
-    final normalized = value?.trim();
-    final nextValue = normalized == null || normalized.isEmpty
-        ? null
-        : normalized;
-    if (_selectedSearchText == nextValue) return;
-    _selectedSearchText = nextValue;
-    _notify();
+    _searchState.setSelectedSearchText(value);
   }
 
   void setHiddenColumns(Set<String> columns) {
@@ -602,137 +474,63 @@ class LogTabController extends ChangeNotifier {
   }
 
   void toggleSearchBar() {
-    if (_searchBarVisible) {
-      closeSearchBar();
-    } else {
-      openSearchBar();
-    }
+    _searchState.toggleSearchBar();
   }
 
   void openSearchBar({String? query}) {
-    _inlineSearchDebounce?.cancel();
-    disableAutoScroll();
-
-    if (query != null) {
-      _setInlineSearchQuery(query, applyImmediately: true);
-    }
-
-    if (!_searchBarVisible) {
-      _searchBarVisible = true;
-      _notify();
-    }
-
-    _focusSearchField();
+    _searchState.openSearchBar(query: query);
   }
 
   void closeSearchBar() {
-    if (!_searchBarVisible) return;
-
-    _inlineSearchDebounce?.cancel();
-    _searchBarVisible = false;
-    _inlineSearchQuery = '';
-    _appliedInlineSearchQuery = '';
-    searchController.clear();
-    _invalidateSearchMatches();
-    _searchCurrentMatchIndex = 0;
-    _notify();
+    _searchState.closeSearchBar();
   }
 
   void activateSearchFromSelection() {
-    final selectedText = _selectedSearchText;
-    if (selectedText != null) {
-      unawaited(Clipboard.setData(ClipboardData(text: selectedText)));
-      openSearchBar(query: selectedText);
-      return;
-    }
-
-    openSearchBar();
-  }
-
-  void _focusSearchField() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_disposed) return;
-      searchFocusNode.requestFocus();
-      searchController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: searchController.text.length,
-      );
-    });
+    _searchState.activateSearchFromSelection();
   }
 
   void onInlineSearchChanged(String value) {
-    if (value.isNotEmpty) {
-      disableAutoScroll();
-    }
-    _setInlineSearchQuery(value);
+    _searchState.onInlineSearchChanged(value);
   }
 
   void setSearchCaseSensitive(bool value) {
-    if (_searchCaseSensitive == value) return;
-    disableAutoScroll();
-    _inlineSearchDebounce?.cancel();
-    _searchCaseSensitive = value;
-    _appliedInlineSearchQuery = _inlineSearchQuery;
-    _invalidateSearchMatches();
-    _searchCurrentMatchIndex = 0;
-    _notify();
+    _searchState.setSearchCaseSensitive(value);
   }
 
   void setSearchWholeWord(bool value) {
-    if (_searchWholeWord == value) return;
-    disableAutoScroll();
-    _inlineSearchDebounce?.cancel();
-    _searchWholeWord = value;
-    _appliedInlineSearchQuery = _inlineSearchQuery;
-    _invalidateSearchMatches();
-    _searchCurrentMatchIndex = 0;
-    _notify();
+    _searchState.setSearchWholeWord(value);
   }
 
   void setSearchRegex(bool value) {
-    if (_searchRegex == value) return;
-    disableAutoScroll();
-    _inlineSearchDebounce?.cancel();
-    _searchRegex = value;
-    _appliedInlineSearchQuery = _inlineSearchQuery;
-    _invalidateSearchMatches();
-    _searchCurrentMatchIndex = 0;
-    _notify();
+    _searchState.setSearchRegex(value);
   }
 
   void onSearchNext() {
     final matches = searchMatchIndices;
-    if (matches.isEmpty) return;
-    disableAutoScroll();
-    _searchCurrentMatchIndex = (_searchCurrentMatchIndex + 1) % matches.length;
-    _notify();
+    _searchState.onSearchNext(matches);
   }
 
   void onSearchPrev() {
     final matches = searchMatchIndices;
-    if (matches.isEmpty) return;
-    disableAutoScroll();
-    _searchCurrentMatchIndex =
-        (_searchCurrentMatchIndex - 1 + matches.length) % matches.length;
-    _notify();
+    _searchState.onSearchPrev(matches);
   }
 
   List<LogEntry> get filteredLogs {
     if (_cachedFilteredLogs != null &&
         _lastLogsLength == _logsBuffer.size &&
-        _lastFilterQuery == _appliedSearchQuery &&
-        _lastPackageFilterQuery == _appliedPackageFilterQuery &&
-        _lastPidTidFilterQuery == _appliedPidTidFilterQuery &&
-        _lastTagFilterQuery == _appliedTagFilterQuery &&
+        _lastFilterQuery == _filterState.appliedSearchQuery &&
+        _lastPackageFilterQuery == _filterState.appliedPackageFilterQuery &&
+        _lastPidTidFilterQuery == _filterState.appliedPidTidFilterQuery &&
+        _lastTagFilterQuery == _filterState.appliedTagFilterQuery &&
         _lastLogLevel == selectedLogLevel) {
       return _cachedFilteredLogs!;
     }
 
     _lastLogsLength = _logsBuffer.size;
-    _lastFilterQuery = _appliedSearchQuery;
-    _lastPackageFilterQuery = _appliedPackageFilterQuery;
-    _lastPidTidFilterQuery = _appliedPidTidFilterQuery;
-    _lastTagFilterQuery = _appliedTagFilterQuery;
+    _lastFilterQuery = _filterState.appliedSearchQuery;
+    _lastPackageFilterQuery = _filterState.appliedPackageFilterQuery;
+    _lastPidTidFilterQuery = _filterState.appliedPidTidFilterQuery;
+    _lastTagFilterQuery = _filterState.appliedTagFilterQuery;
     _lastLogLevel = selectedLogLevel;
 
     _cachedFilteredLogs = _logsBuffer.search(_matchesLogFilters);
@@ -741,31 +539,14 @@ class LogTabController extends ChangeNotifier {
   }
 
   List<int> get searchMatchIndices {
-    final filtered = filteredLogs;
-    if (_cachedSearchMatchIndices != null &&
-        _smCacheQuery == _appliedInlineSearchQuery &&
-        _smCacheCaseSensitive == _searchCaseSensitive &&
-        _smCacheWholeWord == _searchWholeWord &&
-        _smCacheRegex == _searchRegex &&
-        _smCacheHiddenCols.length == hiddenColumns.length &&
-        _smCacheHiddenCols.containsAll(hiddenColumns) &&
-        _smCacheFilteredLen == filtered.length) {
-      return _cachedSearchMatchIndices!;
-    }
-
-    _smCacheQuery = _appliedInlineSearchQuery;
-    _smCacheCaseSensitive = _searchCaseSensitive;
-    _smCacheWholeWord = _searchWholeWord;
-    _smCacheRegex = _searchRegex;
-    _smCacheHiddenCols = Set.of(hiddenColumns);
-    _smCacheFilteredLen = filtered.length;
-    _cachedSearchMatchIndices = _computeSearchMatches(filtered);
-    return _cachedSearchMatchIndices!;
+    return _searchState.searchMatchIndices(
+      filteredLogs: filteredLogs,
+      hiddenColumns: hiddenColumns,
+    );
   }
 
   int currentSearchMatchLogIndex(List<int> matches) {
-    if (matches.isEmpty) return -1;
-    return matches[_searchCurrentMatchIndex.clamp(0, matches.length - 1)];
+    return _searchState.currentSearchMatchLogIndex(matches);
   }
 
   String formatBytes(int bytes) {
@@ -788,196 +569,22 @@ class LogTabController extends ChangeNotifier {
   }
 
   void _invalidateSearchMatches() {
-    _cachedSearchMatchIndices = null;
-  }
-
-  void _setInlineSearchQuery(String value, {bool applyImmediately = false}) {
-    _inlineSearchQuery = value;
-    _searchCurrentMatchIndex = 0;
-
-    if (searchController.text != value) {
-      searchController.value = TextEditingValue(
-        text: value,
-        selection: TextSelection.collapsed(offset: value.length),
-      );
-    }
-
-    _inlineSearchDebounce?.cancel();
-    if (applyImmediately) {
-      _appliedInlineSearchQuery = value;
-      _invalidateSearchMatches();
-      _notify();
-      return;
-    }
-
-    _notify();
-    _inlineSearchDebounce = Timer(const Duration(milliseconds: 300), () {
-      if (_disposed) return;
-      _appliedInlineSearchQuery = value;
-      _invalidateSearchMatches();
-      _notify();
-    });
-  }
-
-  void _setFilterField(
-    _LogFilterField field,
-    String value, {
-    bool applyImmediately = false,
-  }) {
-    final selection = TextSelection.collapsed(offset: value.length);
-
-    switch (field) {
-      case _LogFilterField.message:
-        searchQuery = value;
-        if (filterController.text != value) {
-          filterController.value = TextEditingValue(
-            text: value,
-            selection: selection,
-          );
-        }
-        break;
-      case _LogFilterField.packageName:
-        packageFilterQuery = value;
-        if (packageFilterController.text != value) {
-          packageFilterController.value = TextEditingValue(
-            text: value,
-            selection: selection,
-          );
-        }
-        break;
-      case _LogFilterField.pidTid:
-        pidTidFilterQuery = value;
-        if (pidTidFilterController.text != value) {
-          pidTidFilterController.value = TextEditingValue(
-            text: value,
-            selection: selection,
-          );
-        }
-        break;
-      case _LogFilterField.tag:
-        tagFilterQuery = value;
-        if (tagFilterController.text != value) {
-          tagFilterController.value = TextEditingValue(
-            text: value,
-            selection: selection,
-          );
-        }
-        break;
-    }
-
-    if (applyImmediately) {
-      _applyTextFilters();
-      return;
-    }
-
-    _notify();
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      if (_disposed) return;
-      _applyTextFilters();
-    });
-  }
-
-  void _applyTextFilters() {
-    _appliedSearchQuery = searchQuery.trim();
-    _appliedPackageFilterQuery = packageFilterQuery.trim();
-    _appliedPidTidFilterQuery = pidTidFilterQuery.trim();
-    _appliedTagFilterQuery = tagFilterQuery.trim();
-    clearSelectedRows(notify: false);
-
-    _filterSaveDebounceTimer?.cancel();
-    _filterSaveDebounceTimer = Timer(const Duration(milliseconds: 1000), () {
-      _rememberRecentFilterValues();
-    });
-    _syncLogBufferFilter();
-    _invalidateFilteredLogs();
-    _notify();
-  }
-
-  void _rememberRecentFilterValues() {
-    _rememberRecentFilterValue(_recentMessageFilters, _appliedSearchQuery);
-    _rememberRecentFilterValue(
-      _recentPackageFilters,
-      _appliedPackageFilterQuery,
-    );
-    _rememberRecentFilterValue(_recentPidTidFilters, _appliedPidTidFilterQuery);
-    _rememberRecentFilterValue(_recentTagFilters, _appliedTagFilterQuery);
-  }
-
-  void _rememberRecentFilterValue(List<String> recentValues, String value) {
-    final normalized = value.trim();
-    if (normalized.isEmpty) return;
-
-    recentValues.removeWhere(
-      (existing) => existing.toLowerCase() == normalized.toLowerCase(),
-    );
-    recentValues.insert(0, normalized);
-
-    if (recentValues.length > _maxRecentFilterValues) {
-      recentValues.removeRange(_maxRecentFilterValues, recentValues.length);
-    }
-  }
-
-  String _packageFilterValue(LogEntry log) {
-    final packageName = log.packageName?.trim();
-    if (packageName != null && packageName.isNotEmpty) return packageName;
-
-    final processName = log.processName?.trim();
-    if (processName != null && processName.isNotEmpty) return processName;
-
-    return '';
-  }
-
-  bool _matchesPidTidFilter(LogEntry log, String query) {
-    final pid = log.pid.toLowerCase();
-    final tid = log.tid.toLowerCase();
-    return pid.contains(query) ||
-        tid.contains(query) ||
-        '$pid/$tid'.contains(query) ||
-        '$pid:$tid'.contains(query);
+    _searchState.invalidateSearchMatches();
   }
 
   bool _matchesLogFilters(LogEntry log) {
-    final selectedLevel = effectiveSelectedLogLevel;
-    if (LogLevel.fromStored(log.level).hierarchy > selectedLevel.hierarchy) {
-      return false;
-    }
-
-    final packageQuery = _appliedPackageFilterQuery.toLowerCase();
-    if (packageQuery.isNotEmpty &&
-        !_packageFilterValue(log).toLowerCase().contains(packageQuery)) {
-      return false;
-    }
-
-    final pidTidQuery = _appliedPidTidFilterQuery.toLowerCase();
-    if (pidTidQuery.isNotEmpty && !_matchesPidTidFilter(log, pidTidQuery)) {
-      return false;
-    }
-
-    final tagQuery = _appliedTagFilterQuery.toLowerCase();
-    if (tagQuery.isNotEmpty && !log.tag.toLowerCase().contains(tagQuery)) {
-      return false;
-    }
-
-    final messageQuery = _appliedSearchQuery.toLowerCase();
-    if (messageQuery.isNotEmpty &&
-        !log.message.toLowerCase().contains(messageQuery)) {
-      return false;
-    }
-
-    return true;
+    return _filterState.matchesLog(
+      log,
+      selectedLevel: effectiveSelectedLogLevel,
+    );
   }
 
   bool get _hasActiveRetentionFilter {
-    return effectiveSelectedLogLevel.hierarchy < LogLevel.verbose.hierarchy ||
-        _appliedSearchQuery.isNotEmpty ||
-        _appliedPackageFilterQuery.isNotEmpty ||
-        _appliedPidTidFilterQuery.isNotEmpty ||
-        _appliedTagFilterQuery.isNotEmpty;
+    return _filterState.hasActiveRetentionFilter(effectiveSelectedLogLevel);
   }
 
   LogFilter<LogEntry>? get _retentionFilter =>
-      _hasActiveRetentionFilter ? _matchesLogFilters : null;
+      _filterState.retentionFilter(effectiveSelectedLogLevel);
 
   void _syncLogBufferFilter() {
     _logsBuffer.setFilter(_retentionFilter);
@@ -1081,7 +688,8 @@ class LogTabController extends ChangeNotifier {
     logcatState = LogcatState.stopped;
     _appendSessionStateEntry(
       LogEntryType.stopped,
-      message: 'Device disconnected; stopped capturing logs for ${device.displayName}.',
+      message:
+          'Device disconnected; stopped capturing logs for ${device.displayName}.',
       tag: 'device connection',
     );
   }
@@ -1260,69 +868,8 @@ class LogTabController extends ChangeNotifier {
     _notify();
   }
 
-  String _logColumnValue(LogEntry log, LogColumn column) => switch (column) {
-    LogColumn.timestamp => log.timestamp,
-    LogColumn.pid => log.packageName ?? log.processName ?? log.pid,
-    LogColumn.tid => log.tid,
-    LogColumn.level => log.isSpecialEntry ? log.typeLabel : log.level,
-    LogColumn.tag => log.tag,
-    LogColumn.message => log.message,
-  };
-
-  List<int> _computeSearchMatches(List<LogEntry> items) {
-    final pattern = inlineSearchPattern;
-    if (!pattern.isActive || !pattern.isValid) return [];
-
-    final visibleColumns = LogColumn.values
-        .where((column) => !hiddenColumns.contains(column.name))
-        .toList();
-
-    final result = <int>[];
-    for (var index = 0; index < items.length; index++) {
-      final log = items[index];
-      if (log.isSpecialEntry) {
-        if (pattern.matches(log.specialSearchableText)) {
-          result.add(index);
-        }
-        continue;
-      }
-      for (final column in visibleColumns) {
-        if (pattern.matches(_logColumnValue(log, column))) {
-          result.add(index);
-          break;
-        }
-      }
-    }
-    return result;
-  }
-
   List<LogEntry> get _currentLogsSnapshot =>
       List<LogEntry>.unmodifiable([..._logsBuffer.getLogs(), ..._pendingLogs]);
-
-  List<int> _selectionTargetIndicesForCopy(int? clickedFilteredIndex) {
-    final filteredSnapshot = filteredLogs;
-    final selectedIndices = _selectedRowIndices
-        .where((index) => _isSelectableFilteredIndex(index, filteredSnapshot))
-        .toList()
-      ..sort();
-
-    if (clickedFilteredIndex == null) {
-      return selectedIndices;
-    }
-
-    final clickedIsCopyable = _isSelectableFilteredIndex(
-      clickedFilteredIndex,
-      filteredSnapshot,
-    );
-    if (!clickedIsCopyable) {
-      return selectedIndices;
-    }
-
-    if (selectedIndices.isNotEmpty && selectedIndices.contains(clickedFilteredIndex)) {
-      return selectedIndices;
-    }
-    return [clickedFilteredIndex];
-  }
 
   Future<int> _copyLogsToClipboard(
     Iterable<LogEntry> entries, {
@@ -1390,25 +937,13 @@ class LogTabController extends ChangeNotifier {
     _disposed = true;
     _deviceRepository.removeListener(_handleDeviceRepositoryChanged);
     _flushTimer?.cancel();
-    _debounceTimer?.cancel();
-    _inlineSearchDebounce?.cancel();
     wirelessController.dispose();
+    _filterState.dispose();
+    _searchState.dispose();
     unawaited(_logSub?.cancel());
     unawaited(_deviceSessionService.dispose());
     scrollController.dispose();
-    filterController.dispose();
-    filterFocusNode.dispose();
-    packageFilterController.dispose();
-    packageFilterFocusNode.dispose();
-    pidTidFilterController.dispose();
-    pidTidFilterFocusNode.dispose();
-    tagFilterController.dispose();
-    tagFilterFocusNode.dispose();
-    searchController.dispose();
-    searchFocusNode.dispose();
     logLinesController.dispose();
     super.dispose();
   }
 }
-
-enum _LogFilterField { message, packageName, pidTid, tag }
