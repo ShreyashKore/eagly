@@ -41,19 +41,17 @@ class LogViewerHeader extends StatelessWidget {
         height: 28,
         child: Row(
           children: [
-            if (rowSelectionMode) ...[
-              SizedBox(
-                width: kSelectionColumnWidth,
-                child: Center(
-                  child: Icon(
-                    Icons.checklist_rounded,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+            SizedBox(
+              width: kSelectionColumnWidth,
+              child: Center(
+                child: Icon(
+                  Icons.checklist_rounded,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(width: kColumnSpacing),
-            ],
+            ),
+            const SizedBox(width: kColumnSpacing),
             for (final column in visibleFixedColumns) ...[
               _HeaderCell(
                 text: column.labelFor(isIos: isIos),

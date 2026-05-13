@@ -80,7 +80,6 @@ List<ContextMenuButtonItem> buildLogViewerContextMenuItems({
 }
 
 class LogViewer extends StatefulWidget {
-  static const double selectionColumnWidth = 40;
   static const double columnSpacing = 8;
   static const double defaultUnwrappedMessageWidth = 1000;
 
@@ -96,6 +95,7 @@ class LogViewer extends StatefulWidget {
   final Future<void> Function(int? index, LogViewerCopyAction action)?
   onRowCopyAction;
   final VoidCallback? onToggleRowSelectionMode;
+  final VoidCallback? onClearRowSelection;
 
   /// The active inline search configuration (separate from the filter bar).
   final TextSearchConfig search;
@@ -135,6 +135,7 @@ class LogViewer extends StatefulWidget {
     this.onRowSelectionChanged,
     this.onRowCopyAction,
     this.onToggleRowSelectionMode,
+    this.onClearRowSelection,
     this.search = const TextSearchConfig(),
     this.currentMatchLogIndex,
     this.onSelectedTextChanged,
@@ -183,6 +184,9 @@ class _LogViewerState extends State<LogViewer> {
   TextStyle _applyFont(TextStyle base) =>
       base.copyWith(fontSize: PreferencesService.logFontSize);
 
+  bool get _textSelectionEnabled =>
+      widget.selectedRowIndices.isEmpty && !_isDraggingRowSelection;
+
   TextSearchPattern get _searchPattern =>
       TextSearchPattern.fromConfig(widget.search);
 
@@ -223,6 +227,9 @@ class _LogViewerState extends State<LogViewer> {
     }
     if (!widget.rowSelectionMode && old.rowSelectionMode) {
       _resetDragSelectionState();
+    }
+    if (widget.selectedRowIndices.isNotEmpty && old.selectedRowIndices.isEmpty) {
+      widget.onSelectedTextChanged?.call(null);
     }
   }
 
@@ -319,9 +326,7 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   double get _fixedColumnsExtent {
-    var width = widget.rowSelectionMode
-        ? kSelectionColumnWidth + kColumnSpacing
-        : 0.0;
+    var width = kSelectionColumnWidth + kColumnSpacing;
     for (final col in _visibleFixedColumns) {
       width += _widthOf(col) + kColumnSpacing;
     }
@@ -341,11 +346,11 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   void _startRowSelectionDrag(int index, PointerDownEvent event) {
-    if (!widget.rowSelectionMode) {
+    if ((event.buttons & kPrimaryButton) == 0) {
       _endRowSelectionDrag(event.pointer);
       return;
     }
-    if ((event.buttons & kPrimaryButton) == 0) {
+    if (widget.onRowSelectionStart == null) {
       _endRowSelectionDrag(event.pointer);
       return;
     }
@@ -389,7 +394,7 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   void _extendRowSelectionDrag(int index, PointerMoveEvent event) {
-    if (!widget.rowSelectionMode) {
+    if (!widget.rowSelectionMode && !_isDraggingRowSelection) {
       _endRowSelectionDrag(event.pointer);
       return;
     }
@@ -433,9 +438,7 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   double _columnStart(LogColumn column) {
-    var offset = widget.rowSelectionMode
-        ? kSelectionColumnWidth + kColumnSpacing
-        : 0.0;
+    var offset = kSelectionColumnWidth + kColumnSpacing;
 
     for (final visibleColumn in _visibleFixedColumns) {
       if (visibleColumn == column) {
@@ -709,8 +712,14 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   Rect? _measureRowRect(BuildContext rowContext) {
-    final viewportRenderBox =
-        _rowViewportKey.currentContext?.findRenderObject() as RenderBox?;
+    final viewportContext = _rowViewportKey.currentContext;
+    if (!mounted || viewportContext == null || !viewportContext.mounted) {
+      return null;
+    }
+    if (!rowContext.mounted) {
+      return null;
+    }
+    final viewportRenderBox = viewportContext.findRenderObject() as RenderBox?;
     final rowRenderBox = rowContext.findRenderObject() as RenderBox?;
     if (viewportRenderBox == null ||
         rowRenderBox == null ||
@@ -731,8 +740,11 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   Offset? _globalToViewportLocal(Offset globalPosition) {
-    final viewportRenderBox =
-        _rowViewportKey.currentContext?.findRenderObject() as RenderBox?;
+    final viewportContext = _rowViewportKey.currentContext;
+    if (!mounted || viewportContext == null || !viewportContext.mounted) {
+      return null;
+    }
+    final viewportRenderBox = viewportContext.findRenderObject() as RenderBox?;
     if (viewportRenderBox == null || !viewportRenderBox.attached) {
       return null;
     }
@@ -877,6 +889,87 @@ class _LogViewerState extends State<LogViewer> {
     );
   }
 
+  Future<void> _showRowCopyMenu({
+    required Offset globalPosition,
+    required int index,
+  }) async {
+    final action = await showMenu<LogViewerCopyAction>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        globalPosition.dx,
+        globalPosition.dy,
+        globalPosition.dx,
+        globalPosition.dy,
+      ),
+      items: const [
+        PopupMenuItem(
+          value: LogViewerCopyAction.copyRow,
+          child: Text('Copy'),
+        ),
+        PopupMenuItem(
+          value: LogViewerCopyAction.copyMessage,
+          child: Text('Copy message'),
+        ),
+        PopupMenuItem(
+          value: LogViewerCopyAction.copyTimestampAndMessage,
+          child: Text('Copy time + message'),
+        ),
+      ],
+    );
+    if (action == null) return;
+    await widget.onRowCopyAction?.call(index, action);
+  }
+
+  Widget _buildRowSelectionToolbar() {
+    final count = widget.selectedRowIndices.length;
+    final theme = Theme.of(context);
+
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Material(
+          key: const ValueKey('row-selection-toolbar'),
+          elevation: 6,
+          color: theme.colorScheme.surfaceContainerHigh,
+          shadowColor: Colors.black.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    count == 1 ? '1 row selected' : '$count rows selected',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.tonalIcon(
+                  onPressed: widget.onClearRowSelection,
+                  icon: const Icon(Icons.deselect_outlined),
+                  label: const Text('Clear'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -885,6 +978,22 @@ class _LogViewerState extends State<LogViewer> {
         final messageWidth = _messageColumnWidth(viewportWidth);
         final contentWidth = _contentWidth(viewportWidth);
         final logViewport = _buildLogViewport(messageWidth);
+        final interactiveViewport = _textSelectionEnabled
+            ? SelectionArea(
+                key: const ValueKey('log-viewer-selection-area'),
+                onSelectionChanged: (selectedContent) {
+                  widget.onSelectedTextChanged?.call(
+                    selectedContent?.plainText,
+                  );
+                },
+                contextMenuBuilder: (ctx, selectableRegionState) {
+                  return AdaptiveTextSelectionToolbar.selectableRegion(
+                    selectableRegionState: selectableRegionState,
+                  );
+                },
+                child: logViewport,
+              )
+            : logViewport;
 
         return Stack(
           children: [
@@ -1031,6 +1140,7 @@ class _LogViewerState extends State<LogViewer> {
                 ),
               ),
             ),
+            if (widget.selectedRowIndices.isNotEmpty) _buildRowSelectionToolbar(),
           ],
         );
       },
@@ -1061,7 +1171,6 @@ class _LogViewerState extends State<LogViewer> {
       log: log,
       index: index,
       messageWidth: messageWidth,
-      rowSelectionMode: widget.rowSelectionMode,
       isSelected: widget.selectedRowIndices.contains(index),
       widthOf: _widthOf,
       isVisible: _isVisible,
@@ -1070,9 +1179,14 @@ class _LogViewerState extends State<LogViewer> {
       currentMatchLogIndex: widget.currentMatchLogIndex,
       wrapText: widget.wrapText,
       monoStyle: _monoStyle,
+      wholeRowSelectionEnabled: widget.rowSelectionMode,
       allowSelectionStart: log.isUserSelectable,
+      onRowSelectionChanged: () => widget.onRowSelectionChanged?.call(index, false),
       onSelectionPointerDown: (event) => _startRowSelectionDrag(index, event),
       onSelectionPointerMove: (event) => _extendRowSelectionDrag(index, event),
+      onRowContextMenuRequested: (globalPosition) {
+        _showRowCopyMenu(globalPosition: globalPosition, index: index);
+      },
       contentValueForColumn: (col) => log.valueForColumn(col, isIos: widget.isIos),
     );
   }
@@ -1084,7 +1198,7 @@ class _LogViewerState extends State<LogViewer> {
       fit: StackFit.expand,
       children: [
         _buildLogList(messageWidth),
-        if (widget.rowSelectionMode && selectionRect != null)
+        if (selectionRect != null)
           Positioned.fromRect(
             rect: selectionRect,
             child: IgnorePointer(

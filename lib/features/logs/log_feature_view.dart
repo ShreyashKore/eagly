@@ -341,6 +341,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
           controller.searchBarVisible && controller.appliedInlineSearch.isActive
           ? safeIndex
           : null,
+      onClearRowSelection: controller.clearSelectedRows,
       hiddenColumns: controller.hiddenColumns,
       columnWidths: controller.columnWidths,
       onHiddenColumnsChanged: controller.setHiddenColumns,
