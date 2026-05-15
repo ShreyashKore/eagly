@@ -110,6 +110,10 @@ class LogTabController extends ChangeNotifier {
   final List<String> _recentPackageFilters = [];
   final List<String> _recentPidTidFilters = [];
   final List<String> _recentTagFilters = [];
+  List<String> _knownInlinePackageFilters = const [];
+  int _knownInlinePackageFingerprintLength = -1;
+  int? _knownInlinePackageFingerprintFirstId;
+  int? _knownInlinePackageFingerprintLastId;
 
   var _searchBarVisible = false;
   var _inlineSearch = const TextSearchConfig();
@@ -200,6 +204,36 @@ class LogTabController extends ChangeNotifier {
   List<String> get recentPidTidFilters =>
       List.unmodifiable(_recentPidTidFilters);
   List<String> get recentTagFilters => List.unmodifiable(_recentTagFilters);
+  List<String> get knownInlinePackageFilters {
+    final storedLogs = logs;
+    final firstId = storedLogs.firstOrNull?.id;
+    final lastId = storedLogs.lastOrNull?.id;
+    if (_knownInlinePackageFingerprintLength == storedLogs.length &&
+        _knownInlinePackageFingerprintFirstId == firstId &&
+        _knownInlinePackageFingerprintLastId == lastId) {
+      return List.unmodifiable(_knownInlinePackageFilters);
+    }
+
+    final counts = <String, int>{};
+    for (final log in storedLogs) {
+      final value = _packageFilterValue(log).trim();
+      if (value.isEmpty) continue;
+      counts.update(value, (count) => count + 1, ifAbsent: () => 1);
+    }
+
+    final sortedValues = counts.keys.toList(growable: false)
+      ..sort((left, right) {
+        final countComparison = counts[right]!.compareTo(counts[left]!);
+        if (countComparison != 0) return countComparison;
+        return left.toLowerCase().compareTo(right.toLowerCase());
+      });
+
+    _knownInlinePackageFilters = sortedValues;
+    _knownInlinePackageFingerprintLength = storedLogs.length;
+    _knownInlinePackageFingerprintFirstId = firstId;
+    _knownInlinePackageFingerprintLastId = lastId;
+    return List.unmodifiable(_knownInlinePackageFilters);
+  }
 
   bool get wrapText => _settings.wrapText;
   bool get autoScroll => _settings.autoScroll;
