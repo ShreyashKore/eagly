@@ -45,6 +45,7 @@ class ClassicFilterBar extends StatelessWidget {
   final ValueChanged<String> onPackageFilterChanged;
   final ValueChanged<String> onPackageFilterSelected;
   final List<String> recentPackageFilters;
+  final List<String> knownPackageFilters;
   final TextEditingController pidTidController;
   final FocusNode pidTidFocusNode;
   final ValueChanged<String> onPidTidFilterChanged;
@@ -72,6 +73,7 @@ class ClassicFilterBar extends StatelessWidget {
     required this.onPackageFilterChanged,
     required this.onPackageFilterSelected,
     required this.recentPackageFilters,
+    required this.knownPackageFilters,
     required this.pidTidController,
     required this.pidTidFocusNode,
     required this.onPidTidFilterChanged,
@@ -142,10 +144,22 @@ class ClassicFilterBar extends StatelessWidget {
             onChanged: onPackageFilterChanged,
             onSuggestionSelected: onPackageFilterSelected,
             onSubmitted: (_) => onSubmitFilters(),
-            recentValues: recentPackageFilters,
+            recentValues: _mergeSuggestedValues([
+              for (final entry in recentPackageFilters)
+                _SuggestedFilterValue(
+                  value: entry,
+                  priority: _SuggestionPriority.recent,
+                ),
+              for (final entry in knownPackageFilters)
+                _SuggestedFilterValue(
+                  value: entry,
+                  priority: _SuggestionPriority.known,
+                ),
+            ]),
             labelText: 'Package',
             hintText: 'Package / process',
             prefixIcon: Icons.apps_outlined,
+            optionLabelBuilder: (option) => option.value,
           ),
         ),
         Expanded(
@@ -181,7 +195,43 @@ class ClassicFilterBar extends StatelessWidget {
   }
 }
 
-class _RecentFilterField extends StatelessWidget {
+enum _SuggestionPriority { recent, known }
+
+class _SuggestedFilterValue {
+  const _SuggestedFilterValue({required this.value, required this.priority});
+
+  final String value;
+  final _SuggestionPriority priority;
+}
+
+List<_SuggestedFilterValue> _mergeSuggestedValues(
+  List<_SuggestedFilterValue> values,
+) {
+  final deduped = <_SuggestedFilterValue>[];
+  final seenValues = <String>{};
+  for (final entry in values) {
+    final trimmedValue = entry.value.trim();
+    if (trimmedValue.isEmpty) continue;
+    final normalized = trimmedValue.toLowerCase();
+    if (!seenValues.add(normalized)) continue;
+    deduped.add(
+      _SuggestedFilterValue(value: trimmedValue, priority: entry.priority),
+    );
+  }
+  return deduped;
+}
+
+bool _isBoundaryMatch(String candidate, String query) {
+  if (candidate.startsWith(query)) return true;
+  for (final separator in const ['.', '/', '_', '-', ':']) {
+    if (candidate.contains('$separator$query')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+class _RecentFilterField<T extends Object> extends StatelessWidget {
   const _RecentFilterField({
     required this.controller,
     required this.focusNode,
@@ -192,6 +242,7 @@ class _RecentFilterField extends StatelessWidget {
     required this.labelText,
     required this.hintText,
     required this.prefixIcon,
+    this.optionLabelBuilder,
   });
 
   final TextEditingController controller;
@@ -199,33 +250,46 @@ class _RecentFilterField extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSuggestionSelected;
   final ValueChanged<String> onSubmitted;
-  final List<String> recentValues;
+  final List<T> recentValues;
   final String labelText;
   final String hintText;
   final IconData prefixIcon;
+  final String Function(T option)? optionLabelBuilder;
 
-  List<String> _matchingOptions(String query) {
+  String _optionLabel(T option) => optionLabelBuilder?.call(option) ?? '$option';
+
+  List<T> _matchingOptions(String query) {
     final q = query.trim().toLowerCase();
-    return recentValues
-        .where((v) {
-          if (q.isEmpty) return true;
-          return v.toLowerCase().contains(q);
-        })
-        .toList(growable: false);
+    if (q.isEmpty) return recentValues.toList(growable: false);
+
+    final preferredMatches = <T>[];
+    final secondaryMatches = <T>[];
+    for (final option in recentValues) {
+      final label = _optionLabel(option);
+      final normalized = label.toLowerCase();
+      if (!normalized.contains(q)) continue;
+      final bucket = _isBoundaryMatch(normalized, q)
+          ? preferredMatches
+          : secondaryMatches;
+      bucket.add(option);
+    }
+
+    return [...preferredMatches, ...secondaryMatches];
   }
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: _kFilterFieldHeight,
-      child: RawAutocomplete<String>(
+      child: RawAutocomplete<T>(
         textEditingController: controller,
         focusNode: focusNode,
         optionsBuilder: (textEditingValue) =>
             _matchingOptions(textEditingValue.text),
         onSelected: (value) {
-          controller.text = value;
-          onSuggestionSelected(value);
+          final label = _optionLabel(value);
+          controller.text = label;
+          onSuggestionSelected(label);
         },
         fieldViewBuilder:
             (context, fieldController, fieldFocusNode, onFieldSubmitted) {
@@ -271,7 +335,7 @@ class _RecentFilterField extends StatelessWidget {
                           vertical: 10,
                         ),
                         child: Text(
-                          option,
+                          _optionLabel(option),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 14),

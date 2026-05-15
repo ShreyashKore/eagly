@@ -516,6 +516,7 @@ class _LogTabViewState extends State<LogTabView> {
                       onPackageFilterSelected:
                           controller.selectPackageFilterSuggestion,
                       recentPackageFilters: controller.recentPackageFilters,
+                      knownPackageFilters: controller.knownInlinePackageFilters,
                       pidTidController: controller.pidTidFilterController,
                       pidTidFocusNode: controller.pidTidFilterFocusNode,
                       onPidTidFilterChanged: controller.onPidTidFilterChanged,
