@@ -159,7 +159,7 @@ class InlineFilterBar extends StatefulWidget {
   final List<String> recentTagFilters;
   final bool isIos;
 
-  static const List<_InlineFilterKeyDefinition> keyDefinitions = [
+  static const List<_InlineFilterKeyDefinition> _keyDefinitions = [
     _InlineFilterKeyDefinition(
       canonicalKey: 'package',
       aliases: {'package', 'pkg', 'app', 'process'},
@@ -317,7 +317,7 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
                 .trim()
                 .toLowerCase();
             final valueText = activeToken.text.substring(colonIndex + 1);
-            final keyDefinition = InlineFilterBar.keyDefinitions.firstWhere(
+            final keyDefinition = InlineFilterBar._keyDefinitions.firstWhere(
               (definition) => definition.aliases.contains(keyText),
               orElse: () => const _InlineFilterKeyDefinition.unknown(),
             );
@@ -344,7 +344,7 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
 
   List<_InlineFilterSuggestion> _matchingKeySuggestions(String query) {
     final normalizedQuery = query.trim().toLowerCase();
-    return InlineFilterBar.keyDefinitions
+    return InlineFilterBar._keyDefinitions
         .where((definition) {
           if (normalizedQuery.isEmpty) return true;
           return definition.aliases.any(

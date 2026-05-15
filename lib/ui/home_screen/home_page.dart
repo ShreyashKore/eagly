@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 
+import '../../app/app_providers.dart';
 import '../../constants/app_constants.dart';
 import '../../constants/log_constants.dart';
 import '../../intents/intents.dart';
@@ -16,14 +18,14 @@ import '../log_tab_view/log_tab_view.dart';
 import '../settings/settings_screen.dart';
 import 'home_page_support.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TabbedViewController _tabsController = TabbedViewController([]);
   final ValueNotifier<int> _appMemoryBytes = ValueNotifier<int>(0);
   final Map<Object, WorkspaceTabBinding> _workspaceTabs = {};
@@ -154,8 +156,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _createTab({bool select = true}) {
     final tabNumber = _nextTabNumber++;
+    final factory = ref.read(logTabControllerFactoryProvider);
     late final LogTabController controller;
-    controller = LogTabController(
+    controller = factory.create(
       id: 'workspace-tab-$tabNumber',
       initialTitle: 'Tab $tabNumber',
       initialSettings: PreferencesService.defaultTabSettings,
