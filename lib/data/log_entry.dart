@@ -29,6 +29,11 @@ enum LogEntryType {
 }
 
 class LogEntry {
+  static final RegExp _logcatSectionSeparatorRegex = RegExp(
+    r'^-+\s+(beginning of|switch to)\s+(.+?)\s*$',
+    caseSensitive: false,
+  );
+
   final int id;
   final LogEntryType type;
   final String timestamp;
@@ -190,6 +195,26 @@ class LogEntry {
   }
 
   static LogEntry? parseFromLogcat(String line) {
+    final separatorMatch = _logcatSectionSeparatorRegex.firstMatch(line);
+    if (separatorMatch != null) {
+      final prefix = separatorMatch.group(1)!.toLowerCase();
+      final section = separatorMatch.group(2)!.trim();
+      final message = switch (prefix) {
+        'beginning of' => 'Beginning of $section',
+        'switch to' => 'Switched to $section',
+        _ => line.trim(),
+      };
+
+      return LogEntry.special(
+        type: LogEntryType.notice,
+        timestamp: '',
+        tag: 'adb logcat',
+        level: LogLevel.info.androidCode,
+        message: message,
+        processName: section,
+      );
+    }
+
     final regex = RegExp(
       r'^(\d\d-\d\d\s+\d\d:\d\d:\d\d\.\d+)\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+):\s+(.*)',
     );
@@ -202,7 +227,7 @@ class LogEntry {
       pid: match.group(2)!,
       tid: match.group(3)!,
       level: match.group(4)!,
-      tag: match.group(5)!,
+      tag: match.group(5)!.trim(),
       message: match.group(6)!,
     );
   }

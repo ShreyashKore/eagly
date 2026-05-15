@@ -16,7 +16,7 @@ List<DropdownMenuItem<LogLevel>> buildLogLevelDropdownItems({
           child: Text(
             includeValueInLabel
                 ? level.labelWithDisplayCode(isIos: isIos)
-                : level.label,
+                : level.displayLabel(isIos: isIos),
           ),
         ),
       )

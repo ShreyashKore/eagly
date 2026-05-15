@@ -67,6 +67,7 @@ class LogLevel {
 
   /// Shared levels available in Android-focused UI.
   static const List<LogLevel> androidValues = [
+    fault,
     error,
     warning,
     info,
@@ -233,10 +234,17 @@ class LogLevel {
     _ => code.toUpperCase(),
   };
 
+  String displayLabel({required bool isIos}) {
+    if (!isIos && this == fault) {
+      return 'Fatal';
+    }
+    return label;
+  }
+
   String displayCode({required bool isIos}) => isIos ? code : androidCode;
 
   String labelWithDisplayCode({required bool isIos}) =>
-      '$label (${displayCode(isIos: isIos)})';
+      '${displayLabel(isIos: isIos)} (${displayCode(isIos: isIos)})';
 
   String get labelWithCode => '$label ($code)';
 

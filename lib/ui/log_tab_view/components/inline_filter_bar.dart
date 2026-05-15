@@ -447,7 +447,10 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
           .where((level) {
             if (normalizedValue.isEmpty) return true;
             return level.code.contains(normalizedValue) ||
-                level.label.toLowerCase().contains(normalizedValue) ||
+                level
+                    .displayLabel(isIos: widget.isIos)
+                    .toLowerCase()
+                    .contains(normalizedValue) ||
                 level
                     .displayCode(isIos: widget.isIos)
                     .toLowerCase()
