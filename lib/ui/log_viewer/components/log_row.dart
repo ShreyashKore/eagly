@@ -4,7 +4,6 @@ import '../../../data/log_column.dart';
 import '../../../data/log_entry.dart';
 import '../../../theme/app_theme.dart';
 import '../../../utils/text_search_pattern.dart';
-import '../log_viewer.dart';
 import '../log_viewer_constants.dart';
 
 class LogRow extends StatelessWidget {
@@ -328,7 +327,7 @@ class LogRow extends StatelessWidget {
       context,
     ).colorScheme.primary.withValues(alpha: 0.10);
 
-    final Color? highlightColor = searchQuery.isEmpty
+    final Color? highlightColor = search.query.isEmpty
         ? null
         : (isCurrentMatch
               ? logTheme.searchCurrentMatchColor

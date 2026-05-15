@@ -415,6 +415,7 @@ class AppTheme {
           ),
         ),
       ),
+      chipTheme: ChipThemeData(padding: EdgeInsets.zero),
       extensions: [tokens],
     );
   }
@@ -427,7 +428,11 @@ class AppTheme {
       logBodyStyle: mono.copyWith(fontSize: 12, height: 1.2),
       logCompactStyle: mono.copyWith(fontSize: 11, height: 1.2),
       logHeaderStyle: mono.copyWith(fontSize: 12, fontWeight: FontWeight.w700),
-      statusBarStyle: TextStyle(fontSize: 12, height: 1.15),
+      statusBarStyle: TextStyle(
+        fontSize: 12,
+        height: 1,
+        color: colorScheme.onSurfaceVariant,
+      ),
       verboseColor: isDark ? colorScheme.onSurfaceVariant : colorScheme.outline,
       debugColor: colorScheme.primary,
       infoColor: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF0F766E),

@@ -1,40 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../../constants/log_constants.dart';
 import '../../../data/log_level.dart';
+import 'filter_bar_shared.dart';
 
-// Consistent height for all filter bar inputs.
-const double _kFilterFieldHeight = 36.0;
+export 'filter_bar_shared.dart' show filterInputDecoration, kFilterFieldHeight;
 
-InputDecoration _filterInputDecoration(
-  BuildContext context, {
-  String? labelText,
-  String? hintText,
-  IconData? prefixIcon,
-}) {
-  final colorScheme = Theme.of(context).colorScheme;
-  InputBorder inputBorder(Color color) =>
-      OutlineInputBorder(borderSide: BorderSide(color: color, width: 1.5));
-  return InputDecoration(
-    labelText: labelText,
-    labelStyle: const TextStyle(fontSize: 12),
-    hintText: hintText,
-    hintStyle: const TextStyle(fontSize: 12),
-    isDense: true,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-    border: inputBorder(Colors.transparent),
-    enabledBorder: inputBorder(Colors.transparent),
-    focusedBorder: inputBorder(colorScheme.primary),
-    filled: true,
-    fillColor: colorScheme.surfaceContainerHighest,
-    prefixIconConstraints: prefixIcon != null
-        ? const BoxConstraints(minHeight: 28, minWidth: 28)
-        : null,
-    prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 14) : null,
-  );
-}
-
-class FilterBar extends StatelessWidget {
+class ClassicFilterBar extends StatelessWidget {
   final TextEditingController messageController;
   final FocusNode messageFocusNode;
   final ValueChanged<String> onMessageFilterChanged;
@@ -45,6 +16,7 @@ class FilterBar extends StatelessWidget {
   final ValueChanged<String> onPackageFilterChanged;
   final ValueChanged<String> onPackageFilterSelected;
   final List<String> recentPackageFilters;
+  final List<String> knownPackageFilters;
   final TextEditingController pidTidController;
   final FocusNode pidTidFocusNode;
   final ValueChanged<String> onPidTidFilterChanged;
@@ -60,7 +32,7 @@ class FilterBar extends StatelessWidget {
   final ValueChanged<LogLevel?> onLogLevelChanged;
   final bool isIos;
 
-  const FilterBar({
+  const ClassicFilterBar({
     super.key,
     required this.messageController,
     required this.messageFocusNode,
@@ -72,6 +44,7 @@ class FilterBar extends StatelessWidget {
     required this.onPackageFilterChanged,
     required this.onPackageFilterSelected,
     required this.recentPackageFilters,
+    required this.knownPackageFilters,
     required this.pidTidController,
     required this.pidTidFocusNode,
     required this.onPidTidFilterChanged,
@@ -90,101 +63,108 @@ class FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _buildRow(
-      context: context,
-      items: buildLogLevelDropdownItems(
-        includeValueInLabel: true,
-        isIos: isIos,
-      ),
-      currentValue: selectedLogLevel.normalizeSelectionForPlatform(
-        isIos: isIos,
-      ),
-      onChanged: onLogLevelChanged,
-    );
+    return _buildRow(context: context);
   }
 
-  Widget _buildRow({
-    required BuildContext context,
-    required List<DropdownMenuItem<LogLevel>> items,
-    required LogLevel currentValue,
-    required ValueChanged<LogLevel?> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-      child: Row(
-        spacing: 8,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            flex: 2,
-            child: SizedBox(
-              height: _kFilterFieldHeight,
-              child: DropdownButtonFormField<LogLevel>(
-                initialValue: currentValue,
-                isExpanded: true,
-                isDense: true,
-                decoration: _filterInputDecoration(context, labelText: 'Level'),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurface,
+  Widget _buildRow({required BuildContext context}) {
+    return Row(
+      spacing: 8,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          flex: 3,
+          child: LogLevelDropdown(
+            selectedLogLevel: selectedLogLevel,
+            onLogLevelChanged: onLogLevelChanged,
+            isIos: isIos,
+          ),
+        ),
+        Expanded(
+          flex: 3,
+          child: _RecentFilterField(
+            controller: packageController,
+            focusNode: packageFocusNode,
+            onChanged: onPackageFilterChanged,
+            onSuggestionSelected: onPackageFilterSelected,
+            onSubmitted: (_) => onSubmitFilters(),
+            recentValues: _mergeSuggestedValues([
+              for (final entry in recentPackageFilters)
+                _SuggestedFilterValue(
+                  value: entry,
+                  priority: _SuggestionPriority.recent,
                 ),
-                items: buildLogLevelDropdownItems(
-                  includeValueInLabel: true,
-                  isIos: isIos,
+              for (final entry in knownPackageFilters)
+                _SuggestedFilterValue(
+                  value: entry,
+                  priority: _SuggestionPriority.known,
                 ),
-                onChanged: onLogLevelChanged,
-              ),
-            ),
+            ]),
+            labelText: 'Package',
+            hintText: 'Package / process',
+            prefixIcon: Icons.apps_outlined,
+            optionLabelBuilder: (option) => option.value,
           ),
-          Expanded(
-            flex: 3,
-            child: _RecentFilterField(
-              controller: packageController,
-              focusNode: packageFocusNode,
-              onChanged: onPackageFilterChanged,
-              onSuggestionSelected: onPackageFilterSelected,
-              onSubmitted: (_) => onSubmitFilters(),
-              recentValues: recentPackageFilters,
-              labelText: 'Package',
-              hintText: 'Package / process',
-              prefixIcon: Icons.apps_outlined,
-            ),
+        ),
+        Expanded(
+          flex: 3,
+          child: _RecentFilterField(
+            controller: tagController,
+            focusNode: tagFocusNode,
+            onChanged: onTagFilterChanged,
+            onSuggestionSelected: onTagFilterSelected,
+            onSubmitted: (_) => onSubmitFilters(),
+            recentValues: recentTagFilters,
+            labelText: 'Tag',
+            hintText: 'Filter tag…',
+            prefixIcon: Icons.sell_outlined,
           ),
-          Expanded(
-            flex: 3,
-            child: _RecentFilterField(
-              controller: tagController,
-              focusNode: tagFocusNode,
-              onChanged: onTagFilterChanged,
-              onSuggestionSelected: onTagFilterSelected,
-              onSubmitted: (_) => onSubmitFilters(),
-              recentValues: recentTagFilters,
-              labelText: 'Tag',
-              hintText: 'Filter tag…',
-              prefixIcon: Icons.sell_outlined,
-            ),
+        ),
+        Expanded(
+          flex: 10,
+          child: _RecentFilterField(
+            controller: messageController,
+            focusNode: messageFocusNode,
+            onChanged: onMessageFilterChanged,
+            onSuggestionSelected: onMessageFilterSelected,
+            onSubmitted: (_) => onSubmitFilters(),
+            recentValues: recentMessageFilters,
+            labelText: 'Message',
+            hintText: 'Filter message text…',
+            prefixIcon: Icons.message_outlined,
           ),
-          Expanded(
-            flex: 10,
-            child: _RecentFilterField(
-              controller: messageController,
-              focusNode: messageFocusNode,
-              onChanged: onMessageFilterChanged,
-              onSuggestionSelected: onMessageFilterSelected,
-              onSubmitted: (_) => onSubmitFilters(),
-              recentValues: recentMessageFilters,
-              labelText: 'Message',
-              hintText: 'Filter message text…',
-              prefixIcon: Icons.message_outlined,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _RecentFilterField extends StatelessWidget {
+enum _SuggestionPriority { recent, known }
+
+class _SuggestedFilterValue {
+  const _SuggestedFilterValue({required this.value, required this.priority});
+
+  final String value;
+  final _SuggestionPriority priority;
+}
+
+List<_SuggestedFilterValue> _mergeSuggestedValues(
+  List<_SuggestedFilterValue> values,
+) {
+  final deduped = <_SuggestedFilterValue>[];
+  final seenValues = <String>{};
+  for (final entry in values) {
+    final trimmedValue = entry.value.trim();
+    if (trimmedValue.isEmpty) continue;
+    final normalized = trimmedValue.toLowerCase();
+    if (!seenValues.add(normalized)) continue;
+    deduped.add(
+      _SuggestedFilterValue(value: trimmedValue, priority: entry.priority),
+    );
+  }
+  return deduped;
+}
+
+class _RecentFilterField<T extends Object> extends StatelessWidget {
   const _RecentFilterField({
     required this.controller,
     required this.focusNode,
@@ -195,6 +175,7 @@ class _RecentFilterField extends StatelessWidget {
     required this.labelText,
     required this.hintText,
     required this.prefixIcon,
+    this.optionLabelBuilder,
   });
 
   final TextEditingController controller;
@@ -202,33 +183,46 @@ class _RecentFilterField extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSuggestionSelected;
   final ValueChanged<String> onSubmitted;
-  final List<String> recentValues;
+  final List<T> recentValues;
   final String labelText;
   final String hintText;
   final IconData prefixIcon;
+  final String Function(T option)? optionLabelBuilder;
 
-  List<String> _matchingOptions(String query) {
+  String _optionLabel(T option) => optionLabelBuilder?.call(option) ?? '$option';
+
+  List<T> _matchingOptions(String query) {
     final q = query.trim().toLowerCase();
-    return recentValues
-        .where((v) {
-          if (q.isEmpty) return true;
-          return v.toLowerCase().contains(q);
-        })
-        .toList(growable: false);
+    if (q.isEmpty) return recentValues.toList(growable: false);
+
+    final preferredMatches = <T>[];
+    final secondaryMatches = <T>[];
+    for (final option in recentValues) {
+      final label = _optionLabel(option);
+      final normalized = label.toLowerCase();
+      if (!normalized.contains(q)) continue;
+      final bucket = filterBoundaryMatch(normalized, q)
+          ? preferredMatches
+          : secondaryMatches;
+      bucket.add(option);
+    }
+
+    return [...preferredMatches, ...secondaryMatches];
   }
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: _kFilterFieldHeight,
-      child: RawAutocomplete<String>(
+      height: kFilterFieldHeight,
+      child: RawAutocomplete<T>(
         textEditingController: controller,
         focusNode: focusNode,
         optionsBuilder: (textEditingValue) =>
             _matchingOptions(textEditingValue.text),
         onSelected: (value) {
-          controller.text = value;
-          onSuggestionSelected(value);
+          final label = _optionLabel(value);
+          controller.text = label;
+          onSuggestionSelected(label);
         },
         fieldViewBuilder:
             (context, fieldController, fieldFocusNode, onFieldSubmitted) {
@@ -236,7 +230,7 @@ class _RecentFilterField extends StatelessWidget {
                 controller: fieldController,
                 focusNode: fieldFocusNode,
                 style: const TextStyle(fontSize: 12),
-                decoration: _filterInputDecoration(
+                decoration: filterInputDecoration(
                   context,
                   labelText: labelText,
                   hintText: hintText,
@@ -274,7 +268,7 @@ class _RecentFilterField extends StatelessWidget {
                           vertical: 10,
                         ),
                         child: Text(
-                          option,
+                          _optionLabel(option),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 14),

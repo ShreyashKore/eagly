@@ -2,7 +2,6 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
 import '../../../data/device.dart';
-import '../../../theme/app_theme.dart';
 import '../log_tab_controller.dart';
 import 'device_presentation.dart';
 
@@ -39,7 +38,6 @@ class Toolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final logTheme = context.logViewTheme;
     final selectedValue = controller.devices.firstWhereOrNull(
       (device) => device.id == controller.selectedDevice?.id,
     );
@@ -63,7 +61,7 @@ class Toolbar extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(24),
               ),
               constraints: BoxConstraints(maxWidth: 320),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -83,10 +81,10 @@ class Toolbar extends StatelessWidget {
                       return controller.devices.map((device) {
                         return Container(
                           alignment: Alignment.centerLeft,
-                          constraints: BoxConstraints(maxWidth: 240),
+                          constraints: BoxConstraints(maxWidth: 250),
                           child: DeviceSelectionLabel(
                             device: device,
-                            maxWidth: 240,
+                            maxWidth: 250,
                             textStyle: theme.textTheme.bodyMedium,
                             secondaryTextStyle: theme.textTheme.labelSmall,
                             iconSize: 18,
@@ -146,9 +144,8 @@ class Toolbar extends StatelessWidget {
             tooltip: controller.selectedDevice?.isDisconnected == true
                 ? 'Selected device is disconnected'
                 : controller.isRunning
-                    ? 'Restart'
-                    : 'Start',
-            isActive: controller.isRunning,
+                ? 'Restart'
+                : 'Start',
             onPressed: !controller.hasConnectedSelectedDevice
                 ? null
                 : controller.startLogcat,
@@ -160,23 +157,28 @@ class Toolbar extends StatelessWidget {
                 ? (controller.isPaused ? 'Resume' : 'Pause')
                 : 'Not running',
             isActive: controller.isPaused,
-            onPressed: controller.isRunning ? controller.togglePauseResume : null,
+            onPressed: controller.isRunning
+                ? controller.togglePauseResume
+                : null,
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline),
             tooltip: controller.isReadingFromFile
                 ? 'Cannot clear logs from a file'
                 : controller.logs.isNotEmpty
-                    ? 'Clear logs'
-                    : 'No logs to clear',
-            onPressed: !controller.isReadingFromFile && controller.logs.isNotEmpty
+                ? 'Clear logs'
+                : 'No logs to clear',
+            onPressed:
+                !controller.isReadingFromFile && controller.logs.isNotEmpty
                 ? controller.clearLogs
                 : null,
           ),
           const Spacer(),
           IconButton(
             icon: const Icon(Icons.copy_all_outlined),
-            tooltip: controller.hasAnyCachedLogs ? 'Copy all logs' : 'No logs to copy',
+            tooltip: controller.hasAnyCachedLogs
+                ? 'Copy all logs'
+                : 'No logs to copy',
             onPressed: controller.hasAnyCachedLogs ? onCopyAll : null,
           ),
           // ── Row selection mode ────────────────────────────────────────────
@@ -236,7 +238,9 @@ class Toolbar extends StatelessWidget {
             icon: controller.autoScroll
                 ? Icons.vertical_align_bottom
                 : Icons.swipe_down,
-            tooltip: controller.autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF',
+            tooltip: controller.autoScroll
+                ? 'Auto-scroll ON'
+                : 'Auto-scroll OFF',
             isActive: controller.autoScroll,
             onPressed: controller.toggleAutoScroll,
           ),
@@ -280,7 +284,9 @@ class ToolbarIconButton extends StatelessWidget {
       message: tooltip,
       child: InkWell(
         onTap: onPressed,
-        mouseCursor: onPressed == null ? MouseCursor.defer : SystemMouseCursors.click,
+        mouseCursor: onPressed == null
+            ? MouseCursor.defer
+            : SystemMouseCursors.click,
         borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
@@ -296,13 +302,11 @@ class ToolbarIconButton extends StatelessWidget {
             color: isActive
                 ? activeColor
                 : onPressed == null
-                    ? colorScheme.onSurface.withValues(alpha: 0.38)
-                    : colorScheme.onSurfaceVariant,
+                ? colorScheme.onSurface.withValues(alpha: 0.38)
+                : colorScheme.onSurfaceVariant,
           ),
         ),
       ),
     );
   }
 }
-
-

@@ -1052,7 +1052,6 @@ class _LogViewerState extends State<LogViewer> {
           key: ValueKey(log.id),
           onMounted: _registerRowContext,
           onUnmounted: _unregisterRowContext,
-          key: ValueKey(log.id),
           child: _buildLogRow(log, i, messageWidth),
         );
       },
