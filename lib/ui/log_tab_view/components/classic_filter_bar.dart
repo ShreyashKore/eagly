@@ -1,38 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../constants/log_constants.dart';
 import '../../../data/log_level.dart';
+import 'filter_bar_shared.dart';
 
-// Consistent height for all filter bar inputs.
-const double _kFilterFieldHeight = 36.0;
-
-InputDecoration _filterInputDecoration(
-  BuildContext context, {
-  String? labelText,
-  String? hintText,
-  IconData? prefixIcon,
-}) {
-  final colorScheme = Theme.of(context).colorScheme;
-  InputBorder inputBorder(Color color) =>
-      OutlineInputBorder(borderSide: BorderSide(color: color, width: 1.5));
-  return InputDecoration(
-    labelText: labelText,
-    labelStyle: const TextStyle(fontSize: 12),
-    hintText: hintText,
-    hintStyle: const TextStyle(fontSize: 12),
-    isDense: true,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-    border: inputBorder(Colors.transparent),
-    enabledBorder: inputBorder(Colors.transparent),
-    focusedBorder: inputBorder(colorScheme.primary),
-    filled: true,
-    fillColor: colorScheme.surfaceContainerHighest,
-    prefixIconConstraints: prefixIcon != null
-        ? const BoxConstraints(minHeight: 28, minWidth: 28)
-        : null,
-    prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 14) : null,
-  );
-}
+export 'filter_bar_shared.dart' show filterInputDecoration, kFilterFieldHeight;
 
 class ClassicFilterBar extends StatelessWidget {
   final TextEditingController messageController;
@@ -92,48 +63,20 @@ class ClassicFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _buildRow(
-      context: context,
-      items: buildLogLevelDropdownItems(
-        includeValueInLabel: true,
-        isIos: isIos,
-      ),
-      currentValue: selectedLogLevel.normalizeSelectionForPlatform(
-        isIos: isIos,
-      ),
-      onChanged: onLogLevelChanged,
-    );
+    return _buildRow(context: context);
   }
 
-  Widget _buildRow({
-    required BuildContext context,
-    required List<DropdownMenuItem<LogLevel>> items,
-    required LogLevel currentValue,
-    required ValueChanged<LogLevel?> onChanged,
-  }) {
+  Widget _buildRow({required BuildContext context}) {
     return Row(
       spacing: 8,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
-          flex: 2,
-          child: SizedBox(
-            height: _kFilterFieldHeight,
-            child: DropdownButtonFormField<LogLevel>(
-              initialValue: currentValue,
-              isExpanded: true,
-              isDense: true,
-              decoration: _filterInputDecoration(context, labelText: 'Level'),
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-              items: buildLogLevelDropdownItems(
-                includeValueInLabel: true,
-                isIos: isIos,
-              ),
-              onChanged: onLogLevelChanged,
-            ),
+          flex: 3,
+          child: LogLevelDropdown(
+            selectedLogLevel: selectedLogLevel,
+            onLogLevelChanged: onLogLevelChanged,
+            isIos: isIos,
           ),
         ),
         Expanded(
@@ -221,16 +164,6 @@ List<_SuggestedFilterValue> _mergeSuggestedValues(
   return deduped;
 }
 
-bool _isBoundaryMatch(String candidate, String query) {
-  if (candidate.startsWith(query)) return true;
-  for (final separator in const ['.', '/', '_', '-', ':']) {
-    if (candidate.contains('$separator$query')) {
-      return true;
-    }
-  }
-  return false;
-}
-
 class _RecentFilterField<T extends Object> extends StatelessWidget {
   const _RecentFilterField({
     required this.controller,
@@ -268,7 +201,7 @@ class _RecentFilterField<T extends Object> extends StatelessWidget {
       final label = _optionLabel(option);
       final normalized = label.toLowerCase();
       if (!normalized.contains(q)) continue;
-      final bucket = _isBoundaryMatch(normalized, q)
+      final bucket = filterBoundaryMatch(normalized, q)
           ? preferredMatches
           : secondaryMatches;
       bucket.add(option);
@@ -280,7 +213,7 @@ class _RecentFilterField<T extends Object> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: _kFilterFieldHeight,
+      height: kFilterFieldHeight,
       child: RawAutocomplete<T>(
         textEditingController: controller,
         focusNode: focusNode,
@@ -297,7 +230,7 @@ class _RecentFilterField<T extends Object> extends StatelessWidget {
                 controller: fieldController,
                 focusNode: fieldFocusNode,
                 style: const TextStyle(fontSize: 12),
-                decoration: _filterInputDecoration(
+                decoration: filterInputDecoration(
                   context,
                   labelText: labelText,
                   hintText: hintText,

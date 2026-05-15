@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:logview/data/log_level.dart';
 import 'package:logview/theme/app_theme.dart';
+import 'package:logview/theme/log_level_presentation.dart';
 import 'package:logview/ui/log_tab_view/components/inline_filter_bar.dart';
 
 void main() {
@@ -15,6 +17,8 @@ void main() {
     WidgetTester tester, {
     required InlineFilterTextController controller,
     required FocusNode focusNode,
+    LogLevel selectedLogLevel = LogLevel.verbose,
+    ValueChanged<LogLevel>? onLogLevelChanged,
     List<String> knownPackageFilters = const [
       'com.example.auth',
       'com.example.billing',
@@ -32,23 +36,33 @@ void main() {
       MaterialApp(
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
-        home: Scaffold(
-          body: SizedBox(
-            width: 700,
-            child: InlineFilterBar(
-              controller: controller,
-              focusNode: focusNode,
-              onChanged: (_) {},
-              onSubmitted: () {},
-              onSuggestionApplied: onSuggestionApplied,
-              recentMessageFilters: const ['signed in'],
-              recentPackageFilters: const ['com.example.auth'],
-              knownPackageFilters: knownPackageFilters,
-              recentPidTidFilters: const ['101/202'],
-              recentTagFilters: const ['AuthService'],
-              isIos: false,
-            ),
-          ),
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            return Scaffold(
+              body: SizedBox(
+                width: 900,
+                child: InlineFilterBar(
+                  controller: controller,
+                  focusNode: focusNode,
+                  onChanged: (_) {},
+                  onSubmitted: () {},
+                  onSuggestionApplied: onSuggestionApplied,
+                  selectedLogLevel: selectedLogLevel,
+                  onLogLevelChanged: (level) {
+                    if (level == null) return;
+                    setState(() => selectedLogLevel = level);
+                    onLogLevelChanged?.call(level);
+                  },
+                  recentMessageFilters: const ['signed in'],
+                  recentPackageFilters: const ['com.example.auth'],
+                  knownPackageFilters: knownPackageFilters,
+                  recentPidTidFilters: const ['101/202'],
+                  recentTagFilters: const ['AuthService'],
+                  isIos: false,
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -80,6 +94,33 @@ void main() {
 
     expect(controller.text, 'level:');
     expect(controller.selection.baseOffset, controller.text.length);
+  });
+
+  testWidgets('shows a dedicated inline level dropdown and notifies changes', (
+    WidgetTester tester,
+  ) async {
+    final controller = InlineFilterTextController();
+    final focusNode = FocusNode();
+    LogLevel? selectedLevel;
+    addTearDown(controller.dispose);
+    addTearDown(focusNode.dispose);
+
+    await pumpInlineFilterBar(
+      tester,
+      controller: controller,
+      focusNode: focusNode,
+      onLogLevelChanged: (level) => selectedLevel = level,
+    );
+
+    expect(find.text('Level'), findsOneWidget);
+    expect(find.byType(DropdownButtonFormField<LogLevel>), findsOneWidget);
+
+    await tester.tap(find.byType(DropdownButtonFormField<LogLevel>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Error (E)').last);
+    await tester.pumpAndSettle();
+
+    expect(selectedLevel, LogLevel.error);
   });
 
   testWidgets(
@@ -169,6 +210,30 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(controller.text, 'level:error ');
+  });
+
+  testWidgets('level suggestions use colored level labels', (
+    WidgetTester tester,
+  ) async {
+    final controller = InlineFilterTextController(text: 'level:');
+    final focusNode = FocusNode();
+    addTearDown(controller.dispose);
+    addTearDown(focusNode.dispose);
+
+    await pumpInlineFilterBar(
+      tester,
+      controller: controller,
+      focusNode: focusNode,
+    );
+
+    focusNode.requestFocus();
+    controller.selection = TextSelection.collapsed(
+      offset: controller.text.length,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LogLevelLabel), findsWidgets);
+    expect(find.text('level:fault'), findsWidgets);
   });
 
   testWidgets('clicking a package key can apply a package value suggestion', (

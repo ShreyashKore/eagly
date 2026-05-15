@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:logview/data/log_level.dart';
 import 'package:logview/theme/app_theme.dart';
+import 'package:logview/theme/log_level_presentation.dart';
 import 'package:logview/ui/log_tab_view/components/classic_filter_bar.dart';
 
 void main() {
@@ -124,6 +125,30 @@ void main() {
 
     expect(packageController.text, 'io.sample.payments');
     expect(selectedValue, 'io.sample.payments');
+  });
+
+  testWidgets('classic level dropdown renders colored level labels', (
+    WidgetTester tester,
+  ) async {
+    final packageController = TextEditingController();
+    final packageFocusNode = FocusNode();
+    addTearDown(packageController.dispose);
+    addTearDown(packageFocusNode.dispose);
+
+    await pumpClassicFilterBar(
+      tester,
+      packageController: packageController,
+      packageFocusNode: packageFocusNode,
+      onPackageFilterSelected: (_) {},
+    );
+
+    expect(find.byType(LogLevelLabel), findsOneWidget);
+
+    await tester.tap(find.byType(DropdownButtonFormField<LogLevel>));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LogLevelLabel), findsWidgets);
+    expect(find.text('Fatal (F)'), findsWidgets);
   });
 }
 

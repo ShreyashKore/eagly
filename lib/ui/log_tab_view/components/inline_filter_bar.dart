@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../constants/log_constants.dart';
 import '../../../data/log_level.dart';
-
-const double _kInlineFilterFieldHeight = 40.0;
+import '../../../theme/log_level_presentation.dart';
+import 'filter_bar_shared.dart';
 
 typedef InlineFilterSuggestionApplied =
     void Function(
@@ -113,24 +114,6 @@ class InlineFilterTextController extends TextEditingController {
   }
 }
 
-InputDecoration _inlineFilterDecoration(BuildContext context) {
-  final colorScheme = Theme.of(context).colorScheme;
-  InputBorder inputBorder(Color color) =>
-      OutlineInputBorder(borderSide: BorderSide(color: color, width: 1.5));
-  return InputDecoration(
-    labelText: 'Filter',
-    hintText:
-        'Try package:com.example.app tag:Auth level:error or just type text',
-    isDense: true,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-    border: inputBorder(Colors.transparent),
-    enabledBorder: inputBorder(Colors.transparent),
-    focusedBorder: inputBorder(colorScheme.primary),
-    filled: true,
-    fillColor: colorScheme.surfaceContainerHighest,
-  );
-}
-
 class InlineFilterBar extends StatefulWidget {
   const InlineFilterBar({
     super.key,
@@ -139,6 +122,8 @@ class InlineFilterBar extends StatefulWidget {
     required this.onChanged,
     required this.onSubmitted,
     required this.onSuggestionApplied,
+    required this.selectedLogLevel,
+    required this.onLogLevelChanged,
     required this.recentMessageFilters,
     required this.recentPackageFilters,
     required this.knownPackageFilters,
@@ -152,6 +137,8 @@ class InlineFilterBar extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onSubmitted;
   final InlineFilterSuggestionApplied onSuggestionApplied;
+  final LogLevel selectedLogLevel;
+  final ValueChanged<LogLevel?> onLogLevelChanged;
   final List<String> recentMessageFilters;
   final List<String> recentPackageFilters;
   final List<String> knownPackageFilters;
@@ -203,6 +190,7 @@ class InlineFilterBar extends StatefulWidget {
 
 class _InlineFilterBarState extends State<InlineFilterBar> {
   bool _helpVisible = false;
+
   // Notifier to force the autocomplete to rebuild/open on focus
   final _suggestionTrigger = ValueNotifier<int>(0);
   final ScrollController _suggestionsScrollController = ScrollController();
@@ -384,31 +372,18 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
     List<_InlineFilterValueCandidate> candidates,
   ) {
     final deduped = <_InlineFilterValueCandidate>[];
-    final seenValues = <String>{};
-    for (final candidate in candidates) {
-      final trimmedValue = candidate.value.trim();
-      if (trimmedValue.isEmpty) continue;
-      final normalized = trimmedValue.toLowerCase();
-      if (!seenValues.add(normalized)) continue;
-      deduped.add(
-        _InlineFilterValueCandidate(
-          value: trimmedValue,
-          subtitle: candidate.subtitle,
-        ),
-      );
+    final seen = <String>{};
+    for (final c in candidates) {
+      final trimmed = c.value.trim();
+      if (trimmed.isEmpty) continue;
+      if (!seen.add(trimmed.toLowerCase())) continue;
+      deduped.add(_InlineFilterValueCandidate(value: trimmed, subtitle: c.subtitle));
     }
     return deduped;
   }
 
-  bool _isBoundaryMatch(String candidate, String query) {
-    if (candidate.startsWith(query)) return true;
-    for (final separator in const ['.', '/', '_', '-', ':']) {
-      if (candidate.contains('$separator$query')) {
-        return true;
-      }
-    }
-    return false;
-  }
+  bool _isBoundaryMatch(String candidate, String query) =>
+      filterBoundaryMatch(candidate, query);
 
   Iterable<_InlineFilterValueCandidate> _matchingValueCandidates(
     List<_InlineFilterValueCandidate> candidates,
@@ -461,6 +436,7 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
               label: 'level:${level.code}',
               subtitle: level.labelWithDisplayCode(isIos: widget.isIos),
               icon: keyDefinition.icon,
+              level: level,
               replacementText: 'level:${level.code}',
               addTrailingSpace: true,
               applyImmediately: true,
@@ -582,7 +558,6 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
       secondChild: Container(
         key: const ValueKey('inline-filter-help'),
         width: double.infinity,
-        margin: const EdgeInsets.only(top: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerLow,
@@ -630,6 +605,15 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
     );
   }
 
+  Widget _buildLevelDropdown(BuildContext context) {
+    return LogLevelDropdown(
+      selectedLogLevel: widget.selectedLogLevel,
+      onLogLevelChanged: widget.onLogLevelChanged,
+      isIos: widget.isIos,
+      width: 176,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -639,166 +623,184 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildLevelDropdown(context),
+            const SizedBox(width: 8),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    height: _kInlineFilterFieldHeight,
-                    child: ValueListenableBuilder<int>(
-                      valueListenable: _suggestionTrigger,
-                      builder: (_, __, ___) => RawAutocomplete<_InlineFilterSuggestion>(
-                        textEditingController: widget.controller,
-                        focusNode: widget.focusNode,
-                        optionsBuilder: _buildSuggestions,
-                        displayStringForOption: (option) => option.label,
-                        onSelected: _applySuggestion,
-                        fieldViewBuilder:
-                            (
-                              context,
-                              fieldController,
-                              fieldFocusNode,
-                              onFieldSubmitted,
-                            ) {
-                              return Focus(
-                                canRequestFocus: false,
-                                onKeyEvent: (_, event) =>
-                                    _handleSuggestionKeyEvent(event),
-                                child: TextField(
-                                  controller: fieldController,
-                                  focusNode: fieldFocusNode,
-                                  style: const TextStyle(fontSize: 12),
-                                  decoration: _inlineFilterDecoration(context),
-                                  onChanged: widget.onChanged,
-                                  onSubmitted: (_) {
-                                    widget.onSubmitted();
-                                    onFieldSubmitted();
-                                  },
-                                ),
-                              );
-                            },
-                        optionsViewBuilder: (context, onSelected, options) {
-                          final materialOptions = options.toList(
-                            growable: false,
-                          );
-                          if (materialOptions.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          return Align(
-                            alignment: Alignment.topLeft,
-                            child: Material(
-                              elevation: 6,
-                              borderRadius: BorderRadius.circular(8),
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxHeight: 200,
-                                  maxWidth: 540,
-                                ),
-                                child: ListView.separated(
-                                  controller: _suggestionsScrollController,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 4,
-                                  ),
-                                  shrinkWrap: true,
-                                  itemCount: materialOptions.length,
-                                  separatorBuilder: (_, _) =>
-                                      const Divider(height: 1),
-                                  itemBuilder: (context, index) {
-                                    final option = materialOptions[index];
-                                    return Builder(
-                                      builder: (context) {
-                                        final isHighlighted =
-                                            _highlightedSuggestionIndex ==
-                                            index;
-                                        final backgroundColor = isHighlighted
-                                            ? theme
-                                                  .colorScheme
-                                                  .secondaryContainer
-                                            : null;
-                                        return InkWell(
-                                          key: _suggestionItemKey(option),
-                                          onTap: () => _applySuggestion(option),
-                                          child: ColoredBox(
-                                            color:
-                                                backgroundColor ??
-                                                Colors.transparent,
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 5,
-                                                  ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.max,
-                                                children: [
-                                                  Icon(option.icon, size: 12),
-                                                  const SizedBox(width: 6),
-                                                  Expanded(
-                                                    child: Text(
-                                                      option.label,
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: theme
-                                                          .textTheme
-                                                          .bodySmall
-                                                          ?.copyWith(
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                            color: isHighlighted
-                                                                ? theme
-                                                                      .colorScheme
-                                                                      .onSecondaryContainer
-                                                                : null,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  if (option
-                                                      .subtitle
-                                                      .isNotEmpty) ...[
-                                                    const SizedBox(width: 8),
-                                                    Flexible(
-                                                      child: Text(
-                                                        option.subtitle,
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        textAlign:
-                                                            TextAlign.end,
-                                                        style: theme
-                                                            .textTheme
-                                                            .bodySmall
-                                                            ?.copyWith(
-                                                              fontSize: 10,
-                                                              color:
-                                                                  isHighlighted
-                                                                  ? theme
-                                                                        .colorScheme
-                                                                        .onSecondaryContainer
-                                                                  : theme
-                                                                        .colorScheme
-                                                                        .onSurfaceVariant,
-                                                            ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    );
-                                  },
-                                ),
+              child: ValueListenableBuilder<int>(
+                valueListenable: _suggestionTrigger,
+                builder: (_, __, ___) => SizedBox(
+                  height: kFilterFieldHeight,
+                  child: RawAutocomplete<_InlineFilterSuggestion>(
+                    textEditingController: widget.controller,
+                    focusNode: widget.focusNode,
+                    optionsBuilder: _buildSuggestions,
+                    displayStringForOption: (option) => option.label,
+                    onSelected: _applySuggestion,
+                    fieldViewBuilder:
+                        (
+                          context,
+                          fieldController,
+                          fieldFocusNode,
+                          onFieldSubmitted,
+                        ) {
+                          return Focus(
+                            canRequestFocus: false,
+                            onKeyEvent: (_, event) =>
+                                _handleSuggestionKeyEvent(event),
+                            child: TextField(
+                              controller: fieldController,
+                              focusNode: fieldFocusNode,
+                              style: const TextStyle(fontSize: 12),
+                              decoration: filterInputDecoration(
+                                context,
+                                hintText:
+                                    'Try package:com.example.app tag:Auth level:error or just type text',
+                                prefixIcon: Icons.message,
                               ),
+                              onChanged: widget.onChanged,
+                              onSubmitted: (_) {
+                                widget.onSubmitted();
+                                onFieldSubmitted();
+                              },
                             ),
                           );
                         },
-                      ),
-                    ),
+                    optionsViewBuilder: (context, onSelected, options) {
+                      final materialOptions = options.toList(growable: false);
+                      if (materialOptions.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return Align(
+                        alignment: Alignment.topLeft,
+                        child: Material(
+                          elevation: 6,
+                          borderRadius: BorderRadius.circular(8),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxHeight: 200,
+                              maxWidth: 540,
+                            ),
+                            child: ListView.separated(
+                              controller: _suggestionsScrollController,
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              shrinkWrap: true,
+                              itemCount: materialOptions.length,
+                              separatorBuilder: (_, _) =>
+                                  const Divider(height: 1),
+                              itemBuilder: (context, index) {
+                                final option = materialOptions[index];
+                                return Builder(
+                                  builder: (context) {
+                                    final isHighlighted =
+                                        _highlightedSuggestionIndex == index;
+                                    final backgroundColor = isHighlighted
+                                        ? theme.colorScheme.secondaryContainer
+                                        : null;
+                                    return InkWell(
+                                      key: _suggestionItemKey(option),
+                                      onTap: () => _applySuggestion(option),
+                                      child: ColoredBox(
+                                        color:
+                                            backgroundColor ??
+                                            Colors.transparent,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 5,
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.max,
+                                            children: [
+                                              Expanded(
+                                                child: option.level != null
+                                                    ? LogLevelLabel(
+                                                        level: option.level!,
+                                                        isIos: widget.isIos,
+                                                        text: option.label,
+                                                        compact: true,
+                                                        textStyle: theme
+                                                            .textTheme
+                                                            .bodySmall,
+                                                      )
+                                                    : Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.max,
+                                                        children: [
+                                                          Icon(
+                                                            option.icon,
+                                                            size: 12,
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 6,
+                                                          ),
+                                                          Expanded(
+                                                            child: Text(
+                                                              option.label,
+                                                              maxLines: 1,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                              style: theme
+                                                                  .textTheme
+                                                                  .bodySmall
+                                                                  ?.copyWith(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600,
+                                                                    color:
+                                                                        isHighlighted
+                                                                        ? theme
+                                                                              .colorScheme
+                                                                              .onSecondaryContainer
+                                                                        : null,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                              ),
+                                              if (option
+                                                  .subtitle
+                                                  .isNotEmpty) ...[
+                                                const SizedBox(width: 8),
+                                                Flexible(
+                                                  child: Text(
+                                                    option.subtitle,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    textAlign: TextAlign.end,
+                                                    style: theme
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          fontSize: 10,
+                                                          color: isHighlighted
+                                                              ? theme
+                                                                    .colorScheme
+                                                                    .onSecondaryContainer
+                                                              : theme
+                                                                    .colorScheme
+                                                                    .onSurfaceVariant,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ],
+                ),
               ),
             ),
             const SizedBox(width: 4),
@@ -820,6 +822,7 @@ class _InlineFilterSuggestion {
     required this.label,
     required this.subtitle,
     required this.icon,
+    this.level,
     required this.replacementText,
     required this.addTrailingSpace,
     required this.applyImmediately,
@@ -829,6 +832,7 @@ class _InlineFilterSuggestion {
   final String label;
   final String subtitle;
   final IconData icon;
+  final LogLevel? level;
   final String replacementText;
   final bool addTrailingSpace;
   final bool applyImmediately;

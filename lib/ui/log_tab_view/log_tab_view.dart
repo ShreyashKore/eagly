@@ -495,6 +495,12 @@ class _LogTabViewState extends State<LogTabView> {
                       onChanged: controller.onInlineFilterChanged,
                       onSubmitted: controller.applyFiltersNow,
                       onSuggestionApplied: controller.setInlineFilterText,
+                      selectedLogLevel: controller.selectedLogLevel,
+                      onLogLevelChanged: (level) {
+                        if (level != null) {
+                          controller.setSelectedLogLevel(level);
+                        }
+                      },
                       recentMessageFilters: controller.recentMessageFilters,
                       recentPackageFilters: controller.recentPackageFilters,
                       knownPackageFilters: controller.knownInlinePackageFilters,
