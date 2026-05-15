@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../data/log_level.dart';
 
@@ -140,6 +141,7 @@ class InlineFilterBar extends StatefulWidget {
     required this.onSuggestionApplied,
     required this.recentMessageFilters,
     required this.recentPackageFilters,
+    required this.knownPackageFilters,
     required this.recentPidTidFilters,
     required this.recentTagFilters,
     required this.isIos,
@@ -152,6 +154,7 @@ class InlineFilterBar extends StatefulWidget {
   final InlineFilterSuggestionApplied onSuggestionApplied;
   final List<String> recentMessageFilters;
   final List<String> recentPackageFilters;
+  final List<String> knownPackageFilters;
   final List<String> recentPidTidFilters;
   final List<String> recentTagFilters;
   final bool isIos;
@@ -202,7 +205,12 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
   bool _helpVisible = false;
   // Notifier to force the autocomplete to rebuild/open on focus
   final _suggestionTrigger = ValueNotifier<int>(0);
+  final ScrollController _suggestionsScrollController = ScrollController();
+  final Map<String, GlobalKey> _suggestionItemKeys = <String, GlobalKey>{};
   TextEditingValue? _lastSuggestionEditingValue;
+  List<_InlineFilterSuggestion> _currentSuggestions = const [];
+  String _lastSuggestionQuerySignature = '';
+  int _highlightedSuggestionIndex = 0;
 
   @override
   void initState() {
@@ -213,6 +221,7 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
   @override
   void dispose() {
     widget.focusNode.removeListener(_onFocusChanged);
+    _suggestionsScrollController.dispose();
     _suggestionTrigger.dispose();
     super.dispose();
   }
@@ -224,28 +233,113 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
     }
   }
 
+  void _reopenSuggestions() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _lastSuggestionEditingValue = widget.controller.value;
+      _highlightedSuggestionIndex = 0;
+      widget.focusNode.requestFocus();
+      _suggestionTrigger.value++;
+    });
+  }
+
+  String _suggestionIdentity(_InlineFilterSuggestion suggestion) {
+    return [
+      suggestion.label,
+      suggestion.subtitle,
+      suggestion.replacementText,
+    ].join('\u0000');
+  }
+
+  GlobalKey _suggestionItemKey(_InlineFilterSuggestion suggestion) {
+    final identity = _suggestionIdentity(suggestion);
+    return _suggestionItemKeys.putIfAbsent(identity, GlobalKey.new);
+  }
+
+  void _ensureHighlightedSuggestionVisible() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _currentSuggestions.isEmpty) return;
+      final suggestion = _currentSuggestions[_highlightedSuggestionIndex];
+      final itemContext = _suggestionItemKey(suggestion).currentContext;
+      if (itemContext == null) return;
+      Scrollable.ensureVisible(
+        itemContext,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  KeyEventResult _handleSuggestionKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent || _currentSuggestions.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _highlightedSuggestionIndex =
+            (_highlightedSuggestionIndex + 1) % _currentSuggestions.length;
+      });
+      _ensureHighlightedSuggestionVisible();
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _highlightedSuggestionIndex =
+            (_highlightedSuggestionIndex - 1 + _currentSuggestions.length) %
+            _currentSuggestions.length;
+      });
+      _ensureHighlightedSuggestionVisible();
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      _applySuggestion(_currentSuggestions[_highlightedSuggestionIndex]);
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
   List<_InlineFilterSuggestion> _buildSuggestions(TextEditingValue value) {
     _lastSuggestionEditingValue = value;
+    final querySignature = '${value.text}\u0000${value.selection.extentOffset}';
     final context = _InlineFilterContext.fromEditingValue(value);
     final activeToken = context.activeToken;
     final colonIndex = activeToken.text.indexOf(':');
-    if (colonIndex > 0 &&
-        context.cursorOffset > activeToken.start + colonIndex) {
-      final keyText = activeToken.text
-          .substring(0, colonIndex)
-          .trim()
-          .toLowerCase();
-      final valueText = activeToken.text.substring(colonIndex + 1);
-      final keyDefinition = InlineFilterBar.keyDefinitions.firstWhere(
-        (definition) => definition.aliases.contains(keyText),
-        orElse: () => const _InlineFilterKeyDefinition.unknown(),
-      );
-      if (keyDefinition.canonicalKey == null) {
-        return _matchingKeySuggestions(activeToken.text);
-      }
-      return _valueSuggestionsForKey(keyDefinition, valueText);
+    final suggestions =
+        colonIndex > 0 && context.cursorOffset > activeToken.start + colonIndex
+        ? () {
+            final keyText = activeToken.text
+                .substring(0, colonIndex)
+                .trim()
+                .toLowerCase();
+            final valueText = activeToken.text.substring(colonIndex + 1);
+            final keyDefinition = InlineFilterBar.keyDefinitions.firstWhere(
+              (definition) => definition.aliases.contains(keyText),
+              orElse: () => const _InlineFilterKeyDefinition.unknown(),
+            );
+            if (keyDefinition.canonicalKey == null) {
+              return _matchingKeySuggestions(activeToken.text);
+            }
+            return _valueSuggestionsForKey(keyDefinition, valueText);
+          }()
+        : _matchingKeySuggestions(activeToken.text);
+
+    _currentSuggestions = suggestions;
+    if (_currentSuggestions.isEmpty) {
+      _highlightedSuggestionIndex = 0;
+    } else if (querySignature != _lastSuggestionQuerySignature ||
+        _highlightedSuggestionIndex >= _currentSuggestions.length) {
+      _highlightedSuggestionIndex = 0;
     }
-    return _matchingKeySuggestions(activeToken.text);
+    _lastSuggestionQuerySignature = querySignature;
+    if (_currentSuggestions.isNotEmpty) {
+      _ensureHighlightedSuggestionVisible();
+    }
+    return suggestions;
   }
 
   List<_InlineFilterSuggestion> _matchingKeySuggestions(String query) {
@@ -265,9 +359,79 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
             replacementText: '${definition.canonicalKey}:',
             addTrailingSpace: false,
             applyImmediately: false,
+            reopenSuggestions: true,
           ),
         )
         .toList(growable: false);
+  }
+
+  List<_InlineFilterValueCandidate> _packageValueCandidates() {
+    return _mergeValueCandidates([
+      for (final entry in widget.recentPackageFilters)
+        _InlineFilterValueCandidate(
+          value: entry,
+          subtitle: 'Recent package filter',
+        ),
+      for (final entry in widget.knownPackageFilters)
+        _InlineFilterValueCandidate(
+          value: entry,
+          subtitle: 'Known package from logs',
+        ),
+    ]);
+  }
+
+  List<_InlineFilterValueCandidate> _mergeValueCandidates(
+    List<_InlineFilterValueCandidate> candidates,
+  ) {
+    final deduped = <_InlineFilterValueCandidate>[];
+    final seenValues = <String>{};
+    for (final candidate in candidates) {
+      final trimmedValue = candidate.value.trim();
+      if (trimmedValue.isEmpty) continue;
+      final normalized = trimmedValue.toLowerCase();
+      if (!seenValues.add(normalized)) continue;
+      deduped.add(
+        _InlineFilterValueCandidate(
+          value: trimmedValue,
+          subtitle: candidate.subtitle,
+        ),
+      );
+    }
+    return deduped;
+  }
+
+  bool _isBoundaryMatch(String candidate, String query) {
+    if (candidate.startsWith(query)) return true;
+    for (final separator in const ['.', '/', '_', '-', ':']) {
+      if (candidate.contains('$separator$query')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Iterable<_InlineFilterValueCandidate> _matchingValueCandidates(
+    List<_InlineFilterValueCandidate> candidates,
+    String normalizedValue,
+  ) sync* {
+    if (normalizedValue.isEmpty) {
+      yield* candidates;
+      return;
+    }
+
+    final preferredMatches = <_InlineFilterValueCandidate>[];
+    final secondaryMatches = <_InlineFilterValueCandidate>[];
+    for (final candidate in candidates) {
+      final normalizedCandidate = candidate.value.toLowerCase();
+      if (!normalizedCandidate.contains(normalizedValue)) continue;
+      final bucket = _isBoundaryMatch(normalizedCandidate, normalizedValue)
+          ? preferredMatches
+          : secondaryMatches;
+      bucket.add(candidate);
+    }
+
+    yield* preferredMatches;
+    yield* secondaryMatches;
   }
 
   List<_InlineFilterSuggestion> _valueSuggestionsForKey(
@@ -297,33 +461,50 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
               replacementText: 'level:${level.code}',
               addTrailingSpace: true,
               applyImmediately: true,
+              reopenSuggestions: false,
             ),
           )
           .toList(growable: false);
     }
 
-    final recentValues = switch (keyDefinition.canonicalKey) {
-      'package' => widget.recentPackageFilters,
-      'tag' => widget.recentTagFilters,
-      'message' => widget.recentMessageFilters,
-      'pid' => widget.recentPidTidFilters,
-      _ => const <String>[],
+    final valueCandidates = switch (keyDefinition.canonicalKey) {
+      'package' => _packageValueCandidates(),
+      'tag' => _mergeValueCandidates([
+        for (final entry in widget.recentTagFilters)
+          _InlineFilterValueCandidate(
+            value: entry,
+            subtitle: 'Recent tag filter',
+          ),
+      ]),
+      'message' => _mergeValueCandidates([
+        for (final entry in widget.recentMessageFilters)
+          _InlineFilterValueCandidate(
+            value: entry,
+            subtitle: 'Recent message filter',
+          ),
+      ]),
+      'pid' => _mergeValueCandidates([
+        for (final entry in widget.recentPidTidFilters)
+          _InlineFilterValueCandidate(
+            value: entry,
+            subtitle: 'Recent pid/tid filter',
+          ),
+      ]),
+      _ => const <_InlineFilterValueCandidate>[],
     };
 
-    return recentValues
-        .where((entry) {
-          if (normalizedValue.isEmpty) return true;
-          return entry.toLowerCase().contains(normalizedValue);
-        })
+    final normalizedLabel = keyDefinition.canonicalKey!;
+    return _matchingValueCandidates(valueCandidates, normalizedValue)
         .map(
           (entry) => _InlineFilterSuggestion(
-            label: '${keyDefinition.canonicalKey}:${_formatInlineValue(entry)}',
-            subtitle: 'Recent ${keyDefinition.canonicalKey} filter',
+            label: '$normalizedLabel:${_formatInlineValue(entry.value)}',
+            subtitle: entry.subtitle,
             icon: keyDefinition.icon,
             replacementText:
-                '${keyDefinition.canonicalKey}:${_formatInlineValue(entry)}',
+                '$normalizedLabel:${_formatInlineValue(entry.value)}',
             addTrailingSpace: true,
             applyImmediately: true,
+            reopenSuggestions: false,
           ),
         )
         .toList(growable: false);
@@ -364,6 +545,9 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
       selection: TextSelection.collapsed(offset: offset),
       applyImmediately: suggestion.applyImmediately,
     );
+    if (suggestion.reopenSuggestions) {
+      _reopenSuggestions();
+    }
   }
 
   void _appendToken(String token, {required bool applyImmediately}) {
@@ -460,112 +644,155 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
                     height: _kInlineFilterFieldHeight,
                     child: ValueListenableBuilder<int>(
                       valueListenable: _suggestionTrigger,
-                      builder: (_, __, ___) =>
-                          RawAutocomplete<_InlineFilterSuggestion>(
-                            textEditingController: widget.controller,
-                            focusNode: widget.focusNode,
-                            optionsBuilder: _buildSuggestions,
-                            displayStringForOption: (option) => option.label,
-                            onSelected: _applySuggestion,
-                            fieldViewBuilder:
-                                (
-                                  context,
-                                  fieldController,
-                                  fieldFocusNode,
-                                  onFieldSubmitted,
-                                ) {
-                                  return TextField(
-                                    controller: fieldController,
-                                    focusNode: fieldFocusNode,
-                                    style: const TextStyle(fontSize: 12),
-                                    decoration: _inlineFilterDecoration(
-                                      context,
-                                    ),
-                                    onChanged: widget.onChanged,
-                                    onSubmitted: (_) {
-                                      widget.onSubmitted();
-                                      onFieldSubmitted();
-                                    },
-                                  );
-                                },
-                            optionsViewBuilder: (context, onSelected, options) {
-                              final materialOptions = options.toList(
-                                growable: false,
+                      builder: (_, __, ___) => RawAutocomplete<_InlineFilterSuggestion>(
+                        textEditingController: widget.controller,
+                        focusNode: widget.focusNode,
+                        optionsBuilder: _buildSuggestions,
+                        displayStringForOption: (option) => option.label,
+                        onSelected: _applySuggestion,
+                        fieldViewBuilder:
+                            (
+                              context,
+                              fieldController,
+                              fieldFocusNode,
+                              onFieldSubmitted,
+                            ) {
+                              return Focus(
+                                canRequestFocus: false,
+                                onKeyEvent: (_, event) =>
+                                    _handleSuggestionKeyEvent(event),
+                                child: TextField(
+                                  controller: fieldController,
+                                  focusNode: fieldFocusNode,
+                                  style: const TextStyle(fontSize: 12),
+                                  decoration: _inlineFilterDecoration(context),
+                                  onChanged: widget.onChanged,
+                                  onSubmitted: (_) {
+                                    widget.onSubmitted();
+                                    onFieldSubmitted();
+                                  },
+                                ),
                               );
-                              if (materialOptions.isEmpty) {
-                                return const SizedBox.shrink();
-                              }
-                              return Align(
-                                alignment: Alignment.topLeft,
-                                child: Material(
-                                  elevation: 6,
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxHeight: 200,
-                                      maxWidth: 540,
-                                    ),
-                                    child: ListView.separated(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 4,
-                                      ),
-                                      shrinkWrap: true,
-                                      itemCount: materialOptions.length,
-                                      separatorBuilder: (_, _) =>
-                                          const Divider(height: 1),
-                                      itemBuilder: (context, index) {
-                                        final option = materialOptions[index];
+                            },
+                        optionsViewBuilder: (context, onSelected, options) {
+                          final materialOptions = options.toList(
+                            growable: false,
+                          );
+                          if (materialOptions.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                              elevation: 6,
+                              borderRadius: BorderRadius.circular(8),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxHeight: 200,
+                                  maxWidth: 540,
+                                ),
+                                child: ListView.separated(
+                                  controller: _suggestionsScrollController,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 4,
+                                  ),
+                                  shrinkWrap: true,
+                                  itemCount: materialOptions.length,
+                                  separatorBuilder: (_, _) =>
+                                      const Divider(height: 1),
+                                  itemBuilder: (context, index) {
+                                    final option = materialOptions[index];
+                                    return Builder(
+                                      builder: (context) {
+                                        final isHighlighted =
+                                            _highlightedSuggestionIndex ==
+                                            index;
+                                        final backgroundColor = isHighlighted
+                                            ? theme
+                                                  .colorScheme
+                                                  .secondaryContainer
+                                            : null;
                                         return InkWell(
+                                          key: _suggestionItemKey(option),
                                           onTap: () => onSelected(option),
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 5,
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(option.icon, size: 12),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  option.label,
-                                                  style: theme
-                                                      .textTheme
-                                                      .bodySmall
-                                                      ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                      ),
-                                                ),
-                                                Spacer(),
-                                                if (option
-                                                    .subtitle
-                                                    .isNotEmpty) ...[
-                                                  const SizedBox(width: 8),
-                                                  Text(
-                                                    option.subtitle,
-                                                    style: theme
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.copyWith(
-                                                          fontSize: 10,
-                                                          color: theme
-                                                              .colorScheme
-                                                              .onSurfaceVariant,
-                                                        ),
+                                          child: ColoredBox(
+                                            color:
+                                                backgroundColor ??
+                                                Colors.transparent,
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 5,
                                                   ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.max,
+                                                children: [
+                                                  Icon(option.icon, size: 12),
+                                                  const SizedBox(width: 6),
+                                                  Expanded(
+                                                    child: Text(
+                                                      option.label,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: theme
+                                                          .textTheme
+                                                          .bodySmall
+                                                          ?.copyWith(
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color: isHighlighted
+                                                                ? theme
+                                                                      .colorScheme
+                                                                      .onSecondaryContainer
+                                                                : null,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  if (option
+                                                      .subtitle
+                                                      .isNotEmpty) ...[
+                                                    const SizedBox(width: 8),
+                                                    Flexible(
+                                                      child: Text(
+                                                        option.subtitle,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        textAlign:
+                                                            TextAlign.end,
+                                                        style: theme
+                                                            .textTheme
+                                                            .bodySmall
+                                                            ?.copyWith(
+                                                              fontSize: 10,
+                                                              color:
+                                                                  isHighlighted
+                                                                  ? theme
+                                                                        .colorScheme
+                                                                        .onSecondaryContainer
+                                                                  : theme
+                                                                        .colorScheme
+                                                                        .onSurfaceVariant,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ],
-                                              ],
+                                              ),
                                             ),
                                           ),
                                         );
                                       },
-                                    ),
-                                  ),
+                                    );
+                                  },
                                 ),
-                              );
-                            },
-                          ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ],
@@ -593,6 +820,7 @@ class _InlineFilterSuggestion {
     required this.replacementText,
     required this.addTrailingSpace,
     required this.applyImmediately,
+    required this.reopenSuggestions,
   });
 
   final String label;
@@ -601,6 +829,17 @@ class _InlineFilterSuggestion {
   final String replacementText;
   final bool addTrailingSpace;
   final bool applyImmediately;
+  final bool reopenSuggestions;
+}
+
+class _InlineFilterValueCandidate {
+  const _InlineFilterValueCandidate({
+    required this.value,
+    required this.subtitle,
+  });
+
+  final String value;
+  final String subtitle;
 }
 
 class _InlineFilterKeyDefinition {

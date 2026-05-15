@@ -497,6 +497,7 @@ class _LogTabViewState extends State<LogTabView> {
                       onSuggestionApplied: controller.setInlineFilterText,
                       recentMessageFilters: controller.recentMessageFilters,
                       recentPackageFilters: controller.recentPackageFilters,
+                      knownPackageFilters: controller.knownInlinePackageFilters,
                       recentPidTidFilters: controller.recentPidTidFilters,
                       recentTagFilters: controller.recentTagFilters,
                       isIos: controller.isIosLogContext,
