@@ -100,12 +100,12 @@ flutter:
 
 msix_config:
   display_name: Eagly
-  publisher_display_name: dev.shreyash
+  publisher_display_name: Gyanoba
   identity_name: com.gyanoba.eagly
   msix_version: 1.0.3.0
   architecture: x64
   logo_path: macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png
-  publisher: CN=dev.shreyash
+  publisher: CN=Gyanoba
   install_certificate: false
   # Keep the signing certificate out of source control and pass it when packaging.
   # Example:

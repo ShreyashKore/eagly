@@ -578,7 +578,7 @@ class _LogTabViewState extends State<LogTabView> {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Material(
-                color: context.logViewTheme.inlineNoticeBackground,
+                color: context.eaglyTheme.inlineNoticeBackground,
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -588,7 +588,7 @@ class _LogTabViewState extends State<LogTabView> {
                   child: Text(
                     'No logs match your filter, but logs are being generated.',
                     style: TextStyle(
-                      color: context.logViewTheme.inlineNoticeForeground,
+                      color: context.eaglyTheme.inlineNoticeForeground,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -654,7 +654,7 @@ class _LogTabViewState extends State<LogTabView> {
   }
 
   Widget _buildStatusBar(BuildContext context) {
-    final logTheme = context.logViewTheme;
+    final theme = context.eaglyTheme;
 
     return Container(
       width: double.infinity,
@@ -662,31 +662,28 @@ class _LogTabViewState extends State<LogTabView> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          Text(
-            'Logs: ${controller.logs.length}',
-            style: logTheme.statusBarStyle,
-          ),
+          Text('Logs: ${controller.logs.length}', style: theme.statusBarStyle),
           const Gap(16),
           Text(
             'Filtered: ${controller.filteredLogs.length}',
-            style: logTheme.statusBarStyle,
+            style: theme.statusBarStyle,
           ),
           if (controller.rowSelectionMode || controller.hasSelectedRows) ...[
             const Gap(16),
             Text(
               'Selected: ${controller.selectedRowCount}',
-              style: logTheme.statusBarStyle,
+              style: theme.statusBarStyle,
             ),
           ],
           const Spacer(),
           Text(
             'App mem: ${controller.formatBytes(widget.appMemoryBytesListenable.value)}',
-            style: logTheme.statusBarStyle,
+            style: theme.statusBarStyle,
           ),
           const Gap(16),
           Text(
             'Logs mem: ${controller.formatBytes(controller.totalLogsMemoryBytes)}',
-            style: logTheme.statusBarStyle,
+            style: theme.statusBarStyle,
           ),
           const Gap(8),
           _buildLogLinesEditor(context),
@@ -709,10 +706,10 @@ class _LogTabViewState extends State<LogTabView> {
             style: TextStyle(
               fontSize: 12,
               color: controller.isPaused
-                  ? logTheme.statusPausedColor
+                  ? theme.statusPausedColor
                   : controller.isRunning
-                  ? logTheme.statusLiveColor
-                  : logTheme.statusStoppedColor,
+                  ? theme.statusLiveColor
+                  : theme.statusStoppedColor,
               fontWeight: FontWeight.bold,
             ),
           ),

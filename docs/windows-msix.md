@@ -19,9 +19,9 @@ Important:
 `pubspec.yaml` currently uses:
 
 - `display_name`: `Eagly`
-- `publisher_display_name`: `dev.shreyash`
+- `publisher_display_name`: `Gyanoba`
 - `identity_name`: `com.gyanoba.eagly`
-- `publisher`: `CN=dev.shreyash`
+- `publisher`: `CN=Gyanoba`
 
 The signing certificate subject must match the configured `publisher` value exactly.
 

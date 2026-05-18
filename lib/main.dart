@@ -1,3 +1,4 @@
+import 'package:eagly/constants/app_constants.dart';
 import 'package:eagly/services/app_info_service.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/theme/app_theme.dart';
@@ -20,7 +21,7 @@ class MyApp extends StatelessWidget {
       valueListenable: PreferencesService.themeModeListenable,
       builder: (context, themeMode, _) {
         return MaterialApp(
-          title: 'ADB Logcat',
+          title: AppConstants.appName,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeMode,

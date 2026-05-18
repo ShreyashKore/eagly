@@ -45,14 +45,14 @@ class LogRow extends StatelessWidget {
   });
 
   Color _specialAccentColor(BuildContext context) {
-    final logTheme = context.logViewTheme;
+    final theme = context.eaglyTheme;
     return switch (log.type) {
-      LogEntryType.started || LogEntryType.resumed => logTheme.statusLiveColor,
-      LogEntryType.paused => logTheme.statusPausedColor,
-      LogEntryType.stopped => logTheme.statusStoppedColor,
-      LogEntryType.error => logTheme.errorColor,
-      LogEntryType.notice => logTheme.inlineNoticeForeground,
-      LogEntryType.log => logTheme.infoColor,
+      LogEntryType.started || LogEntryType.resumed => theme.statusLiveColor,
+      LogEntryType.paused => theme.statusPausedColor,
+      LogEntryType.stopped => theme.statusStoppedColor,
+      LogEntryType.error => theme.errorColor,
+      LogEntryType.notice => theme.inlineNoticeForeground,
+      LogEntryType.log => theme.infoColor,
     };
   }
 
@@ -135,7 +135,7 @@ class LogRow extends StatelessWidget {
           text: text.substring(match.start, match.end),
           style: style.copyWith(
             backgroundColor: highlightColor,
-            color: context.logViewTheme.searchHighlightForeground,
+            color: context.eaglyTheme.searchHighlightForeground,
           ),
         ),
       );
@@ -176,7 +176,7 @@ class LogRow extends StatelessWidget {
             context,
             level,
             monoStyle.copyWith(
-              color: context.logViewTheme.logBadgeForeground,
+              color: context.eaglyTheme.logBadgeForeground,
               fontWeight: FontWeight.bold,
             ),
             appendRowTerminator: appendRowTerminator,
@@ -244,9 +244,7 @@ class LogRow extends StatelessWidget {
 
     return SelectionContainer.disabled(
       child: Container(
-        color: isCurrentMatch
-            ? context.logViewTheme.searchCurrentRowColor
-            : null,
+        color: isCurrentMatch ? context.eaglyTheme.searchCurrentRowColor : null,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         child: Align(
           alignment: Alignment.centerLeft,
@@ -315,7 +313,7 @@ class LogRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logTheme = context.logViewTheme;
+    final logTheme = context.eaglyTheme;
     final levelColor = logTheme.logLevelColor(log.level);
     final rowStyle = monoStyle.copyWith(color: levelColor);
     final visible = LogColumn.values

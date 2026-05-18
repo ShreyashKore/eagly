@@ -87,7 +87,7 @@ class _LogSearchBarState extends State<LogSearchBar> {
     final hasQuery = widget.controller.text.isNotEmpty;
     final noResults = hasQuery && widget.totalMatches == 0 && !widget.hasError;
     final theme = Theme.of(context);
-    final logTheme = context.logViewTheme;
+    final logTheme = context.eaglyTheme;
     final hasSearchIssue = noResults || widget.hasError;
 
     return Material(

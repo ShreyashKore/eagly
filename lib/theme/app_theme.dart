@@ -18,8 +18,8 @@ extension ThemeModeExt on ThemeMode {
 }
 
 @immutable
-class LogViewTheme extends ThemeExtension<LogViewTheme> {
-  const LogViewTheme({
+class EaglyTheme extends ThemeExtension<EaglyTheme> {
+  const EaglyTheme({
     required this.logBodyStyle,
     required this.logCompactStyle,
     required this.logHeaderStyle,
@@ -78,7 +78,7 @@ class LogViewTheme extends ThemeExtension<LogViewTheme> {
   }
 
   @override
-  LogViewTheme copyWith({
+  EaglyTheme copyWith({
     TextStyle? logBodyStyle,
     TextStyle? logCompactStyle,
     TextStyle? logHeaderStyle,
@@ -102,7 +102,7 @@ class LogViewTheme extends ThemeExtension<LogViewTheme> {
     Color? statusStoppedColor,
     Color? cardShadowColor,
   }) {
-    return LogViewTheme(
+    return EaglyTheme(
       logBodyStyle: logBodyStyle ?? this.logBodyStyle,
       logCompactStyle: logCompactStyle ?? this.logCompactStyle,
       logHeaderStyle: logHeaderStyle ?? this.logHeaderStyle,
@@ -136,12 +136,12 @@ class LogViewTheme extends ThemeExtension<LogViewTheme> {
   }
 
   @override
-  LogViewTheme lerp(ThemeExtension<LogViewTheme>? other, double t) {
-    if (other is! LogViewTheme) {
+  EaglyTheme lerp(ThemeExtension<EaglyTheme>? other, double t) {
+    if (other is! EaglyTheme) {
       return this;
     }
 
-    return LogViewTheme(
+    return EaglyTheme(
       logBodyStyle: TextStyle.lerp(logBodyStyle, other.logBodyStyle, t)!,
       logCompactStyle: TextStyle.lerp(
         logCompactStyle,
@@ -217,7 +217,7 @@ class LogViewTheme extends ThemeExtension<LogViewTheme> {
 }
 
 extension AppThemeContext on BuildContext {
-  LogViewTheme get logViewTheme => Theme.of(this).extension<LogViewTheme>()!;
+  EaglyTheme get eaglyTheme => Theme.of(this).extension<EaglyTheme>()!;
 }
 
 class AppTheme {
@@ -256,7 +256,7 @@ class AppTheme {
     return seeded;
   }();
 
-  static ThemeData _buildTheme(ColorScheme colorScheme, LogViewTheme tokens) {
+  static ThemeData _buildTheme(ColorScheme colorScheme, EaglyTheme tokens) {
     final baseTheme = ThemeData(
       useMaterial3: true,
       visualDensity: VisualDensity.compact,
@@ -420,11 +420,11 @@ class AppTheme {
     );
   }
 
-  static LogViewTheme _themeTokens(ColorScheme colorScheme) {
+  static EaglyTheme _themeTokens(ColorScheme colorScheme) {
     final isDark = colorScheme.brightness == Brightness.dark;
     final mono = GoogleFonts.notoSansMono();
 
-    return LogViewTheme(
+    return EaglyTheme(
       logBodyStyle: mono.copyWith(fontSize: 12, height: 1.2),
       logCompactStyle: mono.copyWith(fontSize: 11, height: 1.2),
       logHeaderStyle: mono.copyWith(fontSize: 12, fontWeight: FontWeight.w700),

@@ -115,7 +115,7 @@ class _LogViewerState extends State<LogViewer> {
   final Map<int, BuildContext> _rowContexts = <int, BuildContext>{};
   final SplayTreeMap<int, Rect> _rowBoundsByIndex = SplayTreeMap<int, Rect>();
 
-  TextStyle get _monoStyle => _applyFont(context.logViewTheme.logBodyStyle);
+  TextStyle get _monoStyle => _applyFont(context.eaglyTheme.logBodyStyle);
 
   TextStyle _applyFont(TextStyle base) =>
       base.copyWith(fontSize: PreferencesService.logFontSize);
@@ -971,7 +971,7 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   Widget _buildHeader(double messageWidth) {
-    final headerStyle = _applyFont(context.logViewTheme.logHeaderStyle);
+    final headerStyle = _applyFont(context.eaglyTheme.logHeaderStyle);
     return LogViewerHeader(
       rowSelectionMode: widget.rowSelectionMode,
       headerStyle: headerStyle,
