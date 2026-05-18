@@ -1,4 +1,4 @@
-name: logview
+name: eagly
 description: "Logs viewer"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -100,9 +100,9 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 msix_config:
-  display_name: Logview
+  display_name: Eagly
   publisher_display_name: dev.shreyash
-  identity_name: dev.shreyash.logview
+  identity_name: com.gyanoba.eagly
   msix_version: 1.0.3.0
   architecture: x64
   logo_path: macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png
@@ -110,5 +110,5 @@ msix_config:
   install_certificate: false
   # Keep the signing certificate out of source control and pass it when packaging.
   # Example:
-  # dart run msix:create --certificate-path windows/certificates/logview-release.pfx --certificate-password "<password>"
+  # dart run msix:create --certificate-path windows/certificates/eagly-release.pfx --certificate-password "<password>"
 

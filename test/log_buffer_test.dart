@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logview/utils/log_buffer.dart';
+import 'package:eagly/utils/log_buffer.dart';
 
 void main() {
   test(

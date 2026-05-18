@@ -1,10 +1,10 @@
+import 'package:eagly/data/log_level.dart';
+import 'package:eagly/theme/app_theme.dart';
+import 'package:eagly/theme/log_level_presentation.dart';
+import 'package:eagly/ui/log_tab_view/components/classic_filter_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:logview/data/log_level.dart';
-import 'package:logview/theme/app_theme.dart';
-import 'package:logview/theme/log_level_presentation.dart';
-import 'package:logview/ui/log_tab_view/components/classic_filter_bar.dart';
 
 void main() {
   setUpAll(() {
@@ -151,4 +151,3 @@ void main() {
     expect(find.text('Fatal (F)'), findsWidgets);
   });
 }
-

@@ -1398,7 +1398,7 @@ class LogTabController extends ChangeNotifier {
 
     return LogEntry.loggingState(
       type: type,
-      tag: tag ?? 'logview session',
+      tag: tag ?? 'eagly session',
       message: effectiveMessage,
       packageName: selectedDevice?.id,
       processName: subject,
