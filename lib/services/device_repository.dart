@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../data/device.dart';
 import '../data/ios_device_info.dart';
 import '../data/wireless_debug_models.dart';
+import '../features/app_log/app_logger.dart';
 import '../utils/apple_device_mapping.dart';
 import 'tools/adb_tool.dart';
 import 'tools/idevice_id_tool.dart';
@@ -45,6 +46,7 @@ class DeviceRepository extends ChangeNotifier {
   final AdbTool _adbTool;
   final IdeviceIdTool _ideviceIdTool;
   final IdeviceInfoTool _ideviceInfoTool;
+  final AppLogger _logger = AppLogger(source: 'DeviceRepository');
   final Map<String, _CachedAndroidDeviceDescription> _androidDescriptionCache =
       {};
   final Map<String, _CachedIosDeviceDescription> _iosDescriptionCache = {};
@@ -165,6 +167,12 @@ class DeviceRepository extends ChangeNotifier {
       ...describedAndroidDevices,
       ...iosDevices,
     ]);
+
+    _logger.info(
+      'Device list refreshed: '
+          '${describedAndroidDevices.length} Android, '
+          '${iosDevices.length} iOS',
+    );
 
     nextDevices.sort((left, right) {
       final platformOrder = left.platform.index.compareTo(right.platform.index);

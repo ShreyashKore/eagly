@@ -30,6 +30,7 @@ class IdeviceSyslogTool extends ToolProcessRunner {
 
     controller = StreamController<LogEntry>(
       onListen: () async {
+        logInfo('Starting idevicesyslog for $processName');
         try {
           process = await startProcess(['-u', deviceId]);
           final stderrFuture = stderrText(process!);
@@ -80,6 +81,7 @@ class IdeviceSyslogTool extends ToolProcessRunner {
             ),
           );
         } finally {
+          logInfo('idevicesyslog stream ended for $processName');
           await stop();
           await controller.close();
         }

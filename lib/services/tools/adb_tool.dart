@@ -29,6 +29,7 @@ class AdbTool extends ToolProcessRunner {
         }
       }
 
+      logInfo('Found ${deviceList.length} device(s)');
       return deviceList;
     } on ProcessException catch (error) {
       logError('ProcessException while listing Android devices', error);
@@ -160,6 +161,7 @@ class AdbTool extends ToolProcessRunner {
     required String address,
     required String pairingCode,
   }) async {
+    logInfo('Pairing with $address…');
     try {
       final result = await runText(['pair', address, pairingCode]);
       if (!result.isSuccess) {
@@ -172,6 +174,7 @@ class AdbTool extends ToolProcessRunner {
       }
 
       final message = result.combinedOutput;
+      logSuccess('Paired with $address');
       return DeviceCommandResult.success(
         message: message.isEmpty
             ? 'Successfully paired with $address.'
@@ -186,6 +189,7 @@ class AdbTool extends ToolProcessRunner {
   }
 
   Future<DeviceCommandResult> connectDevice(String address) async {
+    logInfo('Connecting to $address…');
     try {
       final result = await runText(['connect', address]);
       final output = result.combinedOutput;
@@ -201,6 +205,7 @@ class AdbTool extends ToolProcessRunner {
         return DeviceCommandResult.failure(error: details);
       }
 
+      logSuccess('Connected to $address');
       return DeviceCommandResult.success(
         message: output.isEmpty ? 'Connected to $address.' : output,
       );
@@ -250,6 +255,7 @@ class AdbTool extends ToolProcessRunner {
 
     controller = StreamController<LogEntry>(
       onListen: () async {
+        logInfo('Starting logcat for $deviceId');
         try {
           process = await startProcess([
             '-s',
@@ -289,10 +295,7 @@ class AdbTool extends ToolProcessRunner {
             ),
           );
         } catch (error) {
-          logError(
-            'Unexpected error while streaming adb logcat for $deviceId',
-            error,
-          );
+          logError('Unexpected error while streaming adb logcat for $deviceId', error);
           controller.add(
             buildToolErrorEntry(
               'adb logcat error: ${describeError(error)}',
@@ -301,6 +304,7 @@ class AdbTool extends ToolProcessRunner {
             ),
           );
         } finally {
+          logInfo('Logcat stream ended for $deviceId');
           await stop();
           await controller.close();
         }
@@ -312,10 +316,12 @@ class AdbTool extends ToolProcessRunner {
   }
 
   Future<void> stopLogcat(String deviceId) async {
+    logInfo('Stopping logcat for $deviceId');
     await runText(['-s', deviceId, 'shell', 'pkill', 'logcat']);
   }
 
   Future<void> clearLogs(String deviceId) async {
+    logInfo('Clearing adb logcat buffer for $deviceId');
     await runText(['-s', deviceId, 'logcat', '-c']);
   }
 
