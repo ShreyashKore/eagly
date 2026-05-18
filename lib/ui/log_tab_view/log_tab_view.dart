@@ -6,9 +6,11 @@ import '../../constants/app_constants.dart';
 import '../../data/device.dart';
 import '../../data/log_entry.dart';
 import '../../data/log_view_mode.dart';
+import '../../features/app_log/app_logger.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/log_feedback.dart';
 import '../../utils/widget_extensions.dart';
+import '../components/app_log_overlay.dart';
 import '../log_viewer/log_viewer.dart';
 import '../wireless_connection/wireless_connection_dialog.dart';
 import 'components/available_device_card.dart';
@@ -710,6 +712,30 @@ class _LogTabViewState extends State<LogTabView> {
                   : logTheme.statusStoppedColor,
               fontWeight: FontWeight.bold,
             ),
+          ),
+          ListenableBuilder(
+            listenable: AppLogger.global.entriesListenable,
+            builder: (context, _) {
+              final hasWorkspaceErrors = AppLogger.global.hasEntries(
+                sessionTag: controller.appLogSessionTag,
+                errorsOnly: true,
+              );
+              if (!hasWorkspaceErrors) {
+                return const SizedBox.shrink();
+              }
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Gap(8),
+                  AppLogTriggerButton(
+                    sessionTag: controller.appLogSessionTag,
+                    title: 'App Logs • ${controller.title}',
+                    tooltip: 'Show app errors for this tab',
+                    iconSize: 16,
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
