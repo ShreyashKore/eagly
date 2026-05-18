@@ -221,7 +221,7 @@ extension AppThemeContext on BuildContext {
 }
 
 class AppTheme {
-  static const Color seedColor = Color(0xFF4F7CFF);
+  static const Color seedColor = Color(0xFF060c16);
 
   static final ThemeData lightTheme = _buildTheme(
     _lightColorScheme,

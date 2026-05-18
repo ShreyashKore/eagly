@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../../constants/app_constants.dart';
+import '../../constants/local_assets.dart';
 import '../../data/device.dart';
 import '../../data/log_entry.dart';
 import '../../data/log_view_mode.dart';
@@ -402,10 +403,12 @@ class _LogTabViewState extends State<LogTabView> {
                 alignment: Alignment.centerRight,
                 child: _buildGetStartedSecondaryActions(),
               ),
-              Icon(
-                Icons.developer_board,
-                size: 44,
-                color: theme.colorScheme.primary,
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                clipBehavior: Clip.hardEdge,
+                child: Image.asset(LocalAssets.appIcon, height: 96, width: 96),
               ),
               const Gap(18),
               Text(
