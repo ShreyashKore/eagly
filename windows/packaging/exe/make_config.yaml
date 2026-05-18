@@ -1,0 +1,12 @@
+app_id: com.gyanoba.eagly
+display_name: Eagly
+executable_name: eagly.exe
+publisher_name: Gyanoba
+publisher_url: https://github.com/ShreyashKore/eagly
+create_desktop_icon: true
+launch_at_startup: false
+install_dir_name: '{autopf64}\\Eagly'
+setup_icon_file: windows/runner/resources/app_icon.ico
+locales:
+  - en
+

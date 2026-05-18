@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.6+7
+version: 1.0.7+8
 
 environment:
   sdk: ^3.9.0
@@ -47,8 +47,6 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
-  msix: ^3.16.13
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -98,16 +96,4 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 
-msix_config:
-  display_name: Eagly
-  publisher_display_name: Gyanoba
-  identity_name: com.gyanoba.eagly
-  msix_version: 1.0.3.0
-  architecture: x64
-  logo_path: macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png
-  publisher: CN=Gyanoba
-  install_certificate: false
-  # Keep the signing certificate out of source control and pass it when packaging.
-  # Example:
-  # dart run msix:create --certificate-path windows/certificates/eagly-release.pfx --certificate-password "<password>"
 

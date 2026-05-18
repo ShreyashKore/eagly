@@ -61,9 +61,33 @@ fvm flutter analyze
 fvm flutter test -r compact
 ```
 
-## Windows Packaging (MSIX)
+## Desktop Packaging
 
-Windows MSIX packaging is configured through `pubspec.yaml` using the `msix` package.
+Release packaging is handled by [Fastforge](https://fastforge.dev/).
 
-For the release signing process, certificate requirements, and the steps to avoid `Unknown publisher` install warnings, see [`doc/windows-msix.md`](windows-msix.md).
+### One-time tooling
+
+Install Fastforge:
+
+```bash
+dart pub global activate fastforge
+```
+
+Additional platform-specific tools:
+
+- macOS DMG: `npm install -g appdmg`
+- Windows EXE: install Inno Setup 6
+- Linux DEB: `dpkg-deb` is available on standard Debian/Ubuntu environments
+
+### Package builds
+
+```bash
+fastforge package --platform=macos --targets=dmg --artifact-name='eagly-{{build_name}}-{{platform}}{{#is_installer}}-setup{{/is_installer}}{{#ext}}.{{ext}}{{/ext}}'
+fastforge package --platform=linux --targets=deb --artifact-name='eagly-{{build_name}}-{{platform}}{{#is_installer}}-setup{{/is_installer}}{{#ext}}.{{ext}}{{/ext}}'
+fastforge package --platform=windows --targets=exe,msix --artifact-name='eagly-{{build_name}}-{{platform}}{{#is_installer}}-setup{{/is_installer}}{{#ext}}.{{ext}}{{/ext}}'
+```
+
+Artifacts are written under `dist/<pubspec-version>/`.
+
+For Windows MSIX metadata and signing notes, see [`docs/windows-msix.md`](windows-msix.md).
 

@@ -15,40 +15,22 @@ jobs:
         include:
           - os: macos-latest
             platform: macos
-            build-cmd: flutter build macos --release
-            artifact-path: build/macos/Build/Products/Release/*.app
-            package-cmd: |
-              cd build/macos/Build/Products/Release
-              ditto -c -k --sequesterRsrc --keepParent eagly.app eagly-${VERSION}-macos.zip
-            artifact-name: eagly-${VERSION}-macos.zip
-            upload-path: build/macos/Build/Products/Release/eagly-*-macos.zip
+            targets: dmg
+            upload-path: dist/*/*.dmg
           - os: ubuntu-latest
             platform: linux
-            build-cmd: flutter build linux --release
-            artifact-path: build/linux/x64/release/bundle
-            package-cmd: |
-              cd build/linux/x64/release
-              tar -czf eagly-${VERSION}-linux-x64.tar.gz -C bundle .
-            artifact-name: eagly-${VERSION}-linux-x64.tar.gz
-            upload-path: build/linux/x64/release/eagly-*-linux-x64.tar.gz
+            targets: deb
+            upload-path: dist/*/*.deb
           - os: windows-latest
             platform: windows
-            build-cmd: flutter build windows --release
-            artifact-path: build/windows/x64/runner/Release
-            package-cmd: |
-              cd build/windows/x64/runner
-              powershell Compress-Archive -Path 'Release/*' -DestinationPath "eagly-${VERSION}-windows-x64.zip"
-            artifact-name: eagly-${VERSION}-windows-x64.zip
-            upload-path: build/windows/x64/runner/eagly-*-windows-x64.zip
+            targets: exe,msix
+            upload-path: |
+              dist/*/*.exe
+              dist/*/*.msix
 
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Extract version from tag
-        id: version
-        shell: bash
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
       - name: Read Flutter version from .fvmrc
         id: fvm
@@ -66,6 +48,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
 
+      - name: Install macOS packaging dependencies
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.local"
+          npm install -g appdmg --prefix "$HOME/.local"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Windows packaging dependencies
+        if: matrix.platform == 'windows'
+        run: choco install innosetup --no-progress -y
+
+      - name: Install Fastforge
+        shell: bash
+        run: dart pub global activate fastforge
+
       - name: Prepare bundled mobile tools
         shell: bash
         env:
@@ -80,12 +78,20 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build
-        run: ${{ matrix.build-cmd }}
-
-      - name: Package artifact
+      - name: Package release artifacts
         shell: bash
-        run: ${{ matrix.package-cmd }}
+        run: |
+          dart pub global run fastforge:main package \
+            --platform="${{ matrix.platform }}" \
+            --targets="${{ matrix.targets }}" \
+            --artifact-name='eagly-{{build_name}}-{{platform}}{{#is_installer}}-setup{{/is_installer}}{{#ext}}.{{ext}}{{/ext}}'
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: eagly-${{ matrix.platform }}-${{ github.ref_name }}
+          path: ${{ matrix.upload-path }}
+          if-no-files-found: error
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
