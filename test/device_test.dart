@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logview/data/device.dart';
+import 'package:eagly/data/device.dart';
 
 void main() {
   test('ios labels trim values and avoid duplicate secondary labels', () {

@@ -1,7 +1,7 @@
 import 'dart:io';
 
+import 'package:eagly/services/device_session_service.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logview/services/device_session_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -89,4 +89,3 @@ Future<String> _writeExecutable(
   }
   return file.path;
 }
-

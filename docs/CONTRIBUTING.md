@@ -1,4 +1,4 @@
-# Contributing to Logview
+# Contributing to Eagly
 
 Thank you for your interest in contributing!
 

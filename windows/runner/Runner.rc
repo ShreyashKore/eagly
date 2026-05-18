@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "dev.shreyash" "\0"
-            VALUE "FileDescription", "logview" "\0"
+            VALUE "FileDescription", "eagly" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "logview" "\0"
+            VALUE "InternalName", "eagly" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 dev.shreyash. All rights reserved." "\0"
-            VALUE "OriginalFilename", "logview.exe" "\0"
-            VALUE "ProductName", "logview" "\0"
+            VALUE "OriginalFilename", "eagly.exe" "\0"
+            VALUE "ProductName", "eagly" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

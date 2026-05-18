@@ -7,17 +7,17 @@
 
 import 'dart:ui' as ui;
 
+import 'package:eagly/data/log_column.dart';
+import 'package:eagly/data/log_entry.dart';
+import 'package:eagly/services/preferences_service.dart';
+import 'package:eagly/theme/app_theme.dart';
+import 'package:eagly/ui/log_viewer/log_viewer.dart';
+import 'package:eagly/utils/text_search_pattern.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:logview/data/log_column.dart';
-import 'package:logview/data/log_entry.dart';
-import 'package:logview/services/preferences_service.dart';
-import 'package:logview/theme/app_theme.dart';
-import 'package:logview/ui/log_viewer/log_viewer.dart';
-import 'package:logview/utils/text_search_pattern.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -292,34 +292,41 @@ void main() {
     expect(revealedDx, lessThan(initialDx - 100));
   });
 
-  testWidgets('special entries render as status tiles without selection cells', (
-    WidgetTester tester,
-  ) async {
-    await pumpSelectableLogViewer(
-      tester,
-      logs: [
-        LogEntry(
-          timestamp: '04-20 10:00:00.000',
-          pid: '101',
-          tid: '201',
-          level: 'I',
-          tag: 'Tag',
-          message: 'First message',
-        ),
-        LogEntry.loggingState(
-          type: LogEntryType.paused,
-          message: 'Paused live logging for emulator-5554.',
-          processName: 'emulator-5554',
-        ),
-      ],
-    );
+  testWidgets(
+    'special entries render as status tiles without selection cells',
+    (WidgetTester tester) async {
+      await pumpSelectableLogViewer(
+        tester,
+        logs: [
+          LogEntry(
+            timestamp: '04-20 10:00:00.000',
+            pid: '101',
+            tid: '201',
+            level: 'I',
+            tag: 'Tag',
+            message: 'First message',
+          ),
+          LogEntry.loggingState(
+            type: LogEntryType.paused,
+            message: 'Paused live logging for emulator-5554.',
+            processName: 'emulator-5554',
+          ),
+        ],
+      );
 
-    expect(find.text('Paused'), findsOneWidget);
-    expect(find.text('Paused live logging for emulator-5554.'), findsOneWidget);
-    expect(find.byIcon(Icons.pause_circle_outline_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.check_box_outline_blank), findsOneWidget);
-    expect(tester.getSize(find.byKey(const ValueKey('special-log-row'))).height, lessThan(36));
-  });
+      expect(find.text('Paused'), findsOneWidget);
+      expect(
+        find.text('Paused live logging for emulator-5554.'),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.pause_circle_outline_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.check_box_outline_blank), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const ValueKey('special-log-row'))).height,
+        lessThan(36),
+      );
+    },
+  );
 
   testWidgets('special entries stay compact when wrapText is disabled', (
     WidgetTester tester,
@@ -454,76 +461,82 @@ void main() {
     expect(find.byIcon(Icons.check_box), findsNWidgets(3));
   });
 
-  testWidgets('secondary click still opens the copy menu after drag selection', (
-    WidgetTester tester,
-  ) async {
-    await pumpSelectableLogViewer(tester);
-    final centers = selectionCellCenters(tester);
+  testWidgets(
+    'secondary click still opens the copy menu after drag selection',
+    (WidgetTester tester) async {
+      await pumpSelectableLogViewer(tester);
+      final centers = selectionCellCenters(tester);
 
-    final mouse = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
-    await mouse.addPointer(location: centers.first);
-    await tester.pump();
-    await mouse.down(centers.first);
-    await tester.pump();
-    await mouse.moveTo(centers.last);
-    await tester.pump();
-    await mouse.up();
-    await tester.pumpAndSettle();
+      final mouse = await tester.createGesture(
+        kind: ui.PointerDeviceKind.mouse,
+      );
+      await mouse.addPointer(location: centers.first);
+      await tester.pump();
+      await mouse.down(centers.first);
+      await tester.pump();
+      await mouse.moveTo(centers.last);
+      await tester.pump();
+      await mouse.up();
+      await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.check_box), findsNWidgets(3));
+      expect(find.byIcon(Icons.check_box), findsNWidgets(3));
 
-    final secondaryMouse = await tester.startGesture(
-      centers.last,
-      kind: ui.PointerDeviceKind.mouse,
-      buttons: kSecondaryMouseButton,
-    );
-    await tester.pump();
-    await secondaryMouse.up();
-    await tester.pumpAndSettle();
+      final secondaryMouse = await tester.startGesture(
+        centers.last,
+        kind: ui.PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await tester.pump();
+      await secondaryMouse.up();
+      await tester.pumpAndSettle();
 
-    expect(find.text('Copy message'), findsOneWidget);
-    expect(find.text('Copy time + message'), findsOneWidget);
-    expect(find.byKey(const ValueKey('row-selection-rect')), findsNothing);
-  });
+      expect(find.text('Copy message'), findsOneWidget);
+      expect(find.text('Copy time + message'), findsOneWidget);
+      expect(find.byKey(const ValueKey('row-selection-rect')), findsNothing);
+    },
+  );
 
-  testWidgets('turning row selection mode off keeps the selection area mounted', (
-    WidgetTester tester,
-  ) async {
-    await pumpToggleableLogViewer(tester);
+  testWidgets(
+    'turning row selection mode off keeps the selection area mounted',
+    (WidgetTester tester) async {
+      await pumpToggleableLogViewer(tester);
 
-    expect(find.byIcon(Icons.check_box_outline_blank), findsNWidgets(2));
-    expect(find.byType(SelectionArea), findsOneWidget);
+      expect(find.byIcon(Icons.check_box_outline_blank), findsNWidgets(2));
+      expect(find.byType(SelectionArea), findsOneWidget);
 
-    final toggleButton = tester.widget<TextButton>(
-      find.byKey(const ValueKey('toggle-row-selection-mode')),
-    );
-    toggleButton.onPressed!.call();
-    await tester.pumpAndSettle();
+      final toggleButton = tester.widget<TextButton>(
+        find.byKey(const ValueKey('toggle-row-selection-mode')),
+      );
+      toggleButton.onPressed!.call();
+      await tester.pumpAndSettle();
 
-    expect(find.byType(SelectionArea), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('log-viewer-selection-area')),
-      findsOneWidget,
-    );
-    expect(find.byIcon(Icons.check_box_outline_blank), findsNothing);
+      expect(find.byType(SelectionArea), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('log-viewer-selection-area')),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.check_box_outline_blank), findsNothing);
 
-    final selectionArea = find.byType(SelectionArea);
-    final mouse = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
-    final areaRect = tester.getRect(selectionArea);
-    final start = areaRect.topLeft + const Offset(360, 48);
-    final end = start + const Offset(140, 0);
-    await mouse.addPointer(location: start);
-    await tester.pump();
-    await mouse.down(start);
-    await tester.pump();
-    await mouse.moveTo(end);
-    await tester.pump();
-    await mouse.up();
-    await tester.pumpAndSettle();
+      final selectionArea = find.byType(SelectionArea);
+      final mouse = await tester.createGesture(
+        kind: ui.PointerDeviceKind.mouse,
+      );
+      final areaRect = tester.getRect(selectionArea);
+      final start = areaRect.topLeft + const Offset(360, 48);
+      final end = start + const Offset(140, 0);
+      await mouse.addPointer(location: start);
+      await tester.pump();
+      await mouse.down(start);
+      await tester.pump();
+      await mouse.moveTo(end);
+      await tester.pump();
+      await mouse.up();
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('row-selection-rect')), findsNothing);
-    expect(find.byType(SelectionArea), findsOneWidget);
-  });
+      expect(find.byKey(const ValueKey('row-selection-rect')), findsNothing);
+      expect(find.byType(SelectionArea), findsOneWidget);
+    },
+  );
 }
 
 class _SelectableLogViewerHarness extends StatefulWidget {
@@ -687,4 +700,3 @@ class _ToggleableLogViewerHarnessState
     );
   }
 }
-

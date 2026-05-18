@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:logview/services/app_info_service.dart';
-import 'package:logview/services/preferences_service.dart';
-import 'package:logview/theme/app_theme.dart';
-import 'package:logview/ui/home_screen/home_page.dart';
+import 'package:eagly/services/app_info_service.dart';
+import 'package:eagly/services/preferences_service.dart';
+import 'package:eagly/theme/app_theme.dart';
+import 'package:eagly/ui/home_screen/home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

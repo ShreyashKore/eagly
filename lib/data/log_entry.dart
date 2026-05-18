@@ -73,7 +73,7 @@ class LogEntry {
     required LogEntryType type,
     required String message,
     String? timestamp,
-    String tag = 'logview',
+    String tag = 'eagly',
     String level = 'I',
     String pid = '',
     String tid = '',
@@ -97,7 +97,7 @@ class LogEntry {
   factory LogEntry.loggingState({
     required LogEntryType type,
     String? message,
-    String tag = 'logview',
+    String tag = 'eagly',
     String? packageName,
     String? processName,
     String? timestamp,

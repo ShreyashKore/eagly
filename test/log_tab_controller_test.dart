@@ -1,19 +1,19 @@
 import 'dart:async';
 
+import 'package:eagly/data/device.dart';
+import 'package:eagly/data/log_column.dart';
+import 'package:eagly/data/log_entry.dart';
+import 'package:eagly/data/log_level.dart';
+import 'package:eagly/data/log_tab_settings.dart';
+import 'package:eagly/data/log_view_mode.dart';
+import 'package:eagly/services/device_repository.dart';
+import 'package:eagly/services/device_session_service.dart';
+import 'package:eagly/services/tools/adb_tool.dart';
+import 'package:eagly/services/tools/idevice_id_tool.dart';
+import 'package:eagly/services/tools/idevice_info_tool.dart';
+import 'package:eagly/ui/log_tab_view/log_tab_controller.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logview/data/device.dart';
-import 'package:logview/data/log_column.dart';
-import 'package:logview/data/log_entry.dart';
-import 'package:logview/data/log_level.dart';
-import 'package:logview/data/log_tab_settings.dart';
-import 'package:logview/data/log_view_mode.dart';
-import 'package:logview/services/device_repository.dart';
-import 'package:logview/services/device_session_service.dart';
-import 'package:logview/services/tools/adb_tool.dart';
-import 'package:logview/services/tools/idevice_id_tool.dart';
-import 'package:logview/services/tools/idevice_info_tool.dart';
-import 'package:logview/ui/log_tab_view/log_tab_controller.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -356,44 +356,47 @@ void main() {
     expect(controller!.recentMessageFilters, isEmpty);
   });
 
-  test('inline bare text matches the whole log entry, not only the message', () {
-    controller = createController(
-      settings: _initialSettings(filterViewMode: LogFilterViewMode.inline),
-    );
+  test(
+    'inline bare text matches the whole log entry, not only the message',
+    () {
+      controller = createController(
+        settings: _initialSettings(filterViewMode: LogFilterViewMode.inline),
+      );
 
-    controller!.logs = [
-      LogEntry(
-        timestamp: '2026-04-26 10:00:00.000',
-        pid: '900',
-        tid: '901',
-        level: 'I',
-        tag: 'AuthService',
-        message: 'No matching message text here',
-        packageName: 'com.example.auth',
-      ),
-      LogEntry(
-        timestamp: '2026-04-26 10:00:01.000',
-        pid: '902',
-        tid: '903',
-        level: 'I',
-        tag: 'SyncService',
-        message: 'No matching message text here either',
-        packageName: 'com.example.sync',
-      ),
-    ];
+      controller!.logs = [
+        LogEntry(
+          timestamp: '2026-04-26 10:00:00.000',
+          pid: '900',
+          tid: '901',
+          level: 'I',
+          tag: 'AuthService',
+          message: 'No matching message text here',
+          packageName: 'com.example.auth',
+        ),
+        LogEntry(
+          timestamp: '2026-04-26 10:00:01.000',
+          pid: '902',
+          tid: '903',
+          level: 'I',
+          tag: 'SyncService',
+          message: 'No matching message text here either',
+          packageName: 'com.example.sync',
+        ),
+      ];
 
-    controller!.onInlineFilterChanged('AuthService');
-    controller!.applyFiltersNow();
+      controller!.onInlineFilterChanged('AuthService');
+      controller!.applyFiltersNow();
 
-    expect(controller!.filteredLogs, hasLength(1));
-    expect(controller!.filteredLogs.single.tag, 'AuthService');
+      expect(controller!.filteredLogs, hasLength(1));
+      expect(controller!.filteredLogs.single.tag, 'AuthService');
 
-    controller!.onInlineFilterChanged('com.example.sync');
-    controller!.applyFiltersNow();
+      controller!.onInlineFilterChanged('com.example.sync');
+      controller!.applyFiltersNow();
 
-    expect(controller!.filteredLogs, hasLength(1));
-    expect(controller!.filteredLogs.single.packageName, 'com.example.sync');
-  });
+      expect(controller!.filteredLogs, hasLength(1));
+      expect(controller!.filteredLogs.single.packageName, 'com.example.sync');
+    },
+  );
 
   test('changing filter mode updates the active per-tab setting', () {
     controller = createController();
@@ -548,24 +551,27 @@ void main() {
     expect(clipboard?.text, 'Selected needle');
   });
 
-  test('search navigation disables auto-scroll when moving between matches', () {
-    controller = createController();
+  test(
+    'search navigation disables auto-scroll when moving between matches',
+    () {
+      controller = createController();
 
-    controller!.logs = [
-      _testLogEntry(message: 'needle one'),
-      _testLogEntry(message: 'needle two'),
-    ];
+      controller!.logs = [
+        _testLogEntry(message: 'needle one'),
+        _testLogEntry(message: 'needle two'),
+      ];
 
-    controller!.openSearchBar(query: 'needle');
-    expect(controller!.autoScroll, isFalse);
+      controller!.openSearchBar(query: 'needle');
+      expect(controller!.autoScroll, isFalse);
 
-    controller!.toggleAutoScroll();
-    expect(controller!.autoScroll, isTrue);
+      controller!.toggleAutoScroll();
+      expect(controller!.autoScroll, isTrue);
 
-    controller!.onSearchNext();
-    expect(controller!.searchCurrentMatch, 1);
-    expect(controller!.autoScroll, isFalse);
-  });
+      controller!.onSearchNext();
+      expect(controller!.searchCurrentMatch, 1);
+      expect(controller!.autoScroll, isFalse);
+    },
+  );
 
   test('filteredLogs keeps entries with unknown log levels', () {
     controller = createController();
@@ -621,39 +627,43 @@ void main() {
     },
   );
 
-  test('special entries are skipped by selection and copy operations', () async {
-    controller = createController();
-    controller!.logs = [
-      _testLogEntry(message: 'First message'),
-      LogEntry.loggingState(
-        type: LogEntryType.paused,
-        message: 'Paused live logging for emulator-5554.',
-        processName: 'emulator-5554',
-      ),
-      _testLogEntry(message: 'Second message'),
-    ];
+  test(
+    'special entries are skipped by selection and copy operations',
+    () async {
+      controller = createController();
+      controller!.logs = [
+        _testLogEntry(message: 'First message'),
+        LogEntry.loggingState(
+          type: LogEntryType.paused,
+          message: 'Paused live logging for emulator-5554.',
+          processName: 'emulator-5554',
+        ),
+        _testLogEntry(message: 'Second message'),
+      ];
 
-    controller!.setRowSelectionMode(true);
+      controller!.setRowSelectionMode(true);
 
-    expect(controller!.beginRowSelectionGesture(1), isNull);
-    expect(controller!.selectedRowIndices, isEmpty);
+      expect(controller!.beginRowSelectionGesture(1), isNull);
+      expect(controller!.selectedRowIndices, isEmpty);
 
-    expect(controller!.beginRowSelectionGesture(0), isTrue);
-    controller!.selectRowRangeTo(2);
-    expect(controller!.selectedRowIndices, {0, 2});
+      expect(controller!.beginRowSelectionGesture(0), isTrue);
+      controller!.selectRowRangeTo(2);
+      expect(controller!.selectedRowIndices, {0, 2});
 
-    controller!.setSelectedRows({0, 1, 2});
-    expect(controller!.selectedRowIndices, {0, 2});
+      controller!.setSelectedRows({0, 1, 2});
+      expect(controller!.selectedRowIndices, {0, 2});
 
-    final copiedCount = await controller!.copyFilteredRows(
-      [0, 1, 2],
-      format: LogCopyFormat.messageOnly,
-    );
-    final clipboard = await Clipboard.getData('text/plain');
+      final copiedCount = await controller!.copyFilteredRows([
+        0,
+        1,
+        2,
+      ], format: LogCopyFormat.messageOnly);
+      final clipboard = await Clipboard.getData('text/plain');
 
-    expect(copiedCount, 2);
-    expect(clipboard?.text, 'First message\nSecond message');
-  });
+      expect(copiedCount, 2);
+      expect(clipboard?.text, 'First message\nSecond message');
+    },
+  );
 
   test(
     'copyRowsForContextMenu copies selected rows when clicked row is selected',
