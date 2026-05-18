@@ -25,8 +25,10 @@ The current MSIX identity is:
 
 The checked-in Fastforge MSIX config keeps signing disabled:
 
-- `sign_msix: false`
-- `install_certificate: false`
+- `sign_msix: "false"`
+- `install_certificate: "false"`
+
+Note: with `fastforge 0.6.6`, these MSIX options should be written as strings in YAML. Unquoted booleans can fail during config parsing.
 
 That keeps local builds and GitHub Actions simple, but Windows will show the usual unsigned publisher warning when installing the `.msix`.
 
@@ -61,7 +63,7 @@ Typical fields to add or change:
 
 - `certificate_path`
 - `certificate_password`
-- `sign_msix: true`
+- `sign_msix: "true"`
 
 The signing certificate subject must match `publisher` exactly.
 
