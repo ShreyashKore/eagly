@@ -1,4 +1,4 @@
-# Logview
+# Eagly - Universal Logcat
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev)
@@ -11,7 +11,9 @@ A cross-platform desktop log viewer for **Android** and **iOS** devices — buil
 
 ## Screenshots
 
-> _Screenshots coming soon._
+![Getting Started](docs/screenshots/getting_started_screen.png)
+![Logs Screen](docs/screenshots/logs_screen.png)
+![Settings Screen](docs/screenshots/settings_screen.png)
 
 ---
 
@@ -38,7 +40,7 @@ Future releases are planned to include:
 
 ## Installation
 
-Download the latest release for your platform from the [Releases](../../releases) page.
+Download the latest release for your platform from the [Releases](https://github.com/ShreyashKore/eagly/releases) page.
 
 No external dependencies need to be installed — the app ships with all required tools bundled.
 
@@ -51,13 +53,13 @@ No external dependencies need to be installed — the app ships with all require
 1. Enable **Developer Options** on your Android device.
 2. Turn on **USB Debugging** (Settings → Developer Options → USB debugging).
 3. Connect your device via USB (or use wireless debugging).
-4. Launch Logview — your device should appear automatically.
+4. Launch Eagly — your device should appear automatically.
 
 ### iOS — macOS / Linux
 
 1. Connect your iPhone or iPad via USB.
 2. When prompted on the device, tap **Trust This Computer** and enter your passcode.
-3. Launch Logview — your device should appear automatically.
+3. Launch Eagly — your device should appear automatically.
 
 ### iOS — Windows
 
@@ -67,7 +69,7 @@ No external dependencies need to be installed — the app ships with all require
 1. Install [iTunes](https://www.apple.com/itunes/).
 2. Connect your iPhone or iPad via USB.
 3. When prompted on the device, tap **Trust This Computer** and enter your passcode.
-4. Launch Logview — your device should appear automatically.
+4. Launch Eagly — your device should appear automatically.
 
 ---
 

@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logview/data/device.dart';
-import 'package:logview/data/ios_device_info.dart';
-import 'package:logview/services/device_repository.dart';
-import 'package:logview/services/tools/adb_tool.dart';
-import 'package:logview/services/tools/idevice_id_tool.dart';
-import 'package:logview/services/tools/idevice_info_tool.dart';
+import 'package:eagly/data/device.dart';
+import 'package:eagly/data/ios_device_info.dart';
+import 'package:eagly/services/device_repository.dart';
+import 'package:eagly/services/tools/adb_tool.dart';
+import 'package:eagly/services/tools/idevice_id_tool.dart';
+import 'package:eagly/services/tools/idevice_info_tool.dart';
 
 void main() {
   late _FakeAdbTool adbTool;

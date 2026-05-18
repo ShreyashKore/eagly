@@ -1,4 +1,4 @@
-name: logview
+name: eagly
 description: "Logs viewer"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.5+6
+version: 1.0.6+7
 
 environment:
   sdk: ^3.9.0
@@ -69,9 +69,8 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    - assets/app_icon.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -100,15 +99,15 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 msix_config:
-  display_name: Logview
-  publisher_display_name: dev.shreyash
-  identity_name: dev.shreyash.logview
+  display_name: Eagly
+  publisher_display_name: Gyanoba
+  identity_name: com.gyanoba.eagly
   msix_version: 1.0.3.0
   architecture: x64
   logo_path: macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png
-  publisher: CN=dev.shreyash
+  publisher: CN=Gyanoba
   install_certificate: false
   # Keep the signing certificate out of source control and pass it when packaging.
   # Example:
-  # dart run msix:create --certificate-path windows/certificates/logview-release.pfx --certificate-password "<password>"
+  # dart run msix:create --certificate-path windows/certificates/eagly-release.pfx --certificate-password "<password>"
 

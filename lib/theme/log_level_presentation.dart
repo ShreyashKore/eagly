@@ -1,7 +1,7 @@
+import 'package:eagly/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../data/log_level.dart';
-import 'app_theme.dart';
 
 @immutable
 class LogLevelVisualStyle {
@@ -21,7 +21,7 @@ LogLevelVisualStyle resolveLogLevelVisualStyle(
   BuildContext context,
   LogLevel level,
 ) {
-  final accentColor = context.logViewTheme.logLevelColor(level.code);
+  final accentColor = context.eaglyTheme.logLevelColor(level.code);
   final icon = switch (level.code) {
     'fault' => Icons.dangerous_outlined,
     'error' => Icons.error_outline_rounded,
@@ -101,4 +101,3 @@ class LogLevelLabel extends StatelessWidget {
     );
   }
 }
-

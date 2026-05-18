@@ -1,6 +1,8 @@
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
+#include <limits.h>
+#include <unistd.h>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
 #endif
@@ -13,6 +15,33 @@ struct _MyApplication {
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
+
+static gchar* resolve_app_icon_path() {
+  gchar executable_path[PATH_MAX];
+  const ssize_t path_length =
+      readlink("/proc/self/exe", executable_path, sizeof(executable_path) - 1);
+  if (path_length <= 0) {
+    return nullptr;
+  }
+
+  executable_path[path_length] = '\0';
+
+  g_autofree gchar* executable_dir = g_path_get_dirname(executable_path);
+  g_autofree gchar* bundled_icon_path =
+      g_build_filename(executable_dir, "data", "icons", "app_icon.png", nullptr);
+  if (g_file_test(bundled_icon_path, G_FILE_TEST_EXISTS)) {
+    return g_strdup(bundled_icon_path);
+  }
+
+  g_autofree gchar* flutter_run_icon_path =
+      g_build_filename(executable_dir, "..", "bundle", "data", "icons",
+                       "app_icon.png", nullptr);
+  if (g_file_test(flutter_run_icon_path, G_FILE_TEST_EXISTS)) {
+    return g_strdup(flutter_run_icon_path);
+  }
+
+  return nullptr;
+}
 
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView *view)
@@ -46,14 +75,23 @@ static void my_application_activate(GApplication* application) {
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "logview");
+    gtk_header_bar_set_title(header_bar, "eagly");
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
-    gtk_window_set_title(window, "logview");
+    gtk_window_set_title(window, "eagly");
   }
 
   gtk_window_set_default_size(window, 1280, 720);
+
+  g_autofree gchar* icon_path = resolve_app_icon_path();
+  if (icon_path != nullptr) {
+    g_autoptr(GError) icon_error = nullptr;
+    gtk_window_set_icon_from_file(window, icon_path, &icon_error);
+    if (icon_error != nullptr) {
+      g_warning("Failed to load application icon: %s", icon_error->message);
+    }
+  }
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(project, self->dart_entrypoint_arguments);

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logview/data/log_level.dart';
-import 'package:logview/data/log_view_mode.dart';
-import 'package:logview/services/preferences_service.dart';
+import 'package:eagly/data/log_level.dart';
+import 'package:eagly/data/log_view_mode.dart';
+import 'package:eagly/services/preferences_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

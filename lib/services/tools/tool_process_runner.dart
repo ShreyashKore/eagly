@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../data/log_entry.dart';
+import '../../features/app_log/app_logger.dart';
 import '../../utils/adb_path.dart';
 
 class ToolCommandResult {
@@ -53,10 +54,14 @@ abstract class ToolProcessRunner {
     : executable =
           executablePath ??
           resolveBundledExecutablePath(executableName) ??
-          executableName;
+          executableName {
+    logger = AppLogger(source: runtimeType.toString());
+  }
 
   final String executableName;
   final String executable;
+
+  late final AppLogger logger;
 
   Future<ToolCommandResult> runText(List<String> arguments) async {
     final result = await Process.run(
@@ -112,9 +117,15 @@ abstract class ToolProcessRunner {
   }
 
   void logError(String message, [Object? error]) {
-    final errorPart = error == null ? '' : ' | ${error.toString()}';
-    // ignore: avoid_print
-    print('[$runtimeType] $message$errorPart');
+    logger.error(message, detail: error?.toString());
+  }
+
+  void logInfo(String message) {
+    logger.info(message);
+  }
+
+  void logSuccess(String message) {
+    logger.success(message);
   }
 
   LogEntry buildToolErrorEntry(

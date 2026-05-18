@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../../constants/app_constants.dart';
+import '../../constants/local_assets.dart';
 import '../../data/device.dart';
 import '../../data/log_entry.dart';
 import '../../data/log_view_mode.dart';
+import '../../features/app_log/app_logger.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/log_feedback.dart';
 import '../../utils/widget_extensions.dart';
+import '../components/app_log_overlay.dart';
 import '../log_viewer/log_viewer.dart';
 import '../wireless_connection/wireless_connection_dialog.dart';
 import 'components/available_device_card.dart';
@@ -400,10 +403,12 @@ class _LogTabViewState extends State<LogTabView> {
                 alignment: Alignment.centerRight,
                 child: _buildGetStartedSecondaryActions(),
               ),
-              Icon(
-                Icons.developer_board,
-                size: 44,
-                color: theme.colorScheme.primary,
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                clipBehavior: Clip.hardEdge,
+                child: Image.asset(LocalAssets.appIcon, height: 96, width: 96),
               ),
               const Gap(18),
               Text(
@@ -573,7 +578,7 @@ class _LogTabViewState extends State<LogTabView> {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Material(
-                color: context.logViewTheme.inlineNoticeBackground,
+                color: context.eaglyTheme.inlineNoticeBackground,
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -583,7 +588,7 @@ class _LogTabViewState extends State<LogTabView> {
                   child: Text(
                     'No logs match your filter, but logs are being generated.',
                     style: TextStyle(
-                      color: context.logViewTheme.inlineNoticeForeground,
+                      color: context.eaglyTheme.inlineNoticeForeground,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -649,7 +654,7 @@ class _LogTabViewState extends State<LogTabView> {
   }
 
   Widget _buildStatusBar(BuildContext context) {
-    final logTheme = context.logViewTheme;
+    final theme = context.eaglyTheme;
 
     return Container(
       width: double.infinity,
@@ -657,31 +662,28 @@ class _LogTabViewState extends State<LogTabView> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          Text(
-            'Logs: ${controller.logs.length}',
-            style: logTheme.statusBarStyle,
-          ),
+          Text('Logs: ${controller.logs.length}', style: theme.statusBarStyle),
           const Gap(16),
           Text(
             'Filtered: ${controller.filteredLogs.length}',
-            style: logTheme.statusBarStyle,
+            style: theme.statusBarStyle,
           ),
           if (controller.rowSelectionMode || controller.hasSelectedRows) ...[
             const Gap(16),
             Text(
               'Selected: ${controller.selectedRowCount}',
-              style: logTheme.statusBarStyle,
+              style: theme.statusBarStyle,
             ),
           ],
           const Spacer(),
           Text(
             'App mem: ${controller.formatBytes(widget.appMemoryBytesListenable.value)}',
-            style: logTheme.statusBarStyle,
+            style: theme.statusBarStyle,
           ),
           const Gap(16),
           Text(
             'Logs mem: ${controller.formatBytes(controller.totalLogsMemoryBytes)}',
-            style: logTheme.statusBarStyle,
+            style: theme.statusBarStyle,
           ),
           const Gap(8),
           _buildLogLinesEditor(context),
@@ -704,12 +706,36 @@ class _LogTabViewState extends State<LogTabView> {
             style: TextStyle(
               fontSize: 12,
               color: controller.isPaused
-                  ? logTheme.statusPausedColor
+                  ? theme.statusPausedColor
                   : controller.isRunning
-                  ? logTheme.statusLiveColor
-                  : logTheme.statusStoppedColor,
+                  ? theme.statusLiveColor
+                  : theme.statusStoppedColor,
               fontWeight: FontWeight.bold,
             ),
+          ),
+          ListenableBuilder(
+            listenable: AppLogger.global.entriesListenable,
+            builder: (context, _) {
+              final hasWorkspaceErrors = AppLogger.global.hasEntries(
+                sessionTag: controller.appLogSessionTag,
+                errorsOnly: true,
+              );
+              if (!hasWorkspaceErrors) {
+                return const SizedBox.shrink();
+              }
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Gap(8),
+                  AppLogTriggerButton(
+                    sessionTag: controller.appLogSessionTag,
+                    title: 'App Logs • ${controller.title}',
+                    tooltip: 'Show app errors for this tab',
+                    iconSize: 16,
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),

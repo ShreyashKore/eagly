@@ -5,6 +5,7 @@ import '../../data/log_level.dart';
 import '../../data/log_view_mode.dart';
 import '../../services/app_info_service.dart';
 import '../../services/preferences_service.dart';
+import '../components/app_log_overlay.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -365,6 +366,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Version'),
                     trailing: Text(AppInfoService.appVersion),
+                  ),
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('App logs'),
+                    subtitle: const Text(
+                      'Open the internal debugging log viewer and copy full app logs.',
+                    ),
+                    onTap: () => showAppLogDialog(
+                      title: 'App Logs',
+                      context,
+                    ),
+                    trailing: const AppLogTriggerButton(
+                      title: 'App Logs',
+                      tooltip: 'Show app logs',
+                      iconSize: 18,
+                    ),
                   ),
                 ],
               ),

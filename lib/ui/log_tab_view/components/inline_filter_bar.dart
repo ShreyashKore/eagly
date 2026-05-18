@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../constants/log_constants.dart';
 import '../../../data/log_level.dart';
 import '../../../theme/log_level_presentation.dart';
 import 'filter_bar_shared.dart';
@@ -377,7 +376,9 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
       final trimmed = c.value.trim();
       if (trimmed.isEmpty) continue;
       if (!seen.add(trimmed.toLowerCase())) continue;
-      deduped.add(_InlineFilterValueCandidate(value: trimmed, subtitle: c.subtitle));
+      deduped.add(
+        _InlineFilterValueCandidate(value: trimmed, subtitle: c.subtitle),
+      );
     }
     return deduped;
   }

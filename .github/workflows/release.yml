@@ -19,27 +19,27 @@ jobs:
             artifact-path: build/macos/Build/Products/Release/*.app
             package-cmd: |
               cd build/macos/Build/Products/Release
-              ditto -c -k --sequesterRsrc --keepParent logview.app logview-${VERSION}-macos.zip
-            artifact-name: logview-${VERSION}-macos.zip
-            upload-path: build/macos/Build/Products/Release/logview-*-macos.zip
+              ditto -c -k --sequesterRsrc --keepParent eagly.app eagly-${VERSION}-macos.zip
+            artifact-name: eagly-${VERSION}-macos.zip
+            upload-path: build/macos/Build/Products/Release/eagly-*-macos.zip
           - os: ubuntu-latest
             platform: linux
             build-cmd: flutter build linux --release
             artifact-path: build/linux/x64/release/bundle
             package-cmd: |
               cd build/linux/x64/release
-              tar -czf logview-${VERSION}-linux-x64.tar.gz -C bundle .
-            artifact-name: logview-${VERSION}-linux-x64.tar.gz
-            upload-path: build/linux/x64/release/logview-*-linux-x64.tar.gz
+              tar -czf eagly-${VERSION}-linux-x64.tar.gz -C bundle .
+            artifact-name: eagly-${VERSION}-linux-x64.tar.gz
+            upload-path: build/linux/x64/release/eagly-*-linux-x64.tar.gz
           - os: windows-latest
             platform: windows
             build-cmd: flutter build windows --release
             artifact-path: build/windows/x64/runner/Release
             package-cmd: |
               cd build/windows/x64/runner
-              powershell Compress-Archive -Path 'Release/*' -DestinationPath "logview-${VERSION}-windows-x64.zip"
-            artifact-name: logview-${VERSION}-windows-x64.zip
-            upload-path: build/windows/x64/runner/logview-*-windows-x64.zip
+              powershell Compress-Archive -Path 'Release/*' -DestinationPath "eagly-${VERSION}-windows-x64.zip"
+            artifact-name: eagly-${VERSION}-windows-x64.zip
+            upload-path: build/windows/x64/runner/eagly-*-windows-x64.zip
 
     runs-on: ${{ matrix.os }}
     steps:

@@ -41,6 +41,7 @@ class LogTabController extends ChangeNotifier {
          baseCapacity: initialSettings.logLinesLimit,
        ),
        _deviceSessionService = deviceSessionService ?? DeviceSessionService() {
+    _deviceSessionService.sessionLabel = id;
     wirelessController = WirelessConnectionController(
       deviceRepository: _deviceRepository,
       deviceSessionService: _deviceSessionService,
@@ -163,6 +164,8 @@ class LogTabController extends ChangeNotifier {
     if (_showGetStarted) return 'Get Started';
     return _title;
   }
+
+  String get appLogSessionTag => id;
 
   bool get showGetStarted => _showGetStarted;
   bool get searchBarVisible => _searchBarVisible;
@@ -1398,7 +1401,7 @@ class LogTabController extends ChangeNotifier {
 
     return LogEntry.loggingState(
       type: type,
-      tag: tag ?? 'logview session',
+      tag: tag ?? 'eagly session',
       message: effectiveMessage,
       packageName: selectedDevice?.id,
       processName: subject,
