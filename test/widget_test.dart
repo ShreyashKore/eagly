@@ -142,6 +142,7 @@ void main() {
   Future<void> pumpToggleableLogViewer(
     WidgetTester tester, {
     List<LogEntry>? logs,
+    bool initialRowSelectionMode = true,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -154,6 +155,7 @@ void main() {
         themeMode: ThemeMode.dark,
         home: Scaffold(
           body: _ToggleableLogViewerHarness(
+            initialRowSelectionMode: initialRowSelectionMode,
             logs:
                 logs ??
                 [
@@ -199,6 +201,64 @@ void main() {
       (index) => tester.getCenter(finder.at(index)),
     );
   }
+
+  test(
+    'non-row-selection menu removes Select all and appends the selection toggle',
+    () {
+      final items = buildLogViewerContextMenuItems(
+        rowSelectionMode: false,
+        defaultSelectableRegionButtonItems: [
+          ContextMenuButtonItem(
+            type: ContextMenuButtonType.copy,
+            label: 'Copy',
+            onPressed: () {},
+          ),
+          ContextMenuButtonItem(
+            type: ContextMenuButtonType.selectAll,
+            label: 'Select all',
+            onPressed: () {},
+          ),
+          ContextMenuButtonItem(label: 'Look up', onPressed: () {}),
+        ],
+        onToggleRowSelectionMode: () {},
+      );
+
+      expect(items.map((item) => item.label), [
+        'Copy',
+        'Look up',
+        'Enable selection mode',
+      ]);
+      expect(
+        items.where((item) => item.type == ContextMenuButtonType.selectAll),
+        isEmpty,
+      );
+    },
+  );
+
+  test('row-selection menu includes copy actions and the selection toggle', () {
+    var didToggleSelectionMode = false;
+
+    final items = buildLogViewerContextMenuItems(
+      rowSelectionMode: true,
+      defaultSelectableRegionButtonItems: const [],
+      onCopyRow: () {},
+      onCopyMessage: () {},
+      onCopyTimestampAndMessage: () {},
+      onToggleRowSelectionMode: () {
+        didToggleSelectionMode = true;
+      },
+    );
+
+    expect(items.map((item) => item.label), [
+      'Copy',
+      'Copy message',
+      'Copy time + message',
+      'Disable selection mode',
+    ]);
+
+    items.last.onPressed!.call();
+    expect(didToggleSelectionMode, isTrue);
+  });
 
   testWidgets('uses 4000px minimum width when wrapText is disabled', (
     WidgetTester tester,
@@ -348,6 +408,24 @@ void main() {
     expect(specialRow, findsOneWidget);
     expect(tester.getSize(specialRow).width, lessThanOrEqualTo(720));
     expect(tester.getSize(specialRow).height, lessThan(36));
+  });
+
+  testWidgets('log row selection text keeps spaces between cells', (
+    WidgetTester tester,
+  ) async {
+    await pumpLogViewer(tester, wrapText: true);
+
+    final rowTexts = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((widget) => widget.text.toPlainText())
+        .toList();
+
+    expect(rowTexts, contains('04-20 10:00:00.000 '));
+    expect(rowTexts, contains('123 '));
+    expect(rowTexts, contains('456 '));
+    expect(rowTexts, contains('I '));
+    expect(rowTexts, contains('Tag '));
+    expect(rowTexts, contains('short message\n '));
   });
 
   testWidgets(
@@ -625,9 +703,13 @@ class _SelectableLogViewerHarnessState
 }
 
 class _ToggleableLogViewerHarness extends StatefulWidget {
-  const _ToggleableLogViewerHarness({required this.logs});
+  const _ToggleableLogViewerHarness({
+    required this.logs,
+    this.initialRowSelectionMode = true,
+  });
 
   final List<LogEntry> logs;
+  final bool initialRowSelectionMode;
 
   @override
   State<_ToggleableLogViewerHarness> createState() =>
@@ -638,7 +720,13 @@ class _ToggleableLogViewerHarnessState
     extends State<_ToggleableLogViewerHarness> {
   final ScrollController _scrollController = ScrollController();
   final Set<int> _selected = <int>{};
-  bool _rowSelectionMode = true;
+  late bool _rowSelectionMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _rowSelectionMode = widget.initialRowSelectionMode;
+  }
 
   @override
   void dispose() {
@@ -693,6 +781,14 @@ class _ToggleableLogViewerHarnessState
               selectedRowIndices: _selected,
               onRowSelectionStart: _beginSelection,
               onSelectedRowsChanged: _setSelectedRows,
+              onToggleRowSelectionMode: () {
+                setState(() {
+                  _rowSelectionMode = !_rowSelectionMode;
+                  if (!_rowSelectionMode) {
+                    _selected.clear();
+                  }
+                });
+              },
             ),
           ),
         ),

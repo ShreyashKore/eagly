@@ -21,6 +21,63 @@ enum LogViewerCopyAction { copyRow, copyMessage, copyTimestampAndMessage }
 
 typedef LogRowSelectionStart = bool? Function(int index, {bool shiftPressed});
 
+@visibleForTesting
+List<ContextMenuButtonItem> buildLogViewerContextMenuItems({
+  required bool rowSelectionMode,
+  required List<ContextMenuButtonItem> defaultSelectableRegionButtonItems,
+  VoidCallback? onCopySelection,
+  VoidCallback? onCopyRow,
+  VoidCallback? onCopyMessage,
+  VoidCallback? onCopyTimestampAndMessage,
+  VoidCallback? onToggleRowSelectionMode,
+}) {
+  ContextMenuButtonItem selectionModeToggleButton() {
+    return ContextMenuButtonItem(
+      label: rowSelectionMode
+          ? 'Disable selection mode'
+          : 'Enable selection mode',
+      onPressed: onToggleRowSelectionMode,
+    );
+  }
+
+  if (rowSelectionMode) {
+    return [
+      ContextMenuButtonItem(label: 'Copy', onPressed: onCopyRow),
+      ContextMenuButtonItem(label: 'Copy message', onPressed: onCopyMessage),
+      ContextMenuButtonItem(
+        label: 'Copy time + message',
+        onPressed: onCopyTimestampAndMessage,
+      ),
+      if (onToggleRowSelectionMode != null) selectionModeToggleButton(),
+    ];
+  }
+
+  ContextMenuButtonItem? copyButton;
+  final remainingButtons = <ContextMenuButtonItem>[];
+  for (final item in defaultSelectableRegionButtonItems) {
+    if (item.type == ContextMenuButtonType.selectAll) {
+      continue;
+    }
+    if (item.type == ContextMenuButtonType.copy) {
+      copyButton ??= item;
+      continue;
+    }
+    remainingButtons.add(item);
+  }
+
+  copyButton ??= ContextMenuButtonItem(
+    type: ContextMenuButtonType.copy,
+    label: 'Copy',
+    onPressed: onCopySelection,
+  );
+
+  return [
+    copyButton,
+    ...remainingButtons,
+    if (onToggleRowSelectionMode != null) selectionModeToggleButton(),
+  ];
+}
+
 class LogViewer extends StatefulWidget {
   static const double selectionColumnWidth = 40;
   static const double columnSpacing = 8;
@@ -37,6 +94,7 @@ class LogViewer extends StatefulWidget {
   final void Function(int index, bool selected)? onRowSelectionChanged;
   final Future<void> Function(int? index, LogViewerCopyAction action)?
   onRowCopyAction;
+  final VoidCallback? onToggleRowSelectionMode;
 
   /// The active inline search configuration (separate from the filter bar).
   final TextSearchConfig search;
@@ -73,6 +131,7 @@ class LogViewer extends StatefulWidget {
     this.onSelectedRowsChanged,
     this.onRowSelectionChanged,
     this.onRowCopyAction,
+    this.onToggleRowSelectionMode,
     this.search = const TextSearchConfig(),
     this.currentMatchLogIndex,
     this.onSelectedTextChanged,
@@ -770,6 +829,50 @@ class _LogViewerState extends State<LogViewer> {
     _dragAppliedSelection = <int>{};
   }
 
+  Widget _buildSelectionContextMenu(
+    BuildContext context,
+    SelectableRegionState selectableRegionState,
+  ) {
+    final buttonItems = buildLogViewerContextMenuItems(
+      rowSelectionMode: widget.rowSelectionMode,
+      defaultSelectableRegionButtonItems:
+          selectableRegionState.contextMenuButtonItems,
+      onCopySelection: () {
+        ContextMenuController.removeAny();
+        selectableRegionState.copySelection(SelectionChangedCause.toolbar);
+      },
+      onCopyRow: () {
+        ContextMenuController.removeAny();
+        widget.onRowCopyAction?.call(null, LogViewerCopyAction.copyRow);
+      },
+      onCopyMessage: () {
+        ContextMenuController.removeAny();
+        widget.onRowCopyAction?.call(null, LogViewerCopyAction.copyMessage);
+      },
+      onCopyTimestampAndMessage: () {
+        ContextMenuController.removeAny();
+        widget.onRowCopyAction?.call(
+          null,
+          LogViewerCopyAction.copyTimestampAndMessage,
+        );
+      },
+      onToggleRowSelectionMode: widget.onToggleRowSelectionMode == null
+          ? null
+          : () {
+              ContextMenuController.removeAny();
+              widget.onToggleRowSelectionMode?.call();
+            },
+    );
+
+    return AdaptiveTextSelectionToolbar(
+      anchors: selectableRegionState.contextMenuAnchors,
+      children: AdaptiveTextSelectionToolbar.getAdaptiveButtons(
+        context,
+        buttonItems,
+      ).toList(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -872,52 +975,12 @@ class _LogViewerState extends State<LogViewer> {
                                         selectedContent?.plainText,
                                       );
                                     },
-                                    contextMenuBuilder: (ctx, selectableRegionState) {
-                                      if (widget.rowSelectionMode) {
-                                        return AdaptiveTextSelectionToolbar(
-                                          anchors: selectableRegionState
-                                              .contextMenuAnchors,
-                                          children: AdaptiveTextSelectionToolbar.getAdaptiveButtons(ctx, [
-                                            ContextMenuButtonItem(
-                                              label: 'Copy',
-                                              onPressed: () {
-                                                ContextMenuController.removeAny();
-                                                widget.onRowCopyAction?.call(
-                                                  null,
-                                                  LogViewerCopyAction.copyRow,
-                                                );
-                                              },
+                                    contextMenuBuilder:
+                                        (ctx, selectableRegionState) =>
+                                            _buildSelectionContextMenu(
+                                              ctx,
+                                              selectableRegionState,
                                             ),
-                                            ContextMenuButtonItem(
-                                              label: 'Copy message',
-                                              onPressed: () {
-                                                ContextMenuController.removeAny();
-                                                widget.onRowCopyAction?.call(
-                                                  null,
-                                                  LogViewerCopyAction
-                                                      .copyMessage,
-                                                );
-                                              },
-                                            ),
-                                            ContextMenuButtonItem(
-                                              label: 'Copy time + message',
-                                              onPressed: () {
-                                                ContextMenuController.removeAny();
-                                                widget.onRowCopyAction?.call(
-                                                  null,
-                                                  LogViewerCopyAction
-                                                      .copyTimestampAndMessage,
-                                                );
-                                              },
-                                            ),
-                                          ]).toList(),
-                                        );
-                                      }
-                                      return AdaptiveTextSelectionToolbar.selectableRegion(
-                                        selectableRegionState:
-                                            selectableRegionState,
-                                      );
-                                    },
                                     child: logViewport,
                                   ),
                                 ),

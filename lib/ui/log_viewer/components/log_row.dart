@@ -75,11 +75,19 @@ class LogRow extends StatelessWidget {
     ].join(' • ');
   }
 
-  TextSpan _rowTerminatorSpan() {
-    return const TextSpan(
-      text: '\n ',
-      style: TextStyle(fontSize: 0, height: 0, color: Colors.transparent),
+  TextSpan _selectionSeparatorSpan(String text) {
+    return TextSpan(
+      text: text,
+      style: const TextStyle(fontSize: 0, height: 0, color: Colors.transparent),
     );
+  }
+
+  TextSpan _cellSeparatorSpan() {
+    return _selectionSeparatorSpan(' ');
+  }
+
+  TextSpan _rowTerminatorSpan() {
+    return _selectionSeparatorSpan('\n ');
   }
 
   Widget _buildSelectableText(
@@ -89,6 +97,7 @@ class LogRow extends StatelessWidget {
     Color? highlightColor,
     TextOverflow? overflow,
     bool softWrap = false,
+    bool appendCellSeparator = false,
     bool appendRowTerminator = false,
   }) {
     final children = <InlineSpan>[];
@@ -96,6 +105,9 @@ class LogRow extends StatelessWidget {
 
     if (!pattern.isActive || highlightColor == null || !pattern.isValid) {
       children.add(TextSpan(text: text, style: style));
+      if (appendCellSeparator) {
+        children.add(_cellSeparatorSpan());
+      }
       if (appendRowTerminator) {
         children.add(_rowTerminatorSpan());
       }
@@ -111,6 +123,9 @@ class LogRow extends StatelessWidget {
     final matches = pattern.allMatches(text);
     if (matches.isEmpty) {
       children.add(TextSpan(text: text, style: style));
+      if (appendCellSeparator) {
+        children.add(_cellSeparatorSpan());
+      }
       if (appendRowTerminator) {
         children.add(_rowTerminatorSpan());
       }
@@ -144,6 +159,9 @@ class LogRow extends StatelessWidget {
     if (start < text.length) {
       children.add(TextSpan(text: text.substring(start), style: style));
     }
+    if (appendCellSeparator) {
+      children.add(_cellSeparatorSpan());
+    }
     if (appendRowTerminator) {
       children.add(_rowTerminatorSpan());
     }
@@ -160,6 +178,7 @@ class LogRow extends StatelessWidget {
     BuildContext context,
     String level,
     Color levelColor, {
+    bool appendCellSeparator = false,
     bool appendRowTerminator = false,
   }) {
     return SizedBox(
@@ -179,6 +198,7 @@ class LogRow extends StatelessWidget {
               color: context.eaglyTheme.logBadgeForeground,
               fontWeight: FontWeight.bold,
             ),
+            appendCellSeparator: appendCellSeparator,
             appendRowTerminator: appendRowTerminator,
           ),
         ),
@@ -192,6 +212,7 @@ class LogRow extends StatelessWidget {
     double width,
     TextStyle style, {
     Color? highlightColor,
+    bool appendCellSeparator = false,
     bool appendRowTerminator = false,
   }) {
     return SizedBox(
@@ -203,6 +224,7 @@ class LogRow extends StatelessWidget {
           text,
           style,
           highlightColor: highlightColor,
+          appendCellSeparator: appendCellSeparator,
           appendRowTerminator: appendRowTerminator,
         ),
       ),
@@ -371,6 +393,7 @@ class LogRow extends StatelessWidget {
                 context,
                 log.level,
                 levelColor,
+                appendCellSeparator: lastVisibleColumn != col,
                 appendRowTerminator: lastVisibleColumn == col,
               )
             else
@@ -380,6 +403,7 @@ class LogRow extends StatelessWidget {
                 widthOf(col),
                 rowStyle,
                 highlightColor: highlightColor,
+                appendCellSeparator: lastVisibleColumn != col,
                 appendRowTerminator: lastVisibleColumn == col,
               ),
             const SizedBox(width: kColumnSpacing),
