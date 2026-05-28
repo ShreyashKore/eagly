@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:eagly/data/device.dart';
 import 'package:eagly/data/log_column.dart';
@@ -6,14 +7,17 @@ import 'package:eagly/data/log_entry.dart';
 import 'package:eagly/data/log_level.dart';
 import 'package:eagly/data/log_tab_settings.dart';
 import 'package:eagly/data/log_view_mode.dart';
+import 'package:eagly/data/wireless_debug_models.dart';
 import 'package:eagly/services/device_repository.dart';
 import 'package:eagly/services/device_session_service.dart';
+import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/services/tools/idevice_id_tool.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
 import 'package:eagly/ui/log_tab_view/log_tab_controller.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -23,8 +27,14 @@ void main() {
   late _FakeControllerIdeviceIdTool ideviceIdTool;
   late _FakeControllerIdeviceInfoTool ideviceInfoTool;
   late DeviceRepository repository;
+  late Directory tempDir;
   LogTabController? controller;
   String? clipboardText;
+
+  setUpAll(() async {
+    SharedPreferences.setMockInitialValues({});
+    await PreferencesService.init();
+  });
 
   LogTabController createController({LogTabSettings? settings}) {
     return LogTabController(
@@ -36,11 +46,14 @@ void main() {
     );
   }
 
-  setUp(() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await PreferencesService.init();
     sessionService = _FakeControllerSessionService();
     adbTool = _FakeControllerAdbTool();
     ideviceIdTool = _FakeControllerIdeviceIdTool();
     ideviceInfoTool = _FakeControllerIdeviceInfoTool();
+    tempDir = Directory.systemTemp.createTempSync('log-tab-controller-test');
     repository = DeviceRepository.forTesting(
       adbTool: adbTool,
       ideviceIdTool: ideviceIdTool,
@@ -71,6 +84,9 @@ void main() {
     repository.dispose();
     adbTool.dispose();
     sessionService.dispose();
+    if (tempDir.existsSync()) {
+      tempDir.deleteSync(recursive: true);
+    }
   });
 
   test(
@@ -775,6 +791,44 @@ void main() {
 
     expect(controller!.selectedRowIndices, {1, 2, 3});
   });
+
+  test(
+    'installDroppedPaths installs on the single compatible connected device when none is selected',
+    () async {
+      controller = createController();
+      controller!.devices = [
+        Device.android('emulator-5554', 'device'),
+        Device.ios('00008110-001234567890801E', 'device'),
+      ];
+      final apk = File('${tempDir.path}/sample.apk')..writeAsStringSync('apk');
+
+      final result = await controller!.installDroppedPaths([apk.path]);
+
+      expect(result.isSuccess, isTrue);
+      expect(sessionService.installRequests, [
+        (deviceId: 'emulator-5554', filePath: apk.path),
+      ]);
+      expect(result.message, contains('Installed sample.apk'));
+    },
+  );
+
+  test(
+    'installDroppedPaths asks for device selection when multiple compatible devices are connected',
+    () async {
+      controller = createController();
+      controller!.devices = [
+        Device.android('emulator-5554', 'device'),
+        Device.android('emulator-5556', 'device'),
+      ];
+      final apk = File('${tempDir.path}/sample.apk')..writeAsStringSync('apk');
+
+      final result = await controller!.installDroppedPaths([apk.path]);
+
+      expect(result.isSuccess, isFalse);
+      expect(result.error, contains('Select a target device'));
+      expect(sessionService.installRequests, isEmpty);
+    },
+  );
 }
 
 LogTabSettings _initialSettings({
@@ -799,6 +853,10 @@ class _FakeControllerSessionService extends DeviceSessionService {
     : super(adbPath: '/usr/bin/true', ideviceSyslogPath: '/usr/bin/true');
 
   List<String> startedLogStreamDeviceIds = [];
+  List<({String deviceId, String filePath})> installRequests = [];
+  DeviceCommandResult installResult = DeviceCommandResult.success(
+    message: 'Success',
+  );
   final StreamController<LogEntry> _logController =
       StreamController<LogEntry>.broadcast();
 
@@ -810,6 +868,18 @@ class _FakeControllerSessionService extends DeviceSessionService {
 
   void emit(LogEntry entry) {
     _logController.add(entry);
+  }
+
+  @override
+  Future<DeviceCommandResult> installApp({
+    required Device device,
+    required String filePath,
+  }) async {
+    installRequests = [
+      ...installRequests,
+      (deviceId: device.id, filePath: filePath),
+    ];
+    return installResult;
   }
 
   @override

@@ -217,6 +217,35 @@ class AdbTool extends ToolProcessRunner {
     }
   }
 
+  Future<DeviceCommandResult> installApk({
+    required String deviceId,
+    required String apkPath,
+  }) async {
+    try {
+      final result = await runText(['-s', deviceId, 'install', '-r', apkPath]);
+      final output = result.combinedOutput;
+      final failed = !result.isSuccess || _looksLikeInstallFailure(output);
+
+      if (failed) {
+        final details = describeCommandFailure(
+          'Failed to install APK on $deviceId.',
+          result,
+        );
+        logError('APK install failed for $deviceId', details);
+        return DeviceCommandResult.failure(error: details);
+      }
+
+      return DeviceCommandResult.success(
+        message: output.isEmpty ? 'Installed APK on $deviceId.' : output,
+      );
+    } catch (error) {
+      logError('Exception while installing APK on $deviceId', error);
+      return DeviceCommandResult.failure(
+        error: 'Failed to install APK on $deviceId: ${describeError(error)}',
+      );
+    }
+  }
+
   Future<Map<String, String>> getPidToPackageMap(String deviceId) async {
     try {
       final result = await runText(['-s', deviceId, 'shell', 'ps', '-A']);
@@ -384,6 +413,13 @@ class AdbTool extends ToolProcessRunner {
               : '${word[0].toUpperCase()}${word.substring(1)}',
         )
         .join(' ');
+  }
+
+  bool _looksLikeInstallFailure(String output) {
+    final normalized = output.toLowerCase();
+    return normalized.contains('failure [') ||
+        normalized.contains('install_failed') ||
+        normalized.contains('failed');
   }
 
   Map<String, String> _parseAndroidGetPropOutput(String stdout) {

@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 
 import '../../../data/device.dart';
@@ -18,6 +19,10 @@ class Toolbar extends StatelessWidget {
   final VoidCallback onShowWirelessConnectionDialog;
   final Future<void> Function(Device) onSelectDevice;
   final VoidCallback? onImport;
+  final Future<void> Function()? onInstallApp;
+  final ValueChanged<List<String>> onInstallDrop;
+  final ValueChanged<bool> onInstallDropActiveChanged;
+  final bool isInstallDropActive;
   final VoidCallback? onExport;
   final VoidCallback? onCopyAll;
   final VoidCallback? onOpenSettings;
@@ -30,6 +35,10 @@ class Toolbar extends StatelessWidget {
     required this.onShowWirelessConnectionDialog,
     required this.onSelectDevice,
     required this.onImport,
+    required this.onInstallApp,
+    required this.onInstallDrop,
+    required this.onInstallDropActiveChanged,
+    required this.isInstallDropActive,
     required this.onExport,
     required this.onCopyAll,
     required this.onOpenSettings,
@@ -58,70 +67,89 @@ class Toolbar extends StatelessWidget {
         spacing: 4,
         children: [
           if (controller.devices.isNotEmpty)
-            Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              constraints: BoxConstraints(maxWidth: 320),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              child: Row(
-                children: [
-                  DropdownButton<Device>(
-                    key: dropdownButtonKey,
-                    hint: const Text('Select Device'),
-                    value: selectedValue,
-                    underline: const SizedBox.shrink(),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 0,
-                    ),
-                    isDense: true,
-                    selectedItemBuilder: (context) {
-                      return controller.devices.map((device) {
-                        return Container(
-                          alignment: Alignment.centerLeft,
-                          constraints: BoxConstraints(maxWidth: 250),
-                          child: DeviceSelectionLabel(
-                            device: device,
-                            maxWidth: 250,
-                            textStyle: theme.textTheme.bodyMedium,
-                            secondaryTextStyle: theme.textTheme.labelSmall,
-                            iconSize: 18,
-                          ),
-                        );
-                      }).toList();
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    items: controller.devices
-                        .map(
-                          (device) => DropdownMenuItem(
-                            value: device,
+            DropTarget(
+              onDragEntered: (_) => onInstallDropActiveChanged(true),
+              onDragExited: (_) => onInstallDropActiveChanged(false),
+              onDragDone: (details) {
+                onInstallDropActiveChanged(false);
+                onInstallDrop(
+                  details.files
+                      .map((file) => file.path)
+                      .toList(growable: false),
+                );
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isInstallDropActive
+                        ? theme.colorScheme.primary
+                        : Colors.transparent,
+                    width: 1.4,
+                  ),
+                ),
+                constraints: const BoxConstraints(maxWidth: 320),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                child: Row(
+                  children: [
+                    DropdownButton<Device>(
+                      key: dropdownButtonKey,
+                      hint: const Text('Select Device'),
+                      value: selectedValue,
+                      underline: const SizedBox.shrink(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 0,
+                      ),
+                      isDense: true,
+                      selectedItemBuilder: (context) {
+                        return controller.devices.map((device) {
+                          return Container(
+                            alignment: Alignment.centerLeft,
+                            constraints: const BoxConstraints(maxWidth: 240),
                             child: DeviceSelectionLabel(
                               device: device,
-                              maxWidth: 240,
+                              maxWidth: 250,
                               textStyle: theme.textTheme.bodyMedium,
                               secondaryTextStyle: theme.textTheme.labelSmall,
                               iconSize: 18,
                             ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (device) {
-                      if (device != null) {
-                        onSelectDevice(device);
-                      }
-                    },
-                  ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.all(0),
-                    tooltip: 'Reload devices',
-                    onPressed: () => onLoadDevices(),
-                    icon: const Icon(Icons.refresh),
-                    iconSize: 20,
-                  ),
-                ],
+                          );
+                        }).toList();
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      items: controller.devices
+                          .map(
+                            (device) => DropdownMenuItem(
+                              value: device,
+                              child: DeviceSelectionLabel(
+                                device: device,
+                                maxWidth: 240,
+                                textStyle: theme.textTheme.bodyMedium,
+                                secondaryTextStyle: theme.textTheme.labelSmall,
+                                iconSize: 18,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (device) {
+                        if (device != null) {
+                          onSelectDevice(device);
+                        }
+                      },
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      tooltip: 'Reload devices',
+                      onPressed: () => onLoadDevices(),
+                      icon: const Icon(Icons.refresh),
+                      iconSize: 20,
+                    ),
+                  ],
+                ),
               ),
             )
           else
@@ -220,6 +248,22 @@ class Toolbar extends StatelessWidget {
             onPressed: onImport,
             icon: const Icon(Icons.file_download),
             tooltip: 'Import Logcat File',
+          ),
+          IconButton(
+            onPressed: onInstallApp == null ? null : () => onInstallApp!.call(),
+            icon: controller.isInstallingApp
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.app_registration_outlined),
+            tooltip: controller.isInstallingApp
+                ? (controller.installingAppName == null
+                      ? 'Installing app…'
+                      : 'Installing ${controller.installingAppName}…')
+                : controller.hasConnectedSelectedDevice
+                ? 'Install app on selected device'
+                : 'Select a connected device to install an app',
           ),
           IconButton(
             onPressed: onExport,

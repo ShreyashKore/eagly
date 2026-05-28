@@ -10,11 +10,13 @@ class AvailableDeviceCard extends StatelessWidget {
     super.key,
     required this.device,
     required this.onSelected,
+    this.onInstallApp,
     this.onShowMessage,
   });
 
   final Device device;
   final VoidCallback onSelected;
+  final VoidCallback? onInstallApp;
   final ValueChanged<String>? onShowMessage;
 
   Future<void> _copyIosUdid() async {
@@ -51,13 +53,29 @@ class AvailableDeviceCard extends StatelessWidget {
                 ),
               ),
               switch (device) {
-                IosDevice() => IconButton(
-                  tooltip: 'Copy UDID',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: _copyIosUdid,
-                  icon: const Icon(Icons.content_copy_outlined, size: 18),
+                IosDevice() => Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Install app',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: onInstallApp,
+                      icon: const Icon(Icons.app_registration_outlined, size: 18),
+                    ),
+                    IconButton(
+                      tooltip: 'Copy UDID',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: _copyIosUdid,
+                      icon: const Icon(Icons.content_copy_outlined, size: 18),
+                    ),
+                  ],
                 ),
-                AndroidDevice() => const SizedBox.shrink(),
+                AndroidDevice() => IconButton(
+                  tooltip: 'Install app',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onInstallApp,
+                  icon: const Icon(Icons.app_registration_outlined, size: 18),
+                ),
               },
             ],
           ),
