@@ -1,90 +1,83 @@
-# Windows MSIX packaging
+# Windows packaging with Fastforge
 
-This project is configured to build a Windows installer with the [`msix`](https://pub.dev/packages/msix) package.
+This project now uses [Fastforge](https://fastforge.dev/) for Windows packaging.
 
-## Goal: no install warnings for end users
+Current Windows outputs:
 
-To avoid the **"Unknown publisher"** warning, the released `.msix` must be signed with a **trusted code-signing certificate**.
+- `.exe` installer via Inno Setup
+- `.msix` package via Fastforge's MSIX maker
 
-Important:
+## Current configuration
 
-- The default self-signed test certificate that `msix` can generate is fine for local testing only.
-- It is **not** suitable for public distribution.
-- If you want to avoid Microsoft Store distribution warnings as well, use either:
-  - a Microsoft Store submission, or
-  - an EV/OV code-signing certificate from a trusted CA.
+Windows packaging metadata lives in:
 
-## Current package identity
+- `windows/packaging/exe/make_config.yaml`
+- `windows/packaging/msix/make_config.yaml`
 
-`pubspec.yaml` currently uses:
+The current MSIX identity is:
 
 - `display_name`: `Eagly`
 - `publisher_display_name`: `Gyanoba`
 - `identity_name`: `com.gyanoba.eagly`
 - `publisher`: `CN=Gyanoba`
 
-The signing certificate subject must match the configured `publisher` value exactly.
+## Default behavior in this repository
 
-If your certificate subject is different, update `msix_config.publisher` in `pubspec.yaml` before creating the release package.
+The checked-in Fastforge MSIX config keeps signing disabled:
 
-## Files the developer must provide
+- `sign_msix: "false"`
+- `install_certificate: "false"`
 
-Place your release signing certificate at:
+Note: with `fastforge 0.6.6`, these MSIX options should be written as strings in YAML. Unquoted booleans can fail during config parsing.
 
-```text
-windows/certificates/eagly-release.pfx
-```
+That keeps local builds and GitHub Actions simple, but Windows will show the usual unsigned publisher warning when installing the `.msix`.
 
-That folder is intentionally gitignored for `.pfx`, `.p12`, `.cer`, and `.crt` files.
-
-Recommended:
-
-- keep the certificate outside source control
-- export it as a password-protected `.pfx`
-- store the password in a local environment variable instead of hardcoding it
-
-## Release packaging process
+## Local packaging
 
 Run the packaging step on **Windows**.
 
-1. Ensure Flutter Windows desktop support is enabled.
-2. Make sure your signing certificate is available locally.
-3. Set a local environment variable for the certificate password.
-4. Create the signed MSIX package.
+1. Install [Inno Setup 6](https://jrsoftware.org/isinfo.php).
+2. Install Fastforge.
+3. Build both Windows artifacts.
 
 ### PowerShell example
 
 ```powershell
-$env:MSIX_CERT_PASSWORD = "<your-password>"
+dart pub global activate fastforge
 flutter pub get
-flutter build windows --release
 
-dart run msix:create \
-  --certificate-path windows/certificates/eagly-release.pfx \
-  --certificate-password $env:MSIX_CERT_PASSWORD
+fastforge package --platform=windows --targets=exe,msix --artifact-name='eagly-{{build_name}}-{{platform}}{{#is_installer}}-setup{{/is_installer}}{{#ext}}.{{ext}}{{/ext}}'
 ```
 
-### Command Prompt example
+Artifacts are written to:
 
-```bat
-set MSIX_CERT_PASSWORD=<your-password>
-flutter pub get
-flutter build windows --release
-
-dart run msix:create --certificate-path windows/certificates/eagly-release.pfx --certificate-password %MSIX_CERT_PASSWORD%
+```text
+dist/<pubspec-version>/
 ```
+
+## Optional MSIX signing
+
+If you want a signed public MSIX release, provide a trusted code-signing certificate and update `windows/packaging/msix/make_config.yaml` before packaging.
+
+Typical fields to add or change:
+
+- `certificate_path`
+- `certificate_password`
+- `sign_msix: "true"`
+
+The signing certificate subject must match `publisher` exactly.
+
+Recommended:
+
+- keep `.pfx` files out of source control
+- store signing material under `windows/certificates/`
+- pass secrets through CI or local environment-specific workflow steps instead of committing them
 
 ## Developer checklist before shipping
 
-- Confirm the certificate subject matches `msix_config.publisher` exactly.
-- Confirm `msix_version` is bumped for every public release.
-- Build on Windows using the release certificate.
-- Install the generated `.msix` on a clean Windows machine or VM.
-- Verify the installer shows your real publisher name instead of `Unknown publisher`.
+- Confirm `windows/packaging/msix/make_config.yaml` matches the current app version and identity.
+- If signing is enabled, confirm the certificate subject matches `publisher` exactly.
+- Install both the generated `.exe` and `.msix` on a clean Windows machine or VM.
 - Verify the app launches and bundled tools still work from the packaged install.
 
-## Notes
-
-- `msix_config.install_certificate` is set to `false` so the build tool does not try to install certificates automatically on the developer machine.
-- If you later publish through the Microsoft Store, keep the store publisher identity aligned with the same metadata fields in `pubspec.yaml`.
 

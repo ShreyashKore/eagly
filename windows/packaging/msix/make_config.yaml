@@ -1,0 +1,10 @@
+display_name: Eagly
+publisher_display_name: Gyanoba
+identity_name: com.gyanoba.eagly
+msix_version: 1.0.7.8
+logo_path: macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png
+architecture: x64
+publisher: CN=Gyanoba
+sign_msix: "false"
+install_certificate: "false"
+
