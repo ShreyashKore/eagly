@@ -190,8 +190,6 @@ class InlineFilterBar extends StatefulWidget {
 class _InlineFilterBarState extends State<InlineFilterBar> {
   bool _helpVisible = false;
 
-  // Notifier to force the autocomplete to rebuild/open on focus
-  final _suggestionTrigger = ValueNotifier<int>(0);
   final ScrollController _suggestionsScrollController = ScrollController();
   final Map<String, GlobalKey> _suggestionItemKeys = <String, GlobalKey>{};
   TextEditingValue? _lastSuggestionEditingValue;
@@ -200,33 +198,15 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
   int _highlightedSuggestionIndex = 0;
 
   @override
-  void initState() {
-    super.initState();
-    widget.focusNode.addListener(_onFocusChanged);
-  }
-
-  @override
   void dispose() {
-    widget.focusNode.removeListener(_onFocusChanged);
     _suggestionsScrollController.dispose();
-    _suggestionTrigger.dispose();
     super.dispose();
-  }
-
-  void _onFocusChanged() {
-    if (widget.focusNode.hasFocus) {
-      // Trigger a rebuild so optionsBuilder is called and dropdown opens
-      _suggestionTrigger.value++;
-    }
   }
 
   void _reopenSuggestions() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _lastSuggestionEditingValue = widget.controller.value;
-      _highlightedSuggestionIndex = 0;
       widget.focusNode.requestFocus();
-      _suggestionTrigger.value++;
     });
   }
 
@@ -627,180 +607,174 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
             _buildLevelDropdown(context),
             const SizedBox(width: 8),
             Expanded(
-              child: ValueListenableBuilder<int>(
-                valueListenable: _suggestionTrigger,
-                builder: (_, __, ___) => SizedBox(
-                  height: kFilterFieldHeight,
-                  child: RawAutocomplete<_InlineFilterSuggestion>(
-                    textEditingController: widget.controller,
-                    focusNode: widget.focusNode,
-                    optionsBuilder: _buildSuggestions,
-                    displayStringForOption: (option) => option.label,
-                    onSelected: _applySuggestion,
-                    fieldViewBuilder:
-                        (
-                          context,
-                          fieldController,
-                          fieldFocusNode,
-                          onFieldSubmitted,
-                        ) {
-                          return Focus(
-                            canRequestFocus: false,
-                            onKeyEvent: (_, event) =>
-                                _handleSuggestionKeyEvent(event),
-                            child: TextField(
-                              controller: fieldController,
-                              focusNode: fieldFocusNode,
-                              style: const TextStyle(fontSize: 12),
-                              decoration: filterInputDecoration(
-                                context,
-                                hintText:
-                                    'Try package:com.example.app tag:Auth level:error or just type text',
-                                prefixIcon: Icons.message,
-                              ),
-                              onChanged: widget.onChanged,
-                              onSubmitted: (_) {
-                                widget.onSubmitted();
-                                onFieldSubmitted();
-                              },
+              child: SizedBox(
+                height: kFilterFieldHeight,
+                child: RawAutocomplete<_InlineFilterSuggestion>(
+                  textEditingController: widget.controller,
+                  focusNode: widget.focusNode,
+                  optionsBuilder: _buildSuggestions,
+                  displayStringForOption: (option) => option.label,
+                  onSelected: _applySuggestion,
+                  fieldViewBuilder:
+                      (
+                        context,
+                        fieldController,
+                        fieldFocusNode,
+                        onFieldSubmitted,
+                      ) {
+                        return Focus(
+                          canRequestFocus: false,
+                          onKeyEvent: (_, event) =>
+                              _handleSuggestionKeyEvent(event),
+                          child: TextField(
+                            controller: fieldController,
+                            focusNode: fieldFocusNode,
+                            style: const TextStyle(fontSize: 12),
+                            decoration: filterInputDecoration(
+                              context,
+                              hintText:
+                                  'Try package:com.example.app tag:Auth level:error or just type text',
+                              prefixIcon: Icons.message,
                             ),
-                          );
-                        },
-                    optionsViewBuilder: (context, onSelected, options) {
-                      final materialOptions = options.toList(growable: false);
-                      if (materialOptions.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      return Align(
-                        alignment: Alignment.topLeft,
-                        child: Material(
-                          elevation: 6,
-                          borderRadius: BorderRadius.circular(8),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              maxHeight: 200,
-                              maxWidth: 540,
-                            ),
-                            child: ListView.separated(
-                              controller: _suggestionsScrollController,
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              shrinkWrap: true,
-                              itemCount: materialOptions.length,
-                              separatorBuilder: (_, _) =>
-                                  const Divider(height: 1),
-                              itemBuilder: (context, index) {
-                                final option = materialOptions[index];
-                                return Builder(
-                                  builder: (context) {
-                                    final isHighlighted =
-                                        _highlightedSuggestionIndex == index;
-                                    final backgroundColor = isHighlighted
-                                        ? theme.colorScheme.secondaryContainer
-                                        : null;
-                                    return InkWell(
-                                      key: _suggestionItemKey(option),
-                                      onTap: () => _applySuggestion(option),
-                                      child: ColoredBox(
-                                        color:
-                                            backgroundColor ??
-                                            Colors.transparent,
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 5,
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.max,
-                                            children: [
-                                              Expanded(
-                                                child: option.level != null
-                                                    ? LogLevelLabel(
-                                                        level: option.level!,
-                                                        isIos: widget.isIos,
-                                                        text: option.label,
-                                                        compact: true,
-                                                        textStyle: theme
-                                                            .textTheme
-                                                            .bodySmall,
-                                                      )
-                                                    : Row(
-                                                        mainAxisSize:
-                                                            MainAxisSize.max,
-                                                        children: [
-                                                          Icon(
-                                                            option.icon,
-                                                            size: 12,
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 6,
-                                                          ),
-                                                          Expanded(
-                                                            child: Text(
-                                                              option.label,
-                                                              maxLines: 1,
-                                                              overflow:
-                                                                  TextOverflow
-                                                                      .ellipsis,
-                                                              style: theme
-                                                                  .textTheme
-                                                                  .bodySmall
-                                                                  ?.copyWith(
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w600,
-                                                                    color:
-                                                                        isHighlighted
-                                                                        ? theme
-                                                                              .colorScheme
-                                                                              .onSecondaryContainer
-                                                                        : null,
-                                                                  ),
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                              ),
-                                              if (option
-                                                  .subtitle
-                                                  .isNotEmpty) ...[
-                                                const SizedBox(width: 8),
-                                                Flexible(
-                                                  child: Text(
-                                                    option.subtitle,
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    textAlign: TextAlign.end,
-                                                    style: theme
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.copyWith(
-                                                          fontSize: 10,
-                                                          color: isHighlighted
-                                                              ? theme
-                                                                    .colorScheme
-                                                                    .onSecondaryContainer
-                                                              : theme
-                                                                    .colorScheme
-                                                                    .onSurfaceVariant,
+                            onChanged: widget.onChanged,
+                            onSubmitted: (_) {
+                              widget.onSubmitted();
+                              onFieldSubmitted();
+                            },
+                          ),
+                        );
+                      },
+                  optionsViewBuilder: (context, onSelected, options) {
+                    final materialOptions = options.toList(growable: false);
+                    if (materialOptions.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Align(
+                      alignment: Alignment.topLeft,
+                      child: Material(
+                        elevation: 6,
+                        borderRadius: BorderRadius.circular(8),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            maxHeight: 200,
+                            maxWidth: 540,
+                          ),
+                          child: ListView.separated(
+                            controller: _suggestionsScrollController,
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            shrinkWrap: true,
+                            itemCount: materialOptions.length,
+                            separatorBuilder: (_, _) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final option = materialOptions[index];
+                              return Builder(
+                                builder: (context) {
+                                  final isHighlighted =
+                                      _highlightedSuggestionIndex == index;
+                                  final backgroundColor = isHighlighted
+                                      ? theme.colorScheme.secondaryContainer
+                                      : null;
+                                  return InkWell(
+                                    key: _suggestionItemKey(option),
+                                    onTap: () => _applySuggestion(option),
+                                    child: ColoredBox(
+                                      color:
+                                          backgroundColor ?? Colors.transparent,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 5,
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.max,
+                                          children: [
+                                            Expanded(
+                                              child: option.level != null
+                                                  ? LogLevelLabel(
+                                                      level: option.level!,
+                                                      isIos: widget.isIos,
+                                                      text: option.label,
+                                                      compact: true,
+                                                      textStyle: theme
+                                                          .textTheme
+                                                          .bodySmall,
+                                                    )
+                                                  : Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.max,
+                                                      children: [
+                                                        Icon(
+                                                          option.icon,
+                                                          size: 12,
                                                         ),
-                                                  ),
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
+                                                        Expanded(
+                                                          child: Text(
+                                                            option.label,
+                                                            maxLines: 1,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                            style: theme
+                                                                .textTheme
+                                                                .bodySmall
+                                                                ?.copyWith(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                  color:
+                                                                      isHighlighted
+                                                                      ? theme
+                                                                            .colorScheme
+                                                                            .onSecondaryContainer
+                                                                      : null,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                            ),
+                                            if (option.subtitle.isNotEmpty) ...[
+                                              const SizedBox(width: 8),
+                                              Flexible(
+                                                child: Text(
+                                                  option.subtitle,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  textAlign: TextAlign.end,
+                                                  style: theme
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        fontSize: 10,
+                                                        color: isHighlighted
+                                                            ? theme
+                                                                  .colorScheme
+                                                                  .onSecondaryContainer
+                                                            : theme
+                                                                  .colorScheme
+                                                                  .onSurfaceVariant,
+                                                      ),
                                                 ),
-                                              ],
+                                              ),
                                             ],
-                                          ),
+                                          ],
                                         ),
                                       ),
-                                    );
-                                  },
-                                );
-                              },
-                            ),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
