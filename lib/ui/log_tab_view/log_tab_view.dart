@@ -618,12 +618,35 @@ class _LogTabViewState extends State<LogTabView> {
                     horizontal: 16,
                     vertical: 8,
                   ),
-                  child: Text(
-                    'No logs match your filter, but logs are being generated.',
-                    style: TextStyle(
-                      color: context.eaglyTheme.inlineNoticeForeground,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'No logs match your filter, but logs are being generated.',
+                        style: TextStyle(
+                          color: context.eaglyTheme.inlineNoticeForeground,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: controller.clearFilter,
+                        style: TextButton.styleFrom(
+                          foregroundColor:
+                              context.eaglyTheme.inlineNoticeForeground,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        child: const Text('Clear filter'),
+                      ),
+                    ],
                   ),
                 ),
               ),
