@@ -244,32 +244,6 @@ class Toolbar extends StatelessWidget {
               }
             },
           ),
-          IconButton(
-            onPressed: onImport,
-            icon: const Icon(Icons.file_download),
-            tooltip: 'Import Logcat File',
-          ),
-          IconButton(
-            onPressed: onInstallApp == null ? null : () => onInstallApp!.call(),
-            icon: controller.isInstallingApp
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.app_registration_outlined),
-            tooltip: controller.isInstallingApp
-                ? (controller.installingAppName == null
-                      ? 'Installing app…'
-                      : 'Installing ${controller.installingAppName}…')
-                : controller.hasConnectedSelectedDevice
-                ? 'Install app on selected device'
-                : 'Select a connected device to install an app',
-          ),
-          IconButton(
-            onPressed: onExport,
-            icon: const Icon(Icons.file_upload),
-            tooltip: 'Export Logs',
-          ),
           // ── Wrap text ─────────────────────────────────────────────────────
           ToolbarIconButton(
             icon: controller.wrapText ? Icons.wrap_text : Icons.notes,
@@ -287,6 +261,33 @@ class Toolbar extends StatelessWidget {
                 : 'Auto-scroll OFF',
             isActive: controller.autoScroll,
             onPressed: controller.toggleAutoScroll,
+          ),
+          divider,
+          IconButton(
+            onPressed: onImport,
+            icon: const Icon(Icons.file_download),
+            tooltip: 'Import Logcat File',
+          ),
+          IconButton(
+            onPressed: onExport,
+            icon: const Icon(Icons.file_upload),
+            tooltip: 'Export Logs',
+          ),
+          IconButton(
+            onPressed: onInstallApp == null ? null : () => onInstallApp!.call(),
+            icon: controller.isInstallingApp
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.app_registration_outlined),
+            tooltip: controller.isInstallingApp
+                ? (controller.installingAppName == null
+                      ? 'Installing app…'
+                      : 'Installing ${controller.installingAppName}…')
+                : controller.hasConnectedSelectedDevice
+                ? 'Install app on selected device'
+                : 'Select a connected device to install an app',
           ),
           divider,
           IconButton(
