@@ -10,6 +10,7 @@ import '../../data/log_view_mode.dart';
 import '../../features/app_log/app_logger.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/log_feedback.dart';
+import '../../utils/utils.dart';
 import '../../utils/widget_extensions.dart';
 import '../components/app_log_overlay.dart';
 import '../log_viewer/log_viewer.dart';
@@ -733,12 +734,12 @@ class _LogTabViewState extends State<LogTabView> {
           ],
           const Spacer(),
           Text(
-            'App mem: ${controller.formatBytes(widget.appMemoryBytesListenable.value)}',
+            'App mem: ${formatBytes(widget.appMemoryBytesListenable.value)}',
             style: theme.statusBarStyle,
           ),
           const Gap(16),
           Text(
-            'Logs mem: ${controller.formatBytes(controller.totalLogsMemoryBytes)}',
+            'Logs mem: ${formatBytes(controller.totalLogsMemoryBytes)}',
             style: theme.statusBarStyle,
           ),
           const Gap(8),

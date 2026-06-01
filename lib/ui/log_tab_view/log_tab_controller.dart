@@ -16,6 +16,7 @@ import '../../services/device_repository.dart';
 import '../../services/device_session_service.dart';
 import '../../services/log_file_service.dart';
 import '../../utils/log_buffer.dart';
+import '../../utils/log_entry_utils.dart';
 import '../../utils/text_search_pattern.dart';
 import '../wireless_connection/wireless_connection_controller.dart';
 import 'components/inline_filter_bar.dart';
@@ -635,14 +636,6 @@ class LogTabController extends ChangeNotifier {
     return _copyLogsToClipboard(entries, format: format);
   }
 
-  String formatLogsForClipboard(
-    Iterable<LogEntry> entries, {
-    required LogCopyFormat format,
-  }) {
-    return entries
-        .map((entry) => _formatLogEntryForCopy(entry, format))
-        .join('\n');
-  }
 
   void clearFilter() {
     _debounceTimer?.cancel();
@@ -968,19 +961,6 @@ class LogTabController extends ChangeNotifier {
     return matches[_searchCurrentMatchIndex.clamp(0, matches.length - 1)];
   }
 
-  String formatBytes(int bytes) {
-    const units = ['B', 'KB', 'MB', 'GB'];
-    var value = bytes.toDouble();
-    var unitIndex = 0;
-
-    while (value >= 1024 && unitIndex < units.length - 1) {
-      value /= 1024;
-      unitIndex++;
-    }
-
-    final precision = value >= 100 || unitIndex == 0 ? 0 : 1;
-    return '${value.toStringAsFixed(precision)} ${units[unitIndex]}';
-  }
 
   void _invalidateFilteredLogs() {
     _cachedFilteredLogs = null;
@@ -1823,18 +1803,9 @@ class LogTabController extends ChangeNotifier {
     final snapshot = List<LogEntry>.of(entries);
     if (snapshot.isEmpty) return 0;
 
-    final text = formatLogsForClipboard(snapshot, format: format);
+    final text = snapshot.formatForCopy(format);
     await Clipboard.setData(ClipboardData(text: text));
     return snapshot.length;
-  }
-
-  String _formatLogEntryForCopy(LogEntry log, LogCopyFormat format) {
-    return switch (format) {
-      LogCopyFormat.messageOnly => log.message,
-      LogCopyFormat.timestampAndMessage => '${log.timestamp} ${log.message}',
-      LogCopyFormat.fullLine =>
-        '${log.timestamp} ${log.packageName ?? log.pid} ${log.tid} ${log.level} ${log.tag}: ${log.message}',
-    };
   }
 
   int _estimateLogEntryBytes(LogEntry log) {
