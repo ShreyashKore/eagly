@@ -1,12 +1,11 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 
 import '../data/device.dart';
 import '../data/log_entry.dart';
-import '../utils/log_entry_utils.dart';
 import '../utils/utils.dart';
+import 'log_formats/log_formats.dart';
 import 'preferences_service.dart';
 
 class LogExportResult {
@@ -63,21 +62,29 @@ class LogImportResult {
 }
 
 class LogFileService {
-  /// Export logs to JSON file in Android Studio logcat format
+  /// The default format used when none is supplied explicitly.
+  static const LogFormat defaultFormat = AndroidLogcatFormat();
+
+  /// Export [logs] to a file using [format] (defaults to [defaultFormat]).
+  ///
+  /// Opens a system save-file dialog and writes the serialised content.
   static Future<LogExportResult> exportLogs(
     List<LogEntry> logs,
-    Device? device,
-  ) async {
+    Device? device, {
+    LogFormat format = defaultFormat,
+  }) async {
     if (logs.isEmpty) {
       return LogExportResult.failure(error: 'No logs available to export.');
     }
 
     final initialDirectory = await _resolveInitialDirectory();
 
+    final exported = format.export(logs, device: device);
+
     final result = await FilePicker.platform.saveFile(
       dialogTitle: 'Export Logs',
-      fileName: 'logcat_export_${DateTime.now().millisecondsSinceEpoch}.json',
-      allowedExtensions: ['json'],
+      fileName: exported.suggestedFileName,
+      allowedExtensions: format.id.fileExtensions,
       initialDirectory: initialDirectory,
       type: FileType.custom,
     );
@@ -87,25 +94,7 @@ class LogFileService {
     final fileName = extractFileName(result);
 
     try {
-      final exportData = {
-        'metadata': {
-          'device': {
-            'physicalDevice': device != null
-                ? {'serialNumber': device.id, 'status': device.status}
-                : null,
-          },
-          'exportedAt': DateTime.now().toIso8601String(),
-          'totalLogs': logs.length,
-        },
-        'logcatMessages': logs.map((log) {
-          return LogEntryUtils.toExportMap(log);
-        }).toList(),
-      };
-
-      final file = File(result);
-      await file.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(exportData),
-      );
+      await File(result).writeAsString(exported.content);
       await _rememberDialogDirectoryFromPath(result);
       return LogExportResult.success(fileName: fileName);
     } catch (e) {
@@ -116,8 +105,13 @@ class LogFileService {
     }
   }
 
-  /// Import logs from JSON file
-  static Future<LogImportResult> importLogs() async {
+  /// Import logs from a file using [format] (defaults to [defaultFormat]).
+  ///
+  /// Opens a system file-picker dialog, reads the file, and delegates
+  /// parsing to [format].
+  static Future<LogImportResult> importLogs({
+    LogFormat format = defaultFormat,
+  }) async {
     final initialDirectory = await _resolveInitialDirectory();
 
     final result = await FilePicker.platform.pickFiles(
@@ -135,6 +129,7 @@ class LogFileService {
     final fileName = pickedFile.name.isNotEmpty
         ? pickedFile.name
         : (filePath == null ? 'Imported file' : extractFileName(filePath));
+
     if (filePath == null) {
       return LogImportResult.failure(
         fileName: fileName,
@@ -146,38 +141,18 @@ class LogFileService {
     try {
       await _rememberDialogDirectoryFromPath(filePath);
 
-      final file = File(filePath);
-      final content = await file.readAsString();
-      final decoded = jsonDecode(content);
-      if (decoded is! Map<String, dynamic>) {
-        return LogImportResult.failure(
-          fileName: fileName,
-          error: 'Failed to import "$fileName": Invalid log export format.',
-        );
-      }
-      final data = decoded;
+      final content = await File(filePath).readAsString();
+      final parseResult = format.parse(content);
 
-      final logcatMessages = data['logcatMessages'] as List<dynamic>?;
-      if (logcatMessages == null) {
-        return LogImportResult.failure(
-          fileName: fileName,
-          error: 'Failed to import "$fileName": Missing logcatMessages array.',
-        );
-      }
-
-      final importedLogs = <LogEntry>[];
-      for (final msg in logcatMessages) {
-        if (msg is! Map<String, dynamic>) {
-          continue; // Skip invalid entries
-        }
-        final logEntry = LogEntryUtils.fromExportedMap(msg);
-        if (logEntry == null) {
-          continue;
-        }
-        importedLogs.add(logEntry);
-      }
-
-      return LogImportResult.success(logs: importedLogs, fileName: fileName);
+      return LogImportResult.success(
+        logs: parseResult.logs,
+        fileName: fileName,
+      );
+    } on FormatException catch (e) {
+      return LogImportResult.failure(
+        fileName: fileName,
+        error: 'Failed to import "$fileName": ${e.message}',
+      );
     } catch (e) {
       return LogImportResult.failure(
         fileName: fileName,

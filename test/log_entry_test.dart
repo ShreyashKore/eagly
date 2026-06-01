@@ -1,6 +1,9 @@
+import 'package:eagly/services/log_formats/log_formats.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/data/log_entry.dart';
 import 'package:eagly/utils/log_entry_utils.dart';
+
+const _format = AndroidLogcatFormat();
 
 void main() {
   group('LogEntry', () {
@@ -29,10 +32,10 @@ void main() {
         message: 'message body',
       );
 
-      final exported = LogEntryUtils.toExportMap(entry);
-      final restored = LogEntryUtils.fromExportedMap(exported);
+      final exported = _format.export([entry]).content;
+      final restored = _format.parse(exported).logs.firstOrNull;
 
-      expect(exported.containsKey('id'), isFalse);
+      expect(exported.contains('"id"'), isFalse);
       expect(restored, isNotNull);
       expect(restored!.id, isNot(entry.id));
       expect(restored.message, entry.message);
@@ -103,9 +106,7 @@ void main() {
         processName: 'emulator-5554',
       );
 
-      final restored = LogEntryUtils.fromExportedMap(
-        LogEntryUtils.toExportMap(error),
-      );
+      final restored = _format.parse(_format.export([error]).content).logs.firstOrNull;
 
       expect(restored, isNotNull);
       expect(restored!.type, LogEntryType.error);
