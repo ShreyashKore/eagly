@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/data/log_entry.dart';
+import 'package:eagly/utils/log_entry_utils.dart';
 import 'package:eagly/utils/ios_syslog_parser.dart';
 
 void main() {
@@ -106,8 +107,8 @@ void main() {
       final entry = parser.flush();
       expect(entry, isNotNull);
 
-      final exported = entry!.toExportMap();
-      final restored = LogEntry.fromExportedMap(exported);
+      final exported = LogEntryUtils.toExportMap(entry!);
+      final restored = LogEntryUtils.fromExportedMap(exported);
 
       expect(exported.containsKey('id'), isFalse);
       expect(restored, isNotNull);

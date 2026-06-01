@@ -15,6 +15,7 @@ import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/services/tools/idevice_id_tool.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
 import 'package:eagly/ui/log_tab_view/log_tab_controller.dart';
+import 'package:eagly/utils/log_entry_utils.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -649,7 +650,7 @@ void main() {
       controller = createController();
       controller!.logs = [
         _testLogEntry(message: 'First message'),
-        LogEntry.loggingState(
+        LogEntryUtils.buildLoggingState(
           type: LogEntryType.paused,
           message: 'Paused live logging for emulator-5554.',
           processName: 'emulator-5554',

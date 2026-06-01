@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../data/log_column.dart';
 import '../../../data/log_entry.dart';
 import '../../../theme/app_theme.dart';
+import '../../../utils/log_entry_utils.dart';
 import '../../../utils/text_search_pattern.dart';
 import '../log_viewer_constants.dart';
 

@@ -4,6 +4,8 @@ import 'dart:io';
 import '../../data/device.dart';
 import '../../data/log_entry.dart';
 import '../../data/wireless_debug_models.dart';
+import '../../utils/log_entry_utils.dart';
+import '../../utils/utils.dart';
 import 'tool_process_runner.dart';
 
 class AdbTool extends ToolProcessRunner {
@@ -297,7 +299,7 @@ class AdbTool extends ToolProcessRunner {
           var emittedLogs = false;
 
           await for (final line in stdoutLines(process!)) {
-            final parsed = LogEntry.parseFromLogcat(line);
+            final parsed = LogEntryUtils.parseFromLogcat(line);
             if (parsed != null) {
               emittedLogs = true;
               controller.add(parsed);

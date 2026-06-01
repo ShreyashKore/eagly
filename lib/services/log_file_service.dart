@@ -5,6 +5,8 @@ import 'package:file_picker/file_picker.dart';
 
 import '../data/device.dart';
 import '../data/log_entry.dart';
+import '../utils/log_entry_utils.dart';
+import '../utils/utils.dart';
 import 'preferences_service.dart';
 
 class LogExportResult {
@@ -82,7 +84,7 @@ class LogFileService {
 
     if (result == null) return LogExportResult.cancelled();
 
-    final fileName = _extractFileName(result);
+    final fileName = extractFileName(result);
 
     try {
       final exportData = {
@@ -96,7 +98,7 @@ class LogFileService {
           'totalLogs': logs.length,
         },
         'logcatMessages': logs.map((log) {
-          return log.toExportMap();
+          return LogEntryUtils.toExportMap(log);
         }).toList(),
       };
 
@@ -109,7 +111,7 @@ class LogFileService {
     } catch (e) {
       return LogExportResult.failure(
         fileName: fileName,
-        error: 'Failed to export logs to "$fileName": ${_describeError(e)}',
+        error: 'Failed to export logs to "$fileName": ${describeError(e)}',
       );
     }
   }
@@ -132,7 +134,7 @@ class LogFileService {
     final filePath = pickedFile.path;
     final fileName = pickedFile.name.isNotEmpty
         ? pickedFile.name
-        : (filePath == null ? 'Imported file' : _extractFileName(filePath));
+        : (filePath == null ? 'Imported file' : extractFileName(filePath));
     if (filePath == null) {
       return LogImportResult.failure(
         fileName: fileName,
@@ -168,7 +170,7 @@ class LogFileService {
         if (msg is! Map<String, dynamic>) {
           continue; // Skip invalid entries
         }
-        final logEntry = LogEntry.fromExportedMap(msg);
+        final logEntry = LogEntryUtils.fromExportedMap(msg);
         if (logEntry == null) {
           continue;
         }
@@ -179,15 +181,9 @@ class LogFileService {
     } catch (e) {
       return LogImportResult.failure(
         fileName: fileName,
-        error: 'Failed to import "$fileName": ${_describeError(e)}',
+        error: 'Failed to import "$fileName": ${describeError(e)}',
       );
     }
-  }
-
-  static String _extractFileName(String path) {
-    final normalized = path.replaceAll('\\', '/');
-    final segments = normalized.split('/');
-    return segments.isEmpty ? path : segments.last;
   }
 
   static Future<String?> _resolveInitialDirectory() async {
@@ -262,16 +258,5 @@ class LogFileService {
     }
 
     return null;
-  }
-
-  static String _describeError(Object error) {
-    if (error is FormatException) {
-      return error.message;
-    }
-
-    final message = error.toString();
-    return message.startsWith('Exception: ')
-        ? message.substring('Exception: '.length)
-        : message;
   }
 }

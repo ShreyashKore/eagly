@@ -18,12 +18,11 @@ import '../../services/log_file_service.dart';
 import '../../utils/log_buffer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/text_search_pattern.dart';
+import '../../utils/utils.dart';
 import '../wireless_connection/wireless_connection_controller.dart';
 import 'components/inline_filter_bar.dart';
 
 enum LogcatState { stopped, running, paused }
-
-enum LogCopyFormat { messageOnly, timestampAndMessage, fullLine }
 
 class LogTabController extends ChangeNotifier {
   static const int _maxRecentFilterValues = 8;
@@ -402,7 +401,7 @@ class LogTabController extends ChangeNotifier {
     Device? preferredDevice,
   }) async {
     final normalizedPath = path.trim();
-    final fileName = AppInstallService.extractFileName(normalizedPath);
+    final fileName = extractFileName(normalizedPath);
     if (_isInstallingApp) {
       return AppInstallResult.failure(
         fileName: fileName,
@@ -1500,7 +1499,7 @@ class LogTabController extends ChangeNotifier {
       LogEntryType.log => message ?? '',
     };
 
-    return LogEntry.loggingState(
+    return LogEntryUtils.buildLoggingState(
       type: type,
       tag: tag ?? 'eagly session',
       message: effectiveMessage,
@@ -1835,7 +1834,7 @@ class LogTabController extends ChangeNotifier {
     String path, {
     Device? preferredDevice,
   }) {
-    final fileName = AppInstallService.extractFileName(path);
+    final fileName = extractFileName(path);
     final explicitTarget = preferredDevice;
     if (explicitTarget != null) {
       if (!explicitTarget.isConnected) {

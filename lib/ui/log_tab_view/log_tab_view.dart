@@ -10,6 +10,7 @@ import '../../data/log_view_mode.dart';
 import '../../features/app_log/app_logger.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/log_feedback.dart';
+import '../../utils/log_entry_utils.dart';
 import '../../utils/utils.dart';
 import '../../utils/widget_extensions.dart';
 import '../components/app_log_overlay.dart';

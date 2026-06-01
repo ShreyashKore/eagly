@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../../data/wireless_debug_models.dart';
+import '../../utils/utils.dart';
 import 'tool_process_runner.dart';
 
 class IdeviceInstallerTool extends ToolProcessRunner {
