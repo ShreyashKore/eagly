@@ -1678,29 +1678,6 @@ class LogTabController extends ChangeNotifier {
     return snapshot.length;
   }
 
-  int _estimateLogEntryBytes(LogEntry log) {
-    int stringBytes(String value) => value.length * 2;
-
-    return 128 +
-        stringBytes(log.type.name) +
-        stringBytes(log.timestamp) +
-        stringBytes(log.pid) +
-        stringBytes(log.tid) +
-        stringBytes(log.level) +
-        stringBytes(log.tag) +
-        stringBytes(log.message) +
-        stringBytes(log.lowercaseSearchable) +
-        (log.packageName == null ? 0 : stringBytes(log.packageName!));
-  }
-
-  int _estimateLogsBytes(Iterable<LogEntry> entries) {
-    var total = 0;
-    for (final entry in entries) {
-      total += _estimateLogEntryBytes(entry);
-    }
-    return total;
-  }
-
   _InstallTargetResolution _resolveInstallTargetForPath(
     String path, {
     Device? preferredDevice,
@@ -1816,4 +1793,29 @@ class _InstallTargetResolution {
   factory _InstallTargetResolution.failure(String error) {
     return _InstallTargetResolution(error: error);
   }
+}
+
+// -- Log Entry utils
+
+int _estimateLogEntryBytes(LogEntry log) {
+  int stringBytes(String value) => value.length * 2;
+
+  return 128 +
+      stringBytes(log.type.name) +
+      stringBytes(log.timestamp) +
+      stringBytes(log.pid) +
+      stringBytes(log.tid) +
+      stringBytes(log.level) +
+      stringBytes(log.tag) +
+      stringBytes(log.message) +
+      stringBytes(log.lowercaseSearchable) +
+      (log.packageName == null ? 0 : stringBytes(log.packageName!));
+}
+
+int _estimateLogsBytes(Iterable<LogEntry> entries) {
+  var total = 0;
+  for (final entry in entries) {
+    total += _estimateLogEntryBytes(entry);
+  }
+  return total;
 }
