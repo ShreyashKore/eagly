@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../../data/device.dart';
 import '../../data/log_column.dart';
 import '../../data/log_entry.dart';
+import '../../data/log_filters.dart';
 import '../../data/log_level.dart';
 import '../../data/log_tab_settings.dart';
 import '../../data/log_view_mode.dart';
@@ -623,7 +624,6 @@ class LogTabController extends ChangeNotifier {
     return _copyLogsToClipboard(entries, format: format);
   }
 
-
   void clearFilter() {
     _debounceTimer?.cancel();
     _filterSaveDebounceTimer?.cancel();
@@ -689,35 +689,35 @@ class LogTabController extends ChangeNotifier {
   }
 
   void onSearchChanged(String value) {
-    _setFilterField(_LogFilterField.message, value);
+    _setFilterField(LogFilterField.message, value);
   }
 
   void onPackageFilterChanged(String value) {
-    _setFilterField(_LogFilterField.packageName, value);
+    _setFilterField(LogFilterField.packageName, value);
   }
 
   void onPidTidFilterChanged(String value) {
-    _setFilterField(_LogFilterField.pidTid, value);
+    _setFilterField(LogFilterField.pidTid, value);
   }
 
   void onTagFilterChanged(String value) {
-    _setFilterField(_LogFilterField.tag, value);
+    _setFilterField(LogFilterField.tag, value);
   }
 
   void selectMessageFilterSuggestion(String value) {
-    _setFilterField(_LogFilterField.message, value, applyImmediately: true);
+    _setFilterField(LogFilterField.message, value, applyImmediately: true);
   }
 
   void selectPackageFilterSuggestion(String value) {
-    _setFilterField(_LogFilterField.packageName, value, applyImmediately: true);
+    _setFilterField(LogFilterField.packageName, value, applyImmediately: true);
   }
 
   void selectPidTidFilterSuggestion(String value) {
-    _setFilterField(_LogFilterField.pidTid, value, applyImmediately: true);
+    _setFilterField(LogFilterField.pidTid, value, applyImmediately: true);
   }
 
   void selectTagFilterSuggestion(String value) {
-    _setFilterField(_LogFilterField.tag, value, applyImmediately: true);
+    _setFilterField(LogFilterField.tag, value, applyImmediately: true);
   }
 
   void applyFiltersNow() {
@@ -948,7 +948,6 @@ class LogTabController extends ChangeNotifier {
     return matches[_searchCurrentMatchIndex.clamp(0, matches.length - 1)];
   }
 
-
   void _invalidateFilteredLogs() {
     _cachedFilteredLogs = null;
     _invalidateSearchMatches();
@@ -1006,14 +1005,14 @@ class LogTabController extends ChangeNotifier {
   }
 
   void _setFilterField(
-    _LogFilterField field,
+    LogFilterField field,
     String value, {
     bool applyImmediately = false,
   }) {
     final selection = TextSelection.collapsed(offset: value.length);
 
     switch (field) {
-      case _LogFilterField.message:
+      case LogFilterField.message:
         searchQuery = value;
         if (filterController.text != value) {
           filterController.value = TextEditingValue(
@@ -1022,7 +1021,7 @@ class LogTabController extends ChangeNotifier {
           );
         }
         break;
-      case _LogFilterField.packageName:
+      case LogFilterField.packageName:
         packageFilterQuery = value;
         if (packageFilterController.text != value) {
           packageFilterController.value = TextEditingValue(
@@ -1031,7 +1030,7 @@ class LogTabController extends ChangeNotifier {
           );
         }
         break;
-      case _LogFilterField.pidTid:
+      case LogFilterField.pidTid:
         pidTidFilterQuery = value;
         if (pidTidFilterController.text != value) {
           pidTidFilterController.value = TextEditingValue(
@@ -1040,7 +1039,7 @@ class LogTabController extends ChangeNotifier {
           );
         }
         break;
-      case _LogFilterField.tag:
+      case LogFilterField.tag:
         tagFilterQuery = value;
         if (tagFilterController.text != value) {
           tagFilterController.value = TextEditingValue(
@@ -1071,17 +1070,18 @@ class LogTabController extends ChangeNotifier {
   }
 
   void _applyInlineFilters() {
-    final parsedFilters = _parseInlineFilters(
+    final parsedFilters = LogFilters.parse(
       _inlineFilterText,
       fallbackLevel: LogLevel.defaultSelectionForPlatform(
         isIos: isIosLogContext,
       ),
+      isIosLogContext: isIosLogContext,
     );
     _applyInlineDraftFilters(parsedFilters);
     _applyParsedFilters(parsedFilters);
   }
 
-  void _applyParsedFilters(_ParsedLogFilters parsedFilters) {
+  void _applyParsedFilters(LogFilters parsedFilters) {
     _appliedMessageTerms = parsedFilters.messageTerms;
     _appliedRawTerms = parsedFilters.rawTerms;
     _appliedPackageTerms = parsedFilters.packageTerms;
@@ -1130,8 +1130,8 @@ class LogTabController extends ChangeNotifier {
     }
   }
 
-  _ParsedLogFilters _parsedFiltersFromClassicInputs() {
-    return _ParsedLogFilters(
+  LogFilters _parsedFiltersFromClassicInputs() {
+    return LogFilters(
       messageText: searchQuery.trim(),
       packageText: packageFilterQuery.trim(),
       pidTidText: pidTidFilterQuery.trim(),
@@ -1145,7 +1145,7 @@ class LogTabController extends ChangeNotifier {
     );
   }
 
-  void _applyInlineDraftFilters(_ParsedLogFilters parsedFilters) {
+  void _applyInlineDraftFilters(LogFilters parsedFilters) {
     searchQuery = parsedFilters.messageText;
     packageFilterQuery = parsedFilters.packageText;
     pidTidFilterQuery = parsedFilters.pidTidText;
@@ -1224,123 +1224,6 @@ class LogTabController extends ChangeNotifier {
 
     final escaped = normalized.replaceAll('"', r'\"');
     return '$key:"$escaped"';
-  }
-
-  _ParsedLogFilters _parseInlineFilters(
-    String rawText, {
-    required LogLevel fallbackLevel,
-  }) {
-    final messageTerms = <String>[];
-    final rawTerms = <String>[];
-    final packageTerms = <String>[];
-    final pidTidTerms = <String>[];
-    final tagTerms = <String>[];
-    var parsedLevel = fallbackLevel;
-
-    for (final token in _tokenizeInlineFilterText(rawText)) {
-      final trimmedToken = token.trim();
-      if (trimmedToken.isEmpty) continue;
-
-      final colonIndex = trimmedToken.indexOf(':');
-      if (colonIndex <= 0) {
-        final messageValue = _normalizeInlineFilterValue(trimmedToken);
-        if (messageValue.isNotEmpty) {
-          rawTerms.add(messageValue);
-        }
-        continue;
-      }
-
-      final rawKey = trimmedToken.substring(0, colonIndex);
-      final rawValue = trimmedToken.substring(colonIndex + 1);
-      final key = _canonicalInlineFilterKey(rawKey);
-      final value = _normalizeInlineFilterValue(rawValue);
-      if (key == null || value.isEmpty) {
-        final fallbackValue = _normalizeInlineFilterValue(trimmedToken);
-        if (fallbackValue.isNotEmpty) {
-          rawTerms.add(fallbackValue);
-        }
-        continue;
-      }
-
-      switch (key) {
-        case _InlineFilterKey.message:
-          messageTerms.add(value);
-        case _InlineFilterKey.packageName:
-          packageTerms.add(value);
-        case _InlineFilterKey.pidTid:
-          pidTidTerms.add(value.toLowerCase());
-        case _InlineFilterKey.tag:
-          tagTerms.add(value);
-        case _InlineFilterKey.level:
-          parsedLevel = LogLevel.fromStored(
-            value,
-          ).normalizeSelectionForPlatform(isIos: isIosLogContext);
-      }
-    }
-
-    final messageFieldTerms = <String>[...rawTerms, ...messageTerms];
-    return _ParsedLogFilters(
-      messageText: messageFieldTerms.join(' '),
-      packageText: packageTerms.join(' '),
-      pidTidText: pidTidTerms.join(' '),
-      tagText: tagTerms.join(' '),
-      messageTerms: List.unmodifiable(messageTerms),
-      rawTerms: List.unmodifiable(rawTerms),
-      packageTerms: List.unmodifiable(packageTerms),
-      pidTidTerms: List.unmodifiable(pidTidTerms),
-      tagTerms: List.unmodifiable(tagTerms),
-      level: parsedLevel,
-    );
-  }
-
-  List<String> _tokenizeInlineFilterText(String rawText) {
-    final tokens = <String>[];
-    final buffer = StringBuffer();
-    var inQuotes = false;
-    for (final rune in rawText.runes) {
-      final char = String.fromCharCode(rune);
-      if (char == '"') {
-        inQuotes = !inQuotes;
-        buffer.write(char);
-        continue;
-      }
-      if (!inQuotes && RegExp(r'\s').hasMatch(char)) {
-        final token = buffer.toString().trim();
-        if (token.isNotEmpty) {
-          tokens.add(token);
-        }
-        buffer.clear();
-        continue;
-      }
-      buffer.write(char);
-    }
-
-    final finalToken = buffer.toString().trim();
-    if (finalToken.isNotEmpty) {
-      tokens.add(finalToken);
-    }
-    return tokens;
-  }
-
-  _InlineFilterKey? _canonicalInlineFilterKey(String rawKey) {
-    return switch (rawKey.trim().toLowerCase()) {
-      'message' || 'msg' || 'text' => _InlineFilterKey.message,
-      'package' || 'pkg' || 'app' || 'process' => _InlineFilterKey.packageName,
-      'pid' || 'tid' || 'thread' || 'pidtid' => _InlineFilterKey.pidTid,
-      'tag' => _InlineFilterKey.tag,
-      'level' || 'lvl' || 'priority' => _InlineFilterKey.level,
-      _ => null,
-    };
-  }
-
-  String _normalizeInlineFilterValue(String rawValue) {
-    var normalized = rawValue.trim();
-    if (normalized.length >= 2 &&
-        normalized.startsWith('"') &&
-        normalized.endsWith('"')) {
-      normalized = normalized.substring(1, normalized.length - 1);
-    }
-    return normalized.replaceAll(r'\"', '"').trim();
   }
 
   bool _matchesAllTerms(
@@ -1918,36 +1801,6 @@ class LogTabController extends ChangeNotifier {
     logLinesController.dispose();
     super.dispose();
   }
-}
-
-enum _LogFilterField { message, packageName, pidTid, tag }
-
-enum _InlineFilterKey { message, packageName, pidTid, tag, level }
-
-class _ParsedLogFilters {
-  const _ParsedLogFilters({
-    required this.messageText,
-    required this.packageText,
-    required this.pidTidText,
-    required this.tagText,
-    required this.messageTerms,
-    required this.rawTerms,
-    required this.packageTerms,
-    required this.pidTidTerms,
-    required this.tagTerms,
-    required this.level,
-  });
-
-  final String messageText;
-  final String packageText;
-  final String pidTidText;
-  final String tagText;
-  final List<String> messageTerms;
-  final List<String> rawTerms;
-  final List<String> packageTerms;
-  final List<String> pidTidTerms;
-  final List<String> tagTerms;
-  final LogLevel level;
 }
 
 class _InstallTargetResolution {

@@ -145,36 +145,36 @@ class InlineFilterBar extends StatefulWidget {
   final List<String> recentTagFilters;
   final bool isIos;
 
-  static const List<_InlineFilterKeyDefinition> keyDefinitions = [
-    _InlineFilterKeyDefinition(
+  static const List<InlineFilterKeyDefinition> keyDefinitions = [
+    InlineFilterKeyDefinition(
       canonicalKey: 'package',
       aliases: {'package', 'pkg', 'app', 'process'},
       icon: Icons.apps_outlined,
       label: 'package:',
       description: 'Filter by package or process name',
     ),
-    _InlineFilterKeyDefinition(
+    InlineFilterKeyDefinition(
       canonicalKey: 'tag',
       aliases: {'tag'},
       icon: Icons.sell_outlined,
       label: 'tag:',
       description: 'Filter by tag',
     ),
-    _InlineFilterKeyDefinition(
+    InlineFilterKeyDefinition(
       canonicalKey: 'message',
       aliases: {'message', 'msg', 'text'},
       icon: Icons.message_outlined,
       label: 'message:',
       description: 'Filter the log message text only',
     ),
-    _InlineFilterKeyDefinition(
+    InlineFilterKeyDefinition(
       canonicalKey: 'pid',
       aliases: {'pid', 'tid', 'thread', 'pidtid'},
       icon: Icons.tag_outlined,
       label: 'pid:',
       description: 'Filter by PID, TID, or PID/TID pair',
     ),
-    _InlineFilterKeyDefinition(
+    InlineFilterKeyDefinition(
       canonicalKey: 'level',
       aliases: {'level', 'lvl', 'priority'},
       icon: Icons.flag_outlined,
@@ -286,7 +286,7 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
             final valueText = activeToken.text.substring(colonIndex + 1);
             final keyDefinition = InlineFilterBar.keyDefinitions.firstWhere(
               (definition) => definition.aliases.contains(keyText),
-              orElse: () => const _InlineFilterKeyDefinition.unknown(),
+              orElse: () => const InlineFilterKeyDefinition.unknown(),
             );
             if (keyDefinition.canonicalKey == null) {
               return _matchingKeySuggestions(activeToken.text);
@@ -391,7 +391,7 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
   }
 
   List<_InlineFilterSuggestion> _valueSuggestionsForKey(
-    _InlineFilterKeyDefinition keyDefinition,
+    InlineFilterKeyDefinition keyDefinition,
     String rawValue,
   ) {
     final normalizedValue = _normalizeValue(rawValue).toLowerCase();
@@ -824,8 +824,8 @@ class _InlineFilterValueCandidate {
   final String subtitle;
 }
 
-class _InlineFilterKeyDefinition {
-  const _InlineFilterKeyDefinition({
+class InlineFilterKeyDefinition {
+  const InlineFilterKeyDefinition({
     required this.canonicalKey,
     required this.aliases,
     required this.icon,
@@ -833,7 +833,7 @@ class _InlineFilterKeyDefinition {
     required this.description,
   });
 
-  const _InlineFilterKeyDefinition.unknown()
+  const InlineFilterKeyDefinition.unknown()
     : canonicalKey = null,
       aliases = const <String>{},
       icon = Icons.help_outline,
