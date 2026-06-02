@@ -1,10 +1,10 @@
 import 'package:collection/collection.dart';
+import 'package:eagly/services/wireless_connection_service.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../data/device.dart';
 import '../../data/wireless_debug_models.dart';
 import '../../services/device_repository.dart';
-import '../../services/device_session_service.dart';
 
 class WirelessPairResult {
   const WirelessPairResult({
@@ -52,19 +52,19 @@ class WirelessPairResult {
 class WirelessConnectionController extends ChangeNotifier {
   WirelessConnectionController({
     required DeviceRepository deviceRepository,
-    required DeviceSessionService deviceSessionService,
+    required WirelessConnectionService wirelessConnectionService,
     required Future<void> Function(List<Device> devices) onDevicesApplied,
     required Future<void> Function(Device device) onActivateDevice,
     this.isDeviceSelectedInAnotherTab,
     this.selectedDeviceIdProvider,
     this.isRunningProvider,
   }) : _deviceRepository = deviceRepository,
-       _deviceSessionService = deviceSessionService,
+       _wirelessConnService = wirelessConnectionService,
        _onDevicesApplied = onDevicesApplied,
        _onActivateDevice = onActivateDevice;
 
   final DeviceRepository _deviceRepository;
-  final DeviceSessionService _deviceSessionService;
+  final WirelessConnectionService _wirelessConnService;
   final Future<void> Function(List<Device> devices) _onDevicesApplied;
   final Future<void> Function(Device device) _onActivateDevice;
   final bool Function(String deviceId)? isDeviceSelectedInAnotherTab;
@@ -182,7 +182,7 @@ class WirelessConnectionController extends ChangeNotifier {
     _notify();
 
     try {
-      final result = await _deviceSessionService.pairDevice(
+      final result = await _wirelessConnService.pairDevice(
         address: normalizedAddress,
         pairingCode: normalizedCode,
       );
@@ -387,7 +387,7 @@ class WirelessConnectionController extends ChangeNotifier {
 
       final failures = <String>[];
       for (final candidate in addresses) {
-        final result = await _deviceSessionService.connectDevice(candidate);
+        final result = await _wirelessConnService.connectDevice(candidate);
         if (_disposed) {
           return result;
         }

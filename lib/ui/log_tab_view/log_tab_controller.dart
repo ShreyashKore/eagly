@@ -19,7 +19,6 @@ import '../../utils/log_buffer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/text_search_pattern.dart';
 import '../../utils/utils.dart';
-import '../wireless_connection/wireless_connection_controller.dart';
 import 'components/inline_filter_bar.dart';
 
 enum LogcatState { stopped, running, paused }
@@ -43,16 +42,6 @@ class LogTabController extends ChangeNotifier {
        ),
        _deviceSessionService = deviceSessionService ?? DeviceSessionService() {
     _deviceSessionService.sessionLabel = id;
-    wirelessController = WirelessConnectionController(
-      deviceRepository: _deviceRepository,
-      deviceSessionService: _deviceSessionService,
-      onDevicesApplied: (fetchedDevices) =>
-          _applyFetchedDevices(fetchedDevices),
-      onActivateDevice: selectDeviceAndStart,
-      isDeviceSelectedInAnotherTab: isDeviceSelectedInAnotherTab,
-      selectedDeviceIdProvider: () => selectedDevice?.id,
-      isRunningProvider: () => isRunning,
-    );
     filterController.text = searchQuery;
     packageFilterController.text = packageFilterQuery;
     pidTidFilterController.text = pidTidFilterQuery;
@@ -70,7 +59,6 @@ class LogTabController extends ChangeNotifier {
   final bool Function(String deviceId)? isDeviceSelectedInAnotherTab;
   final DeviceRepository _deviceRepository;
   final DeviceSessionService _deviceSessionService;
-  late final WirelessConnectionController wirelessController;
 
   final ScrollController scrollController = ScrollController();
   final TextEditingController filterController = TextEditingController();
@@ -314,7 +302,7 @@ class LogTabController extends ChangeNotifier {
   Future<void> loadDevices({bool autoStartSingleIfAvailable = false}) async {
     await _deviceRepository.refreshDevices(force: true, showLoading: true);
     if (_disposed) return;
-    await _applyFetchedDevices(
+    await applyFetchedDevices(
       _deviceRepository.devices,
       autoStartSingleIfAvailable: autoStartSingleIfAvailable,
     );
@@ -1562,7 +1550,7 @@ class LogTabController extends ChangeNotifier {
     );
   }
 
-  Future<void> _applyFetchedDevices(
+  Future<void> applyFetchedDevices(
     List<Device> fetchedDevices, {
     bool autoStartSingleIfAvailable = false,
   }) async {
@@ -1901,7 +1889,7 @@ class LogTabController extends ChangeNotifier {
   }
 
   Future<void> _applyRepositoryDevices(List<Device> nextDevices) async {
-    await _applyFetchedDevices(nextDevices);
+    await applyFetchedDevices(nextDevices);
     _notify();
   }
 
@@ -1912,7 +1900,6 @@ class LogTabController extends ChangeNotifier {
     _flushTimer?.cancel();
     _debounceTimer?.cancel();
     _inlineSearchDebounce?.cancel();
-    wirelessController.dispose();
     unawaited(_logSub?.cancel());
     unawaited(_deviceSessionService.dispose());
     scrollController.dispose();

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:eagly/data/device.dart';
 import 'package:eagly/services/device_session_service.dart';
+import 'package:eagly/services/wireless_connection_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -70,8 +71,14 @@ exit 0
     );
   }
 
+  WirelessConnectionService buildWirelessService() {
+    return WirelessConnectionService(
+      adbPath: adbPath,
+    );
+  }
+
   test('pairDevice returns success output from adb', () async {
-    final service = buildService();
+    final service = buildWirelessService();
 
     final result = await service.pairDevice(
       address: '127.0.0.1:1234',
@@ -85,7 +92,7 @@ exit 0
   test(
     'connectDevice treats failed output as a failure even with exit code 0',
     () async {
-      final service = buildService();
+      final service = buildWirelessService();
 
       final result = await service.connectDevice('127.0.0.1:5555');
 

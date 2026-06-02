@@ -145,7 +145,6 @@ class _LogTabViewState extends State<LogTabView> {
       builder: (dialogContext) {
         return WirelessConnectionDialog(
           controller: controller,
-          wirelessController: controller.wirelessController,
           onShowSnackBar: _showSnackBar,
         );
       },
