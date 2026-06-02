@@ -17,4 +17,9 @@ class WirelessConnectionService {
 
   Future<DeviceCommandResult> connectDevice(String address) =>
       _adbTool.connectDevice(address);
+
+  /// Single-shot mDNS discovery, used to poll for the pairing service that a
+  /// device starts advertising after scanning a wireless debugging QR code.
+  Future<WirelessServiceDiscoveryResult> discoverMdnsServices() =>
+      _adbTool.discoverMdnsServices();
 }
