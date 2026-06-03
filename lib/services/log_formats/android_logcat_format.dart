@@ -25,15 +25,14 @@ class AndroidLogcatFormat extends LogFormat {
   LogFormatId get id => LogFormatId.androidLogcat;
 
   @override
-  LogFormatExportResult export(
-    List<LogEntry> entries, {
-    Device? device,
-  }) {
+  LogFormatExportResult export(List<LogEntry> entries, {Device? device}) {
     final exportData = {
       'metadata': {
-        'device': device != null
-            ? {'serialNumber': device.id, 'status': device.status}
-            : null,
+        'device': {
+          'physicalDevice': device != null
+              ? {'serialNumber': device.id, 'status': device.status}
+              : null,
+        },
         'exportedAt': DateTime.now().toIso8601String(),
         'totalLogs': entries.length,
       },
@@ -58,12 +57,12 @@ class AndroidLogcatFormat extends LogFormat {
     return {
       'header': {
         'entryType': entry.type.name,
-        'logLevel': entry.level,
+        'logLevel': _exportLevel(entry.level),
         'pid': int.tryParse(entry.pid) ?? 0,
         'tid': int.tryParse(entry.tid) ?? 0,
         'tag': entry.tag,
-        'applicationId': entry.packageName,
-        'processName': entry.processName,
+        'applicationId': entry.packageName ?? entry.pid,
+        'processName': entry.processName ?? entry.pid,
         'timestamp': timestampObj,
       },
       'message': entry.message,
@@ -168,6 +167,13 @@ class AndroidLogcatFormat extends LogFormat {
 
     return LogLevel.normalizeIosStoredLevel(raw);
   }
+
+  static String _exportLevel(String level) {
+    final trimmed = level.trim();
+    if (trimmed.length == 1) {
+      final logLevel = LogLevel.fromStored(trimmed);
+      if (!logLevel.isUnknown) return logLevel.androidExportName;
+    }
+    return trimmed;
+  }
 }
-
-
