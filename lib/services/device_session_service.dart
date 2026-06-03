@@ -150,14 +150,6 @@ class DeviceSessionService {
 
   Future<void> dispose() => stopActiveLogStream();
 
-  Future<DeviceCommandResult> pairDevice({
-    required String address,
-    required String pairingCode,
-  }) => _adbTool.pairDevice(address: address, pairingCode: pairingCode);
-
-  Future<DeviceCommandResult> connectDevice(String address) =>
-      _adbTool.connectDevice(address);
-
   Future<DeviceCommandResult> installApp({
     required Device device,
     required String filePath,

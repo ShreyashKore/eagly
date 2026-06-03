@@ -1,7 +1,9 @@
 import 'package:collection/collection.dart';
+import 'package:eagly/services/wireless_connection_service.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../services/device_repository.dart';
 import '../log_tab_view/log_tab_controller.dart';
 import 'wireless_connection_controller.dart';
 import '../../data/device.dart';
@@ -11,12 +13,10 @@ class WirelessConnectionDialog extends StatefulWidget {
   const WirelessConnectionDialog({
     super.key,
     required this.controller,
-    required this.wirelessController,
     required this.onShowSnackBar,
   });
 
   final LogTabController controller;
-  final WirelessConnectionController wirelessController;
   final ValueChanged<String> onShowSnackBar;
 
   @override
@@ -28,6 +28,15 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   late final TextEditingController _pairAddressController;
   late final TextEditingController _pairingCodeController;
   late final TextEditingController _connectAddressController;
+  late final wirelessController = WirelessConnectionController(
+    deviceRepository: DeviceRepository.instance,
+    wirelessConnectionService: WirelessConnectionService.instance,
+    onDevicesApplied: controller.applyFetchedDevices,
+    onActivateDevice: controller.selectDeviceAndStart,
+    isDeviceSelectedInAnotherTab: controller.isDeviceSelectedInAnotherTab,
+    selectedDeviceIdProvider: () => controller.selectedDevice?.id,
+    isRunningProvider: () => controller.isRunning,
+  );
 
   var _section = _WirelessDialogSection.nearby;
   String? _selectedDiscoveryHost;
@@ -35,8 +44,6 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   var _showManualConnectSection = false;
 
   LogTabController get controller => widget.controller;
-  WirelessConnectionController get wirelessController =>
-      widget.wirelessController;
 
   List<_DiscoveredWirelessTarget> get _discoveredTargets {
     final groupedServices = <String, List<WirelessDebugService>>{};

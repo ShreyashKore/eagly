@@ -12,6 +12,7 @@ import '../../data/log_column.dart';
 import '../../data/log_entry.dart';
 import '../../services/preferences_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/log_entry_utils.dart';
 import '../../utils/text_search_pattern.dart';
 import 'components/log_row.dart';
 import 'components/log_viewer_header.dart';

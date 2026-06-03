@@ -5,6 +5,7 @@ import 'dart:io';
 import '../../data/log_entry.dart';
 import '../../features/app_log/app_logger.dart';
 import '../../utils/adb_path.dart';
+import '../../utils/log_entry_utils.dart';
 
 class ToolCommandResult {
   const ToolCommandResult({
@@ -109,13 +110,6 @@ abstract class ToolProcessRunner {
     return '$fallback (exit code ${result.exitCode}).';
   }
 
-  String describeError(Object error) {
-    final message = error.toString();
-    return message.startsWith('Exception: ')
-        ? message.substring('Exception: '.length)
-        : message;
-  }
-
   void logError(String message, [Object? error]) {
     logger.error(message, detail: error?.toString());
   }
@@ -133,7 +127,7 @@ abstract class ToolProcessRunner {
     required String tag,
     required String processName,
   }) {
-    return LogEntry.toolError(
+    return LogEntryUtils.buildToolError(
       message: message,
       tag: tag,
       processName: processName,
