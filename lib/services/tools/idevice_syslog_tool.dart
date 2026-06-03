@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import '../../data/log_entry.dart';
-import '../../utils/ios_syslog_parser.dart';
+import '../../utils/utils.dart';
+import '../log_parsers/ios_syslog_parser.dart';
 import 'tool_process_runner.dart';
 
 class IdeviceSyslogTool extends ToolProcessRunner {
@@ -17,7 +18,7 @@ class IdeviceSyslogTool extends ToolProcessRunner {
     var stopRequested = false;
     var stopFuture = Future<void>.value();
     late final StreamController<LogEntry> controller;
-    final parser = IosSyslogParser();
+    final IosSyslogParser parser = IosSyslogParser();
 
     Future<void> stop() {
       if (stopRequested) {

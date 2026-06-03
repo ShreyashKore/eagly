@@ -1,13 +1,19 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/data/log_entry.dart';
+import 'package:eagly/services/log_formats/log_formats.dart';
+import 'package:eagly/services/log_parsers/logcat_parser.dart';
+import 'package:eagly/utils/log_entry_utils.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+const _format = AndroidLogcatFormat();
 
 void main() {
+  final parser = LogcatParser();
   group('LogEntry', () {
     test('parseFromLogcat assigns a unique incrementing internal ID', () {
-      final first = LogEntry.parseFromLogcat(
+      final first = parser.parse(
         '04-26 20:54:02.025 1234 5678 I AuthTag: first message',
       );
-      final second = LogEntry.parseFromLogcat(
+      final second = parser.parse(
         '04-26 20:54:02.026 1234 5678 I AuthTag: second message',
       );
 
@@ -28,10 +34,10 @@ void main() {
         message: 'message body',
       );
 
-      final exported = entry.toExportMap();
-      final restored = LogEntry.fromExportedMap(exported);
+      final exported = _format.export([entry]).content;
+      final restored = _format.parse(exported).logs.firstOrNull;
 
-      expect(exported.containsKey('id'), isFalse);
+      expect(exported.contains('"id"'), isFalse);
       expect(restored, isNotNull);
       expect(restored!.id, isNot(entry.id));
       expect(restored.message, entry.message);
@@ -55,7 +61,7 @@ void main() {
     });
 
     test('special state factories create non-selectable entries', () {
-      final paused = LogEntry.loggingState(
+      final paused = LogEntryUtils.buildLoggingState(
         type: LogEntryType.paused,
         message: 'Paused live logging for Pixel 8.',
         processName: 'Pixel 8',
@@ -71,7 +77,7 @@ void main() {
     });
 
     test('parses fatal Android threadtime lines and trims padded tags', () {
-      final entry = LogEntry.parseFromLogcat(
+      final entry = parser.parse(
         '05-14 17:12:59.035  2002 12397 F DEBUG   : Softversion: PD2201IF_EX_A_14.2.14.2.W30.V000L1',
       );
 
@@ -83,7 +89,7 @@ void main() {
     });
 
     test('parses logcat section separators into special notice entries', () {
-      final entry = LogEntry.parseFromLogcat('--------- beginning of crash');
+      final entry = parser.parse('--------- beginning of crash');
 
       expect(entry, isNotNull);
       expect(entry!.type, LogEntryType.notice);
@@ -96,13 +102,16 @@ void main() {
     });
 
     test('exports and restores special entry types', () {
-      final error = LogEntry.toolError(
+      final error = LogEntryUtils.buildToolError(
         message: 'Failed to start adb logcat.',
         tag: 'adb logcat',
         processName: 'emulator-5554',
       );
 
-      final restored = LogEntry.fromExportedMap(error.toExportMap());
+      final restored = _format
+          .parse(_format.export([error]).content)
+          .logs
+          .firstOrNull;
 
       expect(restored, isNotNull);
       expect(restored!.type, LogEntryType.error);

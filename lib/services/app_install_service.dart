@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 
 import '../data/device.dart';
+import '../utils/utils.dart';
 import 'preferences_service.dart';
 
 class AppInstallSelectionResult {
@@ -200,11 +201,6 @@ class AppInstallService {
     return 'Unsupported iOS app format for "$fileName". Use an IPA or .app bundle.';
   }
 
-  static String extractFileName(String path) {
-    final normalized = path.replaceAll('\\', '/');
-    final segments = normalized.split('/');
-    return segments.isEmpty ? path : segments.last;
-  }
 
   static Future<void> rememberDialogDirectoryFromPath(String path) async {
     final entityType = FileSystemEntity.typeSync(path, followLinks: true);

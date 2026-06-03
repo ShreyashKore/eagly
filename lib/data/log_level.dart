@@ -159,6 +159,7 @@ class LogLevel {
       _ => switch (normalizedLower) {
         'fatal' ||
         'assert' ||
+        'fault' ||
         'error' ||
         'warn' ||
         'warning' ||
@@ -231,6 +232,16 @@ class LogLevel {
     'debug' => 'D',
     'verbose' => 'V',
     'unknown' => '?',
+    _ => code.toUpperCase(),
+  };
+
+  String get androidExportName => switch (code) {
+    'fault' => 'FATAL',
+    'error' => 'ERROR',
+    'warning' => 'WARN',
+    'default' || 'info' => 'INFO',
+    'debug' => 'DEBUG',
+    'verbose' => 'VERBOSE',
     _ => code.toUpperCase(),
   };
 

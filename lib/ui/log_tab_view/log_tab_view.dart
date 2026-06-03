@@ -10,6 +10,8 @@ import '../../data/log_view_mode.dart';
 import '../../features/app_log/app_logger.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/log_feedback.dart';
+import '../../utils/log_entry_utils.dart';
+import '../../utils/utils.dart';
 import '../../utils/widget_extensions.dart';
 import '../components/app_log_overlay.dart';
 import '../log_viewer/log_viewer.dart';
@@ -143,7 +145,6 @@ class _LogTabViewState extends State<LogTabView> {
       builder: (dialogContext) {
         return WirelessConnectionDialog(
           controller: controller,
-          wirelessController: controller.wirelessController,
           onShowSnackBar: _showSnackBar,
         );
       },
@@ -618,12 +619,35 @@ class _LogTabViewState extends State<LogTabView> {
                     horizontal: 16,
                     vertical: 8,
                   ),
-                  child: Text(
-                    'No logs match your filter, but logs are being generated.',
-                    style: TextStyle(
-                      color: context.eaglyTheme.inlineNoticeForeground,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'No logs match your filter, but logs are being generated.',
+                        style: TextStyle(
+                          color: context.eaglyTheme.inlineNoticeForeground,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: controller.clearFilter,
+                        style: TextButton.styleFrom(
+                          foregroundColor:
+                              context.eaglyTheme.inlineNoticeForeground,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        child: const Text('Clear filter'),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -710,12 +734,12 @@ class _LogTabViewState extends State<LogTabView> {
           ],
           const Spacer(),
           Text(
-            'App mem: ${controller.formatBytes(widget.appMemoryBytesListenable.value)}',
+            'App mem: ${formatBytes(widget.appMemoryBytesListenable.value)}',
             style: theme.statusBarStyle,
           ),
           const Gap(16),
           Text(
-            'Logs mem: ${controller.formatBytes(controller.totalLogsMemoryBytes)}',
+            'Logs mem: ${formatBytes(controller.totalLogsMemoryBytes)}',
             style: theme.statusBarStyle,
           ),
           const Gap(8),

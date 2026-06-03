@@ -12,6 +12,7 @@ import 'package:eagly/data/log_entry.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/theme/app_theme.dart';
 import 'package:eagly/ui/log_viewer/log_viewer.dart';
+import 'package:eagly/utils/log_entry_utils.dart';
 import 'package:eagly/utils/text_search_pattern.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -366,7 +367,7 @@ void main() {
             tag: 'Tag',
             message: 'First message',
           ),
-          LogEntry.loggingState(
+          LogEntryUtils.buildLoggingState(
             type: LogEntryType.paused,
             message: 'Paused live logging for emulator-5554.',
             processName: 'emulator-5554',
@@ -395,7 +396,7 @@ void main() {
       tester,
       wrapText: false,
       logs: [
-        LogEntry.loggingState(
+        LogEntryUtils.buildLoggingState(
           type: LogEntryType.stopped,
           message:
               'Device disconnected; stopped capturing logs for Pixel 8 (emulator-5554) after a very long session message that should remain visually compact.',
@@ -464,7 +465,7 @@ void main() {
           tag: 'Tag',
           message: 'First message',
         ),
-        LogEntry.loggingState(
+        LogEntryUtils.buildLoggingState(
           type: LogEntryType.paused,
           message: 'Paused live logging for emulator-5554.',
           processName: 'emulator-5554',

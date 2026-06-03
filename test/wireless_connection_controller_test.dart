@@ -1,10 +1,10 @@
 import 'dart:async';
 
+import 'package:eagly/services/wireless_connection_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/data/device.dart';
 import 'package:eagly/data/wireless_debug_models.dart';
 import 'package:eagly/services/device_repository.dart';
-import 'package:eagly/services/device_session_service.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/services/tools/idevice_id_tool.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
@@ -185,7 +185,7 @@ WirelessConnectionController _buildController({
 }) {
   return WirelessConnectionController(
     deviceRepository: repository,
-    deviceSessionService: sessionService,
+    wirelessConnectionService: sessionService,
     onDevicesApplied: (_) async {},
     onActivateDevice: onActivateDevice ?? (_) async {},
     selectedDeviceIdProvider: selectedDeviceIdProvider,
@@ -193,9 +193,9 @@ WirelessConnectionController _buildController({
   );
 }
 
-class _FakeWirelessSessionService extends DeviceSessionService {
+class _FakeWirelessSessionService extends WirelessConnectionService {
   _FakeWirelessSessionService()
-    : super(adbPath: '/usr/bin/true', ideviceSyslogPath: '/usr/bin/true');
+    : super(adbPath: '/usr/bin/true');
 
   final List<(String, String)> pairRequests = [];
   final List<String> connectRequests = [];

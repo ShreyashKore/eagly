@@ -1,4 +1,4 @@
-# Eagly - Universal Logcat
+# Eagly - Universal Logcat and Console
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev)
@@ -40,9 +40,18 @@ Future releases are planned to include:
 
 ## Installation
 
-Download the latest release for your platform from the [Releases](https://github.com/ShreyashKore/eagly/releases) page.
+For detailed changes and older versions; Refer [Releases](https://github.com/ShreyashKore/eagly/releases) page.
 
-No external dependencies need to be installed — the app ships with all required tools bundled.
+Download the latest release for your platform:
+
+| Platform | Download |
+|-----------|-----------|
+| 🪟 Windows | [Download .exe installer](https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-windows-setup.exe) · [Download .msix](https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-windows.msix) |
+| 🐧 Linux | [Download .deb package](https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-linux.deb) |
+| 🍎 macOS | [Download .dmg](https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-macos.dmg) |
+
+
+Eagly bundles all required Android and iOS communication tools, including adb and libimobiledevice. On Windows, iTunes must be installed for iOS device support.
 
 ---
 

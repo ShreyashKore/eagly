@@ -1,14 +1,16 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:eagly/services/log_parsers/logcat_parser.dart';
+
 import '../../data/device.dart';
 import '../../data/log_entry.dart';
 import '../../data/wireless_debug_models.dart';
+import '../../utils/utils.dart';
 import 'tool_process_runner.dart';
 
 class AdbTool extends ToolProcessRunner {
-  AdbTool({super.executablePath})
-    : super(executableName: 'adb');
+  AdbTool({super.executablePath}) : super(executableName: 'adb');
 
   Future<List<Device>> getDevices() async {
     try {
@@ -272,6 +274,7 @@ class AdbTool extends ToolProcessRunner {
     var stopRequested = false;
     var stopFuture = Future<void>.value();
     late final StreamController<LogEntry> controller;
+    final LogcatParser parser = const LogcatParser();
 
     Future<void> stop() {
       if (stopRequested) {
@@ -297,7 +300,7 @@ class AdbTool extends ToolProcessRunner {
           var emittedLogs = false;
 
           await for (final line in stdoutLines(process!)) {
-            final parsed = LogEntry.parseFromLogcat(line);
+            final parsed = parser.parse(line);
             if (parsed != null) {
               emittedLogs = true;
               controller.add(parsed);
@@ -324,7 +327,10 @@ class AdbTool extends ToolProcessRunner {
             ),
           );
         } catch (error) {
-          logError('Unexpected error while streaming adb logcat for $deviceId', error);
+          logError(
+            'Unexpected error while streaming adb logcat for $deviceId',
+            error,
+          );
           controller.add(
             buildToolErrorEntry(
               'adb logcat error: ${describeError(error)}',

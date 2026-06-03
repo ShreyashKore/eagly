@@ -1,6 +1,9 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/data/log_entry.dart';
-import 'package:eagly/utils/ios_syslog_parser.dart';
+import 'package:eagly/services/log_formats/log_formats.dart';
+import 'package:eagly/services/log_parsers/ios_syslog_parser.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+const _format = AndroidLogcatFormat();
 
 void main() {
   group('IosSyslogParser', () {
@@ -106,10 +109,10 @@ void main() {
       final entry = parser.flush();
       expect(entry, isNotNull);
 
-      final exported = entry!.toExportMap();
-      final restored = LogEntry.fromExportedMap(exported);
+      final exported = _format.export([entry!]).content;
+      final restored = _format.parse(exported).logs.firstOrNull;
 
-      expect(exported.containsKey('id'), isFalse);
+      expect(exported.contains('"id"'), isFalse);
       expect(restored, isNotNull);
       expect(restored!.id, isNot(entry.id));
       expect(restored.timestamp, entry.timestamp);
