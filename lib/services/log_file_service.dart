@@ -87,9 +87,11 @@ class LogFileService {
     try {
       final exportData = {
         'metadata': {
-          'device': device != null
-              ? {'serialNumber': device.id, 'status': device.status}
-              : null,
+          'device': {
+            'physicalDevice': device != null
+                ? {'serialNumber': device.id, 'status': device.status}
+                : null,
+          },
           'exportedAt': DateTime.now().toIso8601String(),
           'totalLogs': logs.length,
         },

@@ -237,12 +237,12 @@ class LogEntry {
     return {
       'header': {
         'entryType': type.name,
-        'logLevel': level,
+        'logLevel': _exportLevel(level),
         'pid': int.tryParse(pid) ?? 0,
         'tid': int.tryParse(tid) ?? 0,
         'tag': tag,
-        'applicationId': packageName,
-        'processName': processName,
+        'applicationId': packageName ?? pid,
+        'processName': processName ?? pid,
         'timestamp': timestampObj,
       },
       'message': message,
@@ -323,6 +323,15 @@ class LogEntry {
 
     final iosLevel = LogLevel.normalizeIosStoredLevel(raw);
     return iosLevel;
+  }
+
+  static String _exportLevel(String level) {
+    final trimmed = level.trim();
+    if (trimmed.length == 1) {
+      final logLevel = LogLevel.fromStored(trimmed);
+      if (!logLevel.isUnknown) return logLevel.androidExportName;
+    }
+    return trimmed;
   }
 
   static int _resolveId(int? value) {

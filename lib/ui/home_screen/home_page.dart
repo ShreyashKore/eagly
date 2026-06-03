@@ -496,9 +496,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   LogicalKeyboardKey.keyF,
                   meta: true,
                 ),
-                onSelected: () => _runOnActiveTab(
-                  (tab) => tab.activateSearchFromSelection(),
-                ),
+                onSelected: () =>
+                    _runOnActiveTab((tab) => tab.activateSearchFromSelection()),
               ),
             ],
           ),

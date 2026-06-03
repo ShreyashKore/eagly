@@ -41,8 +41,6 @@ class DeviceSessionService {
   AppLogger _sessionLogger(String fallbackSessionTag) =>
       _logger.scoped(sessionTag: sessionLabel ?? fallbackSessionTag);
 
-
-
   Stream<LogEntry> _startAndroidLogcat(String deviceId) async* {
     await stopActiveLogStream();
     await refreshPidToPackageMap(deviceId);
@@ -66,7 +64,9 @@ class DeviceSessionService {
             detail: '[${entry.tag}] ${entry.message}',
           );
         }
-        entry.packageName ??= getPackageNameFromPid(entry.pid);
+        final processName = getProcessNameFromPid(entry.pid);
+        entry.packageName ??= processName;
+        entry.processName ??= processName;
         yield entry;
       }
     } finally {
@@ -150,7 +150,6 @@ class DeviceSessionService {
 
   Future<void> dispose() => stopActiveLogStream();
 
-
   Future<DeviceCommandResult> pairDevice({
     required String address,
     required String pairingCode,
@@ -164,9 +163,14 @@ class DeviceSessionService {
     required String filePath,
   }) {
     return switch (device) {
-      AndroidDevice() => _adbTool.installApk(deviceId: device.id, apkPath: filePath),
-      IosDevice() =>
-        _ideviceInstallerTool.installApp(deviceId: device.id, appPath: filePath),
+      AndroidDevice() => _adbTool.installApk(
+        deviceId: device.id,
+        apkPath: filePath,
+      ),
+      IosDevice() => _ideviceInstallerTool.installApp(
+        deviceId: device.id,
+        appPath: filePath,
+      ),
     };
   }
 
@@ -177,7 +181,7 @@ class DeviceSessionService {
       ..addAll(await _adbTool.getPidToPackageMap(deviceId));
   }
 
-  String? getPackageNameFromPid(String pid) {
+  String? getProcessNameFromPid(String pid) {
     return _pidToPackageCache[pid];
   }
 
