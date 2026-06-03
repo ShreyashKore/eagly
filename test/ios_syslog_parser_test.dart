@@ -1,7 +1,7 @@
-import 'package:eagly/services/log_formats/log_formats.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/data/log_entry.dart';
-import 'package:eagly/utils/ios_syslog_parser.dart';
+import 'package:eagly/services/log_formats/log_formats.dart';
+import 'package:eagly/services/log_parsers/ios_syslog_parser.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 const _format = AndroidLogcatFormat();
 

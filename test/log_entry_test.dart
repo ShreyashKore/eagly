@@ -1,17 +1,19 @@
-import 'package:eagly/services/log_formats/log_formats.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/data/log_entry.dart';
+import 'package:eagly/services/log_formats/log_formats.dart';
+import 'package:eagly/services/log_parsers/logcat_parser.dart';
 import 'package:eagly/utils/log_entry_utils.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 const _format = AndroidLogcatFormat();
 
 void main() {
+  final parser = LogcatParser();
   group('LogEntry', () {
     test('parseFromLogcat assigns a unique incrementing internal ID', () {
-      final first = LogEntryUtils.parseFromLogcat(
+      final first = parser.parse(
         '04-26 20:54:02.025 1234 5678 I AuthTag: first message',
       );
-      final second = LogEntryUtils.parseFromLogcat(
+      final second = parser.parse(
         '04-26 20:54:02.026 1234 5678 I AuthTag: second message',
       );
 
@@ -75,7 +77,7 @@ void main() {
     });
 
     test('parses fatal Android threadtime lines and trims padded tags', () {
-      final entry = LogEntryUtils.parseFromLogcat(
+      final entry = parser.parse(
         '05-14 17:12:59.035  2002 12397 F DEBUG   : Softversion: PD2201IF_EX_A_14.2.14.2.W30.V000L1',
       );
 
@@ -87,7 +89,7 @@ void main() {
     });
 
     test('parses logcat section separators into special notice entries', () {
-      final entry = LogEntryUtils.parseFromLogcat('--------- beginning of crash');
+      final entry = parser.parse('--------- beginning of crash');
 
       expect(entry, isNotNull);
       expect(entry!.type, LogEntryType.notice);
@@ -106,7 +108,10 @@ void main() {
         processName: 'emulator-5554',
       );
 
-      final restored = _format.parse(_format.export([error]).content).logs.firstOrNull;
+      final restored = _format
+          .parse(_format.export([error]).content)
+          .logs
+          .firstOrNull;
 
       expect(restored, isNotNull);
       expect(restored!.type, LogEntryType.error);
