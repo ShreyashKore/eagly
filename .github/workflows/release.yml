@@ -17,16 +17,19 @@ jobs:
             platform: macos
             targets: dmg
             upload-path: dist/*/*.dmg
+            stable-glob: eagly-macos.*
           - os: ubuntu-latest
             platform: linux
             targets: deb
             upload-path: dist/*/*.deb
+            stable-glob: eagly-linux.*
           - os: windows-latest
             platform: windows
             targets: exe,msix
             upload-path: |
               dist/*/*.exe
               dist/*/*.msix
+            stable-glob: eagly-windows*
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -86,6 +89,18 @@ jobs:
             --targets="${{ matrix.targets }}" \
             --artifact-name='eagly-{{build_name}}-{{platform}}{{#is_installer}}-setup{{/is_installer}}{{#ext}}.{{ext}}{{/ext}}'
 
+      - name: Create stable-named artifacts
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "macos" ]; then
+            find dist -name "*.dmg" | head -1 | xargs -I{} cp {} eagly-macos.dmg
+          elif [ "${{ matrix.platform }}" = "linux" ]; then
+            find dist -name "*.deb" | head -1 | xargs -I{} cp {} eagly-linux.deb
+          elif [ "${{ matrix.platform }}" = "windows" ]; then
+            find dist -name "*.exe" | head -1 | xargs -I{} cp {} eagly-windows-setup.exe
+            find dist -name "*.msix" | head -1 | xargs -I{} cp {} eagly-windows.msix
+          fi
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
@@ -96,5 +111,7 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.upload-path }}
+          files: |
+            ${{ matrix.upload-path }}
+            ${{ matrix.stable-glob }}
 
