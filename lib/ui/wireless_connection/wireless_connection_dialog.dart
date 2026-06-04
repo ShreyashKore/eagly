@@ -1,5 +1,4 @@
 import 'package:collection/collection.dart';
-import 'package:eagly/services/wireless_connection_service.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -31,7 +30,6 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   late final TextEditingController _connectAddressController;
   late final wirelessController = WirelessConnectionController(
     deviceRepository: DeviceRepository.instance,
-    wirelessConnectionService: WirelessConnectionService.instance,
     onDevicesApplied: controller.applyFetchedDevices,
     onActivateDevice: controller.selectDeviceAndStart,
     isDeviceSelectedInAnotherTab: controller.isDeviceSelectedInAnotherTab,

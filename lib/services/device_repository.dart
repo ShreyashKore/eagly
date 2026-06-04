@@ -156,6 +156,14 @@ class DeviceRepository extends ChangeNotifier {
     return result;
   }
 
+  Future<DeviceCommandResult> pairWirelessAndroidDevice({
+    required String address,
+    required String pairingCode,
+  }) => _adbTool.pairDevice(address: address, pairingCode: pairingCode);
+
+  Future<DeviceCommandResult> connectWirelessAndroidDevice(String address) =>
+      _adbTool.connectDevice(address);
+
   Future<void> _reloadDevices() async {
     final androidDevices = await _adbTool.getDevices();
     final describedAndroidDevices = await Future.wait(
@@ -170,8 +178,8 @@ class DeviceRepository extends ChangeNotifier {
 
     _logger.info(
       'Device list refreshed: '
-          '${describedAndroidDevices.length} Android, '
-          '${iosDevices.length} iOS',
+      '${describedAndroidDevices.length} Android, '
+      '${iosDevices.length} iOS',
     );
 
     nextDevices.sort((left, right) {

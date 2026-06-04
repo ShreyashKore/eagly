@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:collection/collection.dart';
-import 'package:eagly/services/wireless_connection_service.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../data/device.dart';
@@ -72,19 +71,16 @@ class WirelessQrPairingSession {
 class WirelessConnectionController extends ChangeNotifier {
   WirelessConnectionController({
     required DeviceRepository deviceRepository,
-    required WirelessConnectionService wirelessConnectionService,
     required Future<void> Function(List<Device> devices) onDevicesApplied,
     required Future<void> Function(Device device) onActivateDevice,
     this.isDeviceSelectedInAnotherTab,
     this.selectedDeviceIdProvider,
     this.isRunningProvider,
   }) : _deviceRepository = deviceRepository,
-       _wirelessConnService = wirelessConnectionService,
        _onDevicesApplied = onDevicesApplied,
        _onActivateDevice = onActivateDevice;
 
   final DeviceRepository _deviceRepository;
-  final WirelessConnectionService _wirelessConnService;
   final Future<void> Function(List<Device> devices) _onDevicesApplied;
   final Future<void> Function(Device device) _onActivateDevice;
   final bool Function(String deviceId)? isDeviceSelectedInAnotherTab;
@@ -213,7 +209,7 @@ class WirelessConnectionController extends ChangeNotifier {
     _notify();
 
     try {
-      final result = await _wirelessConnService.pairDevice(
+      final result = await _deviceRepository.pairWirelessAndroidDevice(
         address: normalizedAddress,
         pairingCode: normalizedCode,
       );
@@ -349,7 +345,7 @@ class WirelessConnectionController extends ChangeNotifier {
     final deadline = DateTime.now().add(_qrScanTimeout);
     try {
       while (!_qrCancelled && !_disposed && DateTime.now().isBefore(deadline)) {
-        final discovery = await _wirelessConnService.discoverMdnsServices();
+        final discovery = await _deviceRepository.discoverMdnsServices();
         if (_qrCancelled || _disposed) return null;
 
         final pairingService = discovery.services.firstWhereOrNull(
@@ -528,7 +524,9 @@ class WirelessConnectionController extends ChangeNotifier {
 
       final failures = <String>[];
       for (final candidate in addresses) {
-        final result = await _wirelessConnService.connectDevice(candidate);
+        final result = await _deviceRepository.connectWirelessAndroidDevice(
+          candidate,
+        );
         if (_disposed) {
           return result;
         }
