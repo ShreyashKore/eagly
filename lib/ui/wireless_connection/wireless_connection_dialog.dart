@@ -1,13 +1,13 @@
 import 'package:collection/collection.dart';
-import 'package:eagly/services/wireless_connection_service.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../data/device.dart';
+import '../../data/wireless_debug_models.dart';
 import '../../services/device_repository.dart';
 import '../log_tab_view/log_tab_controller.dart';
 import 'wireless_connection_controller.dart';
-import '../../data/device.dart';
-import '../../data/wireless_debug_models.dart';
 
 class WirelessConnectionDialog extends StatefulWidget {
   const WirelessConnectionDialog({
@@ -30,7 +30,6 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   late final TextEditingController _connectAddressController;
   late final wirelessController = WirelessConnectionController(
     deviceRepository: DeviceRepository.instance,
-    wirelessConnectionService: WirelessConnectionService.instance,
     onDevicesApplied: controller.applyFetchedDevices,
     onActivateDevice: controller.selectDeviceAndStart,
     isDeviceSelectedInAnotherTab: controller.isDeviceSelectedInAnotherTab,
@@ -108,6 +107,9 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     _connectAddressController = TextEditingController(
       text: wirelessController.suggestedWirelessConnectAddress ?? '',
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeAutoDiscoverNearby();
+    });
   }
 
   @override
@@ -166,6 +168,59 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
       return;
     }
 
+    _applySuggestedAddresses();
+  }
+
+  void _maybeAutoDiscoverNearby() {
+    if (!wirelessController.isWirelessBusy) {
+      _handleDiscover();
+    }
+  }
+
+  void _maybeAutoGenerateQr() {
+    if (wirelessController.qrSession == null &&
+        !wirelessController.isWaitingForQrScan &&
+        !wirelessController.isWirelessBusy) {
+      _handleQrPair();
+    }
+  }
+
+  void _onSectionChanged(_WirelessDialogSection next) {
+    wirelessController.cancelAllOperations();
+    setState(() {
+      _section = next;
+    });
+    if (next == _WirelessDialogSection.nearby) {
+      _maybeAutoDiscoverNearby();
+    } else if (next == _WirelessDialogSection.qr) {
+      _maybeAutoGenerateQr();
+    }
+  }
+
+  Future<void> _handleQrPair() async {
+    final result = await wirelessController.startQrPairing();
+    if (!mounted || result == null) return;
+
+    if (result.error != null) {
+      widget.onShowSnackBar(result.error!);
+      return;
+    }
+
+    if (result.message != null) {
+      widget.onShowSnackBar(result.message!);
+    }
+    if (result.autoConnected) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    if (result.connectAddresses.isNotEmpty) {
+      _connectAddressController.text = result.connectAddresses.first;
+    }
+    setState(() {
+      _section = _WirelessDialogSection.manual;
+      _showManualConnectSection = true;
+    });
     _applySuggestedAddresses();
   }
 
@@ -275,7 +330,9 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
           runSpacing: 10,
           children: [
             FilledButton.tonalIcon(
-              onPressed: wirelessController.isWirelessBusy ? null : _handleDiscover,
+              onPressed: wirelessController.isWirelessBusy
+                  ? null
+                  : _handleDiscover,
               icon: wirelessController.isDiscoveringWireless
                   ? SizedBox.square(
                       dimension: 16,
@@ -317,7 +374,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
-        const Gap(14),
+        const Gap(12),
         Wrap(
           spacing: 10,
           runSpacing: 10,
@@ -353,6 +410,38 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
               });
             },
           ),
+      ],
+    );
+  }
+
+  Widget _buildQrCodeTab(BuildContext context) {
+    final theme = Theme.of(context);
+    final session = wirelessController.qrSession;
+    final waiting = wirelessController.isWaitingForQrScan;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Pair with QR code', style: theme.textTheme.titleMedium),
+        const Gap(6),
+        Text(
+          'On your Android device open Settings → Developer options → Wireless '
+          'debugging → Pair device with QR code, then scan the code below. '
+          'Both devices must be on the same network.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const Gap(18),
+        Center(
+          child: _WirelessQrPanel(
+            payload: session?.payload,
+            waiting: waiting,
+            busy: wirelessController.isWirelessBusy,
+            onGenerate: _handleQrPair,
+            onCancel: wirelessController.cancelQrPairing,
+          ),
+        ),
       ],
     );
   }
@@ -411,7 +500,9 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: FilledButton.icon(
-                  onPressed: wirelessController.isWirelessBusy ? null : _handlePair,
+                  onPressed: wirelessController.isWirelessBusy
+                      ? null
+                      : _handlePair,
                   icon: wirelessController.isPairingWireless
                       ? const SizedBox.square(
                           dimension: 16,
@@ -515,6 +606,11 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
               Icon(Icons.wifi_tethering, color: theme.colorScheme.primary),
               const Gap(12),
               const Expanded(child: Text('Wireless ADB')),
+              const Spacer(),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+              ),
             ],
           ),
           content: SizedBox(
@@ -524,13 +620,6 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Discover nearby devices first, then pair and connect with only the relevant actions shown for the selected device.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const Gap(16),
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
@@ -544,6 +633,11 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                           label: Text('Nearby devices'),
                         ),
                         ButtonSegment<_WirelessDialogSection>(
+                          value: _WirelessDialogSection.qr,
+                          icon: Icon(Icons.qr_code_2),
+                          label: Text('QR code'),
+                        ),
+                        ButtonSegment<_WirelessDialogSection>(
                           value: _WirelessDialogSection.manual,
                           icon: Icon(Icons.tune),
                           label: Text('Manual entry'),
@@ -551,9 +645,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                       ],
                       selected: {_section},
                       onSelectionChanged: (selection) {
-                        setState(() {
-                          _section = selection.first;
-                        });
+                        _onSectionChanged(selection.first);
                       },
                     ),
                     FilledButton.tonalIcon(
@@ -584,35 +676,35 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                       ),
                   ],
                 ),
-                const Gap(16),
+                const Gap(14),
                 _WirelessFeedbackBanner(
                   message: wirelessController.wirelessMessage,
                   error: wirelessController.wirelessError,
                 ),
-                const Gap(16),
+                const Gap(14),
                 Flexible(
                   child: SingleChildScrollView(
-                    child: _section == _WirelessDialogSection.nearby
-                        ? _buildNearbyDevicesTab(context)
-                        : _buildManualEntryTab(context),
+                    child: switch (_section) {
+                      _WirelessDialogSection.nearby => _buildNearbyDevicesTab(
+                        context,
+                      ),
+                      _WirelessDialogSection.qr => _buildQrCodeTab(context),
+                      _WirelessDialogSection.manual => _buildManualEntryTab(
+                        context,
+                      ),
+                    },
                   ),
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
         );
       },
     );
   }
 }
 
-enum _WirelessDialogSection { nearby, manual }
+enum _WirelessDialogSection { nearby, qr, manual }
 
 class _DiscoveredWirelessTarget {
   const _DiscoveredWirelessTarget({
@@ -738,6 +830,117 @@ class _WirelessPlaceholderCard extends StatelessWidget {
   }
 }
 
+class _WirelessQrPanel extends StatelessWidget {
+  const _WirelessQrPanel({
+    required this.payload,
+    required this.waiting,
+    required this.busy,
+    required this.onGenerate,
+    required this.onCancel,
+  });
+
+  final String? payload;
+  final bool waiting;
+  final bool busy;
+  final VoidCallback onGenerate;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (payload == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Generate a one-time pairing code',
+              style: theme.textTheme.titleMedium,
+            ),
+            const Gap(8),
+            Text(
+              'A QR code will appear here for your device to scan. Pairing and '
+              'connection continue automatically once it is scanned.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const Gap(18),
+            FilledButton.icon(
+              onPressed: busy ? null : onGenerate,
+              icon: const Icon(Icons.qr_code_2),
+              label: const Text('Generate QR code'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          payload == null
+              ? const SizedBox.square(
+                  dimension: 220,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: QrImageView(
+                    data: payload!,
+                    version: QrVersions.auto,
+                    size: 220,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+          const Gap(18),
+          if (waiting) ...[
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const Gap(10),
+                Text(
+                  'Waiting for the device to scan…',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ],
+            ),
+            const Gap(16),
+            OutlinedButton.icon(
+              onPressed: onCancel,
+              icon: const Icon(Icons.close),
+              label: const Text('Cancel'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _WirelessDiscoveryCard extends StatelessWidget {
   const _WirelessDiscoveryCard({
     required this.target,
@@ -759,14 +962,14 @@ class _WirelessDiscoveryCard extends StatelessWidget {
         color: selected
             ? theme.colorScheme.primaryContainer
             : theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         child: InkWell(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: selected
                     ? theme.colorScheme.primary
@@ -785,7 +988,7 @@ class _WirelessDiscoveryCard extends StatelessWidget {
                           ? theme.colorScheme.primary
                           : theme.colorScheme.onSurfaceVariant,
                     ),
-                    const Gap(10),
+                    const Gap(8),
                     Expanded(
                       child: Text(
                         target.host,
@@ -799,7 +1002,7 @@ class _WirelessDiscoveryCard extends StatelessWidget {
                       ),
                   ],
                 ),
-                const Gap(10),
+                const Gap(8),
                 Text(
                   target.title,
                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -808,7 +1011,7 @@ class _WirelessDiscoveryCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const Gap(12),
+                const Gap(8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../data/log_level.dart';
+import 'text_theme.dart';
 
 extension ThemeModeExt on ThemeMode {
   String get label => switch (this) {
@@ -262,6 +263,10 @@ class AppTheme {
       visualDensity: VisualDensity.compact,
       colorScheme: colorScheme,
       brightness: colorScheme.brightness,
+      textTheme: appTextTheme.apply(
+        bodyColor: colorScheme.onSurface,
+        displayColor: colorScheme.onSurface,
+      ),
     );
 
     final textTheme = GoogleFonts.interTextTheme(baseTheme.textTheme).apply(
@@ -422,7 +427,7 @@ class AppTheme {
 
   static EaglyTheme _themeTokens(ColorScheme colorScheme) {
     final isDark = colorScheme.brightness == Brightness.dark;
-    final mono = GoogleFonts.notoSansMono();
+    final mono = GoogleFonts.jetBrainsMono();
 
     return EaglyTheme(
       logBodyStyle: mono.copyWith(fontSize: 12, height: 1.2),

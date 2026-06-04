@@ -185,7 +185,6 @@ WirelessConnectionController _buildController({
 }) {
   return WirelessConnectionController(
     deviceRepository: repository,
-    wirelessConnectionService: sessionService,
     onDevicesApplied: (_) async {},
     onActivateDevice: onActivateDevice ?? (_) async {},
     selectedDeviceIdProvider: selectedDeviceIdProvider,
@@ -194,8 +193,7 @@ WirelessConnectionController _buildController({
 }
 
 class _FakeWirelessSessionService extends WirelessConnectionService {
-  _FakeWirelessSessionService()
-    : super(adbPath: '/usr/bin/true');
+  _FakeWirelessSessionService() : super(adbPath: '/usr/bin/true');
 
   final List<(String, String)> pairRequests = [];
   final List<String> connectRequests = [];

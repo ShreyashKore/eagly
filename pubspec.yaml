@@ -44,6 +44,7 @@ dependencies:
   gap: ^3.0.1
   super_sliver_list: ^0.4.1
   desktop_drop: ^0.7.1
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:
