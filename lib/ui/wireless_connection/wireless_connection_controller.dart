@@ -339,6 +339,10 @@ class WirelessConnectionController extends ChangeNotifier {
     _notify();
   }
 
+  void cancelAllOperations() {
+    cancelQrPairing();
+  }
+
   Future<WirelessPairResult?> _runQrPairingLoop(
     WirelessQrPairingSession session,
   ) async {
