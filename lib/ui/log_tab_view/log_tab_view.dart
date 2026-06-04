@@ -343,9 +343,6 @@ class _LogTabViewState extends State<LogTabView> {
   }
 
   Widget _buildLogViewer(List<LogEntry> filtered, List<int> matches) {
-    // return Center(
-    //   child: ElevatedButton(onPressed: () {}, child: Text('TEST')),
-    // );
     final safeIndex = matches.isEmpty
         ? null
         : controller.currentSearchMatchLogIndex(matches);
