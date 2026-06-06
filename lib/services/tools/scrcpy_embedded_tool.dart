@@ -24,8 +24,7 @@ class EmbeddedScreenMirrorSession {
 }
 
 class ScrcpyEmbeddedTool extends ToolProcessRunner {
-  ScrcpyEmbeddedTool({super.executablePath})
-      : super(executableName: 'scrcpy');
+  ScrcpyEmbeddedTool({super.executablePath}) : super(executableName: 'scrcpy');
 
   Future<EmbeddedScreenMirrorSession> startEmbedded(Device device) async {
     if (device is! AndroidDevice) {
@@ -38,52 +37,100 @@ class ScrcpyEmbeddedTool extends ToolProcessRunner {
     var stopRequested = false;
     var stopFuture = Future<void>.value();
     late Player player;
+    late String pipePath;
 
     Future<void> stop() {
       if (stopRequested) {
         return stopFuture;
       }
       stopRequested = true;
-      stopFuture = _cleanup(process, player, device.id);
+      stopFuture = _cleanup(process, player, pipePath);
       return stopFuture;
     }
 
     try {
-      // Create named pipe for streaming
+      // Use temporary file instead of FIFO for better media-kit compatibility
       final tempDir = Directory.systemTemp;
-      final pipePath = '${tempDir.path}/scrcpy_${device.id}.fifo';
-      final pipeFile = File(pipePath);
+      final tempFile = File(
+        '${tempDir.path}/scrcpy_${device.id}_${DateTime.now().millisecondsSinceEpoch}.mkv',
+      );
+      pipePath = tempFile.path;
 
-      // Clean up old pipe if exists
-      if (pipeFile.existsSync()) {
-        pipeFile.deleteSync();
-      }
+      logInfo('Using scrcpy executable: $executable');
+      logInfo('Target device: ${device.displayName} (${device.id})');
+      logInfo('Recording to: $pipePath');
 
-      // Start scrcpy with H.264 output
-      // Using --record to output video stream that media-kit can play
+      // Start scrcpy with H.264 output to file
+      // --no-playback: Don't display on computer, just capture to file
       process = await startProcess([
         '--serial',
         device.id,
-        '--no-window',
+        '--no-playback',
         '--video-codec=h264',
-        '--video-bit-rate=8m',
-        '--max-fps=60',
+        '--video-bit-rate=5m',
+        '--max-fps=30',
         '--record=$pipePath',
       ]);
 
-      logInfo('Started embedded scrcpy for ${device.displayName}');
-      unawaited(_logProcessOutput(process, device));
+      logInfo('Started scrcpy process for ${device.displayName}');
+
+      // Capture stderr immediately to diagnose issues
+      final stderrFuture = stderrText(process);
+      final stdoutFuture = stdoutLines(process).join('\n');
 
       // Initialize media-kit player
       player = Player();
 
-      // Wait for scrcpy to start writing to the pipe
-      await Future.delayed(const Duration(milliseconds: 1000));
+      // Wait for scrcpy to write initial data to file (increase timeout)
+      for (var i = 0; i < 5; i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
 
-      // Open pipe stream with media-kit
+        final recordFile = File(pipePath);
+        if (recordFile.existsSync()) {
+          final fileSize = recordFile.lengthSync();
+          logInfo('Video file created, size: $fileSize bytes');
+          break;
+        }
+
+        // Check if process already died
+        try {
+          final exitCode = await process.exitCode.timeout(
+            const Duration(milliseconds: 100),
+          );
+          // Process exited - get error message
+          final stderr = await stderrFuture;
+          final stdout = await stdoutFuture;
+          throw ScreenMirrorException(
+            'scrcpy exited with code $exitCode.\nStderr: $stderr\nStdout: $stdout',
+          );
+        } catch (e) {
+          if (e is ScreenMirrorException) rethrow;
+          // Continue waiting
+        }
+      }
+
+      // Final check
+      final recordFile = File(pipePath);
+      if (!recordFile.existsSync()) {
+        // Get diagnostic info
+        final stderr = await stderrFuture
+            .timeout(const Duration(seconds: 1))
+            .catchError((_) => 'No stderr captured');
+        final stdout = await stdoutFuture
+            .timeout(const Duration(seconds: 1))
+            .catchError((_) => 'No stdout captured');
+        throw ScreenMirrorException(
+          'Scrcpy failed to create output file.\nStderr: $stderr\nStdout: $stdout',
+        );
+      }
+
+      // Monitor remaining process output
+      unawaited(_monitorProcessOutput(process, device));
+
+      logInfo('Opening video stream: $pipePath');
       await player.open(Media(pipePath), play: true);
 
-      logInfo('Streaming from pipe: $pipePath');
+      logInfo('Video streaming started for ${device.displayName}');
 
       return EmbeddedScreenMirrorSession(
         device: device,
@@ -96,41 +143,65 @@ class ScrcpyEmbeddedTool extends ToolProcessRunner {
         'Failed to start embedded scrcpy for ${device.displayName}',
         error,
       );
-      throw ScreenMirrorException('Failed to start scrcpy: ${describeError(error)}');
+      await _cleanup(process, player, pipePath);
+      throw ScreenMirrorException(
+        'Failed to start scrcpy: ${describeError(error)}',
+      );
     }
   }
 
-  Future<void> _logProcessOutput(Process process, Device device) async {
-    final stderr = stderrText(process);
-    stderr.then((output) {
-      if (output.isNotEmpty) {
-        logInfo('scrcpy stderr for ${device.displayName}: $output');
+  Future<void> _monitorProcessOutput(Process process, Device device) async {
+    try {
+      final stderrFuture = stderrText(process);
+      final stdoutFuture = stdoutLines(process).join('\n');
+
+      final result = await Future.wait([stdoutFuture, stderrFuture]);
+      final stdout = result[0];
+      final stderr = result[1];
+
+      if (stderr.isNotEmpty) {
+        logInfo('scrcpy stderr for ${device.displayName}:\n$stderr');
       }
-    });
+      if (stdout.isNotEmpty) {
+        logInfo('scrcpy stdout for ${device.displayName}:\n$stdout');
+      }
+    } catch (e) {
+      logError('Error monitoring scrcpy output', e);
+    }
   }
 
-  Future<void> _cleanup(Process? process, Player player, String deviceId) async {
+  Future<void> _cleanup(
+    Process? process,
+    Player player,
+    String pipePath,
+  ) async {
     try {
-      await player.dispose();
+      // Dispose player first
+      try {
+        await player.dispose();
+      } catch (_) {}
 
       // Kill scrcpy process
       if (process != null) {
-        process.kill();
         try {
+          if (!process.kill()) {
+            logInfo('Process already terminated');
+          }
           await process.exitCode.timeout(const Duration(seconds: 2));
-        } catch (_) {
-          // Force kill if timeout
+        } catch (e) {
+          logInfo('Timeout waiting for process exit, forcing kill');
           process.kill(ProcessSignal.sigkill);
         }
       }
 
-      // Clean up pipe file
-      final tempDir = Directory.systemTemp;
-      final pipePath = '${tempDir.path}/scrcpy_$deviceId.fifo';
-      final pipeFile = File(pipePath);
-      if (pipeFile.existsSync()) {
-        pipeFile.deleteSync();
-      }
+      // Clean up recording file
+      try {
+        final recordFile = File(pipePath);
+        if (recordFile.existsSync()) {
+          recordFile.deleteSync();
+          logInfo('Cleaned up recording file: $pipePath');
+        }
+      } catch (_) {}
     } catch (error) {
       logError('Error during cleanup', error);
     }
