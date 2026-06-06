@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../data/device.dart';
 import '../../utils/utils.dart';
@@ -15,12 +16,14 @@ class ScreenMirrorSession {
     required Future<void> Function() onStop,
     this.frameStream,
     this.player,
+    this.controller,
   }) : _onStop = onStop;
 
   final Device device;
   final Future<int> exitCode;
   final Stream<ScreenMirrorFrame>? frameStream;
   final Player? player;
+  final VideoController? controller;
   final Future<void> Function() _onStop;
 
   Future<void> stop() => _onStop();

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../data/device.dart';
 import '../../utils/utils.dart';
@@ -11,18 +12,31 @@ class EmbeddedScreenMirrorSession {
   EmbeddedScreenMirrorSession({
     required this.device,
     required this.player,
+    required this.controller,
     required this.process,
     required Future<void> Function() onStop,
   }) : _onStop = onStop;
 
   final Device device;
   final Player player;
+  final VideoController controller;
   final Process process;
   final Future<void> Function() _onStop;
 
   Future<void> stop() => _onStop();
 }
 
+/// Embeds the scrcpy stream by piping scrcpy's MKV recording through a named
+/// pipe (FIFO) that media_kit (libmpv) reads directly.
+///
+/// scrcpy can only write its video to a file path, not to stdout. Writing to a
+/// regular file is unusable for live playback: the Matroska muxer treats a
+/// seekable file as offline output and buffers everything, so the file stays
+/// empty until scrcpy exits (verified: 0 bytes for the whole session, then the
+/// full recording flushed on close). A FIFO is *non-seekable*, which forces the
+/// muxer into streaming mode and makes it flush the header + clusters as they
+/// are produced. libmpv opens the FIFO like any live, unseekable stream and
+/// keeps playing until scrcpy closes the write end.
 class ScrcpyEmbeddedTool extends ToolProcessRunner {
   ScrcpyEmbeddedTool({super.executablePath}) : super(executableName: 'scrcpy');
 
@@ -32,109 +46,95 @@ class ScrcpyEmbeddedTool extends ToolProcessRunner {
         'Screen mirroring is currently supported for Android devices only.',
       );
     }
+    // The FIFO transport relies on POSIX named pipes (`mkfifo`). Windows has no
+    // equivalent we can create from Dart, so embedded mirroring is unsupported
+    // there for now.
+    if (Platform.isWindows) {
+      throw const ScreenMirrorException(
+        'Embedded screen mirroring is not supported on Windows yet.',
+      );
+    }
 
     Process? process;
+    Player? player;
+    File? fifoFile;
     var stopRequested = false;
     var stopFuture = Future<void>.value();
-    late Player player;
-    late String pipePath;
 
     Future<void> stop() {
-      if (stopRequested) {
-        return stopFuture;
-      }
+      if (stopRequested) return stopFuture;
       stopRequested = true;
-      stopFuture = _cleanup(process, player, pipePath);
+      stopFuture = _cleanup(process, player, fifoFile);
       return stopFuture;
     }
 
     try {
-      // Use temporary file instead of FIFO for better media-kit compatibility
       final tempDir = Directory.systemTemp;
-      final tempFile = File(
-        '${tempDir.path}/scrcpy_${device.id}_${DateTime.now().millisecondsSinceEpoch}.mkv',
+      fifoFile = File(
+        '${tempDir.path}/eagly_scrcpy_${device.id}_'
+        '${DateTime.now().millisecondsSinceEpoch}.mkv',
       );
-      pipePath = tempFile.path;
+      if (fifoFile.existsSync()) {
+        fifoFile.deleteSync();
+      }
+      await _makeFifo(fifoFile.path);
 
       logInfo('Using scrcpy executable: $executable');
-      logInfo('Target device: ${device.displayName} (${device.id})');
-      logInfo('Recording to: $pipePath');
+      logInfo('Streaming ${device.displayName} via FIFO ${fifoFile.path}');
 
-      // Start scrcpy with H.264 output to file
-      // --no-playback: Don't display on computer, just capture to file
+      // --no-window suppresses scrcpy's own window (implies --no-video-playback).
+      // --no-audio keeps the live stream video-only (lower latency, no surprise
+      // playback of device audio through the desktop). MKV is used because its
+      // clusters are playable while still being written.
       process = await startProcess([
         '--serial',
         device.id,
-        '--no-playback',
+        '--no-window',
+        '--no-audio',
         '--video-codec=h264',
         '--video-bit-rate=5m',
         '--max-fps=30',
-        '--record=$pipePath',
+        '--record=${fifoFile.path}',
+        '--record-format=mkv',
       ]);
-
       logInfo('Started scrcpy process for ${device.displayName}');
 
-      // Capture stderr immediately to diagnose issues
       final stderrFuture = stderrText(process);
-      final stdoutFuture = stdoutLines(process).join('\n');
 
-      // Initialize media-kit player
+      // If scrcpy dies during startup, surface its error instead of hanging.
+      unawaited(
+        process.exitCode.then((code) async {
+          if (stopRequested) return;
+          final err = await stderrFuture.catchError((_) => '');
+          logError(
+            'scrcpy exited early (code $code) for ${device.displayName}',
+            err,
+          );
+          await stop();
+        }),
+      );
+
       player = Player();
 
-      // Wait for scrcpy to write initial data to file (increase timeout)
-      for (var i = 0; i < 5; i++) {
-        await Future.delayed(const Duration(milliseconds: 500));
+      // Surface libmpv errors/logs so streaming problems are diagnosable.
+      player.stream.error.listen((e) {
+        logError('media_kit error for ${device.displayName}', e);
+      });
 
-        final recordFile = File(pipePath);
-        if (recordFile.existsSync()) {
-          final fileSize = recordFile.lengthSync();
-          logInfo('Video file created, size: $fileSize bytes');
-          break;
-        }
+      // Create the VideoController *before* opening media. This attaches the
+      // libmpv render context (vo=libmpv) so video is drawn into the Flutter
+      // texture instead of libmpv opening its own native window.
+      final controller = VideoController(player);
 
-        // Check if process already died
-        try {
-          final exitCode = await process.exitCode.timeout(
-            const Duration(milliseconds: 100),
-          );
-          // Process exited - get error message
-          final stderr = await stderrFuture;
-          final stdout = await stdoutFuture;
-          throw ScreenMirrorException(
-            'scrcpy exited with code $exitCode.\nStderr: $stderr\nStdout: $stdout',
-          );
-        } catch (e) {
-          if (e is ScreenMirrorException) rethrow;
-          // Continue waiting
-        }
-      }
-
-      // Final check
-      final recordFile = File(pipePath);
-      if (!recordFile.existsSync()) {
-        // Get diagnostic info
-        final stderr = await stderrFuture
-            .timeout(const Duration(seconds: 1))
-            .catchError((_) => 'No stderr captured');
-        final stdout = await stdoutFuture
-            .timeout(const Duration(seconds: 1))
-            .catchError((_) => 'No stdout captured');
-        throw ScreenMirrorException(
-          'Scrcpy failed to create output file.\nStderr: $stderr\nStdout: $stdout',
-        );
-      }
-
-      // Monitor remaining process output
-      unawaited(_monitorProcessOutput(process, device));
-
-      logInfo('Opening video stream: $pipePath');
-      await player.open(Media(pipePath), play: true);
-
-      logInfo('Video streaming started for ${device.displayName}');
+      // libmpv opens the FIFO for reading, which unblocks scrcpy's write-side
+      // open; data then flows scrcpy -> FIFO -> libmpv.
+      await player.open(Media(fifoFile.path), play: true);
+      logInfo('media_kit player opened for ${device.displayName}');
 
       return EmbeddedScreenMirrorSession(
         device: device,
         player: player,
+        controller: controller,
         process: process,
         onStop: stop,
       );
@@ -143,68 +143,46 @@ class ScrcpyEmbeddedTool extends ToolProcessRunner {
         'Failed to start embedded scrcpy for ${device.displayName}',
         error,
       );
-      await _cleanup(process, player, pipePath);
+      await _cleanup(process, player, fifoFile);
       throw ScreenMirrorException(
         'Failed to start scrcpy: ${describeError(error)}',
       );
     }
   }
 
-  Future<void> _monitorProcessOutput(Process process, Device device) async {
-    try {
-      final stderrFuture = stderrText(process);
-      final stdoutFuture = stdoutLines(process).join('\n');
-
-      final result = await Future.wait([stdoutFuture, stderrFuture]);
-      final stdout = result[0];
-      final stderr = result[1];
-
-      if (stderr.isNotEmpty) {
-        logInfo('scrcpy stderr for ${device.displayName}:\n$stderr');
-      }
-      if (stdout.isNotEmpty) {
-        logInfo('scrcpy stdout for ${device.displayName}:\n$stdout');
-      }
-    } catch (e) {
-      logError('Error monitoring scrcpy output', e);
+  Future<void> _makeFifo(String path) async {
+    final result = await Process.run('mkfifo', [path]);
+    if (result.exitCode != 0) {
+      final detail = (result.stderr is String ? result.stderr as String : '')
+          .trim();
+      throw ScreenMirrorException(
+        'Failed to create video pipe'
+        '${detail.isEmpty ? '' : ': $detail'}',
+      );
     }
   }
 
-  Future<void> _cleanup(
-    Process? process,
-    Player player,
-    String pipePath,
-  ) async {
-    try {
-      // Dispose player first
+  Future<void> _cleanup(Process? process, Player? player, File? fifoFile) async {
+    // Kill scrcpy first so it closes the FIFO write end; the reader then sees
+    // EOF instead of blocking on a half-open pipe.
+    if (process != null) {
       try {
-        await player.dispose();
-      } catch (_) {}
-
-      // Kill scrcpy process
-      if (process != null) {
-        try {
-          if (!process.kill()) {
-            logInfo('Process already terminated');
-          }
-          await process.exitCode.timeout(const Duration(seconds: 2));
-        } catch (e) {
-          logInfo('Timeout waiting for process exit, forcing kill');
-          process.kill(ProcessSignal.sigkill);
-        }
+        process.kill();
+        await process.exitCode.timeout(const Duration(seconds: 2));
+      } catch (_) {
+        process.kill(ProcessSignal.sigkill);
       }
-
-      // Clean up recording file
-      try {
-        final recordFile = File(pipePath);
-        if (recordFile.existsSync()) {
-          recordFile.deleteSync();
-          logInfo('Cleaned up recording file: $pipePath');
-        }
-      } catch (_) {}
-    } catch (error) {
-      logError('Error during cleanup', error);
     }
+
+    try {
+      await player?.dispose();
+    } catch (_) {}
+
+    try {
+      if (fifoFile != null && fifoFile.existsSync()) {
+        fifoFile.deleteSync();
+      }
+    } catch (_) {}
   }
 }
 

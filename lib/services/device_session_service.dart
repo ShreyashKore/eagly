@@ -181,6 +181,7 @@ class DeviceSessionService {
         exitCode: embeddedSession.process.exitCode,
         onStop: embeddedSession.stop,
         player: embeddedSession.player,
+        controller: embeddedSession.controller,
       );
     } catch (error) {
       _logger.error('Failed to start screen mirror', detail: error.toString());
