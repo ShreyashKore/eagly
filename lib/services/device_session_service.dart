@@ -7,16 +7,15 @@ import '../features/app_log/app_logger.dart';
 import 'tools/adb_tool.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
+import 'tools/scrcpy_embedded_tool.dart';
 import 'tools/scrcpy_tool.dart';
-import 'tools/screen_mirror_stream_service.dart';
 import 'tools/tool_process_runner.dart';
 
 class DeviceSessionService {
   final AdbTool _adbTool;
   final IdeviceInstallerTool _ideviceInstallerTool;
   final IdeviceSyslogTool _ideviceSyslogTool;
-  late final ScrcpyTool _scrcpyTool;
-  late final ScreenMirrorStreamService _screenMirrorStreamService;
+  late final ScrcpyEmbeddedTool _scrcpyEmbeddedTool;
   final AppLogger _logger = AppLogger(source: 'DeviceSessionService');
   final Map<String, String> _pidToPackageCache = {};
   Timer? _cacheRefreshTimer;
@@ -43,15 +42,7 @@ class DeviceSessionService {
        _ideviceSyslogTool =
            ideviceSyslogTool ??
            IdeviceSyslogTool(executablePath: ideviceSyslogPath) {
-    final adbToolInstance = _adbTool;
-    _screenMirrorStreamService = ScreenMirrorStreamService(
-      adbTool: adbToolInstance,
-    );
-    _scrcpyTool = scrcpyTool ??
-        ScrcpyTool(
-          executablePath: scrcpyPath,
-          screenMirrorStreamService: _screenMirrorStreamService,
-        );
+    _scrcpyEmbeddedTool = ScrcpyEmbeddedTool(executablePath: scrcpyPath);
   }
 
   AppLogger _sessionLogger(String fallbackSessionTag) =>
@@ -182,8 +173,19 @@ class DeviceSessionService {
     };
   }
 
-  Future<ScreenMirrorSession> startScreenMirror(Device device) {
-    return _scrcpyTool.startEmbedded(device);
+  Future<ScreenMirrorSession> startScreenMirror(Device device) async {
+    try {
+      final embeddedSession = await _scrcpyEmbeddedTool.startEmbedded(device);
+      return ScreenMirrorSession(
+        device: device,
+        exitCode: embeddedSession.process.exitCode,
+        onStop: embeddedSession.stop,
+        player: embeddedSession.player,
+      );
+    } catch (error) {
+      _logger.error('Failed to start screen mirror', detail: error.toString());
+      rethrow;
+    }
   }
 
   /// Refresh the PID to package name mapping.

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../log_tab_controller.dart';
-import 'screen_mirror_video_widget.dart';
+import 'scrcpy_video_player.dart';
 
 class ScreenMirroringPane extends StatelessWidget {
   const ScreenMirroringPane({
@@ -111,13 +111,14 @@ class _PaneBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final device = controller.selectedDevice;
+    final session = controller.screenMirrorSession;
 
-    // Display video if frame stream is available
-    if (controller.screenMirrorSession?.frameStream != null &&
-        controller.isScreenMirrorRunning) {
-      return ScreenMirrorVideoWidget(
-        frameStream: controller.screenMirrorSession!.frameStream!,
-        onInput: _handleVideoInput,
+    // Display video if player is available
+    if (session?.player != null && controller.isScreenMirrorRunning) {
+      return ScrcpyVideoPlayer(
+        player: session!.player!,
+        deviceName: device?.displayName ?? 'Unknown Device',
+        onClose: controller.toggleScreenMirrorPane,
       );
     }
 
@@ -204,7 +205,4 @@ class _PaneBody extends StatelessWidget {
     );
   }
 
-  void _handleVideoInput(double x, double y, {bool isDown = false}) {
-    // TODO: Send touch events via ADB to the device
-  }
 }

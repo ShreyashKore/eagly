@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:media_kit/media_kit.dart';
+
 import '../../data/device.dart';
 import '../../utils/utils.dart';
 import 'screen_mirror_stream_service.dart';
@@ -12,11 +14,13 @@ class ScreenMirrorSession {
     required this.exitCode,
     required Future<void> Function() onStop,
     this.frameStream,
+    this.player,
   }) : _onStop = onStop;
 
   final Device device;
   final Future<int> exitCode;
   final Stream<ScreenMirrorFrame>? frameStream;
+  final Player? player;
   final Future<void> Function() _onStop;
 
   Future<void> stop() => _onStop();
