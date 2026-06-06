@@ -8,13 +8,15 @@ import 'tools/adb_tool.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
 import 'tools/scrcpy_tool.dart';
+import 'tools/screen_mirror_stream_service.dart';
 import 'tools/tool_process_runner.dart';
 
 class DeviceSessionService {
   final AdbTool _adbTool;
   final IdeviceInstallerTool _ideviceInstallerTool;
   final IdeviceSyslogTool _ideviceSyslogTool;
-  final ScrcpyTool _scrcpyTool;
+  late final ScrcpyTool _scrcpyTool;
+  late final ScreenMirrorStreamService _screenMirrorStreamService;
   final AppLogger _logger = AppLogger(source: 'DeviceSessionService');
   final Map<String, String> _pidToPackageCache = {};
   Timer? _cacheRefreshTimer;
@@ -40,8 +42,17 @@ class DeviceSessionService {
            IdeviceInstallerTool(executablePath: ideviceInstallerPath),
        _ideviceSyslogTool =
            ideviceSyslogTool ??
-           IdeviceSyslogTool(executablePath: ideviceSyslogPath),
-       _scrcpyTool = scrcpyTool ?? ScrcpyTool(executablePath: scrcpyPath);
+           IdeviceSyslogTool(executablePath: ideviceSyslogPath) {
+    final adbToolInstance = _adbTool;
+    _screenMirrorStreamService = ScreenMirrorStreamService(
+      adbTool: adbToolInstance,
+    );
+    _scrcpyTool = scrcpyTool ??
+        ScrcpyTool(
+          executablePath: scrcpyPath,
+          screenMirrorStreamService: _screenMirrorStreamService,
+        );
+  }
 
   AppLogger _sessionLogger(String fallbackSessionTag) =>
       _logger.scoped(sessionTag: sessionLabel ?? fallbackSessionTag);
@@ -172,7 +183,7 @@ class DeviceSessionService {
   }
 
   Future<ScreenMirrorSession> startScreenMirror(Device device) {
-    return _scrcpyTool.start(device);
+    return _scrcpyTool.startEmbedded(device);
   }
 
   /// Refresh the PID to package name mapping.

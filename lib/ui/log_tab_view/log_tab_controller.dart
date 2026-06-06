@@ -185,6 +185,8 @@ class LogTabController extends ChangeNotifier {
   String? get installingAppName => _installingAppName;
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;
+  ScreenMirrorSession? get screenMirrorSession => _screenMirrorSession;
+
   bool get isScreenMirrorRunning =>
       screenMirrorState == ScreenMirrorState.running ||
       screenMirrorState == ScreenMirrorState.starting;

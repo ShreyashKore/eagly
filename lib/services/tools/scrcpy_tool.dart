@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../../data/device.dart';
 import '../../utils/utils.dart';
+import 'screen_mirror_stream_service.dart';
 import 'tool_process_runner.dart';
 
 class ScreenMirrorSession {
@@ -10,17 +11,25 @@ class ScreenMirrorSession {
     required this.device,
     required this.exitCode,
     required Future<void> Function() onStop,
+    this.frameStream,
   }) : _onStop = onStop;
 
   final Device device;
   final Future<int> exitCode;
+  final Stream<ScreenMirrorFrame>? frameStream;
   final Future<void> Function() _onStop;
 
   Future<void> stop() => _onStop();
 }
 
 class ScrcpyTool extends ToolProcessRunner {
-  ScrcpyTool({super.executablePath}) : super(executableName: 'scrcpy');
+  ScrcpyTool({
+    super.executablePath,
+    ScreenMirrorStreamService? screenMirrorStreamService,
+  }) : _screenMirrorStreamService = screenMirrorStreamService,
+       super(executableName: 'scrcpy');
+
+  final ScreenMirrorStreamService? _screenMirrorStreamService;
 
   Future<ScreenMirrorSession> start(Device device) async {
     if (device is! AndroidDevice) {
@@ -64,6 +73,31 @@ class ScrcpyTool extends ToolProcessRunner {
     } catch (error) {
       logError(
         'Unexpected error while starting scrcpy for ${device.displayName}',
+        error,
+      );
+      throw ScreenMirrorException('scrcpy error: ${describeError(error)}');
+    }
+  }
+
+  Future<ScreenMirrorSession> startEmbedded(Device device) async {
+    final streamService = _screenMirrorStreamService;
+    if (streamService == null) {
+      throw StateError('ScreenMirrorStreamService not initialized');
+    }
+
+    try {
+      final streamSession = await streamService.start(device);
+      return ScreenMirrorSession(
+        device: device,
+        exitCode: Future.value(0),
+        onStop: streamSession.stop,
+        frameStream: streamSession.frameStream,
+      );
+    } on UnsupportedError {
+      rethrow;
+    } catch (error) {
+      logError(
+        'Unexpected error while starting embedded scrcpy for ${device.displayName}',
         error,
       );
       throw ScreenMirrorException('scrcpy error: ${describeError(error)}');
