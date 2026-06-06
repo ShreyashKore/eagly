@@ -66,9 +66,8 @@ class PreferencesService {
   static set selectedLogLevel(LogLevel v) =>
       _prefs.setString(_keySelectedLogLevel, v.code);
 
-  static LogFilterViewMode get filterViewMode => LogFilterViewMode.fromStored(
-    _prefs.getString(_keyFilterViewMode),
-  );
+  static LogFilterViewMode get filterViewMode =>
+      LogFilterViewMode.fromStored(_prefs.getString(_keyFilterViewMode));
   static set filterViewMode(LogFilterViewMode v) =>
       _prefs.setString(_keyFilterViewMode, v.name);
 

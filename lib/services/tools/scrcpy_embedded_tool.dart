@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
+import 'package:fvp/fvp.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../data/device.dart';
 import '../../utils/utils.dart';
@@ -11,15 +11,13 @@ import 'tool_process_runner.dart';
 class EmbeddedScreenMirrorSession {
   EmbeddedScreenMirrorSession({
     required this.device,
-    required this.player,
     required this.controller,
     required this.process,
     required Future<void> Function() onStop,
   }) : _onStop = onStop;
 
   final Device device;
-  final Player player;
-  final VideoController controller;
+  final VideoPlayerController controller;
   final Process process;
   final Future<void> Function() _onStop;
 
@@ -27,7 +25,7 @@ class EmbeddedScreenMirrorSession {
 }
 
 /// Embeds the scrcpy stream by piping scrcpy's MKV recording through a named
-/// pipe (FIFO) that media_kit (libmpv) reads directly.
+/// pipe (FIFO) that the video_player (fvp/libmdk) reads directly.
 ///
 /// scrcpy can only write its video to a file path, not to stdout. Writing to a
 /// regular file is unusable for live playback: the Matroska muxer treats a
@@ -35,7 +33,7 @@ class EmbeddedScreenMirrorSession {
 /// empty until scrcpy exits (verified: 0 bytes for the whole session, then the
 /// full recording flushed on close). A FIFO is *non-seekable*, which forces the
 /// muxer into streaming mode and makes it flush the header + clusters as they
-/// are produced. libmpv opens the FIFO like any live, unseekable stream and
+/// are produced. libmdk opens the FIFO like any live, unseekable stream and
 /// keeps playing until scrcpy closes the write end.
 class ScrcpyEmbeddedTool extends ToolProcessRunner {
   ScrcpyEmbeddedTool({super.executablePath}) : super(executableName: 'scrcpy');
@@ -56,7 +54,7 @@ class ScrcpyEmbeddedTool extends ToolProcessRunner {
     }
 
     Process? process;
-    Player? player;
+    VideoPlayerController? controller;
     File? fifoFile;
     var stopRequested = false;
     var stopFuture = Future<void>.value();
@@ -64,7 +62,7 @@ class ScrcpyEmbeddedTool extends ToolProcessRunner {
     Future<void> stop() {
       if (stopRequested) return stopFuture;
       stopRequested = true;
-      stopFuture = _cleanup(process, player, fifoFile);
+      stopFuture = _cleanup(process, controller, fifoFile);
       return stopFuture;
     }
 
@@ -114,26 +112,27 @@ class ScrcpyEmbeddedTool extends ToolProcessRunner {
         }),
       );
 
-      player = Player();
+      // fvp (libmdk) opens the FIFO for reading, which unblocks scrcpy's
+      // write-side open; data then flows scrcpy -> FIFO -> libmdk -> texture.
+      controller = VideoPlayerController.file(fifoFile);
 
-      // Surface libmpv errors/logs so streaming problems are diagnosable.
-      player.stream.error.listen((e) {
-        logError('media_kit error for ${device.displayName}', e);
-      });
-
-      // Create the VideoController *before* opening media. This attaches the
-      // libmpv render context (vo=libmpv) so video is drawn into the Flutter
-      // texture instead of libmpv opening its own native window.
-      final controller = VideoController(player);
-
-      // libmpv opens the FIFO for reading, which unblocks scrcpy's write-side
-      // open; data then flows scrcpy -> FIFO -> libmpv.
-      await player.open(Media(fifoFile.path), play: true);
-      logInfo('media_kit player opened for ${device.displayName}');
+      // initialize() completes once libmdk has decoded the first frame and knows
+      // the video size; bound it so a stalled stream surfaces as an error
+      // instead of hanging the "starting" state forever.
+      await controller.initialize().timeout(const Duration(seconds: 20));
+      if (stopRequested) {
+        throw const ScreenMirrorException('Screen mirror was stopped.');
+      }
+      // Live-stream buffering: start immediately (min 0), cap the buffer at 1s
+      // and drop old non-key packets to stay at the live edge. This is the
+      // low-latency behaviour without the global 'lowLatency' option's
+      // +nobuffer flag, which would drop the first keyframe and render black.
+      controller.setBufferRange(min: 0, max: 1000, drop: true);
+      await controller.play();
+      logInfo('fvp player opened for ${device.displayName}');
 
       return EmbeddedScreenMirrorSession(
         device: device,
-        player: player,
         controller: controller,
         process: process,
         onStop: stop,
@@ -143,7 +142,7 @@ class ScrcpyEmbeddedTool extends ToolProcessRunner {
         'Failed to start embedded scrcpy for ${device.displayName}',
         error,
       );
-      await _cleanup(process, player, fifoFile);
+      await _cleanup(process, controller, fifoFile);
       throw ScreenMirrorException(
         'Failed to start scrcpy: ${describeError(error)}',
       );
@@ -162,7 +161,11 @@ class ScrcpyEmbeddedTool extends ToolProcessRunner {
     }
   }
 
-  Future<void> _cleanup(Process? process, Player? player, File? fifoFile) async {
+  Future<void> _cleanup(
+    Process? process,
+    VideoPlayerController? controller,
+    File? fifoFile,
+  ) async {
     // Kill scrcpy first so it closes the FIFO write end; the reader then sees
     // EOF instead of blocking on a half-open pipe.
     if (process != null) {
@@ -175,7 +178,7 @@ class ScrcpyEmbeddedTool extends ToolProcessRunner {
     }
 
     try {
-      await player?.dispose();
+      await controller?.dispose();
     } catch (_) {}
 
     try {

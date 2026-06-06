@@ -4,10 +4,11 @@ PODS:
   - file_picker (0.0.1):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
-  - media_kit_libs_macos_video (1.0.4):
+  - fvp (0.36.1):
+    - Flutter
     - FlutterMacOS
-  - media_kit_video (0.0.1):
-    - FlutterMacOS
+    - mdk (~> 0.36.0)
+  - mdk (0.36.0)
   - package_info_plus (0.0.1):
     - FlutterMacOS
   - path_provider_foundation (0.0.1):
@@ -16,22 +17,23 @@ PODS:
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
-  - volume_controller (0.0.1):
-    - FlutterMacOS
-  - wakelock_plus (0.0.1):
+  - video_player_avfoundation (0.0.1):
+    - Flutter
     - FlutterMacOS
 
 DEPENDENCIES:
   - desktop_drop (from `Flutter/ephemeral/.symlinks/plugins/desktop_drop/macos`)
   - file_picker (from `Flutter/ephemeral/.symlinks/plugins/file_picker/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
-  - media_kit_libs_macos_video (from `Flutter/ephemeral/.symlinks/plugins/media_kit_libs_macos_video/macos`)
-  - media_kit_video (from `Flutter/ephemeral/.symlinks/plugins/media_kit_video/macos`)
+  - fvp (from `Flutter/ephemeral/.symlinks/plugins/fvp/darwin`)
   - package_info_plus (from `Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos`)
   - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
   - shared_preferences_foundation (from `Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin`)
-  - volume_controller (from `Flutter/ephemeral/.symlinks/plugins/volume_controller/macos`)
-  - wakelock_plus (from `Flutter/ephemeral/.symlinks/plugins/wakelock_plus/macos`)
+  - video_player_avfoundation (from `Flutter/ephemeral/.symlinks/plugins/video_player_avfoundation/darwin`)
+
+SPEC REPOS:
+  trunk:
+    - mdk
 
 EXTERNAL SOURCES:
   desktop_drop:
@@ -40,32 +42,27 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/file_picker/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
-  media_kit_libs_macos_video:
-    :path: Flutter/ephemeral/.symlinks/plugins/media_kit_libs_macos_video/macos
-  media_kit_video:
-    :path: Flutter/ephemeral/.symlinks/plugins/media_kit_video/macos
+  fvp:
+    :path: Flutter/ephemeral/.symlinks/plugins/fvp/darwin
   package_info_plus:
     :path: Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos
   path_provider_foundation:
     :path: Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin
   shared_preferences_foundation:
     :path: Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin
-  volume_controller:
-    :path: Flutter/ephemeral/.symlinks/plugins/volume_controller/macos
-  wakelock_plus:
-    :path: Flutter/ephemeral/.symlinks/plugins/wakelock_plus/macos
+  video_player_avfoundation:
+    :path: Flutter/ephemeral/.symlinks/plugins/video_player_avfoundation/darwin
 
 SPEC CHECKSUMS:
   desktop_drop: 10a3e6a7fa9dbe350541f2574092fecfa345a07b
   file_picker: 7584aae6fa07a041af2b36a2655122d42f578c1a
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
-  media_kit_libs_macos_video: 85a23e549b5f480e72cae3e5634b5514bc692f65
-  media_kit_video: fa6564e3799a0a28bff39442334817088b7ca758
+  fvp: f8b3b61cf8c696ecaa5608ae0d282ba710e65ae9
+  mdk: 3bfb53e0bcc9643180eaa864360051f281e4c17b
   package_info_plus: f0052d280d17aa382b932f399edf32507174e870
   path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
-  volume_controller: 5c068e6d085c80dadd33fc2c918d2114b775b3dd
-  wakelock_plus: 917609be14d812ddd9e9528876538b2263aaa03b
+  video_player_avfoundation: 3453f792138786248960ca029747fcd9f318ef52
 
 PODFILE CHECKSUM: 54d867c82ac51cbd61b565781b9fada492027009
 

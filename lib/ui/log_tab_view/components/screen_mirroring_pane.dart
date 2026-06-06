@@ -113,7 +113,7 @@ class _PaneBody extends StatelessWidget {
     final device = controller.selectedDevice;
     final session = controller.screenMirrorSession;
 
-    // Display video if the media_kit controller is available
+    // Display video if the player controller is available
     if (session?.controller != null && controller.isScreenMirrorRunning) {
       return ScrcpyVideoPlayer(controller: session!.controller!);
     }
