@@ -4,11 +4,13 @@ import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/theme/app_theme.dart';
 import 'package:eagly/ui/home_screen/home_page.dart';
 import 'package:flutter/material.dart';
+import 'package:media_kit/media_kit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await PreferencesService.init();
   await AppInfoService.init();
+  MediaKit.ensureInitialized();
   runApp(const MyApp());
 }
 

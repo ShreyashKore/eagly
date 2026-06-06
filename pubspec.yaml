@@ -47,6 +47,7 @@ dependencies:
   qr_flutter: ^4.1.0
   media_kit: ^1.2.5
   media_kit_video: ^1.2.5
+  media_kit_libs_video: ^1.0.7 # Native video dependencies.
 
 dev_dependencies:
   flutter_test:
