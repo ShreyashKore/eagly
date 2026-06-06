@@ -16,6 +16,7 @@ import '../../services/app_install_service.dart';
 import '../../services/device_repository.dart';
 import '../../services/device_session_service.dart';
 import '../../services/log_file_service.dart';
+import '../../services/tools/scrcpy_tool.dart';
 import '../../utils/log_buffer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/text_search_pattern.dart';
@@ -23,6 +24,8 @@ import '../../utils/utils.dart';
 import 'components/inline_filter_bar.dart';
 
 enum LogcatState { stopped, running, paused }
+
+enum ScreenMirrorState { stopped, starting, running, unsupported, error }
 
 class LogTabController extends ChangeNotifier {
   static const int _maxRecentFilterValues = 8;
@@ -85,11 +88,15 @@ class LogTabController extends ChangeNotifier {
   Timer? _debounceTimer;
   Timer? _filterSaveDebounceTimer;
   Timer? _inlineSearchDebounce;
+  ScreenMirrorSession? _screenMirrorSession;
 
   var devices = <Device>[];
   Device? selectedDevice;
 
   var logcatState = LogcatState.stopped;
+  var screenMirrorState = ScreenMirrorState.stopped;
+  var screenMirrorVisible = false;
+  String? screenMirrorError;
   var searchQuery = '';
   var packageFilterQuery = '';
   var pidTidFilterQuery = '';
@@ -178,6 +185,13 @@ class LogTabController extends ChangeNotifier {
   String? get installingAppName => _installingAppName;
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;
+  bool get isScreenMirrorRunning =>
+      screenMirrorState == ScreenMirrorState.running ||
+      screenMirrorState == ScreenMirrorState.starting;
+  bool get canStartScreenMirror =>
+      selectedDevice is AndroidDevice &&
+      selectedDevice?.isConnected == true &&
+      !isReadingFromFile;
   bool get hasLogs => _logsBuffer.size > 0;
   bool get hasAnyCachedLogs => hasLogs || _pendingLogs.isNotEmpty;
   bool get hasSelectedDevice => selectedDevice != null;
@@ -327,6 +341,8 @@ class LogTabController extends ChangeNotifier {
     if (_disposed || !result.isSuccess || result.logs == null) return result;
 
     await _stopLogcatInternal(resetState: false);
+    if (_disposed) return result;
+    await stopScreenMirror(notify: false);
     if (_disposed) return result;
 
     clearSelectedRows(notify: false);
@@ -1433,6 +1449,113 @@ class LogTabController extends ChangeNotifier {
     );
   }
 
+  Future<void> showScreenMirror() async {
+    screenMirrorVisible = true;
+    _notify();
+
+    if (isScreenMirrorRunning) return;
+    await startScreenMirror();
+  }
+
+  Future<void> toggleScreenMirrorPane() async {
+    if (screenMirrorVisible) {
+      screenMirrorVisible = false;
+      _notify();
+      return;
+    }
+
+    await showScreenMirror();
+  }
+
+  Future<void> startScreenMirror() async {
+    final device = selectedDevice;
+    if (device == null) {
+      screenMirrorError = 'Select a connected Android device to mirror.';
+      screenMirrorState = ScreenMirrorState.error;
+      _notify();
+      return;
+    }
+
+    screenMirrorVisible = true;
+
+    if (device is! AndroidDevice) {
+      screenMirrorError =
+          'Screen mirroring is currently available for Android devices.';
+      screenMirrorState = ScreenMirrorState.unsupported;
+      _notify();
+      return;
+    }
+
+    if (device.isDisconnected) {
+      screenMirrorError = 'The selected device is disconnected.';
+      screenMirrorState = ScreenMirrorState.error;
+      _notify();
+      return;
+    }
+
+    await stopScreenMirror(notify: false);
+    if (_disposed) return;
+
+    screenMirrorState = ScreenMirrorState.starting;
+    screenMirrorError = null;
+    _notify();
+
+    try {
+      final session = await _deviceSessionService.startScreenMirror(device);
+      if (_disposed) {
+        await session.stop();
+        return;
+      }
+
+      _screenMirrorSession = session;
+      screenMirrorState = ScreenMirrorState.running;
+      _notify();
+      unawaited(_watchScreenMirrorExit(session));
+    } on ScreenMirrorException catch (error) {
+      screenMirrorState = ScreenMirrorState.error;
+      screenMirrorError = error.message;
+      _notify();
+    } on UnsupportedError catch (error) {
+      screenMirrorState = ScreenMirrorState.unsupported;
+      screenMirrorError = error.message;
+      _notify();
+    } catch (error) {
+      screenMirrorState = ScreenMirrorState.error;
+      screenMirrorError = describeError(error);
+      _notify();
+    }
+  }
+
+  Future<void> _watchScreenMirrorExit(ScreenMirrorSession session) async {
+    final exitCode = await session.exitCode;
+    if (_disposed || !identical(_screenMirrorSession, session)) return;
+
+    _screenMirrorSession = null;
+    screenMirrorState = exitCode == 0
+        ? ScreenMirrorState.stopped
+        : ScreenMirrorState.error;
+    screenMirrorError = exitCode == 0
+        ? null
+        : 'scrcpy exited with code $exitCode.';
+    _notify();
+  }
+
+  Future<void> stopScreenMirror({bool notify = true}) async {
+    final session = _screenMirrorSession;
+    _screenMirrorSession = null;
+
+    if (session != null) {
+      await session.stop();
+    }
+
+    if (_disposed) return;
+    screenMirrorState = ScreenMirrorState.stopped;
+    screenMirrorError = null;
+    if (notify) {
+      _notify();
+    }
+  }
+
   Future<void> applyFetchedDevices(
     List<Device> fetchedDevices, {
     bool autoStartSingleIfAvailable = false,
@@ -1455,11 +1578,13 @@ class LogTabController extends ChangeNotifier {
 
     if (selectedDeviceJustDisconnected) {
       await _stopLogcatForDisconnectedDevice(selectedDevice!);
+      await stopScreenMirror();
     }
 
     if (currentSelectionId != null && selectedDevice == null) {
       selectedDevice = null;
       await _stopLogcatInternal(resetState: true);
+      await stopScreenMirror();
     }
 
     final shouldAutoStartSingleDevice =
@@ -1490,6 +1615,7 @@ class LogTabController extends ChangeNotifier {
       if (isRunning) {
         await _stopLogcatInternal(resetState: true);
       }
+      await stopScreenMirror();
       _notify();
       return;
     }
@@ -1503,6 +1629,10 @@ class LogTabController extends ChangeNotifier {
     selectedDevice = device;
     _exitGetStarted();
     _notify();
+
+    if (!sameDevice) {
+      await stopScreenMirror();
+    }
 
     if (sameDevice && isRunning) return;
     await startLogcat();
@@ -1761,6 +1891,7 @@ class LogTabController extends ChangeNotifier {
     _debounceTimer?.cancel();
     _inlineSearchDebounce?.cancel();
     unawaited(_logSub?.cancel());
+    unawaited(stopScreenMirror(notify: false));
     unawaited(_deviceSessionService.dispose());
     scrollController.dispose();
     filterController.dispose();

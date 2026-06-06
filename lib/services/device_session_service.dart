@@ -7,12 +7,14 @@ import '../features/app_log/app_logger.dart';
 import 'tools/adb_tool.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
+import 'tools/scrcpy_tool.dart';
 import 'tools/tool_process_runner.dart';
 
 class DeviceSessionService {
   final AdbTool _adbTool;
   final IdeviceInstallerTool _ideviceInstallerTool;
   final IdeviceSyslogTool _ideviceSyslogTool;
+  final ScrcpyTool _scrcpyTool;
   final AppLogger _logger = AppLogger(source: 'DeviceSessionService');
   final Map<String, String> _pidToPackageCache = {};
   Timer? _cacheRefreshTimer;
@@ -27,16 +29,19 @@ class DeviceSessionService {
     String? adbPath,
     String? ideviceInstallerPath,
     String? ideviceSyslogPath,
+    String? scrcpyPath,
     AdbTool? adbTool,
     IdeviceInstallerTool? ideviceInstallerTool,
     IdeviceSyslogTool? ideviceSyslogTool,
+    ScrcpyTool? scrcpyTool,
   }) : _adbTool = adbTool ?? AdbTool(executablePath: adbPath),
        _ideviceInstallerTool =
            ideviceInstallerTool ??
            IdeviceInstallerTool(executablePath: ideviceInstallerPath),
        _ideviceSyslogTool =
            ideviceSyslogTool ??
-           IdeviceSyslogTool(executablePath: ideviceSyslogPath);
+           IdeviceSyslogTool(executablePath: ideviceSyslogPath),
+       _scrcpyTool = scrcpyTool ?? ScrcpyTool(executablePath: scrcpyPath);
 
   AppLogger _sessionLogger(String fallbackSessionTag) =>
       _logger.scoped(sessionTag: sessionLabel ?? fallbackSessionTag);
@@ -164,6 +169,10 @@ class DeviceSessionService {
         appPath: filePath,
       ),
     };
+  }
+
+  Future<ScreenMirrorSession> startScreenMirror(Device device) {
+    return _scrcpyTool.start(device);
   }
 
   /// Refresh the PID to package name mapping.

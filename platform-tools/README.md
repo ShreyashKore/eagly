@@ -9,6 +9,7 @@ Each platform folder should contain these executables at minimum:
 - `ideviceinfo` / `ideviceinfo.exe`
 - `ideviceinstaller` / `ideviceinstaller.exe`
 - `idevicesyslog` / `idevicesyslog.exe`
+- `scrcpy` / `scrcpy.exe`
 
 It should also contain any runtime libraries required by those tools, for example:
 
@@ -26,6 +27,8 @@ platform-tools/
     ideviceinfo
     ideviceinstaller
     idevicesyslog
+    scrcpy
+    scrcpy-server
     *.dylib
   linux/
     adb
@@ -33,6 +36,8 @@ platform-tools/
     ideviceinfo
     ideviceinstaller
     idevicesyslog
+    scrcpy
+    scrcpy-server
     *.so*
   windows/
     adb.exe
@@ -40,13 +45,28 @@ platform-tools/
     ideviceinfo.exe
     ideviceinstaller.exe
     idevicesyslog.exe
+    scrcpy.exe
+    scrcpy-server
     *.dll
 ```
 
 ## Preparing bundles
 
-`scripts/download_platform_tools.sh` always downloads `adb` for the requested platforms.
+`scripts/download_platform_tools.sh` always downloads `adb` and `scrcpy` for the requested platforms.
 It also downloads a default upstream `libimobiledevice` bundle for macOS, Linux, and Windows when no override is configured.
+
+The default `scrcpy` bundle comes from the official Genymobile GitHub release. Set `SCRCPY_VERSION` to pin a different release, or provide a platform archive/directory override:
+
+```bash
+SCRCPY_VERSION=4.0 ./scripts/download_platform_tools.sh macos linux windows
+
+SCRCPY_MACOS_ARCHIVE=/absolute/path/to/scrcpy-macos.tar.gz \
+SCRCPY_LINUX_ARCHIVE=/absolute/path/to/scrcpy-linux.tar.gz \
+SCRCPY_WINDOWS_ARCHIVE=/absolute/path/to/scrcpy-windows.zip \
+./scripts/download_platform_tools.sh macos linux windows
+```
+
+On macOS, `SCRCPY_MACOS_ARCH` defaults to the current machine architecture (`aarch64` on Apple Silicon, `x86_64` on Intel). Override it when preparing a bundle for a different macOS architecture.
 
 To stage a different `libimobiledevice` bundle as part of the app, provide either an archive path/URL or an extracted directory for each platform:
 
@@ -76,4 +96,3 @@ The default upstream bundle currently comes from the public `iMobileDevice-net` 
 This keeps the bundled `idevice_*` tools self-contained instead of depending on a host Homebrew installation.
 
 Use the overrides above if you need a different build.
-

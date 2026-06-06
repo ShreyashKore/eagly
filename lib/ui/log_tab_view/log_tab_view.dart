@@ -23,6 +23,7 @@ import 'components/get_started_action_card.dart';
 import 'components/inline_filter_bar.dart';
 import 'components/log_search_bar.dart';
 import 'components/scroll_to_end_button.dart';
+import 'components/screen_mirroring_pane.dart';
 import 'components/toolbar.dart';
 import 'log_tab_controller.dart';
 import 'log_tab_view_constants.dart';
@@ -593,6 +594,23 @@ class _LogTabViewState extends State<LogTabView> {
     final filtered = controller.filteredLogs;
     final matches = controller.searchMatchIndices;
 
+    final logArea = _buildLogViewerStack(filtered, matches);
+    if (!controller.screenMirrorVisible) {
+      return logArea;
+    }
+
+    return Row(
+      children: [
+        ScreenMirroringPane(
+          controller: controller,
+          onClose: controller.toggleScreenMirrorPane,
+        ),
+        Expanded(child: logArea),
+      ],
+    );
+  }
+
+  Widget _buildLogViewerStack(List<LogEntry> filtered, List<int> matches) {
     return Stack(
       children: [
         _buildLogViewer(filtered, matches),
