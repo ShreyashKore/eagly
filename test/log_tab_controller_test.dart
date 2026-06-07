@@ -14,7 +14,7 @@ import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/services/tools/idevice_id_tool.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
-import 'package:eagly/services/tools/scrcpy_tool.dart';
+import 'package:eagly/services/tools/scrcpy_mirror.dart';
 import 'package:eagly/ui/log_tab_view/log_tab_controller.dart';
 import 'package:eagly/utils/log_entry_utils.dart';
 import 'package:flutter/services.dart';
@@ -917,11 +917,16 @@ class _FakeControllerSessionService extends DeviceSessionService {
   Future<void> stopActiveLogStream() async {}
 
   @override
-  Future<ScreenMirrorSession> startScreenMirror(Device device) async {
+  Future<ScrcpyMirrorSession> startScreenMirror(Device device) async {
     startedMirrorDeviceIds = [...startedMirrorDeviceIds, device.id];
     final exitCode = Completer<int>();
-    return ScreenMirrorSession(
+    return ScrcpyMirrorSession(
       device: device,
+      textureId: 1,
+      deviceName: device.id,
+      width: 1080,
+      height: 1920,
+      control: null,
       exitCode: exitCode.future,
       onStop: () async {
         stoppedMirrorCount++;

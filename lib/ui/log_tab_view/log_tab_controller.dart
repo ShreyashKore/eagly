@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
@@ -16,7 +17,7 @@ import '../../services/app_install_service.dart';
 import '../../services/device_repository.dart';
 import '../../services/device_session_service.dart';
 import '../../services/log_file_service.dart';
-import '../../services/tools/scrcpy_tool.dart';
+import '../../services/tools/scrcpy_mirror.dart';
 import '../../utils/log_buffer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/text_search_pattern.dart';
@@ -88,7 +89,7 @@ class LogTabController extends ChangeNotifier {
   Timer? _debounceTimer;
   Timer? _filterSaveDebounceTimer;
   Timer? _inlineSearchDebounce;
-  ScreenMirrorSession? _screenMirrorSession;
+  ScrcpyMirrorSession? _screenMirrorSession;
 
   var devices = <Device>[];
   Device? selectedDevice;
@@ -185,7 +186,10 @@ class LogTabController extends ChangeNotifier {
   String? get installingAppName => _installingAppName;
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;
-  ScreenMirrorSession? get screenMirrorSession => _screenMirrorSession;
+  ScrcpyMirrorSession? get screenMirrorSession => _screenMirrorSession;
+
+  /// Native texture id of the live mirror, or null when not running.
+  int? get screenMirrorTextureId => _screenMirrorSession?.textureId;
 
   bool get isScreenMirrorRunning =>
       screenMirrorState == ScreenMirrorState.running ||
@@ -295,6 +299,12 @@ class LogTabController extends ChangeNotifier {
 
   Future<void> bootstrapInitialLoad() async {
     await loadDevices(autoStartSingleIfAvailable: true);
+    // Debug-only: auto-open the mirror so the texture pipeline can be verified
+    // without UI automation. Gated on an env var; no effect in normal runs.
+    if (Platform.environment['EAGLY_AUTOSTART_MIRROR'] == '1' &&
+        canStartScreenMirror) {
+      await showScreenMirror();
+    }
   }
 
   void focusFilterInputs() {
@@ -1513,7 +1523,7 @@ class LogTabController extends ChangeNotifier {
       screenMirrorState = ScreenMirrorState.running;
       _notify();
       unawaited(_watchScreenMirrorExit(session));
-    } on ScreenMirrorException catch (error) {
+    } on ScrcpyMirrorException catch (error) {
       screenMirrorState = ScreenMirrorState.error;
       screenMirrorError = error.message;
       _notify();
@@ -1528,7 +1538,24 @@ class LogTabController extends ChangeNotifier {
     }
   }
 
-  Future<void> _watchScreenMirrorExit(ScreenMirrorSession session) async {
+  /// Forwards a pointer interaction on the mirror surface to the device.
+  /// [nx]/[ny] are normalized (0..1) positions within the video rect.
+  void handleMirrorTouch(ScrcpyTouchAction action, double nx, double ny) {
+    final session = _screenMirrorSession;
+    final control = session?.control;
+    if (session == null || control == null) return;
+    final x = (nx.clamp(0.0, 1.0) * session.width).round();
+    final y = (ny.clamp(0.0, 1.0) * session.height).round();
+    control.touch(
+      action,
+      x: x,
+      y: y,
+      videoWidth: session.width,
+      videoHeight: session.height,
+    );
+  }
+
+  Future<void> _watchScreenMirrorExit(ScrcpyMirrorSession session) async {
     final exitCode = await session.exitCode;
     if (_disposed || !identical(_screenMirrorSession, session)) return;
 

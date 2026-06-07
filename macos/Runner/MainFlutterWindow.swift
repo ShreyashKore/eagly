@@ -10,6 +10,9 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
+    ScrcpyVideoPlugin.register(
+      with: flutterViewController.registrar(forPlugin: "ScrcpyVideoPlugin"))
+
     super.awakeFromNib()
   }
 }

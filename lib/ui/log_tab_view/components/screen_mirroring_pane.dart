@@ -113,9 +113,16 @@ class _PaneBody extends StatelessWidget {
     final device = controller.selectedDevice;
     final session = controller.screenMirrorSession;
 
-    // Display video if the player controller is available
-    if (session?.controller != null && controller.isScreenMirrorRunning) {
-      return ScrcpyVideoPlayer(controller: session!.controller!);
+    // Display the live texture once the mirror is running.
+    if (session != null && controller.isScreenMirrorRunning) {
+      final aspectRatio = session.height > 0
+          ? session.width / session.height
+          : 9 / 16;
+      return ScrcpyVideoPlayer(
+        textureId: session.textureId,
+        aspectRatio: aspectRatio,
+        onTouch: controller.handleMirrorTouch,
+      );
     }
 
     final (

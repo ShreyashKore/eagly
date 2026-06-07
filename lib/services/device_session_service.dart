@@ -7,15 +7,14 @@ import '../features/app_log/app_logger.dart';
 import 'tools/adb_tool.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
-import 'tools/scrcpy_embedded_tool.dart';
-import 'tools/scrcpy_tool.dart';
+import 'tools/scrcpy_mirror.dart';
 import 'tools/tool_process_runner.dart';
 
 class DeviceSessionService {
   final AdbTool _adbTool;
   final IdeviceInstallerTool _ideviceInstallerTool;
   final IdeviceSyslogTool _ideviceSyslogTool;
-  late final ScrcpyEmbeddedTool _scrcpyEmbeddedTool;
+  final ScrcpyMirror _scrcpyMirror;
   final AppLogger _logger = AppLogger(source: 'DeviceSessionService');
   final Map<String, String> _pidToPackageCache = {};
   Timer? _cacheRefreshTimer;
@@ -30,20 +29,18 @@ class DeviceSessionService {
     String? adbPath,
     String? ideviceInstallerPath,
     String? ideviceSyslogPath,
-    String? scrcpyPath,
     AdbTool? adbTool,
     IdeviceInstallerTool? ideviceInstallerTool,
     IdeviceSyslogTool? ideviceSyslogTool,
-    ScrcpyTool? scrcpyTool,
+    ScrcpyMirror? scrcpyMirror,
   }) : _adbTool = adbTool ?? AdbTool(executablePath: adbPath),
        _ideviceInstallerTool =
            ideviceInstallerTool ??
            IdeviceInstallerTool(executablePath: ideviceInstallerPath),
        _ideviceSyslogTool =
            ideviceSyslogTool ??
-           IdeviceSyslogTool(executablePath: ideviceSyslogPath) {
-    _scrcpyEmbeddedTool = ScrcpyEmbeddedTool(executablePath: scrcpyPath);
-  }
+           IdeviceSyslogTool(executablePath: ideviceSyslogPath),
+       _scrcpyMirror = scrcpyMirror ?? ScrcpyMirror();
 
   AppLogger _sessionLogger(String fallbackSessionTag) =>
       _logger.scoped(sessionTag: sessionLabel ?? fallbackSessionTag);
@@ -173,15 +170,9 @@ class DeviceSessionService {
     };
   }
 
-  Future<ScreenMirrorSession> startScreenMirror(Device device) async {
+  Future<ScrcpyMirrorSession> startScreenMirror(Device device) async {
     try {
-      final embeddedSession = await _scrcpyEmbeddedTool.startEmbedded(device);
-      return ScreenMirrorSession(
-        device: device,
-        exitCode: embeddedSession.process.exitCode,
-        onStop: embeddedSession.stop,
-        controller: embeddedSession.controller,
-      );
+      return await _scrcpyMirror.start(device);
     } catch (error) {
       _logger.error('Failed to start screen mirror', detail: error.toString());
       rethrow;
