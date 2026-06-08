@@ -63,8 +63,9 @@ exit 0
     }
   });
 
-  DeviceSessionService buildService() {
+  DeviceSessionService buildService(Device device) {
     return DeviceSessionService(
+      device: device,
       adbPath: adbPath,
       ideviceInstallerPath: ideviceInstallerPath,
       ideviceSyslogPath: ideviceSyslogPath,
@@ -102,10 +103,9 @@ exit 0
   );
 
   test('installApp installs APKs on Android devices via adb', () async {
-    final service = buildService();
+    final service = buildService(Device.android('emulator-5554', 'device'));
 
     final result = await service.installApp(
-      device: Device.android('emulator-5554', 'device'),
       filePath: '${tempDir.path}/sample.apk',
     );
 
@@ -116,10 +116,11 @@ exit 0
   test(
     'installApp installs IPA or app bundles on iOS devices via ideviceinstaller',
     () async {
-      final service = buildService();
+      final service = buildService(
+        Device.ios('00008110-001234567890801E', 'device'),
+      );
 
       final result = await service.installApp(
-        device: Device.ios('00008110-001234567890801E', 'device'),
         filePath: '${tempDir.path}/Sample.ipa',
       );
 

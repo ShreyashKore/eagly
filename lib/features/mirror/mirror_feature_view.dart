@@ -4,54 +4,59 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-import '../../../features/flutter_scrcpy/flutter_scrcpy.dart';
-import '../log_tab_controller.dart';
+import '../flutter_scrcpy/flutter_scrcpy.dart';
+import 'mirror_controller.dart';
 
-class ScreenMirroringPane extends StatelessWidget {
-  const ScreenMirroringPane({
+/// Screen-mirror feature pane. Renders the live texture + controls, driven by a
+/// [MirrorController]. [onClose] hides the pane (handled by the device screen).
+class MirrorFeatureView extends StatelessWidget {
+  const MirrorFeatureView({
     super.key,
     required this.controller,
     required this.onClose,
   });
 
-  final LogTabController controller;
+  final MirrorController controller;
   final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      color: theme.colorScheme.surfaceContainer,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _Header(controller: controller, onClose: onClose),
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Center(child: _PaneBody(controller: controller)),
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        return Container(
+          color: theme.colorScheme.surfaceContainer,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Header(controller: controller, onClose: onClose),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Center(child: _PaneBody(controller: controller)),
+                    ),
+                    _MirrorControlStrip(controller: controller),
+                  ],
                 ),
-                _MirrorControlStrip(controller: controller),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
 /// Vertical strip on the pane's right edge: session actions (screenshot,
 /// record, rotate, quality) at the top, then device hardware/navigation keys.
-/// Hardware keys need the live control channel; session actions need a running
-/// mirror; the quality picker is always available.
 class _MirrorControlStrip extends StatelessWidget {
   const _MirrorControlStrip({required this.controller});
 
-  final LogTabController controller;
+  final MirrorController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -59,16 +64,14 @@ class _MirrorControlStrip extends StatelessWidget {
     final running = controller.isScreenMirrorRunning;
     final controlEnabled =
         running && controller.screenMirrorSession?.control != null;
-    final recording = controller.isMirrorRecording;
+    final recording = controller.isRecording;
 
     Widget keyButton(IconData icon, String tooltip, ScrcpyKey key) {
       return IconButton(
         tooltip: tooltip,
         iconSize: 20,
         visualDensity: VisualDensity.compact,
-        onPressed: controlEnabled
-            ? () => controller.handleMirrorKey(key)
-            : null,
+        onPressed: controlEnabled ? () => controller.handleKey(key) : null,
         icon: Icon(icon),
       );
     }
@@ -162,7 +165,7 @@ class _MirrorControlStrip extends StatelessWidget {
   Future<void> _captureScreenshot(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final bytes = await controller.captureMirrorScreenshot();
+      final bytes = await controller.captureScreenshot();
       if (bytes == null) {
         messenger.showSnackBar(
           const SnackBar(content: Text('Screenshot unavailable.')),
@@ -191,16 +194,14 @@ class _MirrorControlStrip extends StatelessWidget {
   Future<void> _startRecording(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await controller.startMirrorRecording();
-      if (controller.isMirrorRecording) {
+      await controller.startRecording();
+      if (controller.isRecording) {
         messenger.showSnackBar(
           const SnackBar(content: Text('Recording… tap again to stop.')),
         );
       }
     } catch (error) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Recording failed: $error')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('Recording failed: $error')));
     }
   }
 
@@ -214,31 +215,27 @@ class _MirrorControlStrip extends StatelessWidget {
     );
     try {
       if (path == null) {
-        await controller.cancelMirrorRecording();
+        await controller.cancelRecording();
         messenger.showSnackBar(
           const SnackBar(content: Text('Recording discarded.')),
         );
         return;
       }
       final outPath = path.toLowerCase().endsWith('.mp4') ? path : '$path.mp4';
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Saving recording…')),
-      );
-      await controller.stopMirrorRecording(outPath);
+      messenger.showSnackBar(const SnackBar(content: Text('Saving recording…')));
+      await controller.stopRecording(outPath);
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text('Recording saved to $outPath')));
     } catch (error) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Recording failed: $error')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('Recording failed: $error')));
     }
   }
 
   Future<void> _rotate(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await controller.rotateMirrorDevice();
+      await controller.rotate();
     } catch (error) {
       messenger.showSnackBar(SnackBar(content: Text('Rotate failed: $error')));
     }
@@ -249,7 +246,7 @@ class _MirrorControlStrip extends StatelessWidget {
 class _QualityButton extends StatelessWidget {
   const _QualityButton({required this.controller});
 
-  final LogTabController controller;
+  final MirrorController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -258,7 +255,7 @@ class _QualityButton extends StatelessWidget {
       tooltip: 'Video quality (${controller.mirrorQuality.label})',
       icon: const Icon(Icons.high_quality_outlined, size: 20),
       initialValue: controller.mirrorQuality,
-      onSelected: controller.setMirrorQuality,
+      onSelected: controller.setQuality,
       itemBuilder: (context) => [
         for (final quality in MirrorQuality.values)
           PopupMenuItem<MirrorQuality>(
@@ -297,7 +294,7 @@ class _QualityButton extends StatelessWidget {
 class _Header extends StatelessWidget {
   const _Header({required this.controller, required this.onClose});
 
-  final LogTabController controller;
+  final MirrorController controller;
   final VoidCallback onClose;
 
   @override
@@ -328,14 +325,12 @@ class _Header extends StatelessWidget {
             tooltip: controller.isScreenMirrorRunning
                 ? 'Stop mirror'
                 : 'Start mirror',
-            onPressed:
-                controller.canStartScreenMirror ||
-                    controller.isScreenMirrorRunning
+            onPressed: controller.canStart || controller.isScreenMirrorRunning
                 ? () {
                     if (controller.isScreenMirrorRunning) {
-                      controller.stopScreenMirror();
+                      controller.stop();
                     } else {
-                      controller.startScreenMirror();
+                      controller.start();
                     }
                   }
                 : null,
@@ -359,12 +354,12 @@ class _Header extends StatelessWidget {
 class _PaneBody extends StatelessWidget {
   const _PaneBody({required this.controller});
 
-  final LogTabController controller;
+  final MirrorController controller;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final device = controller.selectedDevice;
+    final device = controller.device;
     final session = controller.screenMirrorSession;
 
     // Display the live texture once the mirror is running.
@@ -375,28 +370,20 @@ class _PaneBody extends StatelessWidget {
       return ScrcpyView(
         textureId: session.textureId,
         aspectRatio: aspectRatio,
-        onTouch: controller.handleMirrorTouch,
+        onTouch: controller.handleTouch,
       );
     }
 
-    final (
-      :icon,
-      :title,
-      :description,
-    ) = switch (controller.screenMirrorState) {
+    final (:icon, :title, :description) = switch (controller.screenMirrorState) {
       ScreenMirrorState.starting => (
         icon: Icons.hourglass_top_rounded,
         title: 'Starting mirror',
-        description: device == null
-            ? 'Preparing scrcpy.'
-            : 'Opening scrcpy for ${device.displayName}.',
+        description: 'Opening scrcpy for ${device.displayName}.',
       ),
       ScreenMirrorState.running => (
         icon: Icons.cast_connected_rounded,
         title: 'Mirror running',
-        description: device == null
-            ? 'scrcpy is active.'
-            : 'scrcpy is controlling ${device.displayName}.',
+        description: 'scrcpy is controlling ${device.displayName}.',
       ),
       ScreenMirrorState.unsupported => (
         icon: Icons.phonelink_off_rounded,
@@ -414,10 +401,8 @@ class _PaneBody extends StatelessWidget {
       ),
       ScreenMirrorState.stopped => (
         icon: Icons.mobile_screen_share,
-        title: device == null ? 'No device selected' : 'Ready to mirror',
-        description: device == null
-            ? 'Select a connected Android device.'
-            : 'Launch scrcpy for ${device.displayName}.',
+        title: 'Ready to mirror',
+        description: 'Launch scrcpy for ${device.displayName}.',
       ),
     };
 
@@ -428,11 +413,7 @@ class _PaneBody extends StatelessWidget {
         children: [
           Icon(icon, size: 42, color: theme.colorScheme.primary),
           const Gap(12),
-          Text(
-            title,
-            style: theme.textTheme.titleMedium,
-            textAlign: TextAlign.center,
-          ),
+          Text(title, style: theme.textTheme.titleMedium, textAlign: TextAlign.center),
           const Gap(8),
           Text(
             description,
@@ -444,9 +425,9 @@ class _PaneBody extends StatelessWidget {
           const Gap(18),
           FilledButton.icon(
             onPressed: controller.isScreenMirrorRunning
-                ? () => controller.stopScreenMirror()
-                : controller.canStartScreenMirror
-                ? () => controller.startScreenMirror()
+                ? () => controller.stop()
+                : controller.canStart
+                ? () => controller.start()
                 : null,
             icon: Icon(
               controller.isScreenMirrorRunning

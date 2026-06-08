@@ -13,7 +13,13 @@ import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
 import 'tools/tool_process_runner.dart';
 
+/// Per-device facade over the platform tools (adb / libimobiledevice / scrcpy).
+///
+/// One instance is created per detected device and owned by its
+/// [DeviceSessionController]. It exposes platform-agnostic device operations and
+/// holds no feature state — feature controllers own their own state.
 class DeviceSessionService {
+  final Device device;
   final AdbTool _adbTool;
   final IdeviceInstallerTool _ideviceInstallerTool;
   final IdeviceSyslogTool _ideviceSyslogTool;
@@ -22,13 +28,16 @@ class DeviceSessionService {
   final Map<String, String> _pidToPackageCache = {};
   Timer? _cacheRefreshTimer;
   ToolStreamSession<LogEntry>? _activeLogSession;
-  String? _activeDeviceId;
+  bool _logStreamActive = false;
 
-  /// Optional human-readable label for the tab that owns this service,
-  /// used to tag [AppLogger] entries (e.g. "Tab 2 – Pixel 6").
+  /// Optional human-readable label used to tag [AppLogger] entries. Defaults to
+  /// the device id when unset.
   String? sessionLabel;
 
+  String get _deviceId => device.id;
+
   DeviceSessionService({
+    required this.device,
     String? adbPath,
     String? ideviceInstallerPath,
     String? ideviceSyslogPath,
@@ -52,29 +61,39 @@ class DeviceSessionService {
                  '${resolveBundledToolsDirectory()?.path}/scrcpy-server',
            );
 
-  AppLogger _sessionLogger(String fallbackSessionTag) =>
-      _logger.scoped(sessionTag: sessionLabel ?? fallbackSessionTag);
+  AppLogger get _sessionLogger =>
+      _logger.scoped(sessionTag: sessionLabel ?? _deviceId);
 
-  Stream<LogEntry> _startAndroidLogcat(String deviceId) async* {
+  /// Starts a live log stream for the bound device.
+  Stream<LogEntry> startLogStream() async* {
+    switch (device) {
+      case IosDevice():
+        yield* _startIosSyslog();
+      case AndroidDevice():
+        yield* _startAndroidLogcat();
+    }
+  }
+
+  Stream<LogEntry> _startAndroidLogcat() async* {
     await stopActiveLogStream();
-    await refreshPidToPackageMap(deviceId);
-    final sessionLogger = _sessionLogger(deviceId);
+    await refreshPidToPackageMap();
+    final sessionLogger = _sessionLogger;
 
     _cacheRefreshTimer?.cancel();
     _cacheRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      refreshPidToPackageMap(deviceId);
+      refreshPidToPackageMap();
     });
 
-    sessionLogger.info('Log stream started for $deviceId');
+    sessionLogger.info('Log stream started for $_deviceId');
 
-    final session = _adbTool.startLogcat(deviceId);
+    final session = _adbTool.startLogcat(_deviceId);
     try {
       _activeLogSession = session;
-      _activeDeviceId = deviceId;
+      _logStreamActive = true;
       await for (final entry in session.stream) {
         if (entry.type == LogEntryType.error) {
           sessionLogger.error(
-            'Tool error while streaming logs for $deviceId',
+            'Tool error while streaming logs for $_deviceId',
             detail: '[${entry.tag}] ${entry.message}',
           );
         }
@@ -86,31 +105,31 @@ class DeviceSessionService {
     } finally {
       if (identical(_activeLogSession, session)) {
         _activeLogSession = null;
-        _activeDeviceId = null;
+        _logStreamActive = false;
       }
       _cacheRefreshTimer?.cancel();
       _cacheRefreshTimer = null;
-      sessionLogger.info('Log stream stopped for $deviceId');
+      sessionLogger.info('Log stream stopped for $_deviceId');
       await session.stop();
     }
   }
 
-  Stream<LogEntry> _startIosSyslog(Device device) async* {
+  Stream<LogEntry> _startIosSyslog() async* {
     await stopActiveLogStream();
     _cacheRefreshTimer?.cancel();
     _cacheRefreshTimer = null;
-    final sessionLogger = _sessionLogger(device.id);
+    final sessionLogger = _sessionLogger;
 
     sessionLogger.info('iOS syslog stream started for ${device.displayName}');
 
     final session = _ideviceSyslogTool.start(
-      deviceId: device.id,
+      deviceId: _deviceId,
       processName: device.displayName,
     );
 
     try {
       _activeLogSession = session;
-      _activeDeviceId = device.id;
+      _logStreamActive = true;
       await for (final entry in session.stream) {
         if (entry.type == LogEntryType.error) {
           sessionLogger.error(
@@ -123,7 +142,7 @@ class DeviceSessionService {
     } finally {
       if (identical(_activeLogSession, session)) {
         _activeLogSession = null;
-        _activeDeviceId = null;
+        _logStreamActive = false;
       }
       sessionLogger.info('iOS syslog stream stopped for ${device.displayName}');
       await session.stop();
@@ -136,52 +155,36 @@ class DeviceSessionService {
 
     final session = _activeLogSession;
     _activeLogSession = null;
-    _activeDeviceId = null;
+    _logStreamActive = false;
 
     if (session == null) return;
     await session.stop();
   }
 
-  /// Stops logcat for a device (by killing the process).
-  Future<void> stopLogStream(String deviceId) async {
-    final sessionLogger = _sessionLogger(deviceId);
-    if (_activeDeviceId == deviceId) {
-      sessionLogger.info('Stopping active log stream for $deviceId');
-      await stopActiveLogStream();
-      return;
-    }
+  bool get isLogStreamActive => _logStreamActive;
 
-    sessionLogger.info('Stopping background logcat process for $deviceId');
-    await _adbTool.stopLogcat(deviceId);
-  }
-
-  /// Clears the logcat buffer on the Android device.
-  Future<void> clearLogs(String deviceId) async {
-    final sessionLogger = _sessionLogger(deviceId);
-    sessionLogger.info('Clearing logs for $deviceId');
-    await _adbTool.clearLogs(deviceId);
+  /// Clears the logcat buffer on the (Android) device.
+  Future<void> clearLogs() async {
+    _sessionLogger.info('Clearing logs for $_deviceId');
+    await _adbTool.clearLogs(_deviceId);
   }
 
   Future<void> dispose() => stopActiveLogStream();
 
-  Future<DeviceCommandResult> installApp({
-    required Device device,
-    required String filePath,
-  }) {
+  Future<DeviceCommandResult> installApp({required String filePath}) {
     return switch (device) {
       AndroidDevice() => _adbTool.installApk(
-        deviceId: device.id,
+        deviceId: _deviceId,
         apkPath: filePath,
       ),
       IosDevice() => _ideviceInstallerTool.installApp(
-        deviceId: device.id,
+        deviceId: _deviceId,
         appPath: filePath,
       ),
     };
   }
 
-  Future<ScrcpyMirrorSession> startScreenMirror(
-    Device device, {
+  Future<ScrcpyMirrorSession> startScreenMirror({
     ScrcpyVideoOptions? options,
   }) async {
     if (device is! AndroidDevice) {
@@ -191,66 +194,55 @@ class DeviceSessionService {
     }
     try {
       return options != null
-          ? await _scrcpyMirror.start(device.id, options: options)
-          : await _scrcpyMirror.start(device.id);
+          ? await _scrcpyMirror.start(_deviceId, options: options)
+          : await _scrcpyMirror.start(_deviceId);
     } catch (error) {
       _logger.error('Failed to start screen mirror', detail: error.toString());
       rethrow;
     }
   }
 
-  /// Captures a full-resolution PNG screenshot of [deviceId] via `screencap`.
-  Future<Uint8List> captureScreenshot(String deviceId) {
-    return _adbTool.captureScreenshotPng(deviceId);
+  /// Captures a full-resolution PNG screenshot via `screencap`.
+  Future<Uint8List> captureScreenshot() {
+    return _adbTool.captureScreenshotPng(_deviceId);
   }
 
   /// Cycles the device display orientation (0→1→2→3) via `settings`.
-  Future<void> rotateDevice(String deviceId) async {
-    final current = await _adbTool.getUserRotation(deviceId);
-    await _adbTool.setUserRotation(deviceId, current + 1);
+  Future<void> rotateDevice() async {
+    final current = await _adbTool.getUserRotation(_deviceId);
+    await _adbTool.setUserRotation(_deviceId, current + 1);
   }
 
   /// Starts an on-device `screenrecord`. Finalize + save it via
   /// [ScreenRecordingSession.stopAndPull].
-  Future<ScreenRecordingSession> startScreenRecording(
-    String deviceId, {
+  Future<ScreenRecordingSession> startScreenRecording({
     int bitRate = 8000000,
   }) async {
     final devicePath =
         '/sdcard/eagly-rec-${DateTime.now().millisecondsSinceEpoch}.mp4';
     final process = await _adbTool.startScreenRecord(
-      deviceId,
+      _deviceId,
       devicePath,
       bitRate: bitRate,
       timeLimitSeconds: 180,
     );
     return ScreenRecordingSession(
       adbTool: _adbTool,
-      deviceId: deviceId,
+      deviceId: _deviceId,
       devicePath: devicePath,
       process: process,
     );
   }
 
   /// Refresh the PID to package name mapping.
-  Future<void> refreshPidToPackageMap(String deviceId) async {
+  Future<void> refreshPidToPackageMap() async {
     _pidToPackageCache
       ..clear()
-      ..addAll(await _adbTool.getPidToPackageMap(deviceId));
+      ..addAll(await _adbTool.getPidToPackageMap(_deviceId));
   }
 
   String? getProcessNameFromPid(String pid) {
     return _pidToPackageCache[pid];
-  }
-
-  /// Starts a live log stream for a specific device and returns log entries.
-  Stream<LogEntry> startLogStream(Device device) async* {
-    switch (device) {
-      case IosDevice():
-        yield* _startIosSyslog(device);
-      case AndroidDevice():
-        yield* _startAndroidLogcat(device.id);
-    }
   }
 }
 
