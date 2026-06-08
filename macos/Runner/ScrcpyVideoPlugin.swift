@@ -144,6 +144,7 @@ final class ScrcpyVideoTexture: NSObject, FlutterTexture {
   }
 
   private var decodedFrameCount = 0
+  private var decodeErrorCount = 0
 
   fileprivate func onDecoded(_ imageBuffer: CVImageBuffer) {
     pixelLock.lock()
@@ -172,10 +173,16 @@ final class ScrcpyVideoTexture: NSObject, FlutterTexture {
     }
 
     if let sps = newSps, let pps = newPps {
+      NSLog("[scrcpy] config packet received (sps=\(sps.count) pps=\(pps.count))")
       updateFormat(sps: sps, pps: pps)
     }
 
-    guard let format = formatDescription, let session = session else { return }
+    guard let format = formatDescription, let session = session else {
+      if !slices.isEmpty {
+        NSLog("[scrcpy] dropped \(slices.count) slice(s): no format/session yet")
+      }
+      return
+    }
     for slice in slices {
       decodeSlice(slice, format: format, session: session)
     }
@@ -298,7 +305,13 @@ final class ScrcpyVideoTexture: NSObject, FlutterTexture {
       frameRefcon: nil,
       infoFlagsOut: &flagsOut)
     if decodeStatus != noErr {
-      NSLog("[scrcpy] decode frame failed: \(decodeStatus)")
+      decodeErrorCount += 1
+      if decodeErrorCount <= 5 || decodeErrorCount % 30 == 0 {
+        let dims = CMVideoFormatDescriptionGetDimensions(format)
+        NSLog(
+          "[scrcpy] decode frame failed: \(decodeStatus) "
+            + "(format \(dims.width)x\(dims.height), error #\(decodeErrorCount))")
+      }
     }
   }
 

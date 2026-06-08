@@ -103,6 +103,7 @@ class FakeSessionService extends DeviceSessionService {
       height: 1920,
       control: null,
       exitCode: exitCode.future,
+      streamEnded: Completer<void>().future,
       onStop: () async {
         stoppedMirrorCount++;
         if (!exitCode.isCompleted) {

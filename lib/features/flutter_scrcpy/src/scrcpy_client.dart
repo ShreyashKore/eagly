@@ -538,6 +538,12 @@ class ScrcpyClient {
         final meta = ByteData.sublistView(header);
         final raw = meta.getUint64(0);
         final size = meta.getUint32(8);
+        // An encoder reset (device rotation) perturbs the stream framing on this
+        // scrcpy build, throwing off alignment. We can't recover cleanly in
+        // place — resyncing mid-stream feeds the decoder reference-less frames
+        // (visible corruption) and there's no way to request a fresh keyframe.
+        // So we surface the desync; the mirror layer restarts for a clean
+        // handshake + keyframe.
         if (size == 0 || size > 64 * 1024 * 1024) {
           throw ScrcpyClientException('Implausible packet size $size (desync).');
         }
@@ -554,6 +560,7 @@ class ScrcpyClient {
         );
       }
     } catch (error) {
+      _log('[pump] stream ended/errored: $error');
       if (!controller.isClosed) controller.addError(error);
     } finally {
       if (!controller.isClosed) await controller.close();

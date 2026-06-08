@@ -58,6 +58,14 @@ class MirrorController extends FeatureController {
   ScreenRecordingSession? _recordingSession;
   bool _disposed = false;
 
+  /// Number of consecutive automatic restarts (e.g. from rotation desyncs).
+  /// Reset once a stream has survived longer than [_restartCooldown]; caps a
+  /// restart storm from an app that bounces orientation before settling.
+  int _autoRestarts = 0;
+  DateTime? _sessionStartedAt;
+  static const int _maxAutoRestarts = 6;
+  static const Duration _restartCooldown = Duration(seconds: 4);
+
   ScrcpyMirrorSession? get screenMirrorSession => _session;
 
   /// Native texture id of the live mirror, or null when not running.
@@ -113,9 +121,11 @@ class MirrorController extends FeatureController {
       }
 
       _session = mirror;
+      _sessionStartedAt = DateTime.now();
       screenMirrorState = ScreenMirrorState.running;
       _notify();
       unawaited(_watchExit(mirror));
+      unawaited(_watchStream(mirror));
     } on ScrcpyMirrorException catch (error) {
       screenMirrorState = ScreenMirrorState.error;
       screenMirrorError = error.message;
@@ -143,6 +153,40 @@ class MirrorController extends FeatureController {
     screenMirrorState = ScreenMirrorState.stopped;
     screenMirrorError = null;
     if (notify) _notify();
+  }
+
+  /// Restarts the mirror when its video stream dies unexpectedly. On this
+  /// scrcpy build a device rotation perturbs the stream framing and there's no
+  /// way to recover in place without visible corruption, so we reconnect for a
+  /// clean handshake + keyframe. A cooldown-reset counter caps a restart storm
+  /// (e.g. an app that bounces orientation a few times before settling).
+  Future<void> _watchStream(ScrcpyMirrorSession mirror) async {
+    await mirror.streamEnded;
+    if (_disposed || !identical(_session, mirror)) return;
+    if (screenMirrorState != ScreenMirrorState.running) return;
+
+    // A stream that ran longer than the cooldown is a one-off, not a storm.
+    final startedAt = _sessionStartedAt;
+    if (startedAt != null &&
+        DateTime.now().difference(startedAt) > _restartCooldown) {
+      _autoRestarts = 0;
+    }
+
+    if (_autoRestarts >= _maxAutoRestarts) {
+      _session = null;
+      await mirror.stop();
+      if (_disposed) return;
+      screenMirrorState = ScreenMirrorState.error;
+      screenMirrorError = 'Mirror stream kept resetting; stopped.';
+      _notify();
+      return;
+    }
+
+    _autoRestarts++;
+    // Brief settle so a multi-step rotation finishes before we reconnect.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (_disposed || !identical(_session, mirror)) return;
+    await start();
   }
 
   Future<void> _watchExit(ScrcpyMirrorSession mirror) async {

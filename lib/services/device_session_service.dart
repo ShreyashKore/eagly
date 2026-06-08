@@ -59,6 +59,10 @@ class DeviceSessionService {
                  resolveBundledExecutablePath('adb') ?? adbPath ?? 'adb',
              serverJarPath:
                  '${resolveBundledToolsDirectory()?.path}/scrcpy-server',
+             onLog: (message) =>
+                 AppLogger(source: 'DeviceSessionService').info(
+                   '[scrcpy] $message',
+                 ),
            );
 
   AppLogger get _sessionLogger =>
