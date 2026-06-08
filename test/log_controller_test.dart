@@ -28,6 +28,10 @@ void main() {
   });
 
   LogController createLog({LogTabSettings? settings, Device? withDevice}) {
+    if (settings != null) {
+      PreferencesService.filterViewMode = settings.filterViewMode;
+      PreferencesService.logLinesLimit = settings.logLinesLimit;
+    }
     device =
         withDevice ??
         Device('emulator-5554', 'device', platform: DevicePlatform.android);
@@ -35,9 +39,8 @@ void main() {
     session = DeviceSessionController(
       device: device,
       service: service,
-      initialLogSettings: settings ?? testSettings(),
     );
-    return session!.logController;
+    return session!.logSessionManager.selectedTab!;
   }
 
   void disconnect() {

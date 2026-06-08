@@ -5,11 +5,12 @@ import '../../features/logs/log_feature_view.dart';
 import '../../features/mirror/mirror_controller.dart';
 import '../../features/mirror/mirror_feature_view.dart';
 import '../../session/device_session_controller.dart';
+import '../../utils/log_feedback.dart';
 import 'feature_rail.dart';
 
 /// The screen shown for the selected device tab: the feature rail on the far
 /// left, then the open feature panes (Logs always, Mirror alongside when open).
-class DeviceScreen extends StatelessWidget {
+class DeviceScreen extends StatefulWidget {
   const DeviceScreen({
     super.key,
     required this.session,
@@ -20,6 +21,23 @@ class DeviceScreen extends StatelessWidget {
   final ValueListenable<int> appMemoryBytesListenable;
 
   @override
+  State<DeviceScreen> createState() => _DeviceScreenState();
+}
+
+class _DeviceScreenState extends State<DeviceScreen> {
+  void _showSnackBar(String message) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _handleInstallApp() async {
+    final result = await widget.session.installAppFromPicker();
+    if (!mounted || result.cancelled) return;
+    _showSnackBar(formatAppInstallMessage(result));
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
@@ -27,10 +45,10 @@ class DeviceScreen extends StatelessWidget {
       decoration: BoxDecoration(color: theme.colorScheme.surface),
       child: Row(
         children: [
-          FeatureRail(session: session),
+          FeatureRail(session: widget.session, onInstall: _handleInstallApp),
           Expanded(
             child: ListenableBuilder(
-              listenable: session,
+              listenable: widget.session,
               builder: (context, _) => _buildContent(context),
             ),
           ),
@@ -41,16 +59,16 @@ class DeviceScreen extends StatelessWidget {
 
   Widget _buildContent(BuildContext context) {
     final logPane = LogFeatureView(
-      controller: session.logController,
-      session: session,
-      appMemoryBytesListenable: appMemoryBytesListenable,
+      logManager: widget.session.logSessionManager,
+      session: widget.session,
+      appMemoryBytesListenable: widget.appMemoryBytesListenable,
     );
 
-    if (!session.isMirrorOpen) {
+    if (!widget.session.isMirrorOpen) {
       return logPane;
     }
 
-    final mirror = session.mirrorController;
+    final mirror = widget.session.mirrorController;
     return ListenableBuilder(
       listenable: mirror,
       builder: (context, _) {
@@ -60,7 +78,7 @@ class DeviceScreen extends StatelessWidget {
               width: mirror.paneWidth,
               child: MirrorFeatureView(
                 controller: mirror,
-                onClose: session.closeMirror,
+                onClose: widget.session.closeMirror,
               ),
             ),
             _MirrorPaneResizeHandle(mirror: mirror),

@@ -131,9 +131,7 @@ void main() {
       sessionService.pairResult = DeviceCommandResult.success(
         message: 'Successfully paired',
       );
-      sessionService.connectResults[connectAddress] =
-          DeviceCommandResult.success(message: 'Connected to $connectAddress.');
-      sessionService.onConnect = (address) {
+      adbTool.onConnect = (address) {
         if (address == connectAddress) {
           adbTool.androidDevices = [
             Device(address, 'device', platform: DevicePlatform.android),
@@ -166,11 +164,11 @@ void main() {
       expect(result.isSuccess, isTrue);
       expect(result.autoConnected, isTrue);
       expect(activatedDeviceId, connectAddress);
-      expect(sessionService.pairRequests.single, (
+      expect(adbTool.pairRequests.single, (
         '192.168.0.77:40000',
         '123456',
       ));
-      expect(sessionService.connectRequests, [connectAddress]);
+      expect(adbTool.connectRequests, [connectAddress]);
       expect(result.message, contains('Live logs are ready in this tab'));
     },
   );
@@ -229,6 +227,18 @@ class _FakeWirelessAdbTool extends AdbTool {
       const WirelessServiceDiscoveryResult();
   final StreamController<List<Device>> _watchController =
       StreamController<List<Device>>.broadcast();
+  final List<(String, String)> pairRequests = [];
+  final List<String> connectRequests = [];
+  void Function(String address)? onConnect;
+
+  @override
+  Future<DeviceCommandResult> pairDevice({
+    required String address,
+    required String pairingCode,
+  }) async {
+    pairRequests.add((address, pairingCode));
+    return DeviceCommandResult.success(message: 'Successfully paired with $address.');
+  }
 
   @override
   Future<List<Device>> getDevices() async => List.of(androidDevices);
@@ -239,6 +249,13 @@ class _FakeWirelessAdbTool extends AdbTool {
   @override
   Future<WirelessServiceDiscoveryResult> discoverMdnsServices() async {
     return discoveryResult;
+  }
+
+  @override
+  Future<DeviceCommandResult> connectDevice(String address) async {
+    connectRequests.add(address);
+    onConnect?.call(address);
+    return DeviceCommandResult.success(message: 'Connected to $address.');
   }
 
   Future<void> dispose() async {

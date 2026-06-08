@@ -40,13 +40,12 @@ class DeviceSessionManager extends ChangeNotifier {
 
   DeviceRepository get repository => _repository;
 
-  List<DeviceSessionController> get sessions => List.unmodifiable([
-    for (final id in _order) _sessions[id]!,
-  ]);
+  List<DeviceSessionController> get sessions =>
+      List.unmodifiable([for (final id in _order) _sessions[id]!]);
 
   bool get hasSessions => _order.isNotEmpty;
-  String? get selectedId => _selectedId;
   bool get isHome => _selectedId == null;
+  String? get selectedId => _selectedId;
   DeviceSessionController? get selected =>
       _selectedId == null ? null : _sessions[_selectedId];
 

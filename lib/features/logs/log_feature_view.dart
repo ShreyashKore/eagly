@@ -19,18 +19,20 @@ import 'components/log_search_bar.dart';
 import 'components/scroll_to_end_button.dart';
 import 'components/toolbar.dart';
 import 'log_controller.dart';
+import 'log_session_manager.dart';
 
-/// The Logs feature pane for a single device: toolbar, filter area, the log
-/// viewer (with empty/search/scroll overlays), and a status bar.
+/// The Logs feature pane for a single device: toolbar (with log-tab strip),
+/// filter area, the log viewer (with empty/search/scroll overlays), and a
+/// status bar. Supports multiple live and imported log tabs.
 class LogFeatureView extends StatefulWidget {
   const LogFeatureView({
     super.key,
-    required this.controller,
+    required this.logManager,
     required this.session,
     required this.appMemoryBytesListenable,
   });
 
-  final LogController controller;
+  final LogSessionManager logManager;
   final DeviceSessionController session;
   final ValueListenable<int> appMemoryBytesListenable;
 
@@ -39,9 +41,7 @@ class LogFeatureView extends StatefulWidget {
 }
 
 class _LogFeatureViewState extends State<LogFeatureView> {
-  var _isInstallDropActive = false;
-
-  LogController get controller => widget.controller;
+  LogSessionManager get logManager => widget.logManager;
   DeviceSessionController get session => widget.session;
 
   void _showSnackBar(String message) {
@@ -50,30 +50,25 @@ class _LogFeatureViewState extends State<LogFeatureView> {
     messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _handleExportLogs() async {
+  Future<void> _handleExportLogs(LogController controller) async {
     final result = await controller.exportLogs();
     if (!mounted || result.cancelled) return;
     _showSnackBar(formatExportLogsMessage(result));
   }
 
-  Future<void> _handleInstallApp() async {
-    final result = await session.installAppFromPicker();
+  Future<void> _handleImportLog() async {
+    final result = await logManager.importLog();
     if (!mounted || result.cancelled) return;
-    _showSnackBar(formatAppInstallMessage(result));
+    if (result.isSuccess) {
+      _showSnackBar(
+        'Imported ${result.fileName} (${result.logs!.length} entries).',
+      );
+    } else if (result.error != null) {
+      _showSnackBar(result.error!);
+    }
   }
 
-  Future<void> _handleInstallDrop(List<String> paths) async {
-    final result = await session.installDroppedPaths(paths);
-    if (!mounted || result.cancelled) return;
-    _showSnackBar(formatAppInstallMessage(result));
-  }
-
-  void _setInstallDropActive(bool value) {
-    if (_isInstallDropActive == value) return;
-    setState(() => _isInstallDropActive = value);
-  }
-
-  Future<void> _handleCopyAllLogs() async {
+  Future<void> _handleCopyAllLogs(LogController controller) async {
     final copiedCount = await controller.copyAllLogs();
     if (!mounted || copiedCount == 0) return;
     _showSnackBar(
@@ -82,6 +77,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
   }
 
   Future<void> _handleRowCopyAction(
+    LogController controller,
     int? index,
     LogViewerCopyAction action,
   ) async {
@@ -112,45 +108,50 @@ class _LogFeatureViewState extends State<LogFeatureView> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([
-        controller,
-        session,
-        widget.appMemoryBytesListenable,
-      ]),
+    return ListenableBuilder(
+      listenable: logManager,
       builder: (context, _) {
-        return Column(
-          children: [
-            _buildToolbar(context),
-            _buildFilterArea(context),
-            Expanded(child: _buildViewerArea(context)),
-            _buildStatusBar(context),
-          ],
+        final controller = logManager.selectedTab;
+        if (controller == null) return const SizedBox.shrink();
+
+        return AnimatedBuilder(
+          animation: Listenable.merge([
+            controller,
+            session,
+            widget.appMemoryBytesListenable,
+          ]),
+          builder: (context, _) => _buildContent(context, controller),
         );
       },
     );
   }
 
-  Widget _buildToolbar(BuildContext context) {
+  Widget _buildContent(BuildContext context, LogController controller) {
+    return Column(
+      children: [
+        _buildToolbar(context, controller),
+        _buildFilterArea(context, controller),
+        Expanded(child: _buildViewerArea(context, controller)),
+        _buildStatusBar(context, controller),
+      ],
+    );
+  }
+
+  Widget _buildToolbar(BuildContext context, LogController controller) {
     return Toolbar(
       controller: controller,
-      session: session,
-      onInstallApp: session.isConnected
-          ? () async => _handleInstallApp()
-          : null,
-      onInstallDrop: _handleInstallDrop,
-      onInstallDropActiveChanged: _setInstallDropActive,
-      isInstallDropActive: _isInstallDropActive,
+      logManager: logManager,
+      onImportLog: _handleImportLog,
       onExport: controller.logs.isEmpty
           ? null
-          : () async => _handleExportLogs(),
+          : () async => _handleExportLogs(controller),
       onCopyAll: controller.hasAnyCachedLogs
-          ? () async => _handleCopyAllLogs()
+          ? () async => _handleCopyAllLogs(controller)
           : null,
     );
   }
 
-  Widget _buildFilterArea(BuildContext context) {
+  Widget _buildFilterArea(BuildContext context, LogController controller) {
     final isInline = controller.filterViewMode == LogFilterViewMode.inline;
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
@@ -239,13 +240,17 @@ class _LogFeatureViewState extends State<LogFeatureView> {
     );
   }
 
-  Widget _buildViewerArea(BuildContext context) {
+  Widget _buildViewerArea(BuildContext context, LogController controller) {
     final filtered = controller.filteredLogs;
     final matches = controller.searchMatchIndices;
-    return _buildLogViewerStack(filtered, matches);
+    return _buildLogViewerStack(context, controller, filtered, matches);
   }
 
-  Widget _buildLogViewer(List<LogEntry> filtered, List<int> matches) {
+  Widget _buildLogViewer(
+    LogController controller,
+    List<LogEntry> filtered,
+    List<int> matches,
+  ) {
     final safeIndex = matches.isEmpty
         ? null
         : controller.currentSearchMatchLogIndex(matches);
@@ -262,7 +267,8 @@ class _LogFeatureViewState extends State<LogFeatureView> {
       onRowSelectionStart: controller.beginRowSelectionGesture,
       onSelectedRowsChanged: controller.setSelectedRows,
       onRowSelectionChanged: controller.setRowSelected,
-      onRowCopyAction: _handleRowCopyAction,
+      onRowCopyAction: (index, action) =>
+          _handleRowCopyAction(controller, index, action),
       onToggleRowSelectionMode: controller.toggleRowSelectionMode,
       onSelectedTextChanged: controller.setSelectedSearchText,
       search: controller.appliedInlineSearch,
@@ -277,17 +283,30 @@ class _LogFeatureViewState extends State<LogFeatureView> {
     );
   }
 
-  Widget _buildLogViewerStack(List<LogEntry> filtered, List<int> matches) {
+  Widget _buildLogViewerStack(
+    BuildContext context,
+    LogController controller,
+    List<LogEntry> filtered,
+    List<int> matches,
+  ) {
     return Stack(
       children: [
-        _buildLogViewer(filtered, matches),
+        _buildLogViewer(controller, filtered, matches),
         if (controller.logs.isEmpty)
           CenteredStateMessage(
-            icon: controller.isRunning ? Icons.sync : Icons.play_circle_outline,
-            title: controller.isRunning
+            icon: controller.isImported
+                ? Icons.description_outlined
+                : controller.isRunning
+                ? Icons.sync
+                : Icons.play_circle_outline,
+            title: controller.isImported
+                ? 'Empty log file'
+                : controller.isRunning
                 ? 'Waiting for logs from ${session.device.displayName}'
                 : 'Ready to capture logs',
-            description: controller.isRunning
+            description: controller.isImported
+                ? 'The imported file contained no parseable log entries.'
+                : controller.isRunning
                 ? 'Keep this tab open while logs stream from the device.'
                 : 'Press the play button to start streaming logs for this device.',
           ),
@@ -378,7 +397,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
     );
   }
 
-  Widget _buildStatusBar(BuildContext context) {
+  Widget _buildStatusBar(BuildContext context, LogController controller) {
     final theme = context.eaglyTheme;
 
     return Container(
@@ -411,7 +430,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
             style: theme.statusBarStyle,
           ),
           const Gap(8),
-          _buildLogLinesEditor(context),
+          _buildLogLinesEditor(context, controller),
           const Gap(8),
           SizedBox(
             height: 18,
@@ -422,22 +441,32 @@ class _LogFeatureViewState extends State<LogFeatureView> {
             ),
           ),
           const Gap(8),
-          Text(
-            controller.isPaused
-                ? 'Paused'
-                : controller.isRunning
-                ? 'Live'
-                : 'Stopped',
-            style: TextStyle(
-              fontSize: 12,
-              color: controller.isPaused
-                  ? theme.statusPausedColor
+          if (controller.isImported)
+            Text(
+              'Imported',
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.statusBarStyle.color,
+                fontWeight: FontWeight.bold,
+              ),
+            )
+          else
+            Text(
+              controller.isPaused
+                  ? 'Paused'
                   : controller.isRunning
-                  ? theme.statusLiveColor
-                  : theme.statusStoppedColor,
-              fontWeight: FontWeight.bold,
+                  ? 'Live'
+                  : 'Stopped',
+              style: TextStyle(
+                fontSize: 12,
+                color: controller.isPaused
+                    ? theme.statusPausedColor
+                    : controller.isRunning
+                    ? theme.statusLiveColor
+                    : theme.statusStoppedColor,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
           ListenableBuilder(
             listenable: AppLogger.global.entriesListenable,
             builder: (context, _) {
@@ -467,7 +496,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
     );
   }
 
-  Widget _buildLogLinesEditor(BuildContext context) {
+  Widget _buildLogLinesEditor(BuildContext context, LogController controller) {
     return Container(
       height: 24,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

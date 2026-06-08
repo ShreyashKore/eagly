@@ -1,33 +1,26 @@
-import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 
-import '../../../session/device_session_controller.dart';
 import '../log_controller.dart';
+import '../log_session_manager.dart';
 
-/// Toolbar for the Logs feature: capture controls (start/pause/clear), copy /
-/// row-selection, search, view toggles, export, and app install (a device-level
-/// action surfaced here, delegated to the [DeviceSessionController]).
+/// Toolbar for the Logs feature: log-tab strip, capture controls
+/// (start/pause/clear), copy/row-selection, search, view toggles, export,
+/// and import. The install feature has moved to the feature rail.
 class Toolbar extends StatelessWidget {
-  final LogController controller;
-  final DeviceSessionController session;
-  final Future<void> Function()? onInstallApp;
-  final ValueChanged<List<String>> onInstallDrop;
-  final ValueChanged<bool> onInstallDropActiveChanged;
-  final bool isInstallDropActive;
-  final VoidCallback? onExport;
-  final VoidCallback? onCopyAll;
-
   const Toolbar({
     super.key,
     required this.controller,
-    required this.session,
-    required this.onInstallApp,
-    required this.onInstallDrop,
-    required this.onInstallDropActiveChanged,
-    required this.isInstallDropActive,
+    required this.logManager,
+    required this.onImportLog,
     required this.onExport,
     required this.onCopyAll,
   });
+
+  final LogController controller;
+  final LogSessionManager logManager;
+  final VoidCallback? onImportLog;
+  final VoidCallback? onExport;
+  final VoidCallback? onCopyAll;
 
   @override
   Widget build(BuildContext context) {
@@ -41,44 +34,54 @@ class Toolbar extends StatelessWidget {
       ),
     );
 
-    final isConnected = session.isConnected;
-
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
       child: Row(
         spacing: 4,
         children: [
-          // ── Start / Restart ───────────────────────────────────────────────
-          ToolbarIconButton(
-            icon: controller.isRunning
-                ? Icons.restart_alt_rounded
-                : Icons.play_arrow,
-            tooltip: !isConnected
-                ? 'Device is disconnected'
-                : controller.isRunning
-                ? 'Restart'
-                : 'Start',
-            onPressed: !isConnected ? null : controller.startLogcat,
-          ),
-          // ── Pause / Resume ────────────────────────────────────────────────
-          ToolbarIconButton(
-            icon: controller.isPaused ? Icons.play_arrow : Icons.pause,
-            tooltip: controller.isRunning
-                ? (controller.isPaused ? 'Resume' : 'Pause')
-                : 'Not running',
-            isActive: controller.isPaused,
-            onPressed: controller.isRunning
-                ? controller.togglePauseResume
-                : null,
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: controller.logs.isNotEmpty
-                ? 'Clear logs'
-                : 'No logs to clear',
-            onPressed: controller.logs.isNotEmpty ? controller.clearLogs : null,
-          ),
-          const Spacer(),
+          // ── Live-only capture controls ────────────────────────────────
+          if (!controller.isImported) ...[
+            ToolbarIconButton(
+              icon: controller.isRunning
+                  ? Icons.restart_alt_rounded
+                  : Icons.play_arrow,
+              tooltip: !controller.isConnected
+                  ? 'Device is disconnected'
+                  : controller.isRunning
+                  ? 'Restart'
+                  : 'Start',
+              onPressed: !controller.isConnected
+                  ? null
+                  : controller.startLogcat,
+            ),
+            ToolbarIconButton(
+              icon: controller.isPaused ? Icons.play_arrow : Icons.pause,
+              tooltip: controller.isRunning
+                  ? (controller.isPaused ? 'Resume' : 'Pause')
+                  : 'Not running',
+              isActive: controller.isPaused,
+              onPressed: controller.isRunning
+                  ? controller.togglePauseResume
+                  : null,
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: controller.logs.isNotEmpty
+                  ? 'Clear logs'
+                  : 'No logs to clear',
+              onPressed: controller.logs.isNotEmpty
+                  ? controller.clearLogs
+                  : null,
+            ),
+            divider,
+          ],
+
+          // ── Log tab strip ─────────────────────────────────────────────
+          _LogTabStrip(logManager: logManager),
+          Spacer(),
+          divider,
+
+          // ── Copy / row-select ────────────────────────────────────────
           IconButton(
             icon: const Icon(Icons.copy_all_outlined),
             tooltip: controller.hasAnyCachedLogs
@@ -86,7 +89,6 @@ class Toolbar extends StatelessWidget {
                 : 'No logs to copy',
             onPressed: controller.hasAnyCachedLogs ? onCopyAll : null,
           ),
-          // ── Row selection mode ────────────────────────────────────────────
           ToolbarIconButton(
             icon: controller.rowSelectionMode
                 ? Icons.checklist_rounded
@@ -106,7 +108,8 @@ class Toolbar extends StatelessWidget {
               onPressed: controller.clearSelectedRows,
             ),
           divider,
-          // ── Search ────────────────────────────────────────────────────────
+
+          // ── Search / wrap / auto-scroll ───────────────────────────────
           ToolbarIconButton(
             icon: Icons.search,
             tooltip: controller.searchBarVisible
@@ -121,14 +124,12 @@ class Toolbar extends StatelessWidget {
               }
             },
           ),
-          // ── Wrap text ─────────────────────────────────────────────────────
           ToolbarIconButton(
             icon: controller.wrapText ? Icons.wrap_text : Icons.notes,
             tooltip: controller.wrapText ? 'Disable Wrap' : 'Enable Wrap',
             isActive: controller.wrapText,
             onPressed: controller.toggleWrapText,
           ),
-          // ── Auto-scroll ───────────────────────────────────────────────────
           ToolbarIconButton(
             icon: controller.autoScroll
                 ? Icons.vertical_align_bottom
@@ -140,18 +141,17 @@ class Toolbar extends StatelessWidget {
             onPressed: controller.toggleAutoScroll,
           ),
           divider,
+
+          // ── Export / import ───────────────────────────────────────────
           IconButton(
             onPressed: onExport,
             icon: const Icon(Icons.file_upload),
-            tooltip: 'Export Logs',
+            tooltip: 'Export logs',
           ),
-          _InstallButton(
-            session: session,
-            isConnected: isConnected,
-            isInstallDropActive: isInstallDropActive,
-            onInstallApp: onInstallApp,
-            onInstallDrop: onInstallDrop,
-            onInstallDropActiveChanged: onInstallDropActiveChanged,
+          IconButton(
+            onPressed: onImportLog,
+            icon: const Icon(Icons.file_download_outlined),
+            tooltip: 'Import log file',
           ),
         ],
       ),
@@ -159,64 +159,166 @@ class Toolbar extends StatelessWidget {
   }
 }
 
-/// Install button wrapped in a drop target so an APK / IPA can be dropped onto
-/// it to install on this device.
-class _InstallButton extends StatelessWidget {
-  const _InstallButton({
-    required this.session,
-    required this.isConnected,
-    required this.isInstallDropActive,
-    required this.onInstallApp,
-    required this.onInstallDrop,
-    required this.onInstallDropActiveChanged,
-  });
+// ── Log tab strip ──────────────────────────────────────────────────────────
 
-  final DeviceSessionController session;
-  final bool isConnected;
-  final bool isInstallDropActive;
-  final Future<void> Function()? onInstallApp;
-  final ValueChanged<List<String>> onInstallDrop;
-  final ValueChanged<bool> onInstallDropActiveChanged;
+class _LogTabStrip extends StatefulWidget {
+  const _LogTabStrip({required this.logManager});
+
+  final LogSessionManager logManager;
+
+  @override
+  State<_LogTabStrip> createState() => _LogTabStripState();
+}
+
+class _LogTabStripState extends State<_LogTabStrip> {
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return DropTarget(
-      onDragEntered: (_) => onInstallDropActiveChanged(true),
-      onDragExited: (_) => onInstallDropActiveChanged(false),
-      onDragDone: (details) {
-        onInstallDropActiveChanged(false);
-        onInstallDrop(
-          details.files.map((file) => file.path).toList(growable: false),
+    return ListenableBuilder(
+      listenable: widget.logManager,
+      builder: (context, _) {
+        final manager = widget.logManager;
+        return SingleChildScrollView(
+          controller: _scroll,
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (var i = 0; i < manager.tabs.length; i++)
+                _LogTabChip(
+                  label: manager.labelFor(i),
+                  isImported: manager.tabs[i].isImported,
+                  selected: i == manager.selectedIndex,
+                  canClose: manager.canClose(i),
+                  onTap: () => manager.selectTab(i),
+                  onClose: manager.canClose(i)
+                      ? () => manager.closeTab(i)
+                      : null,
+                ),
+              // ── + New live tab ────────────────────────────────────────
+              Tooltip(
+                message: 'New live log tab',
+                child: InkWell(
+                  onTap: manager.addLiveTab,
+                  mouseCursor: SystemMouseCursors.click,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 4,
+                    ),
+                    child: Icon(
+                      Icons.add,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isInstallDropActive
-                ? theme.colorScheme.primary
-                : Colors.transparent,
-            width: 1.4,
+    );
+  }
+}
+
+class _LogTabChip extends StatelessWidget {
+  const _LogTabChip({
+    required this.label,
+    required this.isImported,
+    required this.selected,
+    required this.canClose,
+    required this.onTap,
+    required this.onClose,
+  });
+
+  final String label;
+  final bool isImported;
+  final bool selected;
+  final bool canClose;
+  final VoidCallback onTap;
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    final bg = selected
+        ? (isImported
+              ? cs.tertiaryContainer.withValues(alpha: 0.8)
+              : cs.secondaryContainer.withValues(alpha: 0.85))
+        : Colors.transparent;
+
+    final fg = selected
+        ? (isImported ? cs.onTertiaryContainer : cs.onSecondaryContainer)
+        : cs.onSurfaceVariant;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: Tooltip(
+        message: label,
+        waitDuration: const Duration(milliseconds: 600),
+        child: InkWell(
+          onTap: onTap,
+          mouseCursor: SystemMouseCursors.click,
+          borderRadius: BorderRadius.circular(6),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding: const EdgeInsets.only(
+              left: 8,
+              right: 4,
+              top: 3,
+              bottom: 3,
+            ),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: selected
+                    ? fg.withValues(alpha: 0.25)
+                    : Colors.transparent,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isImported) ...[
+                  Icon(Icons.description_outlined, size: 11, color: fg),
+                  const SizedBox(width: 4),
+                ],
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 90),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: selected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                      color: fg,
+                    ),
+                  ),
+                ),
+                if (onClose != null) ...[
+                  const SizedBox(width: 2),
+                  GestureDetector(
+                    onTap: onClose,
+                    child: Icon(Icons.close, size: 12, color: fg),
+                  ),
+                ] else
+                  const SizedBox(width: 4),
+              ],
+            ),
           ),
-        ),
-        child: IconButton(
-          onPressed: onInstallApp == null ? null : () => onInstallApp!.call(),
-          icon: session.isInstallingApp
-              ? const SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.app_registration_outlined),
-          tooltip: session.isInstallingApp
-              ? (session.installingAppName == null
-                    ? 'Installing app…'
-                    : 'Installing ${session.installingAppName}…')
-              : isConnected
-              ? 'Install app on this device'
-              : 'Reconnect the device to install an app',
         ),
       ),
     );

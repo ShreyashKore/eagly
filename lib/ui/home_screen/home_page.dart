@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:eagly/constants/local_assets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -33,7 +34,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool get _supportsDesktopMenuBar => Platform.isMacOS;
 
-  LogController? get _activeLog => _manager.selected?.logController;
+  LogController? get _activeLog =>
+      _manager.selected?.logSessionManager.selectedTab;
 
   @override
   void initState() {
@@ -340,7 +342,8 @@ class _HomeScreenState extends State<HomeScreen> {
             members: [
               PlatformMenuItem(
                 label: 'Toggle Wrap Text',
-                onSelected: () => _runOnActiveLog((log) => log.toggleWrapText()),
+                onSelected: () =>
+                    _runOnActiveLog((log) => log.toggleWrapText()),
               ),
               PlatformMenuItem(
                 label: 'Toggle Auto-scroll',

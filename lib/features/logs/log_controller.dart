@@ -13,6 +13,7 @@ import '../../data/log_level.dart';
 import '../../data/log_tab_settings.dart';
 import '../../data/log_view_mode.dart';
 import '../../services/log_file_service.dart';
+import '../../session/device_session_controller.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/log_buffer.dart';
 import '../../utils/log_entry_utils.dart';
@@ -27,7 +28,7 @@ enum LogcatState { stopped, running, paused }
 class LogController extends FeatureController {
   static const int _maxRecentFilterValues = 8;
 
-  LogController(super.seslsion, {required LogTabSettings initialSettings})
+  LogController(super.session, {required LogTabSettings initialSettings})
     : _settings = initialSettings,
       _logsBuffer = LogBuffer<LogEntry>(
         baseCapacity: initialSettings.logLinesLimit,
@@ -39,6 +40,17 @@ class LogController extends FeatureController {
     inlineFilterController.text = _composeInlineFilterText();
     logLinesController.text = logLinesLimit.toString();
     _syncLogBufferFilter();
+  }
+
+  /// Creates a controller pre-loaded with [entries] from a log file.
+  /// Live capture, clear, and start/stop are disabled.
+  factory LogController.imported(
+    DeviceSessionController session, {
+    required LogTabSettings initialSettings,
+  }) {
+    final ctrl = LogController(session, initialSettings: initialSettings);
+    ctrl._isImported = true;
+    return ctrl;
   }
 
   final ScrollController scrollController = ScrollController();
@@ -100,6 +112,8 @@ class LogController extends FeatureController {
   var _disposed = false;
   var _activated = false;
   var _wasRunningBeforeDisconnect = false;
+  var _isImported = false;
+  String? _importedFileName;
   LogTabSettings _settings;
 
   List<LogEntry>? _cachedFilteredLogs;
@@ -125,6 +139,8 @@ class LogController extends FeatureController {
   }
 
   String get appLogSessionTag => device.id;
+  bool get isImported => _isImported;
+  String? get importedFileName => _importedFileName;
 
   bool get searchBarVisible => _searchBarVisible;
   bool get searchCaseSensitive => _inlineSearch.caseSensitive;
@@ -216,11 +232,20 @@ class LogController extends FeatureController {
 
   /// Called when this device's tab is first activated. Starts log capture once.
   void activate() {
-    if (_disposed || _activated) return;
+    if (_isImported || _disposed || _activated) return;
     _activated = true;
     if (isConnected) {
       unawaited(startLogcat());
     }
+  }
+
+  /// Replaces the log buffer with [entries] imported from a file.
+  /// Only valid on controllers created via [LogController.imported].
+  void loadImportedEntries(List<LogEntry> entries, String fileName) {
+    assert(_isImported);
+    _importedFileName = fileName;
+    _replaceStoredLogs(entries);
+    _notify();
   }
 
   void focusFilterInputs() {
@@ -1380,6 +1405,7 @@ class LogController extends FeatureController {
 
   @override
   void onDeviceDisconnected() {
+    if (_isImported) return;
     if (!isRunning) {
       _wasRunningBeforeDisconnect = false;
       return;
@@ -1402,7 +1428,7 @@ class LogController extends FeatureController {
 
   @override
   void onDeviceConnected() {
-    if (!_activated) return;
+    if (_isImported || !_activated) return;
     final shouldRestart = _wasRunningBeforeDisconnect;
     _wasRunningBeforeDisconnect = false;
     _appendSessionStateEntry(

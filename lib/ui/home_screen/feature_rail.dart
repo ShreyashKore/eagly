@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../../session/device_session_controller.dart';
 
-/// Far-left vertical rail listing the features available for a device. Logs is
-/// always open; Mirror toggles its pane open/closed alongside Logs.
+/// Far-left vertical rail listing the features available for a device.
+/// Logs is always open; Mirror toggles its pane; Install opens a file picker.
 class FeatureRail extends StatelessWidget {
-  const FeatureRail({super.key, required this.session});
+  const FeatureRail({
+    super.key,
+    required this.session,
+    required this.onInstall,
+  });
 
   final DeviceSessionController session;
+  final VoidCallback onInstall;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +50,24 @@ class FeatureRail extends StatelessWidget {
                     : 'Screen mirror supports connected Android devices',
                 onTap: session.canMirror || session.isMirrorOpen
                     ? session.toggleMirror
+                    : null,
+              ),
+              _RailButton(
+                icon: session.isInstallingApp
+                    ? Icons.hourglass_top_rounded
+                    : Icons.system_update_outlined,
+                label: 'Install',
+                isActive: session.isInstallingApp,
+                enabled: session.isConnected,
+                tooltip: session.isInstallingApp
+                    ? (session.installingAppName == null
+                          ? 'Installing…'
+                          : 'Installing ${session.installingAppName}…')
+                    : session.isConnected
+                    ? 'Install app on this device'
+                    : 'Connect the device to install an app',
+                onTap: session.isConnected && !session.isInstallingApp
+                    ? onInstall
                     : null,
               ),
             ],

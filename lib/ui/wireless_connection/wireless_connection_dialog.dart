@@ -36,7 +36,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
       final session = manager.selected;
       return session != null &&
           session.isActivated &&
-          session.logController.isRunning;
+          (session.logSessionManager.selectedTab?.isRunning ?? false);
     },
   );
 

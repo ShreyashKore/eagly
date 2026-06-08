@@ -3,12 +3,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../data/device.dart';
-import '../data/log_tab_settings.dart';
-import '../features/logs/log_controller.dart';
+import '../features/logs/log_session_manager.dart';
 import '../features/mirror/mirror_controller.dart';
 import '../services/app_install_service.dart';
 import '../services/device_session_service.dart';
-import '../services/preferences_service.dart';
 import '../utils/utils.dart';
 
 /// Owns everything for a single device session: the live [Device] + its
@@ -19,18 +17,15 @@ class DeviceSessionController extends ChangeNotifier {
   DeviceSessionController({
     required Device device,
     DeviceSessionService? service,
-    LogTabSettings? initialLogSettings,
   }) : _device = device,
-       _initialLogSettings = initialLogSettings,
        service = service ?? DeviceSessionService(device: device) {
     this.service.sessionLabel = device.id;
   }
 
   Device _device;
-  final LogTabSettings? _initialLogSettings;
   final DeviceSessionService service;
 
-  LogController? _logController;
+  LogSessionManager? _logSessionManager;
   MirrorController? _mirrorController;
 
   bool _mirrorOpen = false;
@@ -47,12 +42,8 @@ class DeviceSessionController extends ChangeNotifier {
   /// Whether this device can be screen-mirrored right now.
   bool get canMirror => _device is AndroidDevice && _device.isConnected;
 
-  LogController get logController =>
-      _logController ??= LogController(
-        this,
-        initialSettings:
-            _initialLogSettings ?? PreferencesService.defaultTabSettings,
-      );
+  LogSessionManager get logSessionManager =>
+      _logSessionManager ??= LogSessionManager(session: this);
 
   MirrorController get mirrorController =>
       _mirrorController ??= MirrorController(this);
@@ -70,7 +61,7 @@ class DeviceSessionController extends ChangeNotifier {
   void activate() {
     if (_disposed || _activated) return;
     _activated = true;
-    logController.activate();
+    logSessionManager.activateFirst();
     _notify();
   }
 
@@ -207,7 +198,7 @@ class DeviceSessionController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _logController?.dispose();
+    _logSessionManager?.dispose();
     _mirrorController?.dispose();
     unawaited(service.dispose());
     super.dispose();
