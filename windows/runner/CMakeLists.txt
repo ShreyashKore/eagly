@@ -11,6 +11,8 @@ add_executable(${BINARY_NAME} WIN32
   "main.cpp"
   "utils.cpp"
   "win32_window.cpp"
+  "scrcpy_video_plugin.cpp"
+  "${CMAKE_SOURCE_DIR}/../native/scrcpy_video_decoder.cc"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
   "Runner.rc"
   "runner.exe.manifest"
@@ -35,6 +37,29 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
+
+# Shared scrcpy H.264 decoder (native/) needs FFmpeg's libavcodec/libavutil.
+# The runtime DLLs (avcodec-62/avutil-60/avformat-62) already ship in
+# platform-tools/windows; build-time headers + import libs come from FFmpeg dev
+# (e.g. `vcpkg install ffmpeg`). Prefer pkg-config; otherwise set
+# -DFFMPEG_INCLUDE_DIR=... -DFFMPEG_LIB_DIR=... when configuring.
+target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/../native")
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+  pkg_check_modules(FFMPEG IMPORTED_TARGET libavcodec libavutil)
+endif()
+if(TARGET PkgConfig::FFMPEG)
+  target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::FFMPEG)
+else()
+  if(NOT DEFINED FFMPEG_INCLUDE_DIR OR NOT DEFINED FFMPEG_LIB_DIR)
+    message(FATAL_ERROR
+      "FFmpeg not found via pkg-config. Install FFmpeg dev (e.g. vcpkg install ffmpeg) "
+      "or pass -DFFMPEG_INCLUDE_DIR=<dir> -DFFMPEG_LIB_DIR=<dir>.")
+  endif()
+  target_include_directories(${BINARY_NAME} PRIVATE "${FFMPEG_INCLUDE_DIR}")
+  target_link_directories(${BINARY_NAME} PRIVATE "${FFMPEG_LIB_DIR}")
+  target_link_libraries(${BINARY_NAME} PRIVATE avcodec avutil)
+endif()
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
