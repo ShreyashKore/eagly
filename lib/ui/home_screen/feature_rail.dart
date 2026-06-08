@@ -25,6 +25,7 @@ class FeatureRail extends StatelessWidget {
             ),
           ),
           child: Column(
+            spacing: 8,
             children: [
               const SizedBox(height: 8),
               _RailButton(
@@ -83,16 +84,17 @@ class _RailButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: const EdgeInsets.all(4),
         child: InkWell(
           onTap: enabled ? onTap : null,
+          mouseCursor: SystemMouseCursors.click,
           borderRadius: BorderRadius.circular(10),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
             decoration: BoxDecoration(
               color: isActive
-                  ? colorScheme.primaryContainer.withValues(alpha: 0.55)
+                  ? colorScheme.primaryContainer.withValues(alpha: 1)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
             ),
@@ -100,10 +102,7 @@ class _RailButton extends StatelessWidget {
               children: [
                 Icon(icon, size: 22, color: foreground),
                 const SizedBox(height: 2),
-                Text(
-                  label,
-                  style: TextStyle(fontSize: 11, color: foreground),
-                ),
+                Text(label, style: TextStyle(fontSize: 11, color: foreground)),
               ],
             ),
           ),

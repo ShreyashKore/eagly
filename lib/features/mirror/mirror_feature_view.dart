@@ -69,8 +69,7 @@ class _MirrorControlStrip extends StatelessWidget {
     Widget keyButton(IconData icon, String tooltip, ScrcpyKey key) {
       return IconButton(
         tooltip: tooltip,
-        iconSize: 20,
-        visualDensity: VisualDensity.compact,
+        iconSize: 16,
         onPressed: controlEnabled ? () => controller.handleKey(key) : null,
         icon: Icon(icon),
       );
@@ -85,8 +84,7 @@ class _MirrorControlStrip extends StatelessWidget {
     }) {
       return IconButton(
         tooltip: tooltip,
-        iconSize: 20,
-        visualDensity: VisualDensity.compact,
+        iconSize: 16,
         color: color,
         onPressed: enabled ? () => onTap() : null,
         icon: Icon(icon),
@@ -135,7 +133,6 @@ class _MirrorControlStrip extends StatelessWidget {
               () => _rotate(context),
               enabled: running,
             ),
-            _QualityButton(controller: controller),
             const Gap(8),
             divider(),
             const Gap(8),
@@ -201,7 +198,9 @@ class _MirrorControlStrip extends StatelessWidget {
         );
       }
     } catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text('Recording failed: $error')));
+      messenger.showSnackBar(
+        SnackBar(content: Text('Recording failed: $error')),
+      );
     }
   }
 
@@ -222,13 +221,17 @@ class _MirrorControlStrip extends StatelessWidget {
         return;
       }
       final outPath = path.toLowerCase().endsWith('.mp4') ? path : '$path.mp4';
-      messenger.showSnackBar(const SnackBar(content: Text('Saving recording…')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Saving recording…')),
+      );
       await controller.stopRecording(outPath);
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text('Recording saved to $outPath')));
     } catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text('Recording failed: $error')));
+      messenger.showSnackBar(
+        SnackBar(content: Text('Recording failed: $error')),
+      );
     }
   }
 
@@ -253,7 +256,7 @@ class _QualityButton extends StatelessWidget {
     final theme = Theme.of(context);
     return PopupMenuButton<MirrorQuality>(
       tooltip: 'Video quality (${controller.mirrorQuality.label})',
-      icon: const Icon(Icons.high_quality_outlined, size: 20),
+      icon: const Icon(Icons.high_quality_outlined, size: 18),
       initialValue: controller.mirrorQuality,
       onSelected: controller.setQuality,
       itemBuilder: (context) => [
@@ -312,8 +315,6 @@ class _Header extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.mobile_screen_share, color: theme.colorScheme.primary),
-          const Gap(8),
           Expanded(
             child: Text(
               'Screen mirror',
@@ -340,6 +341,7 @@ class _Header extends StatelessWidget {
                   : Icons.play_arrow,
             ),
           ),
+          _QualityButton(controller: controller),
           IconButton(
             tooltip: 'Close mirror pane',
             onPressed: onClose,
@@ -374,7 +376,11 @@ class _PaneBody extends StatelessWidget {
       );
     }
 
-    final (:icon, :title, :description) = switch (controller.screenMirrorState) {
+    final (
+      :icon,
+      :title,
+      :description,
+    ) = switch (controller.screenMirrorState) {
       ScreenMirrorState.starting => (
         icon: Icons.hourglass_top_rounded,
         title: 'Starting mirror',
@@ -413,7 +419,11 @@ class _PaneBody extends StatelessWidget {
         children: [
           Icon(icon, size: 42, color: theme.colorScheme.primary),
           const Gap(12),
-          Text(title, style: theme.textTheme.titleMedium, textAlign: TextAlign.center),
+          Text(
+            title,
+            style: theme.textTheme.titleMedium,
+            textAlign: TextAlign.center,
+          ),
           const Gap(8),
           Text(
             description,

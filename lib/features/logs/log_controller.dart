@@ -27,7 +27,7 @@ enum LogcatState { stopped, running, paused }
 class LogController extends FeatureController {
   static const int _maxRecentFilterValues = 8;
 
-  LogController(super.session, {required LogTabSettings initialSettings})
+  LogController(super.seslsion, {required LogTabSettings initialSettings})
     : _settings = initialSettings,
       _logsBuffer = LogBuffer<LogEntry>(
         baseCapacity: initialSettings.logLinesLimit,
@@ -953,7 +953,10 @@ class LogController extends FeatureController {
       packageFilterController,
       parsedFilters.packageText,
     );
-    _setControllerTextIfNeeded(pidTidFilterController, parsedFilters.pidTidText);
+    _setControllerTextIfNeeded(
+      pidTidFilterController,
+      parsedFilters.pidTidText,
+    );
     _setControllerTextIfNeeded(tagFilterController, parsedFilters.tagText);
   }
 

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:window_manager/window_manager.dart';
@@ -46,67 +47,57 @@ class AppHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
-                child: DragToMoveArea(
-                  child: Row(
-                    children: [
-                      if (macWindowButtonInset > 0)
-                        SizedBox(width: macWindowButtonInset),
-                      _Brand(onTap: manager.goHome),
-                      const Gap(12),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              for (final session in manager.sessions)
-                                _DeviceTab(
-                                  key: ValueKey(session.id),
-                                  session: session,
-                                  selected: manager.selectedId == session.id,
-                                  onSelect: () => manager.select(session.id),
-                                  onClose: manager.canClose(session.id)
-                                      ? () => manager.close(session.id)
-                                      : null,
-                                ),
-                            ],
+                child: GestureDetector(
+                  onSecondaryTapUp: (details) => _showHeaderMenu(
+                    context,
+                    details.globalPosition,
+                    manager: manager,
+                    onShowWireless: onShowWireless,
+                    onOpenSettings: onOpenSettings,
+                  ),
+                  child: DragToMoveArea(
+                    child: Row(
+                      children: [
+                        if (macWindowButtonInset > 0)
+                          SizedBox(width: macWindowButtonInset),
+                        _Brand(onTap: manager.goHome),
+                        const Gap(12),
+                        Expanded(child: _DeviceTabStrip(manager: manager)),
+                        const Gap(8),
+                        _HeaderAction(
+                          icon: Icons.home_outlined,
+                          tooltip: 'Home',
+                          isActive: manager.isHome,
+                          onPressed: manager.goHome,
+                        ),
+                        _HeaderAction(
+                          icon: manager.isLoadingDevices ? null : Icons.usb,
+                          tooltip: 'Load / refresh devices',
+                          busy: manager.isLoadingDevices,
+                          onPressed: () => manager.refreshDevices(),
+                        ),
+                        _HeaderAction(
+                          icon: Icons.wifi_tethering_outlined,
+                          tooltip: 'Wireless ADB',
+                          onPressed: onShowWireless,
+                        ),
+                        const Gap(4),
+                        SizedBox(
+                          height: 22,
+                          child: VerticalDivider(
+                            width: 2,
+                            thickness: 1,
+                            color: theme.colorScheme.outlineVariant,
                           ),
                         ),
-                      ),
-                      const Gap(8),
-                      _HeaderAction(
-                        icon: Icons.home_outlined,
-                        tooltip: 'Home',
-                        isActive: manager.isHome,
-                        onPressed: manager.goHome,
-                      ),
-                      _HeaderAction(
-                        icon: manager.isLoadingDevices ? null : Icons.usb,
-                        tooltip: 'Load / refresh devices',
-                        busy: manager.isLoadingDevices,
-                        onPressed: () => manager.refreshDevices(),
-                      ),
-                      _HeaderAction(
-                        icon: Icons.wifi_tethering_outlined,
-                        tooltip: 'Wireless ADB',
-                        onPressed: onShowWireless,
-                      ),
-                      const Gap(4),
-                      SizedBox(
-                        height: 22,
-                        child: VerticalDivider(
-                          width: 2,
-                          thickness: 1,
-                          color: theme.colorScheme.outlineVariant,
+                        const Gap(4),
+                        _HeaderAction(
+                          icon: Icons.settings_rounded,
+                          tooltip: 'Settings',
+                          onPressed: onOpenSettings,
                         ),
-                      ),
-                      const Gap(4),
-                      _HeaderAction(
-                        icon: Icons.settings_rounded,
-                        tooltip: 'Settings',
-                        onPressed: onOpenSettings,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -130,6 +121,7 @@ class _Brand extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
+      mouseCursor: SystemMouseCursors.click,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         child: Row(
@@ -149,6 +141,71 @@ class _Brand extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DeviceTabStrip extends StatefulWidget {
+  const _DeviceTabStrip({required this.manager});
+
+  final DeviceSessionManager manager;
+
+  @override
+  State<_DeviceTabStrip> createState() => _DeviceTabStripState();
+}
+
+class _DeviceTabStripState extends State<_DeviceTabStrip> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    if (!_scrollController.hasClients) return;
+    final delta = event.scrollDelta.dy != 0
+        ? event.scrollDelta.dy
+        : event.scrollDelta.dx;
+    _scrollController.jumpTo(
+      (_scrollController.offset + delta).clamp(
+        0.0,
+        _scrollController.position.maxScrollExtent,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final manager = widget.manager;
+    return ListenableBuilder(
+      listenable: manager,
+      builder: (context, _) {
+        return Listener(
+          onPointerSignal: _onPointerSignal,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            controller: _scrollController,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final session in manager.sessions)
+                  _DeviceTab(
+                    key: ValueKey(session.id),
+                    session: session,
+                    selected: manager.selectedId == session.id,
+                    onSelect: () => manager.select(session.id),
+                    onClose: manager.canClose(session.id)
+                        ? () => manager.close(session.id)
+                        : null,
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -179,53 +236,72 @@ class _DeviceTab extends StatelessWidget {
             ? theme.colorScheme.surface
             : Colors.transparent;
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
-          child: Material(
-            color: background,
-            borderRadius: BorderRadius.circular(8),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: onSelect,
-              child: Container(
-                padding: const EdgeInsets.only(left: 12, right: 6),
-                decoration: BoxDecoration(
+        final label = device.displayLabel;
+        final tooltipMessage = [
+          label.primary,
+          label.secondary,
+        ].whereType<String>().join('  ·  ');
+
+        return GestureDetector(
+          onSecondaryTapUp: (details) => _showTabContextMenu(
+            context,
+            details.globalPosition,
+            onClose: onClose,
+          ),
+          child: Tooltip(
+            message: tooltipMessage,
+            waitDuration: const Duration(milliseconds: 600),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
+              child: Material(
+                color: background,
+                borderRadius: BorderRadius.circular(8),
+                child: InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: selected
-                        ? theme.colorScheme.outlineVariant
-                        : Colors.transparent,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _ConnectionDot(connected: device.isConnected),
-                    const Gap(6),
-                    DeviceSelectionLabel(
-                      device: device,
-                      maxWidth: 200,
-                      textStyle: theme.textTheme.bodyMedium,
-                      secondaryTextStyle: theme.textTheme.labelSmall,
-                      iconSize: 16,
-                    ),
-                    if (onClose != null) ...[
-                      const Gap(4),
-                      IconButton(
-                        tooltip: 'Close tab',
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 28,
-                          minHeight: 28,
-                        ),
-                        iconSize: 16,
-                        onPressed: onClose,
-                        icon: const Icon(Icons.close),
+                  onTap: onSelect,
+                  mouseCursor: SystemMouseCursors.click,
+                  child: Container(
+                    padding: const EdgeInsets.only(left: 12, right: 6),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: selected
+                            ? theme.colorScheme.outlineVariant
+                            : Colors.transparent,
                       ),
-                    ] else
-                      const Gap(6),
-                  ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ConnectionDot(connected: device.isConnected),
+                        const Gap(6),
+                        DeviceSelectionLabel(
+                          device: device,
+                          maxWidth: 160,
+                          textStyle: theme.textTheme.bodyMedium,
+                          secondaryTextStyle: theme.textTheme.labelSmall,
+                          iconSize: 16,
+                        ),
+                        if (onClose != null) ...[
+                          const Gap(4),
+                          IconButton(
+                            tooltip: 'Close tab',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            mouseCursor: SystemMouseCursors.click,
+                            constraints: const BoxConstraints(
+                              minWidth: 28,
+                              minHeight: 28,
+                            ),
+                            iconSize: 16,
+                            onPressed: onClose,
+                            icon: const Icon(Icons.close),
+                          ),
+                        ] else
+                          const Gap(6),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -279,6 +355,7 @@ class _HeaderAction extends StatelessWidget {
       tooltip: tooltip,
       onPressed: onPressed,
       isSelected: isActive,
+      mouseCursor: SystemMouseCursors.click,
       color: isActive ? colorScheme.primary : null,
       icon: busy
           ? const SizedBox.square(
@@ -286,6 +363,93 @@ class _HeaderAction extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           : Icon(icon),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Context menu helpers
+// ---------------------------------------------------------------------------
+
+RelativeRect _menuPosition(Offset globalPosition) => RelativeRect.fromLTRB(
+  globalPosition.dx,
+  globalPosition.dy,
+  globalPosition.dx,
+  globalPosition.dy,
+);
+
+void _showHeaderMenu(
+  BuildContext context,
+  Offset globalPosition, {
+  required DeviceSessionManager manager,
+  required VoidCallback onShowWireless,
+  required VoidCallback onOpenSettings,
+}) async {
+  final result = await showMenu<_HeaderMenuAction>(
+    context: context,
+    position: _menuPosition(globalPosition),
+    items: const [
+      PopupMenuItem(
+        value: _HeaderMenuAction.wireless,
+        child: _MenuRow(
+          Icons.wifi_tethering_outlined,
+          'Connect via Wireless ADB',
+        ),
+      ),
+      PopupMenuItem(
+        value: _HeaderMenuAction.refresh,
+        child: _MenuRow(Icons.usb, 'Refresh Devices'),
+      ),
+      PopupMenuDivider(),
+      PopupMenuItem(
+        value: _HeaderMenuAction.settings,
+        child: _MenuRow(Icons.settings_rounded, 'Settings'),
+      ),
+    ],
+  );
+  if (result == null) return;
+  switch (result) {
+    case _HeaderMenuAction.wireless:
+      onShowWireless();
+    case _HeaderMenuAction.refresh:
+      manager.refreshDevices();
+    case _HeaderMenuAction.settings:
+      onOpenSettings();
+  }
+}
+
+void _showTabContextMenu(
+  BuildContext context,
+  Offset globalPosition, {
+  required VoidCallback? onClose,
+}) async {
+  if (onClose == null) return;
+  final result = await showMenu<_TabMenuAction>(
+    context: context,
+    position: _menuPosition(globalPosition),
+    items: const [
+      PopupMenuItem(
+        value: _TabMenuAction.close,
+        child: _MenuRow(Icons.close, 'Close Tab'),
+      ),
+    ],
+  );
+  if (result == _TabMenuAction.close) onClose();
+}
+
+enum _HeaderMenuAction { wireless, refresh, settings }
+
+enum _TabMenuAction { close }
+
+class _MenuRow extends StatelessWidget {
+  const _MenuRow(this.icon, this.label);
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [Icon(icon, size: 16), const SizedBox(width: 10), Text(label)],
     );
   }
 }

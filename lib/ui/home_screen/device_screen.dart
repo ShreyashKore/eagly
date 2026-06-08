@@ -87,10 +87,16 @@ class _MirrorPaneResizeHandle extends StatelessWidget {
         behavior: HitTestBehavior.translucent,
         onHorizontalDragUpdate: (details) =>
             mirror.setPaneWidth(mirror.paneWidth + details.delta.dx),
-        child: SizedBox(
+        child: Container(
           width: 8,
+          height: double.infinity,
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.8),
           child: Center(
-            child: Container(width: 1, color: theme.colorScheme.outlineVariant),
+            child: Container(
+              width: 2,
+              height: 24,
+              color: theme.colorScheme.outline.withValues(alpha: 0.6),
+            ),
           ),
         ),
       ),

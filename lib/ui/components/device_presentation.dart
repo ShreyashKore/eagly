@@ -34,7 +34,7 @@ class DeviceLabel extends StatelessWidget {
     final effectiveIconColor =
         iconColor ??
         (device.isDisconnected
-            ? theme.colorScheme.onSurfaceVariant
+            ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
             : theme.colorScheme.primary);
 
     final label = Column(
@@ -53,10 +53,9 @@ class DeviceLabel extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              decoration: device.isDisconnected
-                  ? TextDecoration.lineThrough
-                  : TextDecoration.none,
+              color: device.isDisconnected
+                  ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
+                  : null,
             ),
           ),
       ],
@@ -86,11 +85,8 @@ class DeviceLabel extends StatelessWidget {
     final baseStyle = textStyle ?? theme.textTheme.bodyMedium;
     return baseStyle?.copyWith(
       color: device.isDisconnected
-          ? theme.colorScheme.onSurfaceVariant
+          ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
           : baseStyle.color,
-      decoration: device.isDisconnected
-          ? TextDecoration.lineThrough
-          : TextDecoration.none,
     );
   }
 }
@@ -127,21 +123,25 @@ class DeviceSelectionLabel extends StatelessWidget {
 
     final textColumn = Row(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
       spacing: 6,
       children: [
-        Text(
-          label.primary,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: primaryStyle,
-        ),
-        if (label.secondary != null)
-          Text(
-            label.secondary!,
+        Flexible(
+          child: Text(
+            label.primary,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: secondaryStyle,
+            style: primaryStyle,
+          ),
+        ),
+        if (label.secondary != null)
+          Flexible(
+            child: Text(
+              label.secondary!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: secondaryStyle,
+            ),
           ),
       ],
     );
@@ -170,11 +170,8 @@ class DeviceSelectionLabel extends StatelessWidget {
     final baseStyle = textStyle ?? theme.textTheme.bodySmall;
     return baseStyle?.copyWith(
       color: device.isDisconnected
-          ? theme.colorScheme.onSurfaceVariant
+          ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
           : baseStyle.color,
-      decoration: device.isDisconnected
-          ? TextDecoration.lineThrough
-          : TextDecoration.none,
     );
   }
 
@@ -182,10 +179,9 @@ class DeviceSelectionLabel extends StatelessWidget {
     final baseStyle = secondaryTextStyle ?? theme.textTheme.labelSmall;
     return baseStyle?.copyWith(
       fontSize: 10,
-      color: theme.colorScheme.onSurfaceVariant,
-      decoration: device.isDisconnected
-          ? TextDecoration.lineThrough
-          : TextDecoration.none,
+      color: device.isDisconnected
+          ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
+          : baseStyle.color,
     );
   }
 }

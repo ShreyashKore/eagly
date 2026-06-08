@@ -326,7 +326,9 @@ class _LogFeatureViewState extends State<LogFeatureView> {
                           ),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         child: const Text('Clear filter'),
                       ),
