@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../data/device.dart';
 import '../../data/wireless_debug_models.dart';
 import '../../session/device_session_manager.dart';
+import '../components/eagly_dialog.dart';
 import 'wireless_connection_controller.dart';
 
 class WirelessConnectionDialog extends StatefulWidget {
@@ -600,29 +601,16 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     return AnimatedBuilder(
       animation: Listenable.merge([manager, wirelessController]),
       builder: (context, _) {
-        return AlertDialog(
-          titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+        return EaglyDialog(
+          title: 'Wireless ADB',
+          icon: Icons.wifi_tethering,
+          width: 720,
+          height: 560,
           contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          title: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.wifi_tethering, color: theme.colorScheme.primary),
-              const Gap(12),
-              const Expanded(child: Text('Wireless ADB')),
-              const Spacer(),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: 720,
-            height: 560,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
@@ -700,7 +688,6 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                 ),
               ],
             ),
-          ),
         );
       },
     );

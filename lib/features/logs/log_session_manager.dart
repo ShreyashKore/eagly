@@ -39,7 +39,7 @@ class LogSessionManager extends ChangeNotifier {
         .sublist(0, index + 1)
         .where((t) => !t.isImported)
         .length;
-    return liveRank <= 1 ? 'Live' : 'Live $liveRank';
+    return liveRank <= 1 ? 'Logs' : 'Logs $liveRank';
   }
 
   /// Whether the tab at [index] can be closed. Imported tabs are always

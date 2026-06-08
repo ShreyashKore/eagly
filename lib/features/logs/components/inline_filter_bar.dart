@@ -1,3 +1,4 @@
+import 'package:eagly/ui/components/animation_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -528,15 +529,10 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
 
   Widget _buildHelpSection(BuildContext context) {
     final theme = Theme.of(context);
-    return AnimatedCrossFade(
-      duration: const Duration(milliseconds: 180),
-      firstCurve: Curves.easeOut,
-      secondCurve: Curves.easeIn,
-      crossFadeState: _helpVisible
-          ? CrossFadeState.showSecond
-          : CrossFadeState.showFirst,
-      firstChild: const SizedBox.shrink(),
-      secondChild: Container(
+    return AnimatedSection(
+      visible: _helpVisible,
+      axis: Axis.vertical,
+      child: Container(
         key: const ValueKey('inline-filter-help'),
         width: double.infinity,
         padding: const EdgeInsets.all(12),

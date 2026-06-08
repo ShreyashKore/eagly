@@ -1,3 +1,4 @@
+import 'package:eagly/ui/home_screen/components/context_menu_helper.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
@@ -5,9 +6,8 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../constants/app_constants.dart';
 import '../../constants/local_assets.dart';
-import '../../session/device_session_controller.dart';
 import '../../session/device_session_manager.dart';
-import '../components/device_presentation.dart';
+import 'components/device_tab.dart';
 import 'window_controls.dart';
 
 /// Top app header: logo + name, the horizontal device-tab strip (auto-created
@@ -48,7 +48,7 @@ class AppHeader extends StatelessWidget {
             children: [
               Expanded(
                 child: GestureDetector(
-                  onSecondaryTapUp: (details) => _showHeaderMenu(
+                  onSecondaryTapUp: (details) => showHeaderMenu(
                     context,
                     details.globalPosition,
                     manager: manager,
@@ -57,6 +57,7 @@ class AppHeader extends StatelessWidget {
                   ),
                   child: DragToMoveArea(
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         if (macWindowButtonInset > 0)
                           SizedBox(width: macWindowButtonInset),
@@ -64,12 +65,6 @@ class AppHeader extends StatelessWidget {
                         const Gap(12),
                         Expanded(child: _DeviceTabStrip(manager: manager)),
                         const Gap(8),
-                        _HeaderAction(
-                          icon: Icons.home_outlined,
-                          tooltip: 'Home',
-                          isActive: manager.isHome,
-                          onPressed: manager.goHome,
-                        ),
                         _HeaderAction(
                           icon: manager.isLoadingDevices ? null : Icons.usb,
                           tooltip: 'Load / refresh devices',
@@ -157,6 +152,11 @@ class _DeviceTabStrip extends StatefulWidget {
 class _DeviceTabStripState extends State<_DeviceTabStrip> {
   final _scrollController = ScrollController();
 
+  /// Session ids we've already rendered, so a tab only plays its entrance +
+  /// highlight-wave the first time it appears (i.e. when a device connects).
+  final Set<String> _seenIds = {};
+  bool _firstBuild = true;
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -183,6 +183,19 @@ class _DeviceTabStripState extends State<_DeviceTabStrip> {
     return ListenableBuilder(
       listenable: manager,
       builder: (context, _) {
+        final sessions = manager.sessions;
+
+        // Figure out which tabs are appearing for the first time. On the very
+        // first build everything is "already there" (no entrance), so only
+        // devices that connect later animate in.
+        final currentIds = {for (final s in sessions) s.id};
+        _seenIds.removeWhere((id) => !currentIds.contains(id));
+        final freshIds = <String>{};
+        for (final s in sessions) {
+          if (_seenIds.add(s.id) && !_firstBuild) freshIds.add(s.id);
+        }
+        _firstBuild = false;
+
         return Listener(
           onPointerSignal: _onPointerSignal,
           child: SingleChildScrollView(
@@ -191,11 +204,12 @@ class _DeviceTabStripState extends State<_DeviceTabStrip> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final session in manager.sessions)
-                  _DeviceTab(
+                for (final session in sessions)
+                  DeviceTab(
                     key: ValueKey(session.id),
                     session: session,
                     selected: manager.selectedId == session.id,
+                    animateIn: freshIds.contains(session.id),
                     onSelect: () => manager.select(session.id),
                     onClose: manager.canClose(session.id)
                         ? () => manager.close(session.id)
@@ -206,129 +220,6 @@ class _DeviceTabStripState extends State<_DeviceTabStrip> {
           ),
         );
       },
-    );
-  }
-}
-
-class _DeviceTab extends StatelessWidget {
-  const _DeviceTab({
-    super.key,
-    required this.session,
-    required this.selected,
-    required this.onSelect,
-    required this.onClose,
-  });
-
-  final DeviceSessionController session;
-  final bool selected;
-  final VoidCallback onSelect;
-  final VoidCallback? onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return ListenableBuilder(
-      listenable: session,
-      builder: (context, _) {
-        final device = session.device;
-        final background = selected
-            ? theme.colorScheme.surface
-            : Colors.transparent;
-
-        final label = device.displayLabel;
-        final tooltipMessage = [
-          label.primary,
-          label.secondary,
-        ].whereType<String>().join('  ·  ');
-
-        return GestureDetector(
-          onSecondaryTapUp: (details) => _showTabContextMenu(
-            context,
-            details.globalPosition,
-            onClose: onClose,
-          ),
-          child: Tooltip(
-            message: tooltipMessage,
-            waitDuration: const Duration(milliseconds: 600),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
-              child: Material(
-                color: background,
-                borderRadius: BorderRadius.circular(8),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: onSelect,
-                  mouseCursor: SystemMouseCursors.click,
-                  child: Container(
-                    padding: const EdgeInsets.only(left: 12, right: 6),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: selected
-                            ? theme.colorScheme.outlineVariant
-                            : Colors.transparent,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _ConnectionDot(connected: device.isConnected),
-                        const Gap(6),
-                        DeviceSelectionLabel(
-                          device: device,
-                          maxWidth: 160,
-                          textStyle: theme.textTheme.bodyMedium,
-                          secondaryTextStyle: theme.textTheme.labelSmall,
-                          iconSize: 16,
-                        ),
-                        if (onClose != null) ...[
-                          const Gap(4),
-                          IconButton(
-                            tooltip: 'Close tab',
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                            mouseCursor: SystemMouseCursors.click,
-                            constraints: const BoxConstraints(
-                              minWidth: 28,
-                              minHeight: 28,
-                            ),
-                            iconSize: 16,
-                            onPressed: onClose,
-                            icon: const Icon(Icons.close),
-                          ),
-                        ] else
-                          const Gap(6),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ConnectionDot extends StatelessWidget {
-  const _ConnectionDot({required this.connected});
-
-  final bool connected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: connected
-            ? Colors.green
-            : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-      ),
     );
   }
 }
@@ -363,93 +254,6 @@ class _HeaderAction extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           : Icon(icon),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Context menu helpers
-// ---------------------------------------------------------------------------
-
-RelativeRect _menuPosition(Offset globalPosition) => RelativeRect.fromLTRB(
-  globalPosition.dx,
-  globalPosition.dy,
-  globalPosition.dx,
-  globalPosition.dy,
-);
-
-void _showHeaderMenu(
-  BuildContext context,
-  Offset globalPosition, {
-  required DeviceSessionManager manager,
-  required VoidCallback onShowWireless,
-  required VoidCallback onOpenSettings,
-}) async {
-  final result = await showMenu<_HeaderMenuAction>(
-    context: context,
-    position: _menuPosition(globalPosition),
-    items: const [
-      PopupMenuItem(
-        value: _HeaderMenuAction.wireless,
-        child: _MenuRow(
-          Icons.wifi_tethering_outlined,
-          'Connect via Wireless ADB',
-        ),
-      ),
-      PopupMenuItem(
-        value: _HeaderMenuAction.refresh,
-        child: _MenuRow(Icons.usb, 'Refresh Devices'),
-      ),
-      PopupMenuDivider(),
-      PopupMenuItem(
-        value: _HeaderMenuAction.settings,
-        child: _MenuRow(Icons.settings_rounded, 'Settings'),
-      ),
-    ],
-  );
-  if (result == null) return;
-  switch (result) {
-    case _HeaderMenuAction.wireless:
-      onShowWireless();
-    case _HeaderMenuAction.refresh:
-      manager.refreshDevices();
-    case _HeaderMenuAction.settings:
-      onOpenSettings();
-  }
-}
-
-void _showTabContextMenu(
-  BuildContext context,
-  Offset globalPosition, {
-  required VoidCallback? onClose,
-}) async {
-  if (onClose == null) return;
-  final result = await showMenu<_TabMenuAction>(
-    context: context,
-    position: _menuPosition(globalPosition),
-    items: const [
-      PopupMenuItem(
-        value: _TabMenuAction.close,
-        child: _MenuRow(Icons.close, 'Close Tab'),
-      ),
-    ],
-  );
-  if (result == _TabMenuAction.close) onClose();
-}
-
-enum _HeaderMenuAction { wireless, refresh, settings }
-
-enum _TabMenuAction { close }
-
-class _MenuRow extends StatelessWidget {
-  const _MenuRow(this.icon, this.label);
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [Icon(icon, size: 16), const SizedBox(width: 10), Text(label)],
     );
   }
 }

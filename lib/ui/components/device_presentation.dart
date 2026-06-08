@@ -116,7 +116,7 @@ class DeviceSelectionLabel extends StatelessWidget {
     final effectiveIconColor =
         iconColor ??
         (device.isDisconnected
-            ? theme.colorScheme.onSurfaceVariant
+            ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
             : theme.colorScheme.primary);
     final primaryStyle = _primaryTextStyle(theme);
     final secondaryStyle = _secondaryTextStyle(theme);

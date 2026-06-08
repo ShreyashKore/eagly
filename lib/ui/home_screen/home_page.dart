@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:eagly/constants/local_assets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -68,9 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openSettings() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+    await showSettingsDialog(context);
     if (!mounted) return;
     setState(() {});
   }

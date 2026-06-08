@@ -6,6 +6,7 @@ import '../../features/mirror/mirror_controller.dart';
 import '../../features/mirror/mirror_feature_view.dart';
 import '../../session/device_session_controller.dart';
 import '../../utils/log_feedback.dart';
+import '../components/animation_utils.dart';
 import 'feature_rail.dart';
 
 /// The screen shown for the selected device tab: the feature rail on the far
@@ -64,28 +65,32 @@ class _DeviceScreenState extends State<DeviceScreen> {
       appMemoryBytesListenable: widget.appMemoryBytesListenable,
     );
 
-    if (!widget.session.isMirrorOpen) {
-      return logPane;
-    }
-
     final mirror = widget.session.mirrorController;
-    return ListenableBuilder(
-      listenable: mirror,
-      builder: (context, _) {
-        return Row(
-          children: [
-            SizedBox(
-              width: mirror.paneWidth,
-              child: MirrorFeatureView(
-                controller: mirror,
-                onClose: widget.session.closeMirror,
+
+    return Row(
+      children: [
+        ListenableBuilder(
+          listenable: mirror,
+          builder: (context, _) {
+            return AnimatedSection(
+              visible: widget.session.isMirrorOpen,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: mirror.paneWidth,
+                    child: MirrorFeatureView(
+                      controller: mirror,
+                      onClose: widget.session.closeMirror,
+                    ),
+                  ),
+                  _MirrorPaneResizeHandle(mirror: mirror),
+                ],
               ),
-            ),
-            _MirrorPaneResizeHandle(mirror: mirror),
-            Expanded(child: logPane),
-          ],
-        );
-      },
+            );
+          },
+        ),
+        Expanded(child: logPane),
+      ],
     );
   }
 }

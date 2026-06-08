@@ -6,6 +6,15 @@ import '../../data/log_view_mode.dart';
 import '../../services/app_info_service.dart';
 import '../../services/preferences_service.dart';
 import '../components/app_log_overlay.dart';
+import '../components/eagly_dialog.dart';
+
+/// Presents the settings as a large desktop dialog.
+Future<void> showSettingsDialog(BuildContext context) {
+  return showEaglyDialog<void>(
+    context: context,
+    builder: (_) => const SettingsScreen(),
+  );
+}
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -114,7 +123,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
-            color: Theme.of(context).colorScheme.surfaceContainerHigh,
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Column(
@@ -135,260 +144,244 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        centerTitle: false,
-        elevation: 0,
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 820),
-          child: ListView(
-            padding: const EdgeInsets.all(20),
+    return EaglyDialog(
+      title: 'Settings',
+      icon: Icons.settings_outlined,
+      width: 820,
+      height: 640,
+      contentPadding: EdgeInsets.zero,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+        children: [
+          sectionCard(
+            title: 'Appearance',
             children: [
-              sectionCard(
-                title: 'Appearance',
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text('Theme', style: theme.textTheme.bodyLarge),
-                      ),
-                      ToggleButtons(
-                        isSelected: List.generate(
-                          3,
-                          (i) => i == _themeIndex,
-                          growable: false,
-                        ),
-                        onPressed: (index) => _setThemeByIndex(index),
-                        borderRadius: BorderRadius.circular(6),
-                        selectedBorderColor: theme.colorScheme.primary
-                            .withValues(alpha: 0.5),
-                        constraints: const BoxConstraints(
-                          minWidth: 84,
-                          minHeight: 36,
-                        ),
-                        children: const [
-                          Text('Auto'),
-                          Text('Light'),
-                          Text('Dark'),
-                        ],
-                      ),
-                    ],
+                  Expanded(
+                    child: Text('Theme', style: theme.textTheme.bodyLarge),
+                  ),
+                  ToggleButtons(
+                    isSelected: List.generate(
+                      3,
+                      (i) => i == _themeIndex,
+                      growable: false,
+                    ),
+                    onPressed: (index) => _setThemeByIndex(index),
+                    borderRadius: BorderRadius.circular(6),
+                    selectedBorderColor: theme.colorScheme.primary.withValues(
+                      alpha: 0.5,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 84,
+                      minHeight: 36,
+                    ),
+                    children: const [Text('Auto'), Text('Light'), Text('Dark')],
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Log font size',
+                      style: theme.textTheme.bodyLarge,
+                    ),
                   ),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 12,
                     children: [
-                      Expanded(
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surface,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
                         child: Text(
-                          'Log font size',
-                          style: theme.textTheme.bodyLarge,
+                          'Aa',
+                          style: TextStyle(fontSize: _logFontSize),
                         ),
                       ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        spacing: 12,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surface,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              'Aa',
-                              style: TextStyle(fontSize: _logFontSize),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 200,
-                            child: Slider(
-                              value: _logFontSize,
-                              min: 8,
-                              max: 24,
-                              divisions: 16,
-                              label: _logFontSize.toStringAsFixed(0),
-                              onChanged: (v) {
-                                setState(() => _logFontSize = v);
-                                PreferencesService.logFontSize = v;
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const Gap(16),
-              sectionCard(
-                title: 'Defaults for new tabs',
-                children: [
-                  SwitchListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    value: _wrapText,
-                    title: const Text('Wrap text'),
-                    subtitle: const Text('Message column wraps'),
-                    onChanged: (value) {
-                      setState(() => _wrapText = value);
-                      PreferencesService.wrapText = value;
-                    },
-                  ),
-                  SwitchListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    value: _autoScroll,
-                    title: const Text('Auto-scroll'),
-                    subtitle: const Text('Keep view pinned to latest'),
-                    onChanged: (value) {
-                      setState(() => _autoScroll = value);
-                      PreferencesService.autoScroll = value;
-                    },
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Default log level'),
-                    trailing: SizedBox(
-                      width: 200,
-                      child: DropdownButtonFormField<LogLevel>(
-                        initialValue: _selectedLogLevel,
-                        isExpanded: true,
-                        items: LogLevel.values
-                            .map(
-                              (level) => DropdownMenuItem<LogLevel>(
-                                value: level,
-                                child: Text(level.labelWithCode),
-                              ),
-                            )
-                            .toList(growable: false),
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() => _selectedLogLevel = value);
-                          PreferencesService.selectedLogLevel = value;
-                        },
-                      ),
-                    ),
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Default filter style'),
-                    subtitle: Text(_filterViewMode.description),
-                    trailing: SegmentedButton<LogFilterViewMode>(
-                      segments: LogFilterViewMode.values
-                          .map(
-                            (mode) => ButtonSegment<LogFilterViewMode>(
-                              value: mode,
-                              label: Text(mode.label),
-                            ),
-                          )
-                          .toList(growable: false),
-                      selected: {_filterViewMode},
-                      onSelectionChanged: (selection) {
-                        final mode = selection.first;
-                        setState(() => _filterViewMode = mode);
-                        PreferencesService.filterViewMode = mode;
-                      },
-                    ),
-                  ),
-                  // (no explicit Divider here)
-                  Row(
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Max log lines'),
-                          Text(
-                            'Minimum 1000',
-                            style: theme.textTheme.labelSmall,
-                          ),
-                        ],
-                      ),
-                      Gap(200),
-                      Expanded(
-                        child: TextField(
-                          controller: _logLinesController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(hintText: '50000'),
-                          onSubmitted: (_) => _saveLogLinesLimit(),
+                      SizedBox(
+                        width: 200,
+                        child: Slider(
+                          value: _logFontSize,
+                          min: 8,
+                          max: 24,
+                          divisions: 16,
+                          label: _logFontSize.toStringAsFixed(0),
+                          onChanged: (v) {
+                            setState(() => _logFontSize = v);
+                            PreferencesService.logFontSize = v;
+                          },
                         ),
                       ),
-                      const Gap(12),
-                      FilledButton(
-                        onPressed: _saveLogLinesLimit,
-                        child: const Text('Apply'),
-                      ),
                     ],
-                  ),
-                ],
-              ),
-              const Gap(16),
-              sectionCard(
-                title: 'Stored layout defaults',
-                children: [
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Default hidden columns'),
-                    subtitle: Text(
-                      '${hiddenColumns.length} columns hidden by default',
-                    ),
-                    trailing: TextButton(
-                      onPressed: hiddenColumns.isEmpty
-                          ? null
-                          : _resetHiddenColumns,
-                      child: const Text('Reset'),
-                    ),
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Default column widths'),
-                    subtitle: const Text('Persisted widths for new tabs'),
-                    trailing: TextButton(
-                      onPressed: _resetColumnWidths,
-                      child: const Text('Reset'),
-                    ),
-                  ),
-                ],
-              ),
-              const Gap(16),
-              sectionCard(
-                title: 'About',
-                children: [
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Version'),
-                    trailing: Text(AppInfoService.appVersion),
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('App logs'),
-                    subtitle: const Text(
-                      'Open the internal debugging log viewer and copy full app logs.',
-                    ),
-                    onTap: () => showAppLogDialog(
-                      title: 'App Logs',
-                      context,
-                    ),
-                    trailing: const AppLogTriggerButton(
-                      title: 'App Logs',
-                      tooltip: 'Show app logs',
-                      iconSize: 18,
-                    ),
                   ),
                 ],
               ),
             ],
           ),
-        ),
+          const Gap(16),
+          sectionCard(
+            title: 'Defaults for new tabs',
+            children: [
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: _wrapText,
+                title: const Text('Wrap text'),
+                subtitle: const Text('Message column wraps'),
+                onChanged: (value) {
+                  setState(() => _wrapText = value);
+                  PreferencesService.wrapText = value;
+                },
+              ),
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: _autoScroll,
+                title: const Text('Auto-scroll'),
+                subtitle: const Text('Keep view pinned to latest'),
+                onChanged: (value) {
+                  setState(() => _autoScroll = value);
+                  PreferencesService.autoScroll = value;
+                },
+              ),
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Default log level'),
+                trailing: SizedBox(
+                  width: 200,
+                  child: DropdownButtonFormField<LogLevel>(
+                    initialValue: _selectedLogLevel,
+                    isExpanded: true,
+                    items: LogLevel.values
+                        .map(
+                          (level) => DropdownMenuItem<LogLevel>(
+                            value: level,
+                            child: Text(level.labelWithCode),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() => _selectedLogLevel = value);
+                      PreferencesService.selectedLogLevel = value;
+                    },
+                  ),
+                ),
+              ),
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Default filter style'),
+                subtitle: Text(_filterViewMode.description),
+                trailing: SegmentedButton<LogFilterViewMode>(
+                  segments: LogFilterViewMode.values
+                      .map(
+                        (mode) => ButtonSegment<LogFilterViewMode>(
+                          value: mode,
+                          label: Text(mode.label),
+                        ),
+                      )
+                      .toList(growable: false),
+                  selected: {_filterViewMode},
+                  onSelectionChanged: (selection) {
+                    final mode = selection.first;
+                    setState(() => _filterViewMode = mode);
+                    PreferencesService.filterViewMode = mode;
+                  },
+                ),
+              ),
+              // (no explicit Divider here)
+              Row(
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Max log lines'),
+                      Text('Minimum 1000', style: theme.textTheme.labelSmall),
+                    ],
+                  ),
+                  Gap(200),
+                  Expanded(
+                    child: TextField(
+                      controller: _logLinesController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(hintText: '50000'),
+                      onSubmitted: (_) => _saveLogLinesLimit(),
+                    ),
+                  ),
+                  const Gap(12),
+                  FilledButton(
+                    onPressed: _saveLogLinesLimit,
+                    child: const Text('Apply'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const Gap(16),
+          sectionCard(
+            title: 'Stored layout defaults',
+            children: [
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Default hidden columns'),
+                subtitle: Text(
+                  '${hiddenColumns.length} columns hidden by default',
+                ),
+                trailing: TextButton(
+                  onPressed: hiddenColumns.isEmpty ? null : _resetHiddenColumns,
+                  child: const Text('Reset'),
+                ),
+              ),
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Default column widths'),
+                subtitle: const Text('Persisted widths for new tabs'),
+                trailing: TextButton(
+                  onPressed: _resetColumnWidths,
+                  child: const Text('Reset'),
+                ),
+              ),
+            ],
+          ),
+          const Gap(16),
+          sectionCard(
+            title: 'About',
+            children: [
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Version'),
+                trailing: Text(AppInfoService.appVersion),
+              ),
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('App logs'),
+                subtitle: const Text(
+                  'Open the internal debugging log viewer and copy full app logs.',
+                ),
+                onTap: () => showAppLogDialog(title: 'App Logs', context),
+                trailing: const AppLogTriggerButton(
+                  title: 'App Logs',
+                  tooltip: 'Show app logs',
+                  iconSize: 18,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../ui/components/animation_utils.dart';
 import '../log_controller.dart';
 import '../log_session_manager.dart';
 
@@ -24,136 +25,167 @@ class Toolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final divider = Container(
-      height: 18,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: VerticalDivider(
-        width: 2,
-        thickness: 2,
-        radius: BorderRadius.circular(2),
-      ),
-    );
+    final c = controller;
+    const gap = SizedBox(width: 4);
+    const div = _ToolbarDivider();
+    Widget gapTimes(int n) => SizedBox(width: 4.0 * n);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
       child: Row(
-        spacing: 4,
         children: [
-          // ── Live-only capture controls ────────────────────────────────
-          if (!controller.isImported) ...[
-            ToolbarIconButton(
-              icon: controller.isRunning
-                  ? Icons.restart_alt_rounded
-                  : Icons.play_arrow,
-              tooltip: !controller.isConnected
-                  ? 'Device is disconnected'
-                  : controller.isRunning
-                  ? 'Restart'
-                  : 'Start',
-              onPressed: !controller.isConnected
-                  ? null
-                  : controller.startLogcat,
+          // ── Live-only capture controls (hidden for imported logs) ──────
+          AnimatedSection(
+            visible: !c.isImported,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ToolbarIconButton(
+                  icon: c.isRunning
+                      ? Icons.restart_alt_rounded
+                      : Icons.play_arrow,
+                  tooltip: !c.isConnected
+                      ? 'Device is disconnected'
+                      : c.isRunning
+                      ? 'Restart'
+                      : 'Start',
+                  onPressed: c.isConnected ? c.startLogcat : null,
+                ),
+                gap,
+                ToolbarIconButton(
+                  icon: c.isPaused ? Icons.play_arrow : Icons.pause,
+                  tooltip: c.isRunning
+                      ? (c.isPaused ? 'Resume' : 'Pause')
+                      : 'Not running',
+                  isActive: c.isPaused,
+                  onPressed: c.isRunning ? c.togglePauseResume : null,
+                ),
+                gap,
+                ToolbarIconButton(
+                  icon: Icons.delete_outline,
+                  tooltip: c.logs.isNotEmpty
+                      ? 'Clear logs'
+                      : 'No logs to clear',
+                  onPressed: c.logs.isNotEmpty ? c.clearLogs : null,
+                ),
+                gap,
+                div,
+                gapTimes(3),
+              ],
             ),
-            ToolbarIconButton(
-              icon: controller.isPaused ? Icons.play_arrow : Icons.pause,
-              tooltip: controller.isRunning
-                  ? (controller.isPaused ? 'Resume' : 'Pause')
-                  : 'Not running',
-              isActive: controller.isPaused,
-              onPressed: controller.isRunning
-                  ? controller.togglePauseResume
-                  : null,
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              tooltip: controller.logs.isNotEmpty
-                  ? 'Clear logs'
-                  : 'No logs to clear',
-              onPressed: controller.logs.isNotEmpty
-                  ? controller.clearLogs
-                  : null,
-            ),
-            divider,
-          ],
+          ),
 
           // ── Log tab strip ─────────────────────────────────────────────
           _LogTabStrip(logManager: logManager),
-          Spacer(),
-          divider,
+          const Spacer(),
+          gap,
+          div,
+          gap,
 
-          // ── Copy / row-select ────────────────────────────────────────
-          IconButton(
-            icon: const Icon(Icons.copy_all_outlined),
-            tooltip: controller.hasAnyCachedLogs
-                ? 'Copy all logs'
-                : 'No logs to copy',
-            onPressed: controller.hasAnyCachedLogs ? onCopyAll : null,
-          ),
+          // ── Copy / row-select ─────────────────────────────────────────
           ToolbarIconButton(
-            icon: controller.rowSelectionMode
+            icon: Icons.copy_all_outlined,
+            tooltip: c.hasAnyCachedLogs ? 'Copy all logs' : 'No logs to copy',
+            onPressed: c.hasAnyCachedLogs ? onCopyAll : null,
+          ),
+          gap,
+          ToolbarIconButton(
+            icon: c.rowSelectionMode
                 ? Icons.checklist_rounded
                 : Icons.checklist_outlined,
-            tooltip: controller.rowSelectionMode
+            tooltip: c.rowSelectionMode
                 ? 'Disable row selection mode'
                 : 'Enable row selection mode',
-            isActive: controller.rowSelectionMode,
-            onPressed: controller.filteredLogs.isNotEmpty
-                ? controller.toggleRowSelectionMode
+            isActive: c.rowSelectionMode,
+            onPressed: c.filteredLogs.isNotEmpty
+                ? c.toggleRowSelectionMode
                 : null,
           ),
-          if (controller.hasSelectedRows)
-            IconButton(
-              icon: const Icon(Icons.deselect_outlined),
-              tooltip: 'Clear selected rows',
-              onPressed: controller.clearSelectedRows,
+
+          // ── Deselect (appears only when rows are selected) ────────────
+          AnimatedSection(
+            visible: c.hasSelectedRows,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                gap,
+                ToolbarIconButton(
+                  icon: Icons.deselect_outlined,
+                  tooltip: 'Clear selected rows',
+                  onPressed: c.clearSelectedRows,
+                ),
+              ],
             ),
-          divider,
+          ),
+
+          gap,
+          div,
+          gap,
 
           // ── Search / wrap / auto-scroll ───────────────────────────────
           ToolbarIconButton(
             icon: Icons.search,
-            tooltip: controller.searchBarVisible
+            tooltip: c.searchBarVisible
                 ? 'Close search'
                 : 'Search in logs (Ctrl+F / Cmd+F)',
-            isActive: controller.searchBarVisible,
+            isActive: c.searchBarVisible,
             onPressed: () {
-              if (controller.searchBarVisible) {
-                controller.closeSearchBar();
+              if (c.searchBarVisible) {
+                c.closeSearchBar();
               } else {
-                controller.activateSearchFromSelection();
+                c.activateSearchFromSelection();
               }
             },
           ),
+          gap,
           ToolbarIconButton(
-            icon: controller.wrapText ? Icons.wrap_text : Icons.notes,
-            tooltip: controller.wrapText ? 'Disable Wrap' : 'Enable Wrap',
-            isActive: controller.wrapText,
-            onPressed: controller.toggleWrapText,
+            icon: c.wrapText ? Icons.wrap_text : Icons.notes,
+            tooltip: c.wrapText ? 'Disable Wrap' : 'Enable Wrap',
+            isActive: c.wrapText,
+            onPressed: c.toggleWrapText,
           ),
+          gap,
           ToolbarIconButton(
-            icon: controller.autoScroll
-                ? Icons.vertical_align_bottom
-                : Icons.swipe_down,
-            tooltip: controller.autoScroll
-                ? 'Auto-scroll ON'
-                : 'Auto-scroll OFF',
-            isActive: controller.autoScroll,
-            onPressed: controller.toggleAutoScroll,
+            icon: c.autoScroll ? Icons.vertical_align_bottom : Icons.swipe_down,
+            tooltip: c.autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF',
+            isActive: c.autoScroll,
+            onPressed: c.toggleAutoScroll,
           ),
-          divider,
+          gap,
+          div,
+          gap,
 
           // ── Export / import ───────────────────────────────────────────
-          IconButton(
-            onPressed: onExport,
-            icon: const Icon(Icons.file_upload),
+          ToolbarIconButton(
+            icon: Icons.upload_outlined,
             tooltip: 'Export logs',
+            onPressed: onExport,
           ),
-          IconButton(
-            onPressed: onImportLog,
-            icon: const Icon(Icons.file_download_outlined),
+          gap,
+          ToolbarIconButton(
+            icon: Icons.download_outlined,
             tooltip: 'Import log file',
+            onPressed: onImportLog,
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Toolbar divider ────────────────────────────────────────────────────────
+
+class _ToolbarDivider extends StatelessWidget {
+  const _ToolbarDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 18,
+      child: VerticalDivider(
+        width: 2,
+        thickness: 2,
+        radius: BorderRadius.circular(2),
       ),
     );
   }
@@ -201,14 +233,18 @@ class _LogTabStripState extends State<_LogTabStrip> {
                       ? () => manager.closeTab(i)
                       : null,
                 ),
-              // ── + New live tab ────────────────────────────────────────
+              // ── + New log tab ────────────────────────────────────────
               Tooltip(
-                message: 'New live log tab',
-                child: InkWell(
-                  onTap: manager.addLiveTab,
+                message: 'New log tab',
+                child: IconButton(
+                  onPressed: manager.addLiveTab,
                   mouseCursor: SystemMouseCursors.click,
-                  borderRadius: BorderRadius.circular(6),
-                  child: Padding(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 16,
+                  ),
+                  icon: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 6,
                       vertical: 4,
@@ -270,19 +306,19 @@ class _LogTabChip extends StatelessWidget {
           mouseCursor: SystemMouseCursors.click,
           borderRadius: BorderRadius.circular(6),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
+            duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.only(
-              left: 8,
-              right: 4,
-              top: 3,
-              bottom: 3,
+              left: 12,
+              right: 8,
+              top: 4,
+              bottom: 4,
             ),
             decoration: BoxDecoration(
               color: bg,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color: selected
-                    ? fg.withValues(alpha: 0.25)
+                    ? fg.withValues(alpha: 0.15)
                     : Colors.transparent,
               ),
             ),
@@ -291,7 +327,7 @@ class _LogTabChip extends StatelessWidget {
               children: [
                 if (isImported) ...[
                   Icon(Icons.description_outlined, size: 11, color: fg),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 6),
                 ],
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 90),
@@ -309,10 +345,15 @@ class _LogTabChip extends StatelessWidget {
                   ),
                 ),
                 if (onClose != null) ...[
-                  const SizedBox(width: 2),
-                  GestureDetector(
-                    onTap: onClose,
-                    child: Icon(Icons.close, size: 12, color: fg),
+                  const SizedBox(width: 10),
+                  IconButton(
+                    onPressed: onClose,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    icon: Icon(Icons.close, size: 12, color: fg),
                   ),
                 ] else
                   const SizedBox(width: 4),
@@ -325,8 +366,14 @@ class _LogTabChip extends StatelessWidget {
   }
 }
 
-/// An icon button for the toolbar that shows a tinted rounded background when
-/// [isActive] is true, making the toggled / enabled state clearly visible.
+// ── ToolbarIconButton ──────────────────────────────────────────────────────
+
+/// An icon button for the toolbar with smooth transitions for all state
+/// changes:
+/// - Icon swap (e.g. play → restart): cross-fade + scale via [AnimatedSwitcher].
+/// - Color change (enabled ↔ disabled, active ↔ inactive): smooth tween via
+///   [TweenAnimationBuilder].
+/// - Background tint (active state): [AnimatedContainer].
 class ToolbarIconButton extends StatelessWidget {
   const ToolbarIconButton({
     super.key,
@@ -340,39 +387,59 @@ class ToolbarIconButton extends StatelessWidget {
   final String tooltip;
   final VoidCallback? onPressed;
 
-  /// When true the button renders with a tinted rounded background.
+  /// When true, renders with a tinted rounded background.
   final bool isActive;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final activeColor = colorScheme.primary;
-    final activeBg = colorScheme.primaryContainer.withValues(alpha: 0.55);
+    final cs = Theme.of(context).colorScheme;
+    final enabled = onPressed != null;
+    final targetColor = isActive
+        ? cs.primary
+        : enabled
+        ? cs.onSurfaceVariant
+        : cs.onSurface.withValues(alpha: 0.38);
 
     return Tooltip(
       message: tooltip,
       child: InkWell(
         onTap: onPressed,
-        mouseCursor: onPressed == null
-            ? MouseCursor.defer
-            : SystemMouseCursors.click,
+        mouseCursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
         borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: isActive ? activeBg : Colors.transparent,
+            color: isActive
+                ? cs.primaryContainer.withValues(alpha: 0.55)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(
-            icon,
-            size: 20,
-            color: isActive
-                ? activeColor
-                : onPressed == null
-                ? colorScheme.onSurface.withValues(alpha: 0.38)
-                : colorScheme.onSurfaceVariant,
+          // AnimatedSwitcher detects icon changes (via ValueKey) and
+          // cross-fades + scales the old icon out / new icon in.
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.72, end: 1.0).animate(animation),
+                child: child,
+              ),
+            ),
+            // TweenAnimationBuilder smoothly interpolates the icon color
+            // between state changes (enabled/disabled, active/inactive).
+            // Keying by icon ensures a fresh tween whenever the icon itself
+            // changes (the AnimatedSwitcher handles that transition instead).
+            child: TweenAnimationBuilder<Color?>(
+              key: ValueKey(icon),
+              duration: const Duration(milliseconds: 250),
+              tween: ColorTween(end: targetColor),
+              builder: (_, color, __) =>
+                  Icon(icon, size: 20, color: color ?? targetColor),
+            ),
           ),
         ),
       ),
