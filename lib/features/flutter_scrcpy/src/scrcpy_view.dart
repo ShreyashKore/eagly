@@ -32,7 +32,7 @@ class ScrcpyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.black,
+      color: Theme.of(context).colorScheme.surfaceContainer,
       alignment: Alignment.center,
       child: AspectRatio(
         aspectRatio: aspectRatio > 0 ? aspectRatio : 9 / 16,

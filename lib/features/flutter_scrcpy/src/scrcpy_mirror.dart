@@ -23,6 +23,7 @@ class ScrcpyMirrorSession {
     required this.height,
     required this.control,
     required this.exitCode,
+    required this.streamEnded,
     required Future<void> Function() onStop,
   }) : _onStop = onStop;
 
@@ -38,6 +39,13 @@ class ScrcpyMirrorSession {
 
   /// Completes when scrcpy-server exits (0 = clean stop).
   final Future<int> exitCode;
+
+  /// Completes when the video stream ends unexpectedly (e.g. a framing desync
+  /// from a device rotation) while the session is still meant to be running.
+  /// Never completes on an intentional [stop]. Consumers can await this to
+  /// restart the mirror for a clean handshake.
+  final Future<void> streamEnded;
+
   final Future<void> Function() _onStop;
 
   Future<void> stop() => _onStop();
@@ -51,12 +59,14 @@ class ScrcpyMirror {
     String adbExecutablePath = 'adb',
     ScrcpyVideoChannel? channel,
     ScrcpyClient? client,
+    void Function(String message)? onLog,
   }) : _channel = channel ?? const ScrcpyVideoChannel(),
        _client =
            client ??
            ScrcpyClient(
              adbExecutablePath: adbExecutablePath,
              serverJarPath: serverJarPath,
+             onLog: onLog,
            );
 
   final ScrcpyVideoChannel _channel;
@@ -77,6 +87,13 @@ class ScrcpyMirror {
     ScrcpyStream? stream;
     StreamSubscription<ScrcpyPacket>? subscription;
     var stopped = false;
+    final streamEnded = Completer<void>();
+
+    // The packet stream dying while we still want to be running (a desync, not
+    // an intentional stop) is the signal to restart for a clean handshake.
+    void onStreamGone() {
+      if (!stopped && !streamEnded.isCompleted) streamEnded.complete();
+    }
 
     Future<void> stop() async {
       if (stopped) return;
@@ -90,7 +107,8 @@ class ScrcpyMirror {
       stream = await _client.connect(serial, options: options);
       subscription = stream.packets.listen(
         (packet) => _channel.feed(textureId, packet.data),
-        onError: (_) {}, // termination is surfaced through [exitCode]/[stop]
+        onError: (_) => onStreamGone(),
+        onDone: onStreamGone,
         cancelOnError: false,
       );
 
@@ -102,6 +120,7 @@ class ScrcpyMirror {
         height: stream.height,
         control: stream.control,
         exitCode: stream.serverExitCode,
+        streamEnded: streamEnded.future,
         onStop: stop,
       );
     } catch (error) {

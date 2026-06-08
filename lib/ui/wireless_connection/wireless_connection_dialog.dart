@@ -5,18 +5,18 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../data/device.dart';
 import '../../data/wireless_debug_models.dart';
-import '../../services/device_repository.dart';
-import '../log_tab_view/log_tab_controller.dart';
+import '../../session/device_session_manager.dart';
+import '../components/eagly_dialog.dart';
 import 'wireless_connection_controller.dart';
 
 class WirelessConnectionDialog extends StatefulWidget {
   const WirelessConnectionDialog({
     super.key,
-    required this.controller,
+    required this.manager,
     required this.onShowSnackBar,
   });
 
-  final LogTabController controller;
+  final DeviceSessionManager manager;
   final ValueChanged<String> onShowSnackBar;
 
   @override
@@ -29,12 +29,16 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   late final TextEditingController _pairingCodeController;
   late final TextEditingController _connectAddressController;
   late final wirelessController = WirelessConnectionController(
-    deviceRepository: DeviceRepository.instance,
-    onDevicesApplied: controller.applyFetchedDevices,
-    onActivateDevice: controller.selectDeviceAndStart,
-    isDeviceSelectedInAnotherTab: controller.isDeviceSelectedInAnotherTab,
-    selectedDeviceIdProvider: () => controller.selectedDevice?.id,
-    isRunningProvider: () => controller.isRunning,
+    deviceRepository: manager.repository,
+    onDevicesApplied: (_) async {},
+    onActivateDevice: (device) async => manager.select(device.id),
+    selectedDeviceIdProvider: () => manager.selectedId,
+    isRunningProvider: () {
+      final session = manager.selected;
+      return session != null &&
+          session.isActivated &&
+          (session.logSessionManager.selectedTab?.isRunning ?? false);
+    },
   );
 
   var _section = _WirelessDialogSection.nearby;
@@ -42,7 +46,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   String? _fallbackConnectHost;
   var _showManualConnectSection = false;
 
-  LogTabController get controller => widget.controller;
+  DeviceSessionManager get manager => widget.manager;
 
   List<_DiscoveredWirelessTarget> get _discoveredTargets {
     final groupedServices = <String, List<WirelessDebugService>>{};
@@ -283,7 +287,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   }
 
   Device? _connectedDeviceForTarget(_DiscoveredWirelessTarget target) {
-    return controller.devices.firstWhereOrNull(
+    return manager.devices.firstWhereOrNull(
       (device) =>
           device.status == 'device' &&
           _hostFromAddress(device.id) == target.host,
@@ -293,7 +297,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   Device? _connectedDeviceForAddress(String address) {
     final host = _hostFromAddress(address);
     if (host == null) return null;
-    return controller.devices.firstWhereOrNull(
+    return manager.devices.firstWhereOrNull(
       (device) =>
           device.status == 'device' && _hostFromAddress(device.id) == host,
     );
@@ -595,31 +599,18 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     final theme = Theme.of(context);
 
     return AnimatedBuilder(
-      animation: Listenable.merge([controller, wirelessController]),
+      animation: Listenable.merge([manager, wirelessController]),
       builder: (context, _) {
-        return AlertDialog(
-          titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+        return EaglyDialog(
+          title: 'Wireless ADB',
+          icon: Icons.wifi_tethering,
+          width: 720,
+          height: 560,
           contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          title: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.wifi_tethering, color: theme.colorScheme.primary),
-              const Gap(12),
-              const Expanded(child: Text('Wireless ADB')),
-              const Spacer(),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: 720,
-            height: 560,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
@@ -667,9 +658,9 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                             : 'Discover nearby',
                       ),
                     ),
-                    if (controller.selectedDevice != null)
+                    if (manager.selected != null)
                       Text(
-                        'Current device: ${controller.selectedDevice!.displayName}',
+                        'Current device: ${manager.selected!.device.displayName}',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -697,7 +688,6 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                 ),
               ],
             ),
-          ),
         );
       },
     );

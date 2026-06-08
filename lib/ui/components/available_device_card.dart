@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../data/device.dart';
+import '../../data/device.dart';
 import 'device_presentation.dart';
-import '../log_tab_view_constants.dart';
+import 'layout_constants.dart';
 
 class AvailableDeviceCard extends StatelessWidget {
   const AvailableDeviceCard({
@@ -21,7 +21,7 @@ class AvailableDeviceCard extends StatelessWidget {
 
   Future<void> _copyIosUdid() async {
     await Clipboard.setData(ClipboardData(text: device.id));
-    onShowMessage?.call(LogTabViewConstants.iosUdidCopiedMessage);
+    onShowMessage?.call(LayoutConstants.iosUdidCopiedMessage);
   }
 
   @override
@@ -60,7 +60,10 @@ class AvailableDeviceCard extends StatelessWidget {
                       tooltip: 'Install app',
                       visualDensity: VisualDensity.compact,
                       onPressed: onInstallApp,
-                      icon: const Icon(Icons.app_registration_outlined, size: 18),
+                      icon: const Icon(
+                        Icons.app_registration_outlined,
+                        size: 18,
+                      ),
                     ),
                     IconButton(
                       tooltip: 'Copy UDID',

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
@@ -13,91 +12,46 @@ import '../../data/log_filters.dart';
 import '../../data/log_level.dart';
 import '../../data/log_tab_settings.dart';
 import '../../data/log_view_mode.dart';
-import '../../features/flutter_scrcpy/flutter_scrcpy.dart';
-import '../../services/app_install_service.dart';
-import '../../services/device_repository.dart';
-import '../../services/device_session_service.dart';
 import '../../services/log_file_service.dart';
+import '../../session/device_session_controller.dart';
+import '../../session/feature_controller.dart';
 import '../../utils/log_buffer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/text_search_pattern.dart';
-import '../../utils/utils.dart';
 import 'components/inline_filter_bar.dart';
 
 enum LogcatState { stopped, running, paused }
 
-enum ScreenMirrorState { stopped, starting, running, unsupported, error }
-
-/// Encoder quality presets for the screen mirror. Higher quality streams more
-/// pixels/bits, which increases latency.
-enum MirrorQuality {
-  fast('Fast', 'Lower quality, lowest latency'),
-  normal('Normal', 'Balanced quality and latency'),
-  high('High', 'Best quality, higher latency');
-
-  const MirrorQuality(this.label, this.description);
-
-  final String label;
-  final String description;
-
-  ScrcpyVideoOptions toOptions() => switch (this) {
-    MirrorQuality.fast => const ScrcpyVideoOptions(
-      maxSize: 720,
-      maxFps: 60,
-      videoBitRate: 3000000,
-      control: true,
-    ),
-    MirrorQuality.normal => const ScrcpyVideoOptions(
-      maxSize: 1280,
-      maxFps: 60,
-      videoBitRate: 8000000,
-      control: true,
-    ),
-    MirrorQuality.high => const ScrcpyVideoOptions(
-      maxSize: 1920,
-      maxFps: 60,
-      videoBitRate: 16000000,
-      control: true,
-    ),
-  };
-}
-
-class LogTabController extends ChangeNotifier {
+/// Per-device logging feature: captures logcat / syslog, buffers + filters +
+/// searches log entries, and manages row selection / copy / export. Holds no
+/// device-selection or mirror state.
+class LogController extends FeatureController {
   static const int _maxRecentFilterValues = 8;
 
-  LogTabController({
-    required this.id,
-    required String initialTitle,
-    required LogTabSettings initialSettings,
-    this.onExitGetStarted,
-    this.isDeviceSelectedInAnotherTab,
-    DeviceRepository? deviceRepository,
-    DeviceSessionService? deviceSessionService,
-  }) : _title = initialTitle,
-       _settings = initialSettings,
-       _deviceRepository = deviceRepository ?? DeviceRepository.instance,
-       _logsBuffer = LogBuffer<LogEntry>(
-         baseCapacity: initialSettings.logLinesLimit,
-       ),
-       _deviceSessionService = deviceSessionService ?? DeviceSessionService() {
-    _deviceSessionService.sessionLabel = id;
+  LogController(super.session, {required LogTabSettings initialSettings})
+    : _settings = initialSettings,
+      _logsBuffer = LogBuffer<LogEntry>(
+        baseCapacity: initialSettings.logLinesLimit,
+      ) {
     filterController.text = searchQuery;
     packageFilterController.text = packageFilterQuery;
     pidTidFilterController.text = pidTidFilterQuery;
     tagFilterController.text = tagFilterQuery;
     inlineFilterController.text = _composeInlineFilterText();
     logLinesController.text = logLinesLimit.toString();
-    devices = _deviceRepository.devices.toList(growable: false);
     _syncLogBufferFilter();
-    _deviceRepository.addListener(_handleDeviceRepositoryChanged);
-    unawaited(_deviceRepository.ensureStarted());
   }
 
-  final String id;
-  final VoidCallback? onExitGetStarted;
-  final bool Function(String deviceId)? isDeviceSelectedInAnotherTab;
-  final DeviceRepository _deviceRepository;
-  final DeviceSessionService _deviceSessionService;
+  /// Creates a controller pre-loaded with [entries] from a log file.
+  /// Live capture, clear, and start/stop are disabled.
+  factory LogController.imported(
+    DeviceSessionController session, {
+    required LogTabSettings initialSettings,
+  }) {
+    final ctrl = LogController(session, initialSettings: initialSettings);
+    ctrl._isImported = true;
+    return ctrl;
+  }
 
   final ScrollController scrollController = ScrollController();
   final TextEditingController filterController = TextEditingController();
@@ -123,18 +77,8 @@ class LogTabController extends ChangeNotifier {
   Timer? _debounceTimer;
   Timer? _filterSaveDebounceTimer;
   Timer? _inlineSearchDebounce;
-  ScrcpyMirrorSession? _screenMirrorSession;
-
-  var devices = <Device>[];
-  Device? selectedDevice;
 
   var logcatState = LogcatState.stopped;
-  var screenMirrorState = ScreenMirrorState.stopped;
-  var screenMirrorVisible = false;
-  double screenMirrorPaneWidth = 340;
-  MirrorQuality mirrorQuality = MirrorQuality.normal;
-  ScreenRecordingSession? _screenRecordingSession;
-  String? screenMirrorError;
   var searchQuery = '';
   var packageFilterQuery = '';
   var pidTidFilterQuery = '';
@@ -164,12 +108,11 @@ class LogTabController extends ChangeNotifier {
   var _logsMemoryBytes = 0;
   var _pendingLogsMemoryBytes = 0;
   var _logViewerRevision = 0;
-  var _isInstallingApp = false;
-  String? _installingAppName;
 
   var _disposed = false;
-  var _showGetStarted = true;
-  final String _title;
+  var _activated = false;
+  var _wasRunningBeforeDisconnect = false;
+  var _isImported = false;
   String? _importedFileName;
   LogTabSettings _settings;
 
@@ -195,16 +138,10 @@ class LogTabController extends ChangeNotifier {
     _replaceStoredLogs(value);
   }
 
-  String get title {
-    if (selectedDevice != null) return selectedDevice!.displayLabel.primary;
-    if (_importedFileName != null) return _importedFileName!;
-    if (_showGetStarted) return 'Get Started';
-    return _title;
-  }
+  String get appLogSessionTag => device.id;
+  bool get isImported => _isImported;
+  String? get importedFileName => _importedFileName;
 
-  String get appLogSessionTag => id;
-
-  bool get showGetStarted => _showGetStarted;
   bool get searchBarVisible => _searchBarVisible;
   bool get searchCaseSensitive => _inlineSearch.caseSensitive;
   bool get searchWholeWord => _inlineSearch.wholeWord;
@@ -218,28 +155,11 @@ class LogTabController extends ChangeNotifier {
   int? get rowSelectionAnchorIndex => _rowSelectionAnchorIndex;
   bool get editingLogLinesLimit => _editingLogLinesLimit;
   int get logViewerRevision => _logViewerRevision;
-  bool get isReadingFromFile => _importedFileName != null;
-  bool get isInstallingApp => _isInstallingApp;
-  String? get installingAppName => _installingAppName;
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;
-  ScrcpyMirrorSession? get screenMirrorSession => _screenMirrorSession;
 
-  /// Native texture id of the live mirror, or null when not running.
-  int? get screenMirrorTextureId => _screenMirrorSession?.textureId;
-
-  bool get isScreenMirrorRunning =>
-      screenMirrorState == ScreenMirrorState.running ||
-      screenMirrorState == ScreenMirrorState.starting;
-  bool get canStartScreenMirror =>
-      selectedDevice is AndroidDevice &&
-      selectedDevice?.isConnected == true &&
-      !isReadingFromFile;
   bool get hasLogs => _logsBuffer.size > 0;
   bool get hasAnyCachedLogs => hasLogs || _pendingLogs.isNotEmpty;
-  bool get hasSelectedDevice => selectedDevice != null;
-  bool get hasConnectedSelectedDevice => selectedDevice?.isConnected == true;
-  bool get hasVisibleWorkspace => hasSelectedDevice || hasLogs;
   int get totalLogsMemoryBytes => _logsMemoryBytes + _pendingLogsMemoryBytes;
   String get appliedInlineSearchQuery => _appliedInlineSearch.query;
   String get inlineSearchQuery => _inlineSearch.query;
@@ -249,8 +169,6 @@ class LogTabController extends ChangeNotifier {
       TextSearchPattern.fromConfig(_appliedInlineSearch);
   bool get inlineSearchHasError => inlineSearchPattern.hasError;
   String? get inlineSearchErrorText => inlineSearchPattern.errorText;
-  bool get isLoadingDevices => _deviceRepository.isLoading;
-  bool get hasAttemptedDeviceLoad => _deviceRepository.hasAttemptedLoad;
   List<String> get recentMessageFilters =>
       List.unmodifiable(_recentMessageFilters);
   List<String> get recentPackageFilters =>
@@ -297,17 +215,7 @@ class LogTabController extends ChangeNotifier {
   Set<String> get hiddenColumns => _settings.hiddenColumns;
   Map<String, double> get columnWidths => _settings.columnWidths;
 
-  bool get isIosLogContext {
-    if (selectedDevice is IosDevice) return true;
-    if (selectedDevice is AndroidDevice) return false;
-
-    final storedLogs = logs;
-    final sampleLevel = storedLogs.firstWhereOrNull(
-      (log) => log.level.trim().isNotEmpty,
-    );
-    return sampleLevel != null &&
-        LogLevel.looksLikeIosStoredLevel(sampleLevel.level);
-  }
+  bool get isIosLogContext => device is IosDevice;
 
   LogLevel get effectiveSelectedLogLevel => selectedLogLevel;
 
@@ -322,26 +230,22 @@ class LogTabController extends ChangeNotifier {
     _notify();
   }
 
-  void _exitGetStarted() {
-    if (!_showGetStarted) return;
-    _showGetStarted = false;
-    onExitGetStarted?.call();
-  }
-
-  void _exitGetStartedIfWorkspaceReady() {
-    if (selectedDevice != null || logs.isNotEmpty) {
-      _exitGetStarted();
+  /// Called when this device's tab is first activated. Starts log capture once.
+  void activate() {
+    if (_isImported || _disposed || _activated) return;
+    _activated = true;
+    if (isConnected) {
+      unawaited(startLogcat());
     }
   }
 
-  Future<void> bootstrapInitialLoad() async {
-    await loadDevices(autoStartSingleIfAvailable: true);
-    // Debug-only: auto-open the mirror so the texture pipeline can be verified
-    // without UI automation. Gated on an env var; no effect in normal runs.
-    if (Platform.environment['EAGLY_AUTOSTART_MIRROR'] == '1' &&
-        canStartScreenMirror) {
-      await showScreenMirror();
-    }
+  /// Replaces the log buffer with [entries] imported from a file.
+  /// Only valid on controllers created via [LogController.imported].
+  void loadImportedEntries(List<LogEntry> entries, String fileName) {
+    assert(_isImported);
+    _importedFileName = fileName;
+    _replaceStoredLogs(entries);
+    _notify();
   }
 
   void focusFilterInputs() {
@@ -363,16 +267,6 @@ class LogTabController extends ChangeNotifier {
     });
   }
 
-  Future<void> loadDevices({bool autoStartSingleIfAvailable = false}) async {
-    await _deviceRepository.refreshDevices(force: true, showLoading: true);
-    if (_disposed) return;
-    await applyFetchedDevices(
-      _deviceRepository.devices,
-      autoStartSingleIfAvailable: autoStartSingleIfAvailable,
-    );
-    _notify();
-  }
-
   void clearLogs() {
     clearSelectedRows(notify: false);
     _clearStoredLogs();
@@ -382,144 +276,7 @@ class LogTabController extends ChangeNotifier {
   }
 
   Future<LogExportResult> exportLogs() async {
-    return LogFileService.exportLogs(logs, selectedDevice);
-  }
-
-  Future<LogImportResult> importLogs() async {
-    final result = await LogFileService.importLogs();
-    if (_disposed || !result.isSuccess || result.logs == null) return result;
-
-    await _stopLogcatInternal(resetState: false);
-    if (_disposed) return result;
-    await stopScreenMirror(notify: false);
-    if (_disposed) return result;
-
-    clearSelectedRows(notify: false);
-    selectedDevice = null;
-    _importedFileName = result.fileName;
-    logs = result.logs!;
-    _pendingLogs.clear();
-    _pendingLogsMemoryBytes = 0;
-    logcatState = LogcatState.stopped;
-    _exitGetStarted();
-    _notify();
-    return result;
-  }
-
-  Future<AppInstallResult> installAppFromPicker({Device? device}) async {
-    final targetDevice = device ?? selectedDevice;
-    if (targetDevice == null || !targetDevice.isConnected) {
-      return AppInstallResult.failure(
-        device: targetDevice,
-        error: 'Select a connected device before installing an app.',
-      );
-    }
-
-    final selection = await AppInstallService.pickInstallable(targetDevice);
-    if (_disposed || selection.cancelled) {
-      return AppInstallResult.cancelled();
-    }
-    if (!selection.isSuccess || selection.filePath == null) {
-      return AppInstallResult.failure(
-        fileName: selection.fileName,
-        device: targetDevice,
-        error: selection.error ?? 'Failed to select an app to install.',
-      );
-    }
-
-    return installAppFromPath(
-      selection.filePath!,
-      preferredDevice: targetDevice,
-    );
-  }
-
-  Future<AppInstallResult> installDroppedPaths(Iterable<String> paths) async {
-    final normalizedPaths = paths
-        .map((path) => path.trim())
-        .where((path) => path.isNotEmpty)
-        .toList(growable: false);
-    if (normalizedPaths.isEmpty) {
-      return AppInstallResult.failure(error: 'No installable app was dropped.');
-    }
-    if (normalizedPaths.length > 1) {
-      return AppInstallResult.failure(
-        error: 'Drop a single app binary at a time.',
-      );
-    }
-
-    return installAppFromPath(normalizedPaths.single);
-  }
-
-  Future<AppInstallResult> installAppFromPath(
-    String path, {
-    Device? preferredDevice,
-  }) async {
-    final normalizedPath = path.trim();
-    final fileName = extractFileName(normalizedPath);
-    if (_isInstallingApp) {
-      return AppInstallResult.failure(
-        fileName: fileName,
-        error: 'Another app installation is already in progress.',
-      );
-    }
-
-    final resolution = _resolveInstallTargetForPath(
-      normalizedPath,
-      preferredDevice: preferredDevice,
-    );
-    if (resolution.error != null || resolution.device == null) {
-      return AppInstallResult.failure(
-        fileName: fileName,
-        device: preferredDevice,
-        error: resolution.error ?? 'Unable to determine an install target.',
-      );
-    }
-
-    final device = resolution.device!;
-    final validationError = AppInstallService.validateInstallableForDevice(
-      device,
-      normalizedPath,
-    );
-    if (validationError != null) {
-      return AppInstallResult.failure(
-        fileName: fileName,
-        device: device,
-        error: validationError,
-      );
-    }
-
-    _isInstallingApp = true;
-    _installingAppName = fileName;
-    _notify();
-
-    try {
-      await AppInstallService.rememberDialogDirectoryFromPath(normalizedPath);
-      final result = await _deviceSessionService.installApp(
-        device: device,
-        filePath: normalizedPath,
-      );
-      if (_disposed) {
-        return AppInstallResult.cancelled();
-      }
-      if (!result.isSuccess) {
-        return AppInstallResult.failure(
-          fileName: fileName,
-          device: device,
-          error:
-              'Failed to install $fileName on ${device.displayName}: ${result.error ?? 'Unknown error.'}',
-        );
-      }
-
-      return AppInstallResult.success(
-        fileName: fileName,
-        device: device,
-        message: 'Installed $fileName on ${device.displayName}.',
-      );
-    } finally {
-      _isInstallingApp = false;
-      _installingAppName = null;
-      _notify();
-    }
+    return LogFileService.exportLogs(logs, device);
   }
 
   void scrollToEnd() {
@@ -1308,12 +1065,12 @@ class LogTabController extends ChangeNotifier {
 
   String get _appliedFilterSignature => [
     selectedLogLevel.code,
-    'm:${_appliedMessageTerms.join('\u0001')}',
-    'r:${_appliedRawTerms.join('\u0001')}',
-    'p:${_appliedPackageTerms.join('\u0001')}',
-    'pt:${_appliedPidTidTerms.join('\u0001')}',
-    't:${_appliedTagTerms.join('\u0001')}',
-  ].join('\u0000');
+    'm:${_appliedMessageTerms.join('')}',
+    'r:${_appliedRawTerms.join('')}',
+    'p:${_appliedPackageTerms.join('')}',
+    'pt:${_appliedPidTidTerms.join('')}',
+    't:${_appliedTagTerms.join('')}',
+  ].join(' ');
 
   String _packageFilterValue(LogEntry log) {
     final packageName = log.packageName?.trim();
@@ -1413,10 +1170,7 @@ class LogTabController extends ChangeNotifier {
   }
 
   String _loggingSubjectLabel() {
-    return selectedDevice?.displayLabel.primary ??
-        selectedDevice?.displayName ??
-        selectedDevice?.id ??
-        'device';
+    return device.displayLabel.primary;
   }
 
   LogEntry _buildSessionStateEntry(
@@ -1439,7 +1193,7 @@ class LogTabController extends ChangeNotifier {
       type: type,
       tag: tag ?? 'eagly session',
       message: effectiveMessage,
-      packageName: selectedDevice?.id,
+      packageName: device.id,
       processName: subject,
     );
   }
@@ -1483,309 +1237,13 @@ class LogTabController extends ChangeNotifier {
     );
   }
 
-  Future<void> _stopLogcatForDisconnectedDevice(Device device) async {
-    if (!isRunning) return;
-
-    await _stopLogcatInternal(resetState: false);
-    if (_disposed) return;
-
-    logcatState = LogcatState.stopped;
-    _appendSessionStateEntry(
-      LogEntryType.stopped,
-      message:
-          'Device disconnected; stopped capturing logs for ${device.displayName}.',
-      tag: 'device connection',
-    );
-  }
-
-  Future<void> showScreenMirror() async {
-    screenMirrorVisible = true;
-    _notify();
-
-    if (isScreenMirrorRunning) return;
-    await startScreenMirror();
-  }
-
-  Future<void> toggleScreenMirrorPane() async {
-    if (screenMirrorVisible) {
-      screenMirrorVisible = false;
-      _notify();
-      return;
-    }
-
-    await showScreenMirror();
-  }
-
-  Future<void> startScreenMirror() async {
-    final device = selectedDevice;
-    if (device == null) {
-      screenMirrorError = 'Select a connected Android device to mirror.';
-      screenMirrorState = ScreenMirrorState.error;
-      _notify();
-      return;
-    }
-
-    screenMirrorVisible = true;
-
-    if (device is! AndroidDevice) {
-      screenMirrorError =
-          'Screen mirroring is currently available for Android devices.';
-      screenMirrorState = ScreenMirrorState.unsupported;
-      _notify();
-      return;
-    }
-
-    if (device.isDisconnected) {
-      screenMirrorError = 'The selected device is disconnected.';
-      screenMirrorState = ScreenMirrorState.error;
-      _notify();
-      return;
-    }
-
-    await stopScreenMirror(notify: false);
-    if (_disposed) return;
-
-    screenMirrorState = ScreenMirrorState.starting;
-    screenMirrorError = null;
-    _notify();
-
-    try {
-      final session = await _deviceSessionService.startScreenMirror(
-        device,
-        options: mirrorQuality.toOptions(),
-      );
-      if (_disposed) {
-        await session.stop();
-        return;
-      }
-
-      _screenMirrorSession = session;
-      screenMirrorState = ScreenMirrorState.running;
-      _notify();
-      unawaited(_watchScreenMirrorExit(session));
-    } on ScrcpyMirrorException catch (error) {
-      screenMirrorState = ScreenMirrorState.error;
-      screenMirrorError = error.message;
-      _notify();
-    } on UnsupportedError catch (error) {
-      screenMirrorState = ScreenMirrorState.unsupported;
-      screenMirrorError = error.message;
-      _notify();
-    } catch (error) {
-      screenMirrorState = ScreenMirrorState.error;
-      screenMirrorError = describeError(error);
-      _notify();
-    }
-  }
-
-  /// Forwards a pointer interaction on the mirror surface to the device.
-  /// [nx]/[ny] are normalized (0..1) positions within the video rect.
-  void handleMirrorTouch(ScrcpyTouchAction action, double nx, double ny) {
-    final session = _screenMirrorSession;
-    final control = session?.control;
-    if (session == null || control == null) return;
-    final x = (nx.clamp(0.0, 1.0) * session.width).round();
-    final y = (ny.clamp(0.0, 1.0) * session.height).round();
-    control.touch(
-      action,
-      x: x,
-      y: y,
-      videoWidth: session.width,
-      videoHeight: session.height,
-    );
-  }
-
-  /// Injects a hardware / navigation key (home, back, power, volume, …) into
-  /// the mirrored device. No-op when the control channel is unavailable.
-  void handleMirrorKey(ScrcpyKey key) {
-    _screenMirrorSession?.control?.key(key);
-  }
-
-  /// adb serial of the device currently being mirrored, if any.
-  String? get _mirrorSerial => _screenMirrorSession?.serial;
-
-  bool get isMirrorRecording => _screenRecordingSession != null;
-
-  /// Switches the encoder quality preset. Restarts the live stream so the new
-  /// resolution/bitrate take effect.
-  Future<void> setMirrorQuality(MirrorQuality quality) async {
-    if (quality == mirrorQuality) return;
-    mirrorQuality = quality;
-    _notify();
-    if (isScreenMirrorRunning) {
-      await startScreenMirror();
-    }
-  }
-
-  /// Captures a PNG screenshot of the mirrored device, or null if unavailable.
-  Future<Uint8List?> captureMirrorScreenshot() async {
-    final serial = _mirrorSerial;
-    if (serial == null) return null;
-    return _deviceSessionService.captureScreenshot(serial);
-  }
-
-  /// Cycles the mirrored device's display orientation.
-  Future<void> rotateMirrorDevice() async {
-    final serial = _mirrorSerial;
-    if (serial == null) return;
-    await _deviceSessionService.rotateDevice(serial);
-  }
-
-  /// Begins recording the mirrored device's screen on-device.
-  Future<void> startMirrorRecording() async {
-    final serial = _mirrorSerial;
-    if (serial == null || _screenRecordingSession != null) return;
-    _screenRecordingSession = await _deviceSessionService.startScreenRecording(
-      serial,
-    );
-    _notify();
-  }
-
-  /// Stops recording and saves the finalized mp4 to [localPath].
-  Future<void> stopMirrorRecording(String localPath) async {
-    final session = _screenRecordingSession;
-    _screenRecordingSession = null;
-    _notify();
-    await session?.stopAndPull(localPath);
-  }
-
-  /// Stops recording and discards it without saving.
-  Future<void> cancelMirrorRecording() async {
-    final session = _screenRecordingSession;
-    _screenRecordingSession = null;
-    _notify();
-    await session?.cancel();
-  }
-
-  /// Adjusts the mirror pane width (clamped) when the user drags its edge.
-  void setScreenMirrorPaneWidth(double width) {
-    final clamped = width.clamp(260.0, 720.0);
-    if (clamped == screenMirrorPaneWidth) return;
-    screenMirrorPaneWidth = clamped;
-    _notify();
-  }
-
-  Future<void> _watchScreenMirrorExit(ScrcpyMirrorSession session) async {
-    final exitCode = await session.exitCode;
-    if (_disposed || !identical(_screenMirrorSession, session)) return;
-
-    _screenMirrorSession = null;
-    screenMirrorState = exitCode == 0
-        ? ScreenMirrorState.stopped
-        : ScreenMirrorState.error;
-    screenMirrorError = exitCode == 0
-        ? null
-        : 'scrcpy exited with code $exitCode.';
-    _notify();
-  }
-
-  Future<void> stopScreenMirror({bool notify = true}) async {
-    final session = _screenMirrorSession;
-    _screenMirrorSession = null;
-
-    if (session != null) {
-      await session.stop();
-    }
-
-    if (_disposed) return;
-    screenMirrorState = ScreenMirrorState.stopped;
-    screenMirrorError = null;
-    if (notify) {
-      _notify();
-    }
-  }
-
-  Future<void> applyFetchedDevices(
-    List<Device> fetchedDevices, {
-    bool autoStartSingleIfAvailable = false,
-  }) async {
-    final currentSelectionId = selectedDevice?.id;
-    final previousSelectedDevice = selectedDevice;
-    devices = fetchedDevices;
-
-    if (currentSelectionId != null) {
-      selectedDevice = fetchedDevices.firstWhereOrNull(
-        (device) => device.id == currentSelectionId,
-      );
-    }
-
-    final selectedDeviceJustDisconnected =
-        previousSelectedDevice != null &&
-        previousSelectedDevice.isConnected &&
-        selectedDevice != null &&
-        selectedDevice!.isDisconnected;
-
-    if (selectedDeviceJustDisconnected) {
-      await _stopLogcatForDisconnectedDevice(selectedDevice!);
-      await stopScreenMirror();
-    }
-
-    if (currentSelectionId != null && selectedDevice == null) {
-      selectedDevice = null;
-      await _stopLogcatInternal(resetState: true);
-      await stopScreenMirror();
-    }
-
-    final shouldAutoStartSingleDevice =
-        autoStartSingleIfAvailable &&
-        !hasLogs &&
-        selectedDevice == null &&
-        fetchedDevices.where((device) => device.isConnected).length == 1 &&
-        !(isDeviceSelectedInAnotherTab?.call(
-              fetchedDevices.firstWhere((device) => device.isConnected).id,
-            ) ??
-            false);
-
-    if (shouldAutoStartSingleDevice) {
-      await selectDeviceAndStart(
-        fetchedDevices.firstWhere((device) => device.isConnected),
-      );
-      return;
-    }
-
-    _exitGetStartedIfWorkspaceReady();
-  }
-
-  Future<void> setSelectedDevice(Device? device) async {
-    if (device == null) {
-      if (selectedDevice == null) return;
-      clearSelectedRows(notify: false);
-      selectedDevice = null;
-      if (isRunning) {
-        await _stopLogcatInternal(resetState: true);
-      }
-      await stopScreenMirror();
-      _notify();
-      return;
-    }
-
-    await selectDeviceAndStart(device);
-  }
-
-  Future<void> selectDeviceAndStart(Device device) async {
-    final sameDevice = selectedDevice?.id == device.id;
-    _importedFileName = null;
-    selectedDevice = device;
-    _exitGetStarted();
-    _notify();
-
-    if (!sameDevice) {
-      await stopScreenMirror();
-    }
-
-    if (sameDevice && isRunning) return;
-    await startLogcat();
-  }
-
   Future<void> startLogcat() async {
-    if (selectedDevice == null) return;
-    _exitGetStartedIfWorkspaceReady();
+    if (!isConnected) return;
 
     await _stopLogcatInternal(resetState: false);
     if (_disposed) return;
 
     clearSelectedRows(notify: false);
-    _importedFileName = null;
     _clearStoredLogs();
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
@@ -1793,9 +1251,7 @@ class LogTabController extends ChangeNotifier {
     _appendSessionStateEntry(LogEntryType.started);
     _notify();
 
-    _logSub = _deviceSessionService.startLogStream(selectedDevice!).listen((
-      logEntry,
-    ) {
+    _logSub = service.startLogStream().listen((logEntry) {
       if (_disposed) return;
       if (logEntry.isSpecialEntry) {
         _appendImmediateLogEntry(logEntry);
@@ -1857,7 +1313,7 @@ class LogTabController extends ChangeNotifier {
 
     await _logSub?.cancel();
     _logSub = null;
-    await _deviceSessionService.stopActiveLogStream();
+    await service.stopActiveLogStream();
 
     if (resetState && !_disposed) {
       logcatState = LogcatState.stopped;
@@ -1947,91 +1403,53 @@ class LogTabController extends ChangeNotifier {
     return snapshot.length;
   }
 
-  _InstallTargetResolution _resolveInstallTargetForPath(
-    String path, {
-    Device? preferredDevice,
-  }) {
-    final fileName = extractFileName(path);
-    final explicitTarget = preferredDevice;
-    if (explicitTarget != null) {
-      if (!explicitTarget.isConnected) {
-        return _InstallTargetResolution.failure(
-          'The selected device is disconnected. Choose a connected device before installing $fileName.',
-        );
-      }
-
-      final validationError = AppInstallService.validateInstallableForDevice(
-        explicitTarget,
-        path,
-      );
-      if (validationError != null) {
-        return _InstallTargetResolution.failure(validationError);
-      }
-
-      return _InstallTargetResolution.success(explicitTarget);
-    }
-
-    final selectedConnectedDevice = selectedDevice?.isConnected == true
-        ? selectedDevice
-        : null;
-    if (selectedConnectedDevice != null) {
-      final validationError = AppInstallService.validateInstallableForDevice(
-        selectedConnectedDevice,
-        path,
-      );
-      if (validationError == null) {
-        return _InstallTargetResolution.success(selectedConnectedDevice);
-      }
-      return _InstallTargetResolution.failure(validationError);
-    }
-
-    final compatibleDevices = devices
-        .where((device) {
-          return device.isConnected &&
-              AppInstallService.supportsInstallableForDevice(device, path);
-        })
-        .toList(growable: false);
-    if (compatibleDevices.isEmpty) {
-      return _InstallTargetResolution.failure(
-        'No connected compatible device is available for $fileName.',
-      );
-    }
-    if (compatibleDevices.length > 1) {
-      return _InstallTargetResolution.failure(
-        'Select a target device before installing $fileName.',
-      );
-    }
-
-    return _InstallTargetResolution.success(compatibleDevices.single);
-  }
-
-  void _handleDeviceRepositoryChanged() {
-    if (_disposed) return;
-
-    final nextDevices = _deviceRepository.devices;
-    if (const ListEquality<Device>().equals(devices, nextDevices)) {
-      _notify();
+  @override
+  void onDeviceDisconnected() {
+    if (_isImported) return;
+    if (!isRunning) {
+      _wasRunningBeforeDisconnect = false;
       return;
     }
-
-    unawaited(_applyRepositoryDevices(nextDevices));
+    _wasRunningBeforeDisconnect = true;
+    unawaited(_handleDisconnect());
   }
 
-  Future<void> _applyRepositoryDevices(List<Device> nextDevices) async {
-    await applyFetchedDevices(nextDevices);
-    _notify();
+  Future<void> _handleDisconnect() async {
+    await _stopLogcatInternal(resetState: false);
+    if (_disposed) return;
+    logcatState = LogcatState.stopped;
+    _appendSessionStateEntry(
+      LogEntryType.stopped,
+      message:
+          'Device disconnected; stopped capturing logs for ${device.displayName}.',
+      tag: 'device connection',
+    );
+  }
+
+  @override
+  void onDeviceConnected() {
+    if (_isImported || !_activated) return;
+    final shouldRestart = _wasRunningBeforeDisconnect;
+    _wasRunningBeforeDisconnect = false;
+    _appendSessionStateEntry(
+      LogEntryType.notice,
+      message: 'Device reconnected: ${device.displayName}.',
+      tag: 'device connection',
+    );
+    if (shouldRestart && !isRunning) {
+      unawaited(startLogcat());
+    }
   }
 
   @override
   void dispose() {
     _disposed = true;
-    _deviceRepository.removeListener(_handleDeviceRepositoryChanged);
     _flushTimer?.cancel();
     _debounceTimer?.cancel();
+    _filterSaveDebounceTimer?.cancel();
     _inlineSearchDebounce?.cancel();
     unawaited(_logSub?.cancel());
-    unawaited(stopScreenMirror(notify: false));
-    unawaited(_deviceSessionService.dispose());
+    unawaited(service.stopActiveLogStream());
     scrollController.dispose();
     filterController.dispose();
     filterFocusNode.dispose();
@@ -2047,21 +1465,6 @@ class LogTabController extends ChangeNotifier {
     searchFocusNode.dispose();
     logLinesController.dispose();
     super.dispose();
-  }
-}
-
-class _InstallTargetResolution {
-  const _InstallTargetResolution({this.device, this.error});
-
-  final Device? device;
-  final String? error;
-
-  factory _InstallTargetResolution.success(Device device) {
-    return _InstallTargetResolution(device: device);
-  }
-
-  factory _InstallTargetResolution.failure(String error) {
-    return _InstallTargetResolution(error: error);
   }
 }
 

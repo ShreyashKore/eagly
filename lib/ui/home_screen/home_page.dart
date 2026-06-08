@@ -1,20 +1,23 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/services.dart';
 
 import 'package:flutter/material.dart';
-import 'package:tabbed_view/tabbed_view.dart';
+import 'package:flutter/services.dart';
 
 import '../../constants/app_constants.dart';
 import '../../constants/log_constants.dart';
+import '../../features/logs/log_controller.dart';
 import '../../intents/intents.dart';
 import '../../services/app_info_service.dart';
 import '../../services/preferences_service.dart';
+import '../../session/device_session_manager.dart';
 import '../../utils/log_feedback.dart';
-import '../log_tab_view/log_tab_controller.dart';
-import '../log_tab_view/log_tab_view.dart';
 import '../settings/settings_screen.dart';
+import '../wireless_connection/wireless_connection_dialog.dart';
+import 'app_header.dart';
+import 'device_screen.dart';
 import 'home_page_support.dart';
+import 'home_view.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,58 +27,36 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TabbedViewController _tabsController = TabbedViewController([]);
+  final DeviceSessionManager _manager = DeviceSessionManager();
   final ValueNotifier<int> _appMemoryBytes = ValueNotifier<int>(0);
-  final Map<Object, WorkspaceTabBinding> _workspaceTabs = {};
-  late final TabData _newTabActionTab = TabData(
-    id: AppConstants.newTabActionId,
-    text: AppConstants.newTabLabel,
-    tooltip: AppConstants.newTabTooltip,
-    closable: false,
-    draggable: false,
-    view: const SizedBox.shrink(),
-    labelBuilder: (context) => NewTabActionLabel(textStyle: context.textStyle),
-  );
-
   Timer? _memoryRefreshTimer;
-  int _nextTabNumber = 1;
-  bool _isAdjustingNewTabActionPosition = false;
-  bool _ignoreNextNewTabSelection = false;
 
   bool get _supportsDesktopMenuBar => Platform.isMacOS;
 
-  LogTabController? get _activeController =>
-      _tabsController.selectedTab?.value as LogTabController?;
-
-  bool _isNewTabAction(TabData tab) => tab.id == AppConstants.newTabActionId;
-
-  int get _workspaceTabCount =>
-      _tabsController.tabs.where((tab) => !_isNewTabAction(tab)).length;
+  LogController? get _activeLog =>
+      _manager.selected?.logSessionManager.selectedTab;
 
   @override
   void initState() {
     super.initState();
-    _tabsController.onTabRemoved = _onTabRemoved;
-    _tabsController.onTabReordered = _onTabReordered;
-    _tabsController.onTabSelected = _onTabSelected;
+    _manager.addListener(_onManagerChanged);
     _refreshAppMemory();
     _memoryRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _refreshAppMemory();
     });
-    _ensureNewTabActionPresent();
-    _ensureAtLeastOneTab();
   }
 
   @override
   void dispose() {
     _memoryRefreshTimer?.cancel();
     _appMemoryBytes.dispose();
-    for (final workspaceTab in _workspaceTabs.values.toList()) {
-      workspaceTab.dispose();
-    }
-    _workspaceTabs.clear();
-    _tabsController.dispose();
+    _manager.removeListener(_onManagerChanged);
+    _manager.dispose();
     super.dispose();
+  }
+
+  void _onManagerChanged() {
+    if (mounted) setState(() {});
   }
 
   void _refreshAppMemory() {
@@ -85,188 +66,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _ensureAtLeastOneTab() {
-    if (_workspaceTabCount > 0) return;
-    _createTab(select: true);
-  }
-
-  void _ensureNewTabActionPresent() {
-    final newTabActionIndex = _tabsController.tabs.indexWhere(_isNewTabAction);
-    if (newTabActionIndex == -1) {
-      _tabsController.addTab(_newTabActionTab);
-      return;
-    }
-    _moveNewTabActionToEnd();
-  }
-
-  void _moveNewTabActionToEnd() {
-    if (_isAdjustingNewTabActionPosition) return;
-    final newTabActionIndex = _tabsController.tabs.indexWhere(_isNewTabAction);
-    if (newTabActionIndex == -1 ||
-        newTabActionIndex == _tabsController.tabs.length - 1) {
-      return;
-    }
-
-    _isAdjustingNewTabActionPosition = true;
-    try {
-      _tabsController.reorderTab(
-        newTabActionIndex,
-        _tabsController.tabs.length,
-      );
-    } finally {
-      _isAdjustingNewTabActionPosition = false;
-    }
-  }
-
-  FutureOr<bool> _handleTabRemoveRequest(
-    BuildContext context,
-    int tabIndex,
-    TabData tab,
-  ) {
-    if (!_isNewTabAction(tab) && _workspaceTabCount == 1) {
-      _ignoreNextNewTabSelection = true;
-    }
-    // when removing second last tab; so tab just before new tab; ignore next new tab selection to avoid creating a new tab when the last tab is removed and new tab action gets selected
-    if (tabIndex == _tabsController.tabs.length - 2) {
-      _ignoreNextNewTabSelection = true;
-    }
-    return true;
-  }
-
-  void _clearNewTabActionSelectionIfNeeded() {
-    debugTabs('Clearing new tab action selection if needed');
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final selectedTab = _tabsController.selectedTab;
-      if (selectedTab != null && _isNewTabAction(selectedTab)) {
-        _tabsController.selectedIndex = _tabsController.length - 2;
-      }
-    });
-  }
-
-  bool _isDeviceSelectedInAnotherTab(String deviceId, LogTabController owner) {
-    return _workspaceTabs.values.any(
-      (workspaceTab) =>
-          !identical(workspaceTab.controller, owner) &&
-          workspaceTab.controller.selectedDevice?.id == deviceId,
-    );
-  }
-
-  void _createTab({bool select = true}) {
-    final tabNumber = _nextTabNumber++;
-    late final LogTabController controller;
-    controller = LogTabController(
-      id: 'workspace-tab-$tabNumber',
-      initialTitle: 'Tab $tabNumber',
-      initialSettings: PreferencesService.defaultTabSettings,
-      isDeviceSelectedInAnotherTab: (deviceId) =>
-          _isDeviceSelectedInAnotherTab(deviceId, controller),
-    );
-
-    final tabData = TabData(
-      id: controller.id,
-      value: controller,
-      text: controller.title,
-      tooltip: controller.title,
-      closable: true,
-      keepAlive: true,
-      labelBuilder: (context) => WorkspaceTabLabel(
-        controller: controller,
-        textStyle: context.textStyle,
-      ),
-      view: LogTabView(
-        controller: controller,
-        appMemoryBytesListenable: _appMemoryBytes,
-        onOpenSettings: _openSettings,
-        onShowAbout: _showAboutApp,
-      ),
-    );
-
-    void syncTabLabel() {
-      tabData.text = controller.title;
-      tabData.tooltip = controller.title;
-    }
-
-    controller.addListener(syncTabLabel);
-    _workspaceTabs[tabData.id] = WorkspaceTabBinding(
-      tabData: tabData,
-      controller: controller,
-      syncListener: syncTabLabel,
-    );
-
-    final newTabActionIndex = _tabsController.tabs.indexWhere(_isNewTabAction);
-    if (newTabActionIndex == -1) {
-      _tabsController.addTab(tabData);
-      _ensureNewTabActionPresent();
-    } else {
-      _tabsController.insertTab(newTabActionIndex, tabData);
-    }
-
-    if (select) {
-      _tabsController.selectedIndex = _tabsController.tabs.indexOf(tabData);
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(controller.bootstrapInitialLoad());
-    });
-    setState(() {});
-  }
-
-  void _onTabRemoved(TabData tab) {
-    debugTabs('removed: ${tab.text} (${tab.id})');
-    if (_isNewTabAction(tab)) {
-      _ensureNewTabActionPresent();
-      return;
-    }
-
-    final workspaceTab = _workspaceTabs.remove(tab.id);
-    workspaceTab?.dispose();
-
-    if (_workspaceTabCount == 0) {
-      _clearNewTabActionSelectionIfNeeded();
-    }
-
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  void _onTabReordered(int oldIndex, int newIndex) {
-    debugTabs('reordered: $oldIndex -> $newIndex');
-    _moveNewTabActionToEnd();
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  void _onTabSelected(TabSelection? selection) async {
-    debugTabs(
-      'selection ${selection?.index}\nworkspaceTabCount: $_workspaceTabCount\nignoreNextNewTabSelection: $_ignoreNextNewTabSelection',
-    );
-    final selectedTab = selection?.tab;
-    if (selectedTab != null && _isNewTabAction(selectedTab)) {
-      if (_ignoreNextNewTabSelection && _workspaceTabCount > 0) {
-        _ignoreNextNewTabSelection = false;
-        _clearNewTabActionSelectionIfNeeded();
-        if (mounted) {
-          setState(() {});
-        }
-        return;
-      }
-
-      _createTab(select: true);
-      return;
-    }
-
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
   Future<void> _openSettings() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+    await showSettingsDialog(context);
     if (!mounted) return;
     setState(() {});
   }
@@ -301,51 +102,50 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _handleImportLogs() async {
-    final controller = _activeController;
-    if (controller == null) return;
-
-    final result = await controller.importLogs();
-    if (!mounted || result.cancelled || result.error == null) return;
-    _showSnackBar(result.error!);
-  }
-
-  Future<void> _handleExportLogs() async {
-    final controller = _activeController;
-    if (controller == null) return;
-
-    final result = await controller.exportLogs();
-    if (!mounted || result.cancelled) return;
-
-    _showSnackBar(formatExportLogsMessage(result));
+  Future<void> _showWirelessDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => WirelessConnectionDialog(
+        manager: _manager,
+        onShowSnackBar: _showSnackBar,
+      ),
+    );
   }
 
   Future<void> _handleInstallApp() async {
-    final controller = _activeController;
-    if (controller == null) return;
-
-    final result = await controller.installAppFromPicker();
+    final session = _manager.selected;
+    if (session == null) return;
+    final result = await session.installAppFromPicker();
     if (!mounted || result.cancelled) return;
-
     _showSnackBar(formatAppInstallMessage(result));
   }
 
-  void _runOnActiveTab(void Function(LogTabController tab) action) {
-    final controller = _activeController;
-    if (controller == null) return;
-    action(controller);
+  Future<void> _handleExportLogs() async {
+    final log = _activeLog;
+    if (log == null) return;
+    final result = await log.exportLogs();
+    if (!mounted || result.cancelled) return;
+    _showSnackBar(formatExportLogsMessage(result));
+  }
+
+  void _runOnActiveLog(void Function(LogController log) action) {
+    final log = _activeLog;
+    if (log == null) return;
+    action(log);
   }
 
   List<PlatformMenuItem> _logLevelFilterMenuItems() {
-    final isIos = _activeController?.isIosLogContext ?? false;
+    final isIos = _activeLog?.isIosLogContext ?? false;
     return buildLogLevelMenuItems(
       isIos: isIos,
       onSelected: (level) =>
-          _runOnActiveTab((tab) => tab.setSelectedLogLevel(level)),
+          _runOnActiveLog((log) => log.setSelectedLogLevel(level)),
     );
   }
 
   List<PlatformMenuItem> _buildDesktopMenus() {
+    final canInstall = _manager.selected?.isConnected == true;
+
     return [
       // ── File ──────────────────────────────────────────────────────────────
       PlatformMenu(
@@ -354,34 +154,13 @@ class _HomeScreenState extends State<HomeScreen> {
           PlatformMenuItemGroup(
             members: [
               PlatformMenuItem(
-                label: 'New Tab',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyT,
-                  meta: true,
-                ),
-                onSelected: _createTab,
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Import Logs…',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyO,
-                  meta: true,
-                ),
-                onSelected: () => unawaited(_handleImportLogs()),
-              ),
-              PlatformMenuItem(
                 label: 'Install App on Selected Device…',
                 shortcut: const SingleActivator(
                   LogicalKeyboardKey.keyI,
                   meta: true,
                   shift: true,
                 ),
-                onSelected:
-                    _activeController?.hasConnectedSelectedDevice == true
+                onSelected: canInstall
                     ? () => unawaited(_handleInstallApp())
                     : null,
               ),
@@ -392,7 +171,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   meta: true,
                   shift: true,
                 ),
-                onSelected: () => unawaited(_handleExportLogs()),
+                onSelected: _activeLog == null
+                    ? null
+                    : () => unawaited(_handleExportLogs()),
               ),
             ],
           ),
@@ -436,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   meta: true,
                   shift: true,
                 ),
-                onSelected: () => _runOnActiveTab((tab) => tab.loadDevices()),
+                onSelected: () => unawaited(_manager.refreshDevices()),
               ),
             ],
           ),
@@ -448,7 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   LogicalKeyboardKey.keyR,
                   meta: true,
                 ),
-                onSelected: () => _runOnActiveTab((tab) => tab.startLogcat()),
+                onSelected: () => _runOnActiveLog((log) => log.startLogcat()),
               ),
               PlatformMenuItem(
                 label: 'Pause / Resume Logcat',
@@ -457,7 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   meta: true,
                 ),
                 onSelected: () =>
-                    _runOnActiveTab((tab) => tab.togglePauseResume()),
+                    _runOnActiveLog((log) => log.togglePauseResume()),
               ),
               PlatformMenuItem(
                 label: 'Clear Logs',
@@ -465,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   LogicalKeyboardKey.keyK,
                   meta: true,
                 ),
-                onSelected: () => _runOnActiveTab((tab) => tab.clearLogs()),
+                onSelected: () => _runOnActiveLog((log) => log.clearLogs()),
               ),
             ],
           ),
@@ -477,7 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   LogicalKeyboardKey.end,
                   meta: true,
                 ),
-                onSelected: () => _runOnActiveTab((tab) => tab.scrollToEnd()),
+                onSelected: () => _runOnActiveLog((log) => log.scrollToEnd()),
               ),
             ],
           ),
@@ -497,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   meta: true,
                 ),
                 onSelected: () =>
-                    _runOnActiveTab((tab) => tab.activateSearchFromSelection()),
+                    _runOnActiveLog((log) => log.activateSearchFromSelection()),
               ),
             ],
           ),
@@ -510,7 +291,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   meta: true,
                   shift: true,
                 ),
-                onSelected: () => _runOnActiveTab((tab) => tab.onSearchPrev()),
+                onSelected: () => _runOnActiveLog((log) => log.onSearchPrev()),
               ),
               PlatformMenuItem(
                 label: 'Next Match',
@@ -518,7 +299,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   LogicalKeyboardKey.keyG,
                   meta: true,
                 ),
-                onSelected: () => _runOnActiveTab((tab) => tab.onSearchNext()),
+                onSelected: () => _runOnActiveLog((log) => log.onSearchNext()),
               ),
             ],
           ),
@@ -538,11 +319,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   meta: true,
                 ),
                 onSelected: () =>
-                    _runOnActiveTab((tab) => tab.focusFilterInputs()),
+                    _runOnActiveLog((log) => log.focusFilterInputs()),
               ),
               PlatformMenuItem(
                 label: 'Clear Filter',
-                onSelected: () => _runOnActiveTab((tab) => tab.clearFilter()),
+                onSelected: () => _runOnActiveLog((log) => log.clearFilter()),
               ),
             ],
           ),
@@ -559,12 +340,12 @@ class _HomeScreenState extends State<HomeScreen> {
               PlatformMenuItem(
                 label: 'Toggle Wrap Text',
                 onSelected: () =>
-                    _runOnActiveTab((tab) => tab.toggleWrapText()),
+                    _runOnActiveLog((log) => log.toggleWrapText()),
               ),
               PlatformMenuItem(
                 label: 'Toggle Auto-scroll',
                 onSelected: () =>
-                    _runOnActiveTab((tab) => tab.toggleAutoScroll()),
+                    _runOnActiveLog((log) => log.toggleAutoScroll()),
               ),
             ],
           ),
@@ -611,15 +392,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final materialTheme = Theme.of(context);
-    final colorScheme = materialTheme.colorScheme;
-    final theme = TabbedViewThemeData.minimalist(
-      tabRadius: 8,
-      tabStyleResolver: HomeTabsStyleResolver(colorScheme: colorScheme),
-    );
-    theme.tabsArea.padding = EdgeInsets.zero;
-    theme.tabsArea.position = TabBarPosition.top;
-    theme.divider = null;
-    theme.tabsArea.sideTabsLayout = SideTabsLayout.stacked;
 
     final content = Shortcuts(
       shortcuts: homePageShortcuts,
@@ -627,7 +399,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: <Type, Action<Intent>>{
           ActivateSearchIntent: CallbackAction<ActivateSearchIntent>(
             onInvoke: (_) {
-              _activeController?.activateSearchFromSelection();
+              _activeLog?.activateSearchFromSelection();
               return null;
             },
           ),
@@ -649,12 +421,15 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Scaffold(
             backgroundColor: materialTheme.scaffoldBackgroundColor,
             body: SafeArea(
-              child: TabbedViewTheme(
-                data: theme,
-                child: TabbedView(
-                  controller: _tabsController,
-                  tabRemoveInterceptor: _handleTabRemoveRequest,
-                ),
+              child: Column(
+                children: [
+                  AppHeader(
+                    manager: _manager,
+                    onOpenSettings: _openSettings,
+                    onShowWireless: _showWirelessDialog,
+                  ),
+                  Expanded(child: _buildBody()),
+                ],
               ),
             ),
           ),
@@ -667,5 +442,20 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return content;
+  }
+
+  Widget _buildBody() {
+    final session = _manager.selected;
+    if (session == null) {
+      return HomeView(
+        manager: _manager,
+        onShowWireless: _showWirelessDialog,
+        onShowMessage: _showSnackBar,
+      );
+    }
+    return DeviceScreen(
+      session: session,
+      appMemoryBytesListenable: _appMemoryBytes,
+    );
   }
 }
