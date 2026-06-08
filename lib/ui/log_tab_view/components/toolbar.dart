@@ -201,6 +201,23 @@ class Toolbar extends StatelessWidget {
                 ? controller.clearLogs
                 : null,
           ),
+          ToolbarIconButton(
+            icon: Icons.mobile_screen_share,
+            tooltip: controller.selectedDevice == null
+                ? 'Select an Android device to mirror'
+                : controller.selectedDevice is! AndroidDevice
+                ? 'Screen mirror supports Android devices'
+                : controller.selectedDevice?.isDisconnected == true
+                ? 'Selected device is disconnected'
+                : controller.screenMirrorVisible
+                ? 'Hide screen mirror'
+                : 'Open screen mirror',
+            isActive: controller.screenMirrorVisible,
+            onPressed:
+                controller.hasSelectedDevice && !controller.isReadingFromFile
+                ? controller.toggleScreenMirrorPane
+                : null,
+          ),
           const Spacer(),
           IconButton(
             icon: const Icon(Icons.copy_all_outlined),

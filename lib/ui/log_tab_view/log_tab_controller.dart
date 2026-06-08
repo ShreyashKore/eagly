@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
@@ -12,6 +13,7 @@ import '../../data/log_filters.dart';
 import '../../data/log_level.dart';
 import '../../data/log_tab_settings.dart';
 import '../../data/log_view_mode.dart';
+import '../../features/flutter_scrcpy/flutter_scrcpy.dart';
 import '../../services/app_install_service.dart';
 import '../../services/device_repository.dart';
 import '../../services/device_session_service.dart';
@@ -23,6 +25,42 @@ import '../../utils/utils.dart';
 import 'components/inline_filter_bar.dart';
 
 enum LogcatState { stopped, running, paused }
+
+enum ScreenMirrorState { stopped, starting, running, unsupported, error }
+
+/// Encoder quality presets for the screen mirror. Higher quality streams more
+/// pixels/bits, which increases latency.
+enum MirrorQuality {
+  fast('Fast', 'Lower quality, lowest latency'),
+  normal('Normal', 'Balanced quality and latency'),
+  high('High', 'Best quality, higher latency');
+
+  const MirrorQuality(this.label, this.description);
+
+  final String label;
+  final String description;
+
+  ScrcpyVideoOptions toOptions() => switch (this) {
+    MirrorQuality.fast => const ScrcpyVideoOptions(
+      maxSize: 720,
+      maxFps: 60,
+      videoBitRate: 3000000,
+      control: true,
+    ),
+    MirrorQuality.normal => const ScrcpyVideoOptions(
+      maxSize: 1280,
+      maxFps: 60,
+      videoBitRate: 8000000,
+      control: true,
+    ),
+    MirrorQuality.high => const ScrcpyVideoOptions(
+      maxSize: 1920,
+      maxFps: 60,
+      videoBitRate: 16000000,
+      control: true,
+    ),
+  };
+}
 
 class LogTabController extends ChangeNotifier {
   static const int _maxRecentFilterValues = 8;
@@ -85,11 +123,18 @@ class LogTabController extends ChangeNotifier {
   Timer? _debounceTimer;
   Timer? _filterSaveDebounceTimer;
   Timer? _inlineSearchDebounce;
+  ScrcpyMirrorSession? _screenMirrorSession;
 
   var devices = <Device>[];
   Device? selectedDevice;
 
   var logcatState = LogcatState.stopped;
+  var screenMirrorState = ScreenMirrorState.stopped;
+  var screenMirrorVisible = false;
+  double screenMirrorPaneWidth = 340;
+  MirrorQuality mirrorQuality = MirrorQuality.normal;
+  ScreenRecordingSession? _screenRecordingSession;
+  String? screenMirrorError;
   var searchQuery = '';
   var packageFilterQuery = '';
   var pidTidFilterQuery = '';
@@ -178,6 +223,18 @@ class LogTabController extends ChangeNotifier {
   String? get installingAppName => _installingAppName;
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;
+  ScrcpyMirrorSession? get screenMirrorSession => _screenMirrorSession;
+
+  /// Native texture id of the live mirror, or null when not running.
+  int? get screenMirrorTextureId => _screenMirrorSession?.textureId;
+
+  bool get isScreenMirrorRunning =>
+      screenMirrorState == ScreenMirrorState.running ||
+      screenMirrorState == ScreenMirrorState.starting;
+  bool get canStartScreenMirror =>
+      selectedDevice is AndroidDevice &&
+      selectedDevice?.isConnected == true &&
+      !isReadingFromFile;
   bool get hasLogs => _logsBuffer.size > 0;
   bool get hasAnyCachedLogs => hasLogs || _pendingLogs.isNotEmpty;
   bool get hasSelectedDevice => selectedDevice != null;
@@ -279,6 +336,12 @@ class LogTabController extends ChangeNotifier {
 
   Future<void> bootstrapInitialLoad() async {
     await loadDevices(autoStartSingleIfAvailable: true);
+    // Debug-only: auto-open the mirror so the texture pipeline can be verified
+    // without UI automation. Gated on an env var; no effect in normal runs.
+    if (Platform.environment['EAGLY_AUTOSTART_MIRROR'] == '1' &&
+        canStartScreenMirror) {
+      await showScreenMirror();
+    }
   }
 
   void focusFilterInputs() {
@@ -327,6 +390,8 @@ class LogTabController extends ChangeNotifier {
     if (_disposed || !result.isSuccess || result.logs == null) return result;
 
     await _stopLogcatInternal(resetState: false);
+    if (_disposed) return result;
+    await stopScreenMirror(notify: false);
     if (_disposed) return result;
 
     clearSelectedRows(notify: false);
@@ -1433,6 +1498,203 @@ class LogTabController extends ChangeNotifier {
     );
   }
 
+  Future<void> showScreenMirror() async {
+    screenMirrorVisible = true;
+    _notify();
+
+    if (isScreenMirrorRunning) return;
+    await startScreenMirror();
+  }
+
+  Future<void> toggleScreenMirrorPane() async {
+    if (screenMirrorVisible) {
+      screenMirrorVisible = false;
+      _notify();
+      return;
+    }
+
+    await showScreenMirror();
+  }
+
+  Future<void> startScreenMirror() async {
+    final device = selectedDevice;
+    if (device == null) {
+      screenMirrorError = 'Select a connected Android device to mirror.';
+      screenMirrorState = ScreenMirrorState.error;
+      _notify();
+      return;
+    }
+
+    screenMirrorVisible = true;
+
+    if (device is! AndroidDevice) {
+      screenMirrorError =
+          'Screen mirroring is currently available for Android devices.';
+      screenMirrorState = ScreenMirrorState.unsupported;
+      _notify();
+      return;
+    }
+
+    if (device.isDisconnected) {
+      screenMirrorError = 'The selected device is disconnected.';
+      screenMirrorState = ScreenMirrorState.error;
+      _notify();
+      return;
+    }
+
+    await stopScreenMirror(notify: false);
+    if (_disposed) return;
+
+    screenMirrorState = ScreenMirrorState.starting;
+    screenMirrorError = null;
+    _notify();
+
+    try {
+      final session = await _deviceSessionService.startScreenMirror(
+        device,
+        options: mirrorQuality.toOptions(),
+      );
+      if (_disposed) {
+        await session.stop();
+        return;
+      }
+
+      _screenMirrorSession = session;
+      screenMirrorState = ScreenMirrorState.running;
+      _notify();
+      unawaited(_watchScreenMirrorExit(session));
+    } on ScrcpyMirrorException catch (error) {
+      screenMirrorState = ScreenMirrorState.error;
+      screenMirrorError = error.message;
+      _notify();
+    } on UnsupportedError catch (error) {
+      screenMirrorState = ScreenMirrorState.unsupported;
+      screenMirrorError = error.message;
+      _notify();
+    } catch (error) {
+      screenMirrorState = ScreenMirrorState.error;
+      screenMirrorError = describeError(error);
+      _notify();
+    }
+  }
+
+  /// Forwards a pointer interaction on the mirror surface to the device.
+  /// [nx]/[ny] are normalized (0..1) positions within the video rect.
+  void handleMirrorTouch(ScrcpyTouchAction action, double nx, double ny) {
+    final session = _screenMirrorSession;
+    final control = session?.control;
+    if (session == null || control == null) return;
+    final x = (nx.clamp(0.0, 1.0) * session.width).round();
+    final y = (ny.clamp(0.0, 1.0) * session.height).round();
+    control.touch(
+      action,
+      x: x,
+      y: y,
+      videoWidth: session.width,
+      videoHeight: session.height,
+    );
+  }
+
+  /// Injects a hardware / navigation key (home, back, power, volume, …) into
+  /// the mirrored device. No-op when the control channel is unavailable.
+  void handleMirrorKey(ScrcpyKey key) {
+    _screenMirrorSession?.control?.key(key);
+  }
+
+  /// adb serial of the device currently being mirrored, if any.
+  String? get _mirrorSerial => _screenMirrorSession?.serial;
+
+  bool get isMirrorRecording => _screenRecordingSession != null;
+
+  /// Switches the encoder quality preset. Restarts the live stream so the new
+  /// resolution/bitrate take effect.
+  Future<void> setMirrorQuality(MirrorQuality quality) async {
+    if (quality == mirrorQuality) return;
+    mirrorQuality = quality;
+    _notify();
+    if (isScreenMirrorRunning) {
+      await startScreenMirror();
+    }
+  }
+
+  /// Captures a PNG screenshot of the mirrored device, or null if unavailable.
+  Future<Uint8List?> captureMirrorScreenshot() async {
+    final serial = _mirrorSerial;
+    if (serial == null) return null;
+    return _deviceSessionService.captureScreenshot(serial);
+  }
+
+  /// Cycles the mirrored device's display orientation.
+  Future<void> rotateMirrorDevice() async {
+    final serial = _mirrorSerial;
+    if (serial == null) return;
+    await _deviceSessionService.rotateDevice(serial);
+  }
+
+  /// Begins recording the mirrored device's screen on-device.
+  Future<void> startMirrorRecording() async {
+    final serial = _mirrorSerial;
+    if (serial == null || _screenRecordingSession != null) return;
+    _screenRecordingSession = await _deviceSessionService.startScreenRecording(
+      serial,
+    );
+    _notify();
+  }
+
+  /// Stops recording and saves the finalized mp4 to [localPath].
+  Future<void> stopMirrorRecording(String localPath) async {
+    final session = _screenRecordingSession;
+    _screenRecordingSession = null;
+    _notify();
+    await session?.stopAndPull(localPath);
+  }
+
+  /// Stops recording and discards it without saving.
+  Future<void> cancelMirrorRecording() async {
+    final session = _screenRecordingSession;
+    _screenRecordingSession = null;
+    _notify();
+    await session?.cancel();
+  }
+
+  /// Adjusts the mirror pane width (clamped) when the user drags its edge.
+  void setScreenMirrorPaneWidth(double width) {
+    final clamped = width.clamp(260.0, 720.0);
+    if (clamped == screenMirrorPaneWidth) return;
+    screenMirrorPaneWidth = clamped;
+    _notify();
+  }
+
+  Future<void> _watchScreenMirrorExit(ScrcpyMirrorSession session) async {
+    final exitCode = await session.exitCode;
+    if (_disposed || !identical(_screenMirrorSession, session)) return;
+
+    _screenMirrorSession = null;
+    screenMirrorState = exitCode == 0
+        ? ScreenMirrorState.stopped
+        : ScreenMirrorState.error;
+    screenMirrorError = exitCode == 0
+        ? null
+        : 'scrcpy exited with code $exitCode.';
+    _notify();
+  }
+
+  Future<void> stopScreenMirror({bool notify = true}) async {
+    final session = _screenMirrorSession;
+    _screenMirrorSession = null;
+
+    if (session != null) {
+      await session.stop();
+    }
+
+    if (_disposed) return;
+    screenMirrorState = ScreenMirrorState.stopped;
+    screenMirrorError = null;
+    if (notify) {
+      _notify();
+    }
+  }
+
   Future<void> applyFetchedDevices(
     List<Device> fetchedDevices, {
     bool autoStartSingleIfAvailable = false,
@@ -1455,11 +1717,13 @@ class LogTabController extends ChangeNotifier {
 
     if (selectedDeviceJustDisconnected) {
       await _stopLogcatForDisconnectedDevice(selectedDevice!);
+      await stopScreenMirror();
     }
 
     if (currentSelectionId != null && selectedDevice == null) {
       selectedDevice = null;
       await _stopLogcatInternal(resetState: true);
+      await stopScreenMirror();
     }
 
     final shouldAutoStartSingleDevice =
@@ -1490,6 +1754,7 @@ class LogTabController extends ChangeNotifier {
       if (isRunning) {
         await _stopLogcatInternal(resetState: true);
       }
+      await stopScreenMirror();
       _notify();
       return;
     }
@@ -1503,6 +1768,10 @@ class LogTabController extends ChangeNotifier {
     selectedDevice = device;
     _exitGetStarted();
     _notify();
+
+    if (!sameDevice) {
+      await stopScreenMirror();
+    }
 
     if (sameDevice && isRunning) return;
     await startLogcat();
@@ -1761,6 +2030,7 @@ class LogTabController extends ChangeNotifier {
     _debounceTimer?.cancel();
     _inlineSearchDebounce?.cancel();
     unawaited(_logSub?.cancel());
+    unawaited(stopScreenMirror(notify: false));
     unawaited(_deviceSessionService.dispose());
     scrollController.dispose();
     filterController.dispose();

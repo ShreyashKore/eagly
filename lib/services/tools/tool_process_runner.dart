@@ -74,6 +74,23 @@ abstract class ToolProcessRunner {
     return ToolCommandResult.fromProcessResult(result);
   }
 
+  /// Runs the tool and returns its raw stdout bytes (for binary output such as
+  /// `adb exec-out screencap -p`). Throws [ProcessException] on a non-zero exit.
+  Future<List<int>> runBytes(List<String> arguments) async {
+    final result = await Process.run(
+      executable,
+      arguments,
+      environment: _toolEnvironment(),
+      workingDirectory: _toolWorkingDirectory(),
+      stdoutEncoding: null,
+    );
+    if (result.exitCode != 0) {
+      final stderr = result.stderr is String ? result.stderr as String : '';
+      throw ProcessException(executable, arguments, stderr, result.exitCode);
+    }
+    return result.stdout as List<int>;
+  }
+
   Future<Process> startProcess(List<String> arguments) {
     return Process.start(
       executable,

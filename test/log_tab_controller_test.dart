@@ -14,6 +14,7 @@ import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/services/tools/idevice_id_tool.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
+import 'package:eagly/features/flutter_scrcpy/flutter_scrcpy.dart';
 import 'package:eagly/ui/log_tab_view/log_tab_controller.dart';
 import 'package:eagly/utils/log_entry_utils.dart';
 import 'package:flutter/services.dart';
@@ -156,6 +157,33 @@ void main() {
       controller!.logs.last.message,
       contains('Device disconnected; stopped capturing logs for'),
     );
+  });
+
+  test('screen mirror starts for Android and stops on disconnect', () async {
+    adbTool.androidDevices = [
+      Device(
+        'emulator-5554',
+        'device',
+        platform: DevicePlatform.android,
+        brand: 'Google',
+        model: 'Pixel 8',
+      ),
+    ];
+    controller = createController();
+
+    await controller!.bootstrapInitialLoad();
+    await controller!.showScreenMirror();
+
+    expect(controller!.screenMirrorVisible, isTrue);
+    expect(controller!.screenMirrorState, ScreenMirrorState.running);
+    expect(sessionService.startedMirrorDeviceIds, ['emulator-5554']);
+
+    adbTool.androidDevices = const [];
+    await repository.refreshDevices(force: true);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller!.screenMirrorState, ScreenMirrorState.stopped);
+    expect(sessionService.stoppedMirrorCount, 1);
   });
 
   test('submitLogLinesLimit rejects values below minimum threshold', () {
@@ -854,6 +882,8 @@ class _FakeControllerSessionService extends DeviceSessionService {
     : super(adbPath: '/usr/bin/true', ideviceSyslogPath: '/usr/bin/true');
 
   List<String> startedLogStreamDeviceIds = [];
+  List<String> startedMirrorDeviceIds = [];
+  int stoppedMirrorCount = 0;
   List<({String deviceId, String filePath})> installRequests = [];
   DeviceCommandResult installResult = DeviceCommandResult.success(
     message: 'Success',
@@ -885,6 +915,30 @@ class _FakeControllerSessionService extends DeviceSessionService {
 
   @override
   Future<void> stopActiveLogStream() async {}
+
+  @override
+  Future<ScrcpyMirrorSession> startScreenMirror(
+    Device device, {
+    ScrcpyVideoOptions? options,
+  }) async {
+    startedMirrorDeviceIds = [...startedMirrorDeviceIds, device.id];
+    final exitCode = Completer<int>();
+    return ScrcpyMirrorSession(
+      serial: device.id,
+      textureId: 1,
+      deviceName: device.id,
+      width: 1080,
+      height: 1920,
+      control: null,
+      exitCode: exitCode.future,
+      onStop: () async {
+        stoppedMirrorCount++;
+        if (!exitCode.isCompleted) {
+          exitCode.complete(0);
+        }
+      },
+    );
+  }
 
   @override
   Future<void> dispose() async {

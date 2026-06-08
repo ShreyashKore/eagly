@@ -1,5 +1,5 @@
 #!/bin/bash
-# Downloads Android platform-tools and stages bundled libimobiledevice tools.
+# Downloads Android platform-tools, scrcpy, and stages bundled libimobiledevice tools.
 # Run this script before building desktop releases.
 
 set -euo pipefail
@@ -12,6 +12,11 @@ MACOS_URL="https://dl.google.com/android/repository/platform-tools-latest-darwin
 LINUX_URL="https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
 WINDOWS_URL="https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
 LIBIMOBILEDEVICE_PACKAGE_URL="https://github.com/libimobiledevice-win32/imobiledevice-net/releases/download/v1.3.17/iMobileDevice-net.1.3.17.nupkg"
+SCRCPY_VERSION="${SCRCPY_VERSION:-4.0}"
+SCRCPY_MACOS_ARCH="${SCRCPY_MACOS_ARCH:-$(uname -m | sed 's/arm64/aarch64/')}"
+SCRCPY_LINUX_URL="https://github.com/Genymobile/scrcpy/releases/download/v${SCRCPY_VERSION}/scrcpy-linux-x86_64-v${SCRCPY_VERSION}.tar.gz"
+SCRCPY_MACOS_URL="https://github.com/Genymobile/scrcpy/releases/download/v${SCRCPY_VERSION}/scrcpy-macos-${SCRCPY_MACOS_ARCH}-v${SCRCPY_VERSION}.tar.gz"
+SCRCPY_WINDOWS_URL="https://github.com/Genymobile/scrcpy/releases/download/v${SCRCPY_VERSION}/scrcpy-win64-v${SCRCPY_VERSION}.zip"
 MACOS_OPENSSL_URL="https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1w/openssl-1.1.1w.tar.gz"
 MACOS_HOMEBREW_LIBZIP_BOTTLE_URL="https://ghcr.io/v2/homebrew/core/libzip/blobs/sha256:5b808617db89e546465d756a8d8e0ee7068806e7dc58ae06952eea528ebdce8f"
 MACOS_HOMEBREW_LIBUSB_BOTTLE_URL="https://ghcr.io/v2/homebrew/core/libusb/blobs/sha256:1387aea9bbed3a1e57884b5b43166fc83cfdae415e5f3803a8259ff77a4ba613"
@@ -232,7 +237,7 @@ rewrite_macos_bundle_load_paths() {
     target_name="$(basename "$target_path")"
 
     case "$target_name" in
-      idevice*|inetcat|ios_webkit_debug_proxy|iproxy|irecovery|plistutil|usbmuxd|lib*.dylib)
+      scrcpy|idevice*|inetcat|ios_webkit_debug_proxy|iproxy|irecovery|plistutil|usbmuxd|lib*.dylib)
         ;;
       *)
         continue
@@ -341,11 +346,46 @@ stage_optional_bundle() {
   extract_archive_flat "$archive_path" "$target_dir" "$source_subdir"
 }
 
+scrcpy_bundle_spec() {
+  local platform="$1"
+  case "$platform" in
+    macos) printf '%s' "${SCRCPY_MACOS_ARCHIVE:-${SCRCPY_MACOS_DIR:-$SCRCPY_MACOS_URL}}" ;;
+    linux) printf '%s' "${SCRCPY_LINUX_ARCHIVE:-${SCRCPY_LINUX_DIR:-$SCRCPY_LINUX_URL}}" ;;
+    windows) printf '%s' "${SCRCPY_WINDOWS_ARCHIVE:-${SCRCPY_WINDOWS_DIR:-$SCRCPY_WINDOWS_URL}}" ;;
+  esac
+}
+
+stage_scrcpy_bundle() {
+  local source_spec="$1"
+  local target_dir="$2"
+  local platform="$3"
+
+  echo "Staging scrcpy bundle for $platform..."
+
+  if [ -d "$source_spec" ]; then
+    copy_directory_contents_flat "$source_spec" "$target_dir"
+    return
+  fi
+
+  local archive_path="$source_spec"
+  if [[ "$source_spec" =~ ^https?:// ]]; then
+    archive_path="$TMP_DIR/${platform}-scrcpy-$(basename "$source_spec")"
+    curl -L --fail -o "$archive_path" "$source_spec"
+  fi
+
+  if [ ! -f "$archive_path" ]; then
+    echo "scrcpy bundle not found for $platform: $source_spec" >&2
+    exit 1
+  fi
+
+  extract_archive_flat "$archive_path" "$target_dir"
+}
+
 mark_binaries_executable() {
   local target_dir="$1"
   if [ "$(uname -s)" = "Darwin" ] || [ "$(uname -s)" = "Linux" ]; then
     find "$target_dir" -maxdepth 1 -type f \
-      \( -name 'adb' -o -name 'idevice_*' -o -name '*.dylib' -o -name '*.so' -o -name '*.so.*' \) \
+      \( -name 'adb' -o -name 'scrcpy' -o -name 'idevice_*' -o -name '*.dylib' -o -name '*.so' -o -name '*.so.*' \) \
       -exec chmod +x {} +
   fi
 }
@@ -360,6 +400,7 @@ verify_expected_tools() {
   local ideviceinfo_name="ideviceinfo"
   local ideviceinstaller_name="ideviceinstaller"
   local idevicesyslog_name="idevicesyslog"
+  local scrcpy_name="scrcpy"
 
   if [ "$platform" = "windows" ]; then
     adb_name="adb.exe"
@@ -367,9 +408,10 @@ verify_expected_tools() {
     ideviceinfo_name="ideviceinfo.exe"
     ideviceinstaller_name="ideviceinstaller.exe"
     idevicesyslog_name="idevicesyslog.exe"
+    scrcpy_name="scrcpy.exe"
   fi
 
-  for tool_name in "$adb_name" "$idevice_id_name" "$ideviceinfo_name" "$ideviceinstaller_name" "$idevicesyslog_name"; do
+  for tool_name in "$adb_name" "$idevice_id_name" "$ideviceinfo_name" "$ideviceinstaller_name" "$idevicesyslog_name" "$scrcpy_name"; do
     if [ ! -f "$target_dir/$tool_name" ]; then
       echo "warning: Expected bundled tool missing for $platform: $tool_name"
       missing=1
@@ -413,6 +455,7 @@ prepare_platform_bundle() {
   esac
 
   stage_optional_bundle "$(platform_bundle_spec "$platform")" "$target_dir" "$platform"
+  stage_scrcpy_bundle "$(scrcpy_bundle_spec "$platform")" "$target_dir" "$platform"
   if [ "$platform" = "macos" ]; then
     prepare_macos_bundle_runtime "$target_dir"
   fi
@@ -430,4 +473,4 @@ done
 
 echo
 echo "Bundled mobile tools prepared successfully."
-echo "The app will ship adb plus any staged libimobiledevice binaries from platform-tools/<platform>/."
+echo "The app will ship adb, scrcpy, and any staged libimobiledevice binaries from platform-tools/<platform>/."

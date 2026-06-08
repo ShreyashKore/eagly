@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 
 import '../data/device.dart';
 import '../data/log_entry.dart';
 import '../data/wireless_debug_models.dart';
 import '../features/app_log/app_logger.dart';
+import '../features/flutter_scrcpy/flutter_scrcpy.dart';
+import '../utils/adb_path.dart';
 import 'tools/adb_tool.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
@@ -13,6 +17,7 @@ class DeviceSessionService {
   final AdbTool _adbTool;
   final IdeviceInstallerTool _ideviceInstallerTool;
   final IdeviceSyslogTool _ideviceSyslogTool;
+  final ScrcpyMirror _scrcpyMirror;
   final AppLogger _logger = AppLogger(source: 'DeviceSessionService');
   final Map<String, String> _pidToPackageCache = {};
   Timer? _cacheRefreshTimer;
@@ -30,13 +35,22 @@ class DeviceSessionService {
     AdbTool? adbTool,
     IdeviceInstallerTool? ideviceInstallerTool,
     IdeviceSyslogTool? ideviceSyslogTool,
+    ScrcpyMirror? scrcpyMirror,
   }) : _adbTool = adbTool ?? AdbTool(executablePath: adbPath),
        _ideviceInstallerTool =
            ideviceInstallerTool ??
            IdeviceInstallerTool(executablePath: ideviceInstallerPath),
        _ideviceSyslogTool =
            ideviceSyslogTool ??
-           IdeviceSyslogTool(executablePath: ideviceSyslogPath);
+           IdeviceSyslogTool(executablePath: ideviceSyslogPath),
+       _scrcpyMirror =
+           scrcpyMirror ??
+           ScrcpyMirror(
+             adbExecutablePath:
+                 resolveBundledExecutablePath('adb') ?? adbPath ?? 'adb',
+             serverJarPath:
+                 '${resolveBundledToolsDirectory()?.path}/scrcpy-server',
+           );
 
   AppLogger _sessionLogger(String fallbackSessionTag) =>
       _logger.scoped(sessionTag: sessionLabel ?? fallbackSessionTag);
@@ -166,6 +180,58 @@ class DeviceSessionService {
     };
   }
 
+  Future<ScrcpyMirrorSession> startScreenMirror(
+    Device device, {
+    ScrcpyVideoOptions? options,
+  }) async {
+    if (device is! AndroidDevice) {
+      throw UnsupportedError(
+        'Screen mirroring is currently supported for Android devices only.',
+      );
+    }
+    try {
+      return options != null
+          ? await _scrcpyMirror.start(device.id, options: options)
+          : await _scrcpyMirror.start(device.id);
+    } catch (error) {
+      _logger.error('Failed to start screen mirror', detail: error.toString());
+      rethrow;
+    }
+  }
+
+  /// Captures a full-resolution PNG screenshot of [deviceId] via `screencap`.
+  Future<Uint8List> captureScreenshot(String deviceId) {
+    return _adbTool.captureScreenshotPng(deviceId);
+  }
+
+  /// Cycles the device display orientation (0→1→2→3) via `settings`.
+  Future<void> rotateDevice(String deviceId) async {
+    final current = await _adbTool.getUserRotation(deviceId);
+    await _adbTool.setUserRotation(deviceId, current + 1);
+  }
+
+  /// Starts an on-device `screenrecord`. Finalize + save it via
+  /// [ScreenRecordingSession.stopAndPull].
+  Future<ScreenRecordingSession> startScreenRecording(
+    String deviceId, {
+    int bitRate = 8000000,
+  }) async {
+    final devicePath =
+        '/sdcard/eagly-rec-${DateTime.now().millisecondsSinceEpoch}.mp4';
+    final process = await _adbTool.startScreenRecord(
+      deviceId,
+      devicePath,
+      bitRate: bitRate,
+      timeLimitSeconds: 180,
+    );
+    return ScreenRecordingSession(
+      adbTool: _adbTool,
+      deviceId: deviceId,
+      devicePath: devicePath,
+      process: process,
+    );
+  }
+
   /// Refresh the PID to package name mapping.
   Future<void> refreshPidToPackageMap(String deviceId) async {
     _pidToPackageCache
@@ -185,5 +251,44 @@ class DeviceSessionService {
       case AndroidDevice():
         yield* _startAndroidLogcat(device.id);
     }
+  }
+}
+
+/// A running on-device `screenrecord`. Stop it with [stopAndPull] to finalize
+/// the mp4 and copy it to the host, or [cancel] to discard it.
+class ScreenRecordingSession {
+  ScreenRecordingSession({
+    required AdbTool adbTool,
+    required this.deviceId,
+    required this.devicePath,
+    required this.process,
+  }) : _adbTool = adbTool;
+
+  final AdbTool _adbTool;
+  final String deviceId;
+  final String devicePath;
+  final Process process;
+
+  Future<void> _finish() async {
+    await _adbTool.signalStopScreenRecord(deviceId);
+    try {
+      await process.exitCode.timeout(const Duration(seconds: 8));
+    } catch (_) {
+      process.kill();
+    }
+  }
+
+  /// Finalizes the recording and pulls it to [localPath], then deletes it
+  /// from the device.
+  Future<void> stopAndPull(String localPath) async {
+    await _finish();
+    await _adbTool.pullFile(deviceId, devicePath, localPath);
+    await _adbTool.removeFile(deviceId, devicePath);
+  }
+
+  /// Stops recording and discards the on-device file without saving.
+  Future<void> cancel() async {
+    await _finish();
+    await _adbTool.removeFile(deviceId, devicePath);
   }
 }
