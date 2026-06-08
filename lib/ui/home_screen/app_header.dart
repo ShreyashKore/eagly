@@ -229,25 +229,20 @@ class _HeaderAction extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
-    this.isActive = false,
     this.busy = false,
   });
 
   final IconData? icon;
   final String tooltip;
   final VoidCallback onPressed;
-  final bool isActive;
   final bool busy;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
-      isSelected: isActive,
       mouseCursor: SystemMouseCursors.click,
-      color: isActive ? colorScheme.primary : null,
       icon: busy
           ? const SizedBox.square(
               dimension: 18,

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/device.dart';
 import '../features/crash_reports/crash_report_controller.dart';
+import '../features/file_manager/file_manager_controller.dart';
 import '../features/logs/log_session_manager.dart';
 import '../features/mirror/mirror_controller.dart';
 import '../services/app_install_service.dart';
@@ -29,9 +30,11 @@ class DeviceSessionController extends ChangeNotifier {
   LogSessionManager? _logSessionManager;
   MirrorController? _mirrorController;
   CrashReportController? _crashReportController;
+  FileManagerController? _fileManagerController;
 
   bool _mirrorOpen = false;
   bool _crashReportsOpen = false;
+  bool _filesOpen = false;
   bool _activated = false;
   bool _disposed = false;
 
@@ -41,6 +44,7 @@ class DeviceSessionController extends ChangeNotifier {
   bool get isConnected => _device.isConnected;
   bool get isMirrorOpen => _mirrorOpen;
   bool get isCrashReportsOpen => _crashReportsOpen;
+  bool get isFilesOpen => _filesOpen;
   bool get isActivated => _activated;
 
   /// Whether this device can be screen-mirrored right now.
@@ -48,6 +52,10 @@ class DeviceSessionController extends ChangeNotifier {
 
   /// Whether crash reports can be read for this device (iOS only).
   bool get canReadCrashReports => _device is IosDevice;
+
+  /// Whether the file manager can browse this device right now (both
+  /// platforms, when connected).
+  bool get canManageFiles => _device.isConnected;
 
   LogSessionManager get logSessionManager =>
       _logSessionManager ??= LogSessionManager(session: this);
@@ -57,6 +65,9 @@ class DeviceSessionController extends ChangeNotifier {
 
   CrashReportController get crashReportController =>
       _crashReportController ??= CrashReportController(this);
+
+  FileManagerController get fileManagerController =>
+      _fileManagerController ??= FileManagerController(this);
 
   /// Updates the live device snapshot from the repository. Feature controllers
   /// listen to this controller and react to connectivity transitions.
@@ -111,6 +122,22 @@ class DeviceSessionController extends ChangeNotifier {
 
   void toggleCrashReports() =>
       _crashReportsOpen ? closeCrashReports() : openCrashReports();
+
+  void openFiles() {
+    if (!_filesOpen) {
+      _filesOpen = true;
+      _notify();
+    }
+    unawaited(fileManagerController.ensureLoaded());
+  }
+
+  void closeFiles() {
+    if (!_filesOpen) return;
+    _filesOpen = false;
+    _notify();
+  }
+
+  void toggleFiles() => _filesOpen ? closeFiles() : openFiles();
 
   // ── App install (device-level) ──────────────────────────────────────────
   bool _isInstallingApp = false;
@@ -230,6 +257,7 @@ class DeviceSessionController extends ChangeNotifier {
     _logSessionManager?.dispose();
     _mirrorController?.dispose();
     _crashReportController?.dispose();
+    _fileManagerController?.dispose();
     unawaited(service.dispose());
     super.dispose();
   }

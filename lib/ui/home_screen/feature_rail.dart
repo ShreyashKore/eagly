@@ -63,6 +63,18 @@ class FeatureRail extends StatelessWidget {
                   onTap: session.toggleCrashReports,
                 ),
               _RailButton(
+                icon: Icons.folder_outlined,
+                label: 'Files',
+                isActive: session.isFilesOpen,
+                enabled: session.canManageFiles || session.isFilesOpen,
+                tooltip: session.canManageFiles || session.isFilesOpen
+                    ? (session.isFilesOpen ? 'Hide files' : 'Browse device files')
+                    : 'Connect the device to browse files',
+                onTap: session.canManageFiles || session.isFilesOpen
+                    ? session.toggleFiles
+                    : null,
+              ),
+              _RailButton(
                 icon: session.isInstallingApp
                     ? Icons.hourglass_top_rounded
                     : Icons.system_update_outlined,

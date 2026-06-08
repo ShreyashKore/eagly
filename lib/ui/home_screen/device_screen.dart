@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../features/crash_reports/crash_report_controller.dart';
 import '../../features/crash_reports/crash_report_feature_view.dart';
+import '../../features/file_manager/file_manager_controller.dart';
+import '../../features/file_manager/file_manager_feature_view.dart';
 import '../../features/logs/log_feature_view.dart';
 import '../../features/mirror/mirror_controller.dart';
 import '../../features/mirror/mirror_feature_view.dart';
@@ -69,6 +71,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
 
     final mirror = widget.session.mirrorController;
     final crashReports = widget.session.crashReportController;
+    final files = widget.session.fileManagerController;
 
     return Row(
       children: [
@@ -112,6 +115,26 @@ class _DeviceScreenState extends State<DeviceScreen> {
             );
           },
         ),
+        ListenableBuilder(
+          listenable: files,
+          builder: (context, _) {
+            return AnimatedSection(
+              visible: widget.session.isFilesOpen,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: files.paneWidth,
+                    child: FileManagerFeatureView(
+                      controller: files,
+                      onClose: widget.session.closeFiles,
+                    ),
+                  ),
+                  _FilePaneResizeHandle(controller: files),
+                ],
+              ),
+            );
+          },
+        ),
         Expanded(child: logPane),
       ],
     );
@@ -123,6 +146,38 @@ class _CrashPaneResizeHandle extends StatelessWidget {
   const _CrashPaneResizeHandle({required this.controller});
 
   final CrashReportController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: (details) =>
+            controller.setPaneWidth(controller.paneWidth + details.delta.dx),
+        child: Container(
+          width: 8,
+          height: double.infinity,
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.8),
+          child: Center(
+            child: Container(
+              width: 2,
+              height: 24,
+              color: theme.colorScheme.outline.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Thin draggable divider that resizes the file-manager pane horizontally.
+class _FilePaneResizeHandle extends StatelessWidget {
+  const _FilePaneResizeHandle({required this.controller});
+
+  final FileManagerController controller;
 
   @override
   Widget build(BuildContext context) {
