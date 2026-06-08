@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../ui/components/centered_state_message.dart';
+import '../../presentation/components/centered_state_message.dart';
 import 'components/crash_report_detail.dart';
 import 'components/crash_report_list.dart';
 import 'crash_report_controller.dart';

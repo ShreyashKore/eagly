@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../data/device.dart';
-import '../services/device_repository.dart';
-import '../services/device_session_service.dart';
+import '../services/devices_repository.dart';
+import '../services/device_session_repository.dart';
 import 'device_session_controller.dart';
 
 typedef DeviceSessionServiceFactory =
-    DeviceSessionService Function(Device device);
+    DeviceSessionRepository Function(Device device);
 
 /// App-level coordinator. Listens to the [DeviceRepository] and maintains one
 /// [DeviceSessionController] per detected device, the tab order, and the

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eagly/services/preferences_service.dart';
-import 'package:eagly/theme/app_theme.dart';
-import 'package:eagly/ui/settings/settings_screen.dart';
+import 'package:eagly/presentation/theme/app_theme.dart';
+import 'package:eagly/features/settings/settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

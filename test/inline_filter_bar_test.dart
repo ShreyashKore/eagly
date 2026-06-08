@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:eagly/data/log_level.dart';
-import 'package:eagly/theme/app_theme.dart';
-import 'package:eagly/theme/log_level_presentation.dart';
-import 'package:eagly/features/logs/components/inline_filter_bar.dart';
+import 'package:eagly/features/logs/data/models/log_level.dart';
+import 'package:eagly/presentation/theme/app_theme.dart';
+import 'package:eagly/presentation/theme/log_level_presentation.dart';
+import 'package:eagly/features/logs/presentation/components/inline_filter_bar.dart';
 
 void main() {
   setUpAll(() {

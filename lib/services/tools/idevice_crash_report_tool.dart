@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import '../../data/crash_report.dart';
+import '../../features/crash_reports/data/crash_report.dart';
 import '../../utils/utils.dart';
 import 'tool_process_runner.dart';
 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../theme/app_theme.dart';
-import '../../../ui/components/search_highlight.dart';
-import '../../../ui/components/text_search_bar.dart';
+import '../../../presentation/theme/app_theme.dart';
+import '../../../presentation/components/search_highlight.dart';
+import '../../../presentation/components/text_search_bar.dart';
 import '../../../utils/text_search_pattern.dart';
 import '../crash_report_controller.dart';
 import '../utils.dart';

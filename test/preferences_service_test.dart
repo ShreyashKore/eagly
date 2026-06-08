@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:eagly/data/log_level.dart';
-import 'package:eagly/data/log_view_mode.dart';
+import 'package:eagly/features/logs/data/models/log_level.dart';
+import 'package:eagly/features/logs/presentation/models/log_view_mode.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

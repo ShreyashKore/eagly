@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../ui/components/centered_state_message.dart';
+import '../../presentation/components/centered_state_message.dart';
 import 'components/file_breadcrumb_bar.dart';
 import 'components/file_context_menu.dart';
 import 'components/file_grid_view.dart';

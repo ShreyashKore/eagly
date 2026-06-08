@@ -1,14 +1,14 @@
 import 'dart:async';
 
 import 'package:eagly/data/device.dart';
-import 'package:eagly/data/log_column.dart';
-import 'package:eagly/data/log_entry.dart';
-import 'package:eagly/data/log_level.dart';
-import 'package:eagly/data/log_tab_settings.dart';
-import 'package:eagly/data/log_view_mode.dart';
-import 'package:eagly/data/wireless_debug_models.dart';
+import 'package:eagly/features/logs/data/models/log_column.dart';
+import 'package:eagly/features/logs/data/models/log_entry.dart';
+import 'package:eagly/features/logs/data/models/log_level.dart';
+import 'package:eagly/features/logs/data/models/log_tab_settings.dart';
+import 'package:eagly/features/logs/presentation/models/log_view_mode.dart';
+import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
 import 'package:eagly/features/flutter_scrcpy/flutter_scrcpy.dart';
-import 'package:eagly/services/device_session_service.dart';
+import 'package:eagly/services/device_session_repository.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/services/tools/idevice_id_tool.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
@@ -52,9 +52,9 @@ LogEntry testLogEntry({
   );
 }
 
-/// Fake [DeviceSessionService] that records calls and lets tests emit log
+/// Fake [DeviceSessionRepository] that records calls and lets tests emit log
 /// entries on the live stream.
-class FakeSessionService extends DeviceSessionService {
+class FakeSessionService extends DeviceSessionRepository {
   FakeSessionService(Device device)
     : super(
         device: device,

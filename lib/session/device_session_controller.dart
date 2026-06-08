@@ -8,24 +8,24 @@ import '../features/file_manager/file_manager_controller.dart';
 import '../features/logs/log_session_manager.dart';
 import '../features/mirror/mirror_controller.dart';
 import '../services/app_install_service.dart';
-import '../services/device_session_service.dart';
+import '../services/device_session_repository.dart';
 import '../utils/utils.dart';
 
 /// Owns everything for a single device session: the live [Device] + its
-/// connectivity, the [DeviceSessionService], and (lazily) the per-feature
+/// connectivity, the [DeviceSessionRepository], and (lazily) the per-feature
 /// controllers. It does not own feature state — that lives in the feature
 /// controllers.
 class DeviceSessionController extends ChangeNotifier {
   DeviceSessionController({
     required Device device,
-    DeviceSessionService? service,
+    DeviceSessionRepository? service,
   }) : _device = device,
-       service = service ?? DeviceSessionService(device: device) {
+       service = service ?? DeviceSessionRepository(device: device) {
     this.service.sessionLabel = device.id;
   }
 
   Device _device;
-  final DeviceSessionService service;
+  final DeviceSessionRepository service;
 
   LogSessionManager? _logSessionManager;
   MirrorController? _mirrorController;

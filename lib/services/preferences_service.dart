@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../data/log_column.dart';
-import '../data/log_level.dart';
-import '../data/log_tab_settings.dart';
-import '../data/log_view_mode.dart';
+import '../features/logs/data/models/log_column.dart';
+import '../features/logs/data/models/log_level.dart';
+import '../features/logs/data/models/log_tab_settings.dart';
+import '../features/logs/presentation/models/log_view_mode.dart';
 
 extension SharedPreferencesJson on SharedPreferences {
   /// Reads a JSON-encoded value from persistent storage and decodes it.

@@ -1,6 +1,6 @@
-import 'package:eagly/data/log_entry.dart';
-import 'package:eagly/services/log_formats/log_formats.dart';
-import 'package:eagly/services/log_parsers/logcat_parser.dart';
+import 'package:eagly/features/logs/data/models/log_entry.dart';
+import 'package:eagly/features/logs/services/log_formats/log_formats.dart';
+import 'package:eagly/features/logs/services/log_parsers/logcat_parser.dart';
 import 'package:eagly/utils/log_entry_utils.dart';
 import 'package:flutter_test/flutter_test.dart';
 

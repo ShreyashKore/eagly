@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import '../../data/device.dart';
-import '../../services/device_session_service.dart';
+import '../../services/device_session_repository.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/utils.dart';
 import '../flutter_scrcpy/flutter_scrcpy.dart';

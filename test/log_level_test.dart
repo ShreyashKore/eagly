@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:eagly/data/log_level.dart';
+import 'package:eagly/features/logs/data/models/log_level.dart';
 
 void main() {
   group('LogLevel', () {

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import '../../data/crash_report.dart';
+import 'data/crash_report.dart';
 import '../../data/device.dart';
 import '../../services/tools/idevice_crash_report_tool.dart';
 import '../../session/feature_controller.dart';

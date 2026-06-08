@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:eagly/data/device.dart';
-import 'package:eagly/services/device_repository.dart';
+import 'package:eagly/services/devices_repository.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
 import 'package:eagly/session/device_session_manager.dart';

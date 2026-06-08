@@ -1,5 +1,5 @@
-import '../data/log_column.dart';
-import '../data/log_entry.dart';
+import '../features/logs/data/models/log_column.dart';
+import '../features/logs/data/models/log_entry.dart';
 import 'timestamp_utils.dart';
 
 enum LogCopyFormat { messageOnly, timestampAndMessage, fullLine }

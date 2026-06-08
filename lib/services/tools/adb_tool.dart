@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:eagly/services/log_parsers/logcat_parser.dart';
+import 'package:eagly/features/logs/services/log_parsers/logcat_parser.dart';
 
 import '../../data/device.dart';
-import '../../data/log_entry.dart';
-import '../../data/wireless_debug_models.dart';
+import '../../features/logs/data/models/log_entry.dart';
+import '../../features/wireless_connection/data/wireless_debug_models.dart';
 import '../../utils/utils.dart';
 import 'tool_process_runner.dart';
 
