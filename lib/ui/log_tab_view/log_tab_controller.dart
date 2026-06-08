@@ -28,6 +28,40 @@ enum LogcatState { stopped, running, paused }
 
 enum ScreenMirrorState { stopped, starting, running, unsupported, error }
 
+/// Encoder quality presets for the screen mirror. Higher quality streams more
+/// pixels/bits, which increases latency.
+enum MirrorQuality {
+  fast('Fast', 'Lower quality, lowest latency'),
+  normal('Normal', 'Balanced quality and latency'),
+  high('High', 'Best quality, higher latency');
+
+  const MirrorQuality(this.label, this.description);
+
+  final String label;
+  final String description;
+
+  ScrcpyVideoOptions toOptions() => switch (this) {
+    MirrorQuality.fast => const ScrcpyVideoOptions(
+      maxSize: 720,
+      maxFps: 60,
+      videoBitRate: 3000000,
+      control: true,
+    ),
+    MirrorQuality.normal => const ScrcpyVideoOptions(
+      maxSize: 1280,
+      maxFps: 60,
+      videoBitRate: 8000000,
+      control: true,
+    ),
+    MirrorQuality.high => const ScrcpyVideoOptions(
+      maxSize: 1920,
+      maxFps: 60,
+      videoBitRate: 16000000,
+      control: true,
+    ),
+  };
+}
+
 class LogTabController extends ChangeNotifier {
   static const int _maxRecentFilterValues = 8;
 
@@ -97,6 +131,9 @@ class LogTabController extends ChangeNotifier {
   var logcatState = LogcatState.stopped;
   var screenMirrorState = ScreenMirrorState.stopped;
   var screenMirrorVisible = false;
+  double screenMirrorPaneWidth = 340;
+  MirrorQuality mirrorQuality = MirrorQuality.normal;
+  ScreenRecordingSession? _screenRecordingSession;
   String? screenMirrorError;
   var searchQuery = '';
   var packageFilterQuery = '';
@@ -1513,7 +1550,10 @@ class LogTabController extends ChangeNotifier {
     _notify();
 
     try {
-      final session = await _deviceSessionService.startScreenMirror(device);
+      final session = await _deviceSessionService.startScreenMirror(
+        device,
+        options: mirrorQuality.toOptions(),
+      );
       if (_disposed) {
         await session.stop();
         return;
@@ -1553,6 +1593,76 @@ class LogTabController extends ChangeNotifier {
       videoWidth: session.width,
       videoHeight: session.height,
     );
+  }
+
+  /// Injects a hardware / navigation key (home, back, power, volume, …) into
+  /// the mirrored device. No-op when the control channel is unavailable.
+  void handleMirrorKey(ScrcpyKey key) {
+    _screenMirrorSession?.control?.key(key);
+  }
+
+  /// adb serial of the device currently being mirrored, if any.
+  String? get _mirrorSerial => _screenMirrorSession?.serial;
+
+  bool get isMirrorRecording => _screenRecordingSession != null;
+
+  /// Switches the encoder quality preset. Restarts the live stream so the new
+  /// resolution/bitrate take effect.
+  Future<void> setMirrorQuality(MirrorQuality quality) async {
+    if (quality == mirrorQuality) return;
+    mirrorQuality = quality;
+    _notify();
+    if (isScreenMirrorRunning) {
+      await startScreenMirror();
+    }
+  }
+
+  /// Captures a PNG screenshot of the mirrored device, or null if unavailable.
+  Future<Uint8List?> captureMirrorScreenshot() async {
+    final serial = _mirrorSerial;
+    if (serial == null) return null;
+    return _deviceSessionService.captureScreenshot(serial);
+  }
+
+  /// Cycles the mirrored device's display orientation.
+  Future<void> rotateMirrorDevice() async {
+    final serial = _mirrorSerial;
+    if (serial == null) return;
+    await _deviceSessionService.rotateDevice(serial);
+  }
+
+  /// Begins recording the mirrored device's screen on-device.
+  Future<void> startMirrorRecording() async {
+    final serial = _mirrorSerial;
+    if (serial == null || _screenRecordingSession != null) return;
+    _screenRecordingSession = await _deviceSessionService.startScreenRecording(
+      serial,
+    );
+    _notify();
+  }
+
+  /// Stops recording and saves the finalized mp4 to [localPath].
+  Future<void> stopMirrorRecording(String localPath) async {
+    final session = _screenRecordingSession;
+    _screenRecordingSession = null;
+    _notify();
+    await session?.stopAndPull(localPath);
+  }
+
+  /// Stops recording and discards it without saving.
+  Future<void> cancelMirrorRecording() async {
+    final session = _screenRecordingSession;
+    _screenRecordingSession = null;
+    _notify();
+    await session?.cancel();
+  }
+
+  /// Adjusts the mirror pane width (clamped) when the user drags its edge.
+  void setScreenMirrorPaneWidth(double width) {
+    final clamped = width.clamp(260.0, 720.0);
+    if (clamped == screenMirrorPaneWidth) return;
+    screenMirrorPaneWidth = clamped;
+    _notify();
   }
 
   Future<void> _watchScreenMirrorExit(ScrcpyMirrorSession session) async {

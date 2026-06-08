@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 
 import '../data/device.dart';
 import '../data/log_entry.dart';
@@ -178,18 +180,56 @@ class DeviceSessionService {
     };
   }
 
-  Future<ScrcpyMirrorSession> startScreenMirror(Device device) async {
+  Future<ScrcpyMirrorSession> startScreenMirror(
+    Device device, {
+    ScrcpyVideoOptions? options,
+  }) async {
     if (device is! AndroidDevice) {
       throw UnsupportedError(
         'Screen mirroring is currently supported for Android devices only.',
       );
     }
     try {
-      return await _scrcpyMirror.start(device.id);
+      return options != null
+          ? await _scrcpyMirror.start(device.id, options: options)
+          : await _scrcpyMirror.start(device.id);
     } catch (error) {
       _logger.error('Failed to start screen mirror', detail: error.toString());
       rethrow;
     }
+  }
+
+  /// Captures a full-resolution PNG screenshot of [deviceId] via `screencap`.
+  Future<Uint8List> captureScreenshot(String deviceId) {
+    return _adbTool.captureScreenshotPng(deviceId);
+  }
+
+  /// Cycles the device display orientation (0→1→2→3) via `settings`.
+  Future<void> rotateDevice(String deviceId) async {
+    final current = await _adbTool.getUserRotation(deviceId);
+    await _adbTool.setUserRotation(deviceId, current + 1);
+  }
+
+  /// Starts an on-device `screenrecord`. Finalize + save it via
+  /// [ScreenRecordingSession.stopAndPull].
+  Future<ScreenRecordingSession> startScreenRecording(
+    String deviceId, {
+    int bitRate = 8000000,
+  }) async {
+    final devicePath =
+        '/sdcard/eagly-rec-${DateTime.now().millisecondsSinceEpoch}.mp4';
+    final process = await _adbTool.startScreenRecord(
+      deviceId,
+      devicePath,
+      bitRate: bitRate,
+      timeLimitSeconds: 180,
+    );
+    return ScreenRecordingSession(
+      adbTool: _adbTool,
+      deviceId: deviceId,
+      devicePath: devicePath,
+      process: process,
+    );
   }
 
   /// Refresh the PID to package name mapping.
@@ -211,5 +251,44 @@ class DeviceSessionService {
       case AndroidDevice():
         yield* _startAndroidLogcat(device.id);
     }
+  }
+}
+
+/// A running on-device `screenrecord`. Stop it with [stopAndPull] to finalize
+/// the mp4 and copy it to the host, or [cancel] to discard it.
+class ScreenRecordingSession {
+  ScreenRecordingSession({
+    required AdbTool adbTool,
+    required this.deviceId,
+    required this.devicePath,
+    required this.process,
+  }) : _adbTool = adbTool;
+
+  final AdbTool _adbTool;
+  final String deviceId;
+  final String devicePath;
+  final Process process;
+
+  Future<void> _finish() async {
+    await _adbTool.signalStopScreenRecord(deviceId);
+    try {
+      await process.exitCode.timeout(const Duration(seconds: 8));
+    } catch (_) {
+      process.kill();
+    }
+  }
+
+  /// Finalizes the recording and pulls it to [localPath], then deletes it
+  /// from the device.
+  Future<void> stopAndPull(String localPath) async {
+    await _finish();
+    await _adbTool.pullFile(deviceId, devicePath, localPath);
+    await _adbTool.removeFile(deviceId, devicePath);
+  }
+
+  /// Stops recording and discards the on-device file without saving.
+  Future<void> cancel() async {
+    await _finish();
+    await _adbTool.removeFile(deviceId, devicePath);
   }
 }

@@ -14,5 +14,5 @@ library;
 export 'src/scrcpy_mirror.dart'
     show ScrcpyMirror, ScrcpyMirrorSession, ScrcpyMirrorException;
 export 'src/scrcpy_client.dart'
-    show ScrcpyVideoOptions, ScrcpyControl, ScrcpyTouchAction;
+    show ScrcpyVideoOptions, ScrcpyControl, ScrcpyTouchAction, ScrcpyKey;
 export 'src/scrcpy_view.dart' show ScrcpyView;

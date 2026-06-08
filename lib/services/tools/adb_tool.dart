@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:eagly/services/log_parsers/logcat_parser.dart';
 
@@ -358,6 +359,86 @@ class AdbTool extends ToolProcessRunner {
   Future<void> clearLogs(String deviceId) async {
     logInfo('Clearing adb logcat buffer for $deviceId');
     await runText(['-s', deviceId, 'logcat', '-c']);
+  }
+
+  /// Captures the device framebuffer as PNG bytes via `screencap`.
+  Future<Uint8List> captureScreenshotPng(String deviceId) async {
+    final bytes = await runBytes([
+      '-s',
+      deviceId,
+      'exec-out',
+      'screencap',
+      '-p',
+    ]);
+    return Uint8List.fromList(bytes);
+  }
+
+  /// Starts `screenrecord` writing to [devicePath] on the device. Stop it with
+  /// [signalStopScreenRecord] (so the mp4 is finalized), then [pullFile] it.
+  Future<Process> startScreenRecord(
+    String deviceId,
+    String devicePath, {
+    int? bitRate,
+    int? timeLimitSeconds,
+  }) {
+    final args = <String>['-s', deviceId, 'shell', 'screenrecord'];
+    if (bitRate != null) args.addAll(['--bit-rate', '$bitRate']);
+    if (timeLimitSeconds != null) {
+      args.addAll(['--time-limit', '$timeLimitSeconds']);
+    }
+    args.add(devicePath);
+    return startProcess(args);
+  }
+
+  /// Sends SIGINT to `screenrecord` so it flushes and finalizes the mp4.
+  Future<void> signalStopScreenRecord(String deviceId) async {
+    await runText(['-s', deviceId, 'shell', 'pkill', '-INT', 'screenrecord']);
+  }
+
+  Future<void> pullFile(String deviceId, String devicePath, String localPath) {
+    return runText(['-s', deviceId, 'pull', devicePath, localPath]);
+  }
+
+  Future<void> removeFile(String deviceId, String devicePath) {
+    return runText(['-s', deviceId, 'shell', 'rm', '-f', devicePath]);
+  }
+
+  Future<int> getUserRotation(String deviceId) async {
+    final result = await runText([
+      '-s',
+      deviceId,
+      'shell',
+      'settings',
+      'get',
+      'system',
+      'user_rotation',
+    ]);
+    return int.tryParse(result.stdout.trim()) ?? 0;
+  }
+
+  /// Forces the device display [rotation] (0–3). Disables auto-rotate so it
+  /// sticks; the user can re-enable auto-rotate on the device afterwards.
+  Future<void> setUserRotation(String deviceId, int rotation) async {
+    await runText([
+      '-s',
+      deviceId,
+      'shell',
+      'settings',
+      'put',
+      'system',
+      'accelerometer_rotation',
+      '0',
+    ]);
+    await runText([
+      '-s',
+      deviceId,
+      'shell',
+      'settings',
+      'put',
+      'system',
+      'user_rotation',
+      '${rotation % 4}',
+    ]);
   }
 
   Device? _parseDeviceLine(String line) {

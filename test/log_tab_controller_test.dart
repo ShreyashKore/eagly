@@ -917,7 +917,10 @@ class _FakeControllerSessionService extends DeviceSessionService {
   Future<void> stopActiveLogStream() async {}
 
   @override
-  Future<ScrcpyMirrorSession> startScreenMirror(Device device) async {
+  Future<ScrcpyMirrorSession> startScreenMirror(
+    Device device, {
+    ScrcpyVideoOptions? options,
+  }) async {
     startedMirrorDeviceIds = [...startedMirrorDeviceIds, device.id];
     final exitCode = Completer<int>();
     return ScrcpyMirrorSession(

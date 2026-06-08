@@ -90,6 +90,9 @@ class ScrcpyClientException implements Exception {
 
 enum ScrcpyTouchAction { down, move, up }
 
+/// Hardware / navigation keys that can be injected into the device.
+enum ScrcpyKey { back, home, appSwitch, power, volumeUp, volumeDown }
+
 /// Encodes and sends scrcpy control messages on the control socket. Incoming
 /// device→client messages (clipboard, etc.) are drained and ignored.
 class ScrcpyControl {
@@ -104,8 +107,19 @@ class ScrcpyControl {
   final Socket _socket;
   late final StreamSubscription<Uint8List> _subscription;
 
+  static const int _typeInjectKeycode = 0;
   static const int _typeInjectTouch = 2;
   static const int _typeBackOrScreenOn = 4;
+
+  /// Android `KeyEvent` keycodes for the injectable [ScrcpyKey]s.
+  static const Map<ScrcpyKey, int> _keycodes = {
+    ScrcpyKey.home: 3, // KEYCODE_HOME
+    ScrcpyKey.back: 4, // KEYCODE_BACK
+    ScrcpyKey.volumeUp: 24, // KEYCODE_VOLUME_UP
+    ScrcpyKey.volumeDown: 25, // KEYCODE_VOLUME_DOWN
+    ScrcpyKey.power: 26, // KEYCODE_POWER
+    ScrcpyKey.appSwitch: 187, // KEYCODE_APP_SWITCH (overview)
+  };
 
   // AMOTION_EVENT_ACTION_* values.
   static const int _actionDown = 0;
@@ -155,6 +169,29 @@ class ScrcpyControl {
     msg.setInt32(o, actionButton);
     o += 4;
     msg.setInt32(o, buttons);
+    _send(msg);
+  }
+
+  /// Taps a hardware / navigation [key] as a down-then-up keypress.
+  void key(ScrcpyKey key) {
+    final keycode = _keycodes[key];
+    if (keycode == null) return;
+    _injectKeycode(_actionDown, keycode);
+    _injectKeycode(_actionUp, keycode);
+  }
+
+  void _injectKeycode(int action, int keycode) {
+    final msg = ByteData(14);
+    var o = 0;
+    msg.setUint8(o, _typeInjectKeycode);
+    o += 1;
+    msg.setUint8(o, action);
+    o += 1;
+    msg.setInt32(o, keycode);
+    o += 4;
+    msg.setInt32(o, 0); // repeat
+    o += 4;
+    msg.setInt32(o, 0); // metaState
     _send(msg);
   }
 

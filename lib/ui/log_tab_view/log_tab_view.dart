@@ -601,10 +601,14 @@ class _LogTabViewState extends State<LogTabView> {
 
     return Row(
       children: [
-        ScreenMirroringPane(
-          controller: controller,
-          onClose: controller.toggleScreenMirrorPane,
+        SizedBox(
+          width: controller.screenMirrorPaneWidth,
+          child: ScreenMirroringPane(
+            controller: controller,
+            onClose: controller.toggleScreenMirrorPane,
+          ),
         ),
+        _MirrorPaneResizeHandle(controller: controller),
         Expanded(child: logArea),
       ],
     );
@@ -874,6 +878,33 @@ class _LogTabViewState extends State<LogTabView> {
                 ),
               ],
             ),
+    );
+  }
+}
+
+/// Thin draggable divider that resizes the screen-mirror pane horizontally.
+class _MirrorPaneResizeHandle extends StatelessWidget {
+  const _MirrorPaneResizeHandle({required this.controller});
+
+  final LogTabController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: (details) => controller.setScreenMirrorPaneWidth(
+          controller.screenMirrorPaneWidth + details.delta.dx,
+        ),
+        child: SizedBox(
+          width: 8,
+          child: Center(
+            child: Container(width: 1, color: theme.colorScheme.outlineVariant),
+          ),
+        ),
+      ),
     );
   }
 }
