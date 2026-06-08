@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../data/device.dart';
+import '../features/crash_reports/crash_report_controller.dart';
 import '../features/logs/log_session_manager.dart';
 import '../features/mirror/mirror_controller.dart';
 import '../services/app_install_service.dart';
@@ -27,8 +28,10 @@ class DeviceSessionController extends ChangeNotifier {
 
   LogSessionManager? _logSessionManager;
   MirrorController? _mirrorController;
+  CrashReportController? _crashReportController;
 
   bool _mirrorOpen = false;
+  bool _crashReportsOpen = false;
   bool _activated = false;
   bool _disposed = false;
 
@@ -37,16 +40,23 @@ class DeviceSessionController extends ChangeNotifier {
   DevicePlatform get platform => _device.platform;
   bool get isConnected => _device.isConnected;
   bool get isMirrorOpen => _mirrorOpen;
+  bool get isCrashReportsOpen => _crashReportsOpen;
   bool get isActivated => _activated;
 
   /// Whether this device can be screen-mirrored right now.
   bool get canMirror => _device is AndroidDevice && _device.isConnected;
+
+  /// Whether crash reports can be read for this device (iOS only).
+  bool get canReadCrashReports => _device is IosDevice;
 
   LogSessionManager get logSessionManager =>
       _logSessionManager ??= LogSessionManager(session: this);
 
   MirrorController get mirrorController =>
       _mirrorController ??= MirrorController(this);
+
+  CrashReportController get crashReportController =>
+      _crashReportController ??= CrashReportController(this);
 
   /// Updates the live device snapshot from the repository. Feature controllers
   /// listen to this controller and react to connectivity transitions.
@@ -82,6 +92,25 @@ class DeviceSessionController extends ChangeNotifier {
   }
 
   void toggleMirror() => _mirrorOpen ? closeMirror() : openMirror();
+
+  void openCrashReports() {
+    if (!_crashReportsOpen) {
+      _crashReportsOpen = true;
+      _notify();
+    }
+    if (canReadCrashReports) {
+      unawaited(crashReportController.ensureLoaded());
+    }
+  }
+
+  void closeCrashReports() {
+    if (!_crashReportsOpen) return;
+    _crashReportsOpen = false;
+    _notify();
+  }
+
+  void toggleCrashReports() =>
+      _crashReportsOpen ? closeCrashReports() : openCrashReports();
 
   // ── App install (device-level) ──────────────────────────────────────────
   bool _isInstallingApp = false;
@@ -200,6 +229,7 @@ class DeviceSessionController extends ChangeNotifier {
     _disposed = true;
     _logSessionManager?.dispose();
     _mirrorController?.dispose();
+    _crashReportController?.dispose();
     unawaited(service.dispose());
     super.dispose();
   }

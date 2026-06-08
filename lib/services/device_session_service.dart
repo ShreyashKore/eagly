@@ -9,6 +9,7 @@ import '../features/app_log/app_logger.dart';
 import '../features/flutter_scrcpy/flutter_scrcpy.dart';
 import '../utils/adb_path.dart';
 import 'tools/adb_tool.dart';
+import 'tools/idevice_crash_report_tool.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
 import 'tools/tool_process_runner.dart';
@@ -23,6 +24,7 @@ class DeviceSessionService {
   final AdbTool _adbTool;
   final IdeviceInstallerTool _ideviceInstallerTool;
   final IdeviceSyslogTool _ideviceSyslogTool;
+  final IdeviceCrashReportTool _ideviceCrashReportTool;
   final ScrcpyMirror _scrcpyMirror;
   final AppLogger _logger = AppLogger(source: 'DeviceSessionService');
   final Map<String, String> _pidToPackageCache = {};
@@ -41,9 +43,11 @@ class DeviceSessionService {
     String? adbPath,
     String? ideviceInstallerPath,
     String? ideviceSyslogPath,
+    String? ideviceCrashReportPath,
     AdbTool? adbTool,
     IdeviceInstallerTool? ideviceInstallerTool,
     IdeviceSyslogTool? ideviceSyslogTool,
+    IdeviceCrashReportTool? ideviceCrashReportTool,
     ScrcpyMirror? scrcpyMirror,
   }) : _adbTool = adbTool ?? AdbTool(executablePath: adbPath),
        _ideviceInstallerTool =
@@ -52,6 +56,9 @@ class DeviceSessionService {
        _ideviceSyslogTool =
            ideviceSyslogTool ??
            IdeviceSyslogTool(executablePath: ideviceSyslogPath),
+       _ideviceCrashReportTool =
+           ideviceCrashReportTool ??
+           IdeviceCrashReportTool(executablePath: ideviceCrashReportPath),
        _scrcpyMirror =
            scrcpyMirror ??
            ScrcpyMirror(
@@ -186,6 +193,19 @@ class DeviceSessionService {
         appPath: filePath,
       ),
     };
+  }
+
+  /// Pulls (and parses) crash reports from the bound iOS device. Reports are
+  /// copied into a temp directory exposed on the result for the caller to clean
+  /// up. Throws [UnsupportedError] for non-iOS devices.
+  Future<CrashReportPullResult> pullCrashReports() {
+    if (device is! IosDevice) {
+      throw UnsupportedError(
+        'Crash report reading is available for iOS devices only.',
+      );
+    }
+    _sessionLogger.info('Reading crash reports for ${device.displayName}');
+    return _ideviceCrashReportTool.pullReports(_deviceId);
   }
 
   Future<ScrcpyMirrorSession> startScreenMirror({

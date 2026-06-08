@@ -9,13 +9,13 @@ import '../../session/device_session_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../ui/components/app_log_overlay.dart';
 import '../../ui/components/centered_state_message.dart';
+import '../../ui/components/text_search_bar.dart';
 import '../../ui/log_viewer/log_viewer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/log_feedback.dart';
 import '../../utils/utils.dart';
 import 'components/classic_filter_bar.dart';
 import 'components/inline_filter_bar.dart';
-import 'components/log_search_bar.dart';
 import 'components/scroll_to_end_button.dart';
 import 'components/toolbar.dart';
 import 'log_controller.dart';
@@ -361,10 +361,11 @@ class _LogFeatureViewState extends State<LogFeatureView> {
           Positioned(
             top: 24,
             right: 12,
-            child: LogSearchBar(
+            child: TextSearchBar(
               controller: controller.searchController,
               focusNode: controller.searchFocusNode,
               search: controller.inlineSearch,
+              hintText: 'Search in logs...',
               hasError: controller.inlineSearchHasError,
               errorText: controller.inlineSearchErrorText,
               onSearchChanged: controller.updateInlineSearch,
@@ -377,6 +378,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
               currentMatch: matches.isEmpty
                   ? 0
                   : controller.searchCurrentMatch + 1,
+              width: 500,
             ),
           ),
         ListenableBuilder(

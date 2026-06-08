@@ -22,7 +22,7 @@ class FeatureRail extends StatelessWidget {
       listenable: session,
       builder: (context, _) {
         return Container(
-          width: 64,
+          width: 72,
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest,
             border: Border(
@@ -52,6 +52,16 @@ class FeatureRail extends StatelessWidget {
                     ? session.toggleMirror
                     : null,
               ),
+              if (session.canReadCrashReports)
+                _RailButton(
+                  icon: Icons.bug_report_outlined,
+                  label: 'Crashes',
+                  isActive: session.isCrashReportsOpen,
+                  tooltip: session.isCrashReportsOpen
+                      ? 'Hide crash reports'
+                      : 'Read crash reports',
+                  onTap: session.toggleCrashReports,
+                ),
               _RailButton(
                 icon: session.isInstallingApp
                     ? Icons.hourglass_top_rounded
@@ -107,7 +117,7 @@ class _RailButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Padding(
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(2),
         child: InkWell(
           onTap: enabled ? onTap : null,
           mouseCursor: SystemMouseCursors.click,
