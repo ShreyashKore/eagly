@@ -6,7 +6,7 @@
 // we can confirm the raw H.264 stream flows before wiring up native decode.
 import 'dart:async';
 
-import 'package:eagly/services/tools/scrcpy_client.dart';
+import 'package:eagly/features/flutter_scrcpy/src/scrcpy_client.dart';
 
 Future<void> main(List<String> args) async {
   final deviceId = args.isNotEmpty ? args.first : '10BD2G09X3000JT';

@@ -4,10 +4,11 @@ import '../data/device.dart';
 import '../data/log_entry.dart';
 import '../data/wireless_debug_models.dart';
 import '../features/app_log/app_logger.dart';
+import '../features/flutter_scrcpy/flutter_scrcpy.dart';
+import '../utils/adb_path.dart';
 import 'tools/adb_tool.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
-import 'tools/scrcpy_mirror.dart';
 import 'tools/tool_process_runner.dart';
 
 class DeviceSessionService {
@@ -40,7 +41,14 @@ class DeviceSessionService {
        _ideviceSyslogTool =
            ideviceSyslogTool ??
            IdeviceSyslogTool(executablePath: ideviceSyslogPath),
-       _scrcpyMirror = scrcpyMirror ?? ScrcpyMirror();
+       _scrcpyMirror =
+           scrcpyMirror ??
+           ScrcpyMirror(
+             adbExecutablePath:
+                 resolveBundledExecutablePath('adb') ?? adbPath ?? 'adb',
+             serverJarPath:
+                 '${resolveBundledToolsDirectory()?.path}/scrcpy-server',
+           );
 
   AppLogger _sessionLogger(String fallbackSessionTag) =>
       _logger.scoped(sessionTag: sessionLabel ?? fallbackSessionTag);
@@ -171,8 +179,13 @@ class DeviceSessionService {
   }
 
   Future<ScrcpyMirrorSession> startScreenMirror(Device device) async {
+    if (device is! AndroidDevice) {
+      throw UnsupportedError(
+        'Screen mirroring is currently supported for Android devices only.',
+      );
+    }
     try {
-      return await _scrcpyMirror.start(device);
+      return await _scrcpyMirror.start(device.id);
     } catch (error) {
       _logger.error('Failed to start screen mirror', detail: error.toString());
       rethrow;

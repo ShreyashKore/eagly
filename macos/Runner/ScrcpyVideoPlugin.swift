@@ -7,8 +7,8 @@ import VideoToolbox
 /// Renders a scrcpy H.264 stream into a Flutter texture using VideoToolbox.
 ///
 /// Dart drives this in two channels:
-///  - method  `eagly/scrcpy_video`        : `create` -> textureId, `dispose`
-///  - binary  `eagly/scrcpy_video/feed`   : [int64 LE textureId][Annex-B bytes]
+///  - method  `flutter_scrcpy/video`        : `create` -> textureId, `dispose`
+///  - binary  `flutter_scrcpy/video/feed`   : [int64 LE textureId][Annex-B bytes]
 ///
 /// Each fed message is one access unit (config packet with SPS/PPS, or a coded
 /// slice). The decoder builds a format description from the parameter sets and
@@ -26,11 +26,11 @@ public class ScrcpyVideoPlugin: NSObject, FlutterPlugin {
     let instance = ScrcpyVideoPlugin(textures: registrar.textures)
 
     let method = FlutterMethodChannel(
-      name: "eagly/scrcpy_video", binaryMessenger: registrar.messenger)
+      name: "flutter_scrcpy/video", binaryMessenger: registrar.messenger)
     registrar.addMethodCallDelegate(instance, channel: method)
 
     let feed = FlutterBasicMessageChannel(
-      name: "eagly/scrcpy_video/feed",
+      name: "flutter_scrcpy/video/feed",
       binaryMessenger: registrar.messenger,
       codec: FlutterBinaryCodec.sharedInstance())
     feed.setMessageHandler { message, reply in

@@ -7,9 +7,12 @@ import 'package:flutter/services.dart';
 class ScrcpyVideoChannel {
   const ScrcpyVideoChannel();
 
-  static const MethodChannel _method = MethodChannel('eagly/scrcpy_video');
+  static const MethodChannel _method = MethodChannel('flutter_scrcpy/video');
   static const BasicMessageChannel<ByteData?> _feed =
-      BasicMessageChannel<ByteData?>('eagly/scrcpy_video/feed', BinaryCodec());
+      BasicMessageChannel<ByteData?>(
+        'flutter_scrcpy/video/feed',
+        BinaryCodec(),
+      );
 
   /// Registers a new decoder + texture natively and returns its texture id.
   Future<int> createTexture() async {

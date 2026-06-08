@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../features/flutter_scrcpy/flutter_scrcpy.dart';
 import '../log_tab_controller.dart';
-import 'scrcpy_video_player.dart';
 
 class ScreenMirroringPane extends StatelessWidget {
   const ScreenMirroringPane({
@@ -118,7 +118,7 @@ class _PaneBody extends StatelessWidget {
       final aspectRatio = session.height > 0
           ? session.width / session.height
           : 9 / 16;
-      return ScrcpyVideoPlayer(
+      return ScrcpyView(
         textureId: session.textureId,
         aspectRatio: aspectRatio,
         onTouch: controller.handleMirrorTouch,

@@ -192,13 +192,13 @@ void scrcpy_video_plugin_register(FlView* view) {
 
   g_autoptr(FlStandardMethodCodec) method_codec = fl_standard_method_codec_new();
   ctx->method_channel = fl_method_channel_new(
-      messenger, "eagly/scrcpy_video", FL_METHOD_CODEC(method_codec));
+      messenger, "flutter_scrcpy/video", FL_METHOD_CODEC(method_codec));
   fl_method_channel_set_method_call_handler(ctx->method_channel, MethodCallCb,
                                             ctx, nullptr);
 
   g_autoptr(FlBinaryCodec) binary_codec = fl_binary_codec_new();
   ctx->feed_channel = fl_basic_message_channel_new(
-      messenger, "eagly/scrcpy_video/feed", FL_MESSAGE_CODEC(binary_codec));
+      messenger, "flutter_scrcpy/video/feed", FL_MESSAGE_CODEC(binary_codec));
   fl_basic_message_channel_set_message_handler(ctx->feed_channel, FeedMessageCb,
                                                ctx, nullptr);
 }

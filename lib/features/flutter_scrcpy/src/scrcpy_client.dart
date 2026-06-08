@@ -4,8 +4,6 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
-import '../../utils/adb_path.dart';
-
 /// A live H.264 access unit produced by scrcpy-server.
 ///
 /// [data] is raw Annex-B (start-code prefixed NAL units). The first packet of
@@ -191,14 +189,19 @@ class ScrcpyControl {
 /// frames so a native decoder can render them into a Flutter texture.
 class ScrcpyClient {
   ScrcpyClient({
-    String? adbExecutablePath,
-    String? serverJarPath,
+    String adbExecutablePath = 'adb',
+    required String serverJarPath,
     this.onLog,
-  }) : _adb = adbExecutablePath ?? resolveBundledExecutablePath('adb') ?? 'adb',
-       _serverJar = serverJarPath ?? _defaultServerJarPath();
+  }) : _adb = adbExecutablePath,
+       _serverJar = serverJarPath;
 
+  /// Path to the `adb` executable. Defaults to `adb` on the host PATH; pass an
+  /// absolute path to use a bundled adb instead.
   final String _adb;
-  final String? _serverJar;
+
+  /// Host-side path to the `scrcpy-server` jar to deploy to the device. The
+  /// bundled jar must match [serverVersion] exactly.
+  final String _serverJar;
 
   /// Optional sink for diagnostic + server log lines.
   final void Function(String message)? onLog;
@@ -206,15 +209,10 @@ class ScrcpyClient {
   /// Must match the bundled `scrcpy-server` version exactly or the server
   /// aborts with a version-mismatch error.
   static const String serverVersion = '4.0';
-  static const String _deviceJarPath = '/data/local/tmp/scrcpy-server-eagly.jar';
+  static const String _deviceJarPath =
+      '/data/local/tmp/flutter-scrcpy-server.jar';
   static const String _serverClass = 'com.genymobile.scrcpy.Server';
   static const int _deviceNameFieldLength = 64;
-
-  static String? _defaultServerJarPath() {
-    final dir = resolveBundledToolsDirectory();
-    if (dir == null) return null;
-    return '${dir.path}/scrcpy-server';
-  }
 
   void _log(String message) => onLog?.call(message);
 
@@ -223,7 +221,7 @@ class ScrcpyClient {
     ScrcpyVideoOptions options = const ScrcpyVideoOptions(),
   }) async {
     final jar = _serverJar;
-    if (jar == null || !File(jar).existsSync()) {
+    if (!File(jar).existsSync()) {
       throw ScrcpyClientException('scrcpy-server jar not found (path: $jar)');
     }
 

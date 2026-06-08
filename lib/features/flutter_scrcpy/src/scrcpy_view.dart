@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../../../services/tools/scrcpy_mirror.dart';
+import 'scrcpy_mirror.dart';
 
-/// Renders the embedded scrcpy stream into the mirror pane and forwards pointer
-/// interactions to the device. Frames are decoded natively (VideoToolbox) and
-/// composited into [textureId]; we present that texture at the device's aspect
-/// ratio. The surrounding pane provides the header / start-stop / close
-/// controls.
-class ScrcpyVideoPlayer extends StatelessWidget {
-  const ScrcpyVideoPlayer({
+/// Renders an embedded scrcpy stream and forwards pointer interactions to the
+/// device. Frames are decoded natively (VideoToolbox / FFmpeg) and composited
+/// into [textureId]; we present that texture at the device's aspect ratio.
+/// Wrap it in your own chrome (header / start-stop / close controls).
+class ScrcpyView extends StatelessWidget {
+  const ScrcpyView({
     super.key,
     required this.textureId,
     required this.aspectRatio,

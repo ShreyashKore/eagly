@@ -82,14 +82,14 @@ class ScrcpyVideoPlugin : public flutter::Plugin {
                     flutter::TextureRegistrar* textures)
       : textures_(textures) {
     method_channel_ = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
-        messenger, "eagly/scrcpy_video", &flutter::StandardMethodCodec::GetInstance());
+        messenger, "flutter_scrcpy/video", &flutter::StandardMethodCodec::GetInstance());
     method_channel_->SetMethodCallHandler(
         [this](const auto& call, auto result) {
           HandleMethodCall(call, std::move(result));
         });
 
     messenger->SetMessageHandler(
-        "eagly/scrcpy_video/feed",
+        "flutter_scrcpy/video/feed",
         [this](const uint8_t* message, size_t size, flutter::BinaryReply reply) {
           HandleFeed(message, size);
           reply(nullptr, 0);
