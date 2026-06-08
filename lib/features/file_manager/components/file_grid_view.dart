@@ -2,14 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../data/device_file_entry.dart';
 import '../file_manager_controller.dart';
+import 'file_context_menu.dart';
 import 'file_entry_visuals.dart';
 
 /// Icon-grid view: a large icon, name and size per entry. Single tap selects,
-/// double tap opens a directory.
+/// double tap opens a directory, right-click shows the context menu.
 class FileGridView extends StatelessWidget {
-  const FileGridView({super.key, required this.controller});
+  const FileGridView({
+    super.key,
+    required this.controller,
+    required this.actions,
+  });
 
   final FileManagerController controller;
+  final FileManagerActions actions;
 
   @override
   Widget build(BuildContext context) {
@@ -23,17 +29,25 @@ class FileGridView extends StatelessWidget {
         mainAxisSpacing: 8,
       ),
       itemCount: entries.length,
-      itemBuilder: (context, index) =>
-          _GridTile(controller: controller, entry: entries[index]),
+      itemBuilder: (context, index) => _GridTile(
+        controller: controller,
+        entry: entries[index],
+        actions: actions,
+      ),
     );
   }
 }
 
 class _GridTile extends StatelessWidget {
-  const _GridTile({required this.controller, required this.entry});
+  const _GridTile({
+    required this.controller,
+    required this.entry,
+    required this.actions,
+  });
 
   final FileManagerController controller;
   final DeviceFileEntry entry;
+  final FileManagerActions actions;
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +58,16 @@ class _GridTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
       onTap: () => controller.selectEntry(entry),
       onDoubleTap: entry.isNavigable ? () => controller.open(entry) : null,
+      onSecondaryTapUp: (details) {
+        controller.selectEntry(entry);
+        showFileEntryMenu(
+          context,
+          details.globalPosition,
+          controller: controller,
+          entry: entry,
+          actions: actions,
+        );
+      },
       child: Container(
         decoration: BoxDecoration(
           color: selected

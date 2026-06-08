@@ -2,15 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../data/device_file_entry.dart';
 import '../file_manager_controller.dart';
+import 'file_context_menu.dart';
 import 'file_entry_visuals.dart';
 
 /// Detailed table view: a sortable header (Name / Size / Modified /
 /// Permissions) above one row per entry. Single tap selects, double tap opens
-/// a directory.
+/// a directory, right-click shows the context menu.
 class FileListView extends StatelessWidget {
-  const FileListView({super.key, required this.controller});
+  const FileListView({
+    super.key,
+    required this.controller,
+    required this.actions,
+  });
 
   final FileManagerController controller;
+  final FileManagerActions actions;
 
   static const double _sizeWidth = 84;
   static const double _modifiedWidth = 132;
@@ -27,8 +33,11 @@ class FileListView extends StatelessWidget {
           child: ListView.builder(
             itemCount: entries.length,
             itemExtent: 40,
-            itemBuilder: (context, index) =>
-                _FileRow(controller: controller, entry: entries[index]),
+            itemBuilder: (context, index) => _FileRow(
+              controller: controller,
+              entry: entries[index],
+              actions: actions,
+            ),
           ),
         ),
       ],
@@ -109,10 +118,15 @@ class FileListView extends StatelessWidget {
 }
 
 class _FileRow extends StatelessWidget {
-  const _FileRow({required this.controller, required this.entry});
+  const _FileRow({
+    required this.controller,
+    required this.entry,
+    required this.actions,
+  });
 
   final FileManagerController controller;
   final DeviceFileEntry entry;
+  final FileManagerActions actions;
 
   @override
   Widget build(BuildContext context) {
@@ -122,6 +136,16 @@ class _FileRow extends StatelessWidget {
     return InkWell(
       onTap: () => controller.selectEntry(entry),
       onDoubleTap: entry.isNavigable ? () => controller.open(entry) : null,
+      onSecondaryTapUp: (details) {
+        controller.selectEntry(entry);
+        showFileEntryMenu(
+          context,
+          details.globalPosition,
+          controller: controller,
+          entry: entry,
+          actions: actions,
+        );
+      },
       child: Container(
         color: selected
             ? theme.colorScheme.primaryContainer.withValues(alpha: 0.5)

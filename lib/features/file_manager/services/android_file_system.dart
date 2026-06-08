@@ -34,6 +34,9 @@ class AndroidFileSystem extends ToolProcessRunner implements DeviceFileSystem {
   bool get supportsDelete => true;
 
   @override
+  bool get supportsRename => true;
+
+  @override
   Future<List<DeviceFileEntry>> list(String path) async {
     final result = await runText([
       '-s',
@@ -41,14 +44,21 @@ class AndroidFileSystem extends ToolProcessRunner implements DeviceFileSystem {
       'shell',
       'ls',
       '-lA',
-      _shellQuote(path),
+      // Trailing slash forces `ls -l` to dereference the final path component,
+      // so symlinked directories (e.g. `/sdcard` → `/storage/self/primary`,
+      // `/storage/emulated/self` → `…/0`) list their target's contents instead
+      // of a single symlink line. Child symlinks still report as symlinks.
+      _shellQuote(_ensureTrailingSlash(path)),
     ]);
 
     final stderr = result.stderr.trim();
     // `ls` exits non-zero on permission/Not-found; surface its own message.
     if (!result.isSuccess && result.stdout.trim().isEmpty) {
       throw DeviceFileException(
-        _humanizeListError(stderr.isEmpty ? result.combinedOutput : stderr, path),
+        _humanizeListError(
+          stderr.isEmpty ? result.combinedOutput : stderr,
+          path,
+        ),
       );
     }
 
@@ -119,6 +129,27 @@ class AndroidFileSystem extends ToolProcessRunner implements DeviceFileSystem {
     if (!result.isSuccess) {
       throw DeviceFileException(
         describeCommandFailure('Failed to create folder "$name".', result),
+      );
+    }
+  }
+
+  @override
+  Future<void> rename({
+    required DeviceFileEntry entry,
+    required String newName,
+  }) async {
+    final target = posixJoin(posixParent(entry.path), newName);
+    final result = await runText([
+      '-s',
+      deviceId,
+      'shell',
+      'mv',
+      _shellQuote(entry.path),
+      _shellQuote(target),
+    ]);
+    if (!result.isSuccess) {
+      throw DeviceFileException(
+        describeCommandFailure('Failed to rename ${entry.name}.', result),
       );
     }
   }

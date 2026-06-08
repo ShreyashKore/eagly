@@ -44,6 +44,7 @@ abstract interface class DeviceFileSystem {
 
   bool get supportsCreateDirectory;
   bool get supportsDelete;
+  bool get supportsRename;
 
   /// Lists the directory at [path]. Throws [DeviceFileException] on failure.
   Future<List<DeviceFileEntry>> list(String path);
@@ -66,6 +67,12 @@ abstract interface class DeviceFileSystem {
   Future<void> createDirectory({
     required String parentPath,
     required String name,
+  });
+
+  /// Renames [entry] to [newName], keeping it in the same directory.
+  Future<void> rename({
+    required DeviceFileEntry entry,
+    required String newName,
   });
 
   /// Removes [entry] from the device (recursively for directories).

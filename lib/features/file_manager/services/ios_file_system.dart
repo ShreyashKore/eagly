@@ -44,6 +44,9 @@ class IosFileSystem extends ToolProcessRunner implements DeviceFileSystem {
   bool get supportsDelete => true;
 
   @override
+  bool get supportsRename => true;
+
+  @override
   Future<List<DeviceFileEntry>> list(String path) async {
     final names = _parseNames(await _runAfc(['ls ${_afcArg(path)}']), path);
     if (names.isEmpty) return const [];
@@ -94,6 +97,18 @@ class IosFileSystem extends ToolProcessRunner implements DeviceFileSystem {
   }) async {
     final output = await _runAfc(['mkdir ${_afcArg(posixJoin(parentPath, name))}']);
     _throwIfAfcError(output, 'Failed to create folder "$name".');
+  }
+
+  @override
+  Future<void> rename({
+    required DeviceFileEntry entry,
+    required String newName,
+  }) async {
+    final target = posixJoin(posixParent(entry.path), newName);
+    final output = await _runAfc([
+      'mv ${_afcArg(entry.path)} ${_afcArg(target)}',
+    ]);
+    _throwIfAfcError(output, 'Failed to rename ${entry.name}.');
   }
 
   @override

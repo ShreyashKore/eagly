@@ -54,6 +54,7 @@ class FileManagerController extends FeatureController {
   bool get canGoUp => currentPath != fileSystem.rootPath;
   bool get supportsCreateDirectory => fileSystem.supportsCreateDirectory;
   bool get supportsDelete => fileSystem.supportsDelete;
+  bool get supportsRename => fileSystem.supportsRename;
   String get storageLabel => fileSystem.storageLabel;
 
   /// The current directory's entries, directories-first then by the active
@@ -244,6 +245,22 @@ class FileManagerController extends FeatureController {
         await fileSystem.createDirectory(parentPath: currentPath, name: trimmed);
         await _load(currentPath);
         return 'Created folder "$trimmed".';
+      },
+    );
+  }
+
+  Future<String?> renameEntry(DeviceFileEntry entry, String newName) async {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty || trimmed == entry.name || _busy || !_ensureConnected()) {
+      return null;
+    }
+
+    return _runTransfer(
+      label: 'Renaming ${entry.name}…',
+      action: () async {
+        await fileSystem.rename(entry: entry, newName: trimmed);
+        await _load(currentPath);
+        return 'Renamed to "$trimmed".';
       },
     );
   }

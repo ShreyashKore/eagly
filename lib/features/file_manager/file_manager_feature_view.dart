@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../ui/components/centered_state_message.dart';
 import 'components/file_breadcrumb_bar.dart';
+import 'components/file_context_menu.dart';
 import 'components/file_grid_view.dart';
 import 'components/file_list_view.dart';
 import 'components/file_manager_toolbar.dart';
@@ -36,43 +37,76 @@ class _FileManagerFeatureViewState extends State<FileManagerFeatureView> {
     messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
+  late final FileManagerActions _actions = FileManagerActions(
+    onDownload: _handleDownload,
+    onRename: _handleRename,
+    onDelete: _handleDelete,
+    onUpload: _handleUpload,
+    onNewFolder: _handleNewFolder,
+  );
+
   Future<void> _handleUpload() async {
     _showSnackBar(await controller.uploadFiles());
   }
 
-  Future<void> _handleDownload() async {
-    final selected = controller.selectedEntry;
-    if (selected == null) return;
-    _showSnackBar(await controller.downloadEntry(selected));
+  Future<void> _handleDownload([DeviceFileEntry? entry]) async {
+    final target = entry ?? controller.selectedEntry;
+    if (target == null) return;
+    _showSnackBar(await controller.downloadEntry(target));
   }
 
   Future<void> _handleNewFolder() async {
-    final name = await _promptForName();
+    final name = await _promptForName(
+      title: 'New folder',
+      label: 'Folder name',
+      hint: 'Untitled folder',
+      confirmLabel: 'Create',
+    );
     if (name == null) return;
     _showSnackBar(await controller.createDirectory(name));
   }
 
-  Future<void> _handleDelete() async {
-    final selected = controller.selectedEntry;
-    if (selected == null) return;
-    final confirmed = await _confirmDelete(selected);
-    if (!confirmed) return;
-    _showSnackBar(await controller.deleteEntry(selected));
+  Future<void> _handleRename(DeviceFileEntry entry) async {
+    final name = await _promptForName(
+      title: 'Rename ${entry.name}',
+      label: 'New name',
+      initialValue: entry.name,
+      confirmLabel: 'Rename',
+    );
+    if (name == null || name == entry.name) return;
+    _showSnackBar(await controller.renameEntry(entry, name));
   }
 
-  Future<String?> _promptForName() async {
-    final fieldController = TextEditingController();
+  Future<void> _handleDelete([DeviceFileEntry? entry]) async {
+    final target = entry ?? controller.selectedEntry;
+    if (target == null) return;
+    final confirmed = await _confirmDelete(target);
+    if (!confirmed) return;
+    _showSnackBar(await controller.deleteEntry(target));
+  }
+
+  Future<String?> _promptForName({
+    required String title,
+    required String label,
+    required String confirmLabel,
+    String? hint,
+    String? initialValue,
+  }) async {
+    final fieldController = TextEditingController(text: initialValue);
+    if (initialValue != null) {
+      fieldController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: initialValue.length,
+      );
+    }
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('New folder'),
+        title: Text(title),
         content: TextField(
           controller: fieldController,
           autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Folder name',
-            hintText: 'Untitled folder',
-          ),
+          decoration: InputDecoration(labelText: label, hintText: hint),
           onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
         ),
         actions: [
@@ -83,7 +117,7 @@ class _FileManagerFeatureViewState extends State<FileManagerFeatureView> {
           FilledButton(
             onPressed: () =>
                 Navigator.of(context).pop(fieldController.text.trim()),
-            child: const Text('Create'),
+            child: Text(confirmLabel),
           ),
         ],
       ),
@@ -189,10 +223,29 @@ class _FileManagerFeatureViewState extends State<FileManagerFeatureView> {
   }
 
   Widget _buildViewer() {
-    return switch (controller.viewMode) {
-      FileManagerViewMode.list => FileListView(controller: controller),
-      FileManagerViewMode.grid => FileGridView(controller: controller),
+    final viewer = switch (controller.viewMode) {
+      FileManagerViewMode.list => FileListView(
+        controller: controller,
+        actions: _actions,
+      ),
+      FileManagerViewMode.grid => FileGridView(
+        controller: controller,
+        actions: _actions,
+      ),
     };
+
+    // Right-click on empty space (rows handle their own secondary tap and, being
+    // deeper, win the gesture arena) opens the current-directory menu.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onSecondaryTapUp: (details) => showFileAreaMenu(
+        context,
+        details.globalPosition,
+        controller: controller,
+        actions: _actions,
+      ),
+      child: viewer,
+    );
   }
 
   Widget _buildBusyOverlay(BuildContext context) {

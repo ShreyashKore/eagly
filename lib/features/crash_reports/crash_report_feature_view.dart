@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-import '../../theme/app_theme.dart';
 import '../../ui/components/centered_state_message.dart';
 import 'components/crash_report_detail.dart';
 import 'components/crash_report_list.dart';
