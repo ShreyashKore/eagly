@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../../constants/app_constants.dart';
 import '../../constants/local_assets.dart';
 import '../../session/device_session_controller.dart';
 import '../../session/device_session_manager.dart';
 import '../components/device_presentation.dart';
+import 'window_controls.dart';
 
 /// Top app header: logo + name, the horizontal device-tab strip (auto-created
 /// per detected device), home/load/wireless actions, and settings.
@@ -36,64 +38,79 @@ class AppHeader extends StatelessWidget {
               bottom: BorderSide(color: theme.colorScheme.outlineVariant),
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: EdgeInsets.only(
+            left: 10,
+            right: usesCustomWindowCaption ? 0 : 10,
+          ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Brand(onTap: manager.goHome),
-              const Gap(12),
               Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
+                child: DragToMoveArea(
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      for (final session in manager.sessions)
-                        _DeviceTab(
-                          key: ValueKey(session.id),
-                          session: session,
-                          selected: manager.selectedId == session.id,
-                          onSelect: () => manager.select(session.id),
-                          onClose: manager.canClose(session.id)
-                              ? () => manager.close(session.id)
-                              : null,
+                      if (macWindowButtonInset > 0)
+                        SizedBox(width: macWindowButtonInset),
+                      _Brand(onTap: manager.goHome),
+                      const Gap(12),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (final session in manager.sessions)
+                                _DeviceTab(
+                                  key: ValueKey(session.id),
+                                  session: session,
+                                  selected: manager.selectedId == session.id,
+                                  onSelect: () => manager.select(session.id),
+                                  onClose: manager.canClose(session.id)
+                                      ? () => manager.close(session.id)
+                                      : null,
+                                ),
+                            ],
+                          ),
                         ),
+                      ),
+                      const Gap(8),
+                      _HeaderAction(
+                        icon: Icons.home_outlined,
+                        tooltip: 'Home',
+                        isActive: manager.isHome,
+                        onPressed: manager.goHome,
+                      ),
+                      _HeaderAction(
+                        icon: manager.isLoadingDevices ? null : Icons.usb,
+                        tooltip: 'Load / refresh devices',
+                        busy: manager.isLoadingDevices,
+                        onPressed: () => manager.refreshDevices(),
+                      ),
+                      _HeaderAction(
+                        icon: Icons.wifi_tethering_outlined,
+                        tooltip: 'Wireless ADB',
+                        onPressed: onShowWireless,
+                      ),
+                      const Gap(4),
+                      SizedBox(
+                        height: 22,
+                        child: VerticalDivider(
+                          width: 2,
+                          thickness: 1,
+                          color: theme.colorScheme.outlineVariant,
+                        ),
+                      ),
+                      const Gap(4),
+                      _HeaderAction(
+                        icon: Icons.settings_rounded,
+                        tooltip: 'Settings',
+                        onPressed: onOpenSettings,
+                      ),
                     ],
                   ),
                 ),
               ),
-              const Gap(8),
-              _HeaderAction(
-                icon: Icons.home_outlined,
-                tooltip: 'Home',
-                isActive: manager.isHome,
-                onPressed: manager.goHome,
-              ),
-              _HeaderAction(
-                icon: manager.isLoadingDevices ? null : Icons.usb,
-                tooltip: 'Load / refresh devices',
-                busy: manager.isLoadingDevices,
-                onPressed: () => manager.refreshDevices(),
-              ),
-              _HeaderAction(
-                icon: Icons.wifi_tethering_outlined,
-                tooltip: 'Wireless ADB',
-                onPressed: onShowWireless,
-              ),
-              const Gap(4),
-              SizedBox(
-                height: 22,
-                child: VerticalDivider(
-                  width: 2,
-                  thickness: 1,
-                  color: theme.colorScheme.outlineVariant,
-                ),
-              ),
-              const Gap(4),
-              _HeaderAction(
-                icon: Icons.settings_rounded,
-                tooltip: 'Settings',
-                onPressed: onOpenSettings,
-              ),
+              if (usesCustomWindowCaption) const WindowControls(),
             ],
           ),
         );

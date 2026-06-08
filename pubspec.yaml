@@ -44,6 +44,7 @@ dependencies:
   super_sliver_list: ^0.4.1
   desktop_drop: ^0.7.1
   qr_flutter: ^4.1.0
+  window_manager: ^0.5.1
 
 dev_dependencies:
   flutter_test:
