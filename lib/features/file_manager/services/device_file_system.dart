@@ -26,10 +26,14 @@ abstract interface class DeviceFileSystem {
   /// tests inject a stub binary; production resolves the bundled tool.
   factory DeviceFileSystem.forDevice(Device device, {String? executablePath}) {
     return switch (device) {
-      AndroidDevice() =>
-        AndroidFileSystem(deviceId: device.id, executablePath: executablePath),
-      IosDevice() =>
-        IosFileSystem(deviceId: device.id, executablePath: executablePath),
+      AndroidDevice() => AndroidFileSystem(
+        deviceId: device.id,
+        executablePath: executablePath,
+      ),
+      IosDevice() => IosFileSystem(
+        deviceId: device.id,
+        executablePath: executablePath,
+      ),
     };
   }
 

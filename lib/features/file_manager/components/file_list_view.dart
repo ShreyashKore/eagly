@@ -156,11 +156,7 @@ class _FileRow extends StatelessWidget {
             Expanded(
               child: Row(
                 children: [
-                  Icon(
-                    FileEntryVisuals.iconFor(entry),
-                    size: 18,
-                    color: FileEntryVisuals.colorFor(entry, theme.colorScheme),
-                  ),
+                  FileEntryIcon(entry: entry, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Tooltip(

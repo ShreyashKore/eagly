@@ -48,19 +48,21 @@ class IosFileSystem extends ToolProcessRunner implements DeviceFileSystem {
 
   @override
   Future<List<DeviceFileEntry>> list(String path) async {
-    final names = _parseNames(await _runAfc(['ls ${_afcArg(path)}']), path);
+    final lsSegments = _commandSegments(await _runAfc(['ls ${_afcArg(path)}']));
+    final names = _parseNames(lsSegments.isEmpty ? '' : lsSegments.first, path);
     if (names.isEmpty) return const [];
 
-    final infoOutput = await _runAfc([
-      for (final name in names) 'info ${_afcArg(posixJoin(path, name))}',
-    ]);
-    final infoBlocks = _splitInfoBlocks(infoOutput);
+    // One batched session, then one segment per `info` (aligned to [names]).
+    final infoSegments = _commandSegments(
+      await _runAfc([
+        for (final name in names) 'info ${_afcArg(posixJoin(path, name))}',
+      ]),
+    );
 
     final entries = <DeviceFileEntry>[];
     for (var i = 0; i < names.length; i++) {
-      final attributes =
-          i < infoBlocks.length ? infoBlocks[i] : const <String, String>{};
-      entries.add(_buildEntry(names[i], path, attributes));
+      final segment = i < infoSegments.length ? infoSegments[i] : '';
+      entries.add(_buildEntry(names[i], path, _parseInfo(segment)));
     }
     return entries;
   }
@@ -113,14 +115,17 @@ class IosFileSystem extends ToolProcessRunner implements DeviceFileSystem {
 
   @override
   Future<void> delete(DeviceFileEntry entry) async {
-    final output = await _runAfc(['rm ${_afcArg(entry.path)}']);
+    // `rm` asks "Continue? [y/N]" for non-empty paths; feed a 'y' so the delete
+    // isn't silently aborted (a stray 'y' is a harmless no-op otherwise).
+    final output = await _runAfc(['rm ${_afcArg(entry.path)}', 'y']);
     _throwIfAfcError(output, 'Failed to delete ${entry.name}.');
   }
 
   // ── REPL plumbing ───────────────────────────────────────────────────────
 
-  /// Runs [commands] in one `afcclient` session and returns its combined
-  /// stdout+stderr with ANSI codes and the interactive prompt stripped.
+  /// Runs [commands] in one `afcclient` session and returns its output with
+  /// ANSI colour codes stripped (the REPL prompt is kept — it delimits commands;
+  /// see [_commandSegments]). afcclient writes everything to stdout.
   Future<String> _runAfc(List<String> commands) async {
     final Process process;
     try {
@@ -150,23 +155,26 @@ class IosFileSystem extends ToolProcessRunner implements DeviceFileSystem {
       // Process may have exited early (e.g. device not trusted).
     }
 
-    final combined = '${await stdoutFuture}\n${await stderrFuture}';
+    final combined = '${await stdoutFuture}${await stderrFuture}';
     await process.exitCode;
-    return _denoise(combined);
+    return combined.replaceAll(_ansi, '');
   }
 
-  /// Strips ANSI escape sequences and the `afc:<path> >` prompt prefix.
-  String _denoise(String raw) {
-    final withoutAnsi = raw.replaceAll(_ansi, '');
-    return withoutAnsi.replaceAll(_prompt, '');
+  /// Splits ANSI-stripped REPL [output] into one segment per issued command.
+  /// The REPL prints its prompt *before* reading each command, so the prompt is
+  /// a reliable delimiter: segment `i` is the output of command `i`. This keeps
+  /// name↔attribute alignment even when an individual `info` fails.
+  List<String> _commandSegments(String output) {
+    final parts = output.split(_prompt);
+    return parts.length <= 1 ? const [] : parts.sublist(1);
   }
 
-  List<String> _parseNames(String denoised, String path) {
-    if (_looksLikeAfcError(denoised)) {
-      throw DeviceFileException(_extractAfcError(denoised, 'list "$path"'));
+  List<String> _parseNames(String segment, String path) {
+    if (_looksLikeAfcError(segment)) {
+      throw DeviceFileException(_extractAfcError(segment, 'list "$path"'));
     }
     final names = <String>[];
-    for (final rawLine in denoised.split('\n')) {
+    for (final rawLine in segment.split('\n')) {
       final name = rawLine.trim();
       if (name.isEmpty || name == '.' || name == '..') continue;
       names.add(name);
@@ -174,27 +182,14 @@ class IosFileSystem extends ToolProcessRunner implements DeviceFileSystem {
     return names;
   }
 
-  /// Splits batched `info` output into one attribute map per entry. Each block
-  /// starts at the recurring `st_size:` key, so the split is independent of how
-  /// the prompt is interleaved.
-  List<Map<String, String>> _splitInfoBlocks(String denoised) {
-    final blocks = <Map<String, String>>[];
-    Map<String, String>? current;
-    for (final rawLine in denoised.split('\n')) {
-      final line = rawLine.trim();
-      final separator = line.indexOf(':');
-      if (separator <= 0) continue;
-      final key = line.substring(0, separator).trim();
-      if (!key.startsWith('st_')) continue;
-      final value = line.substring(separator + 1).trim();
-
-      if (key == 'st_size') {
-        current = {};
-        blocks.add(current);
-      }
-      current?[key] = value;
+  /// Parses one `info` command's output. afcclient prints each attribute as
+  /// `key value` (space-separated, one per line), e.g. `st_ifmt S_IFDIR`.
+  Map<String, String> _parseInfo(String segment) {
+    final attributes = <String, String>{};
+    for (final match in _infoAttribute.allMatches(segment)) {
+      attributes[match.group(1)!] = match.group(2)!;
     }
-    return blocks;
+    return attributes;
   }
 
   DeviceFileEntry _buildEntry(
@@ -229,30 +224,21 @@ class IosFileSystem extends ToolProcessRunner implements DeviceFileSystem {
     return DateTime.fromMillisecondsSinceEpoch(nanos ~/ 1000000);
   }
 
-  void _throwIfAfcError(String denoised, String fallback) {
-    if (_looksLikeAfcError(denoised)) {
-      throw DeviceFileException(_extractAfcError(denoised, fallback));
+  void _throwIfAfcError(String output, String fallback) {
+    if (_looksLikeAfcError(output)) {
+      throw DeviceFileException(_extractAfcError(output, fallback));
     }
   }
 
-  bool _looksLikeAfcError(String denoised) {
-    final lower = denoised.toLowerCase();
-    return lower.contains('error') ||
-        lower.contains('could not connect') ||
-        lower.contains('no device found') ||
-        lower.contains('not found') ||
-        lower.contains('object not found');
-  }
+  /// afcclient reports failures as lines beginning `Error:` / `ERROR:`, so we
+  /// match on the colon to avoid false positives from file names.
+  bool _looksLikeAfcError(String output) =>
+      output.toLowerCase().contains('error:');
 
-  String _extractAfcError(String denoised, String fallback) {
-    for (final rawLine in denoised.split('\n')) {
+  String _extractAfcError(String output, String fallback) {
+    for (final rawLine in output.split('\n')) {
       final line = rawLine.trim();
-      if (line.isEmpty) continue;
-      if (line.toLowerCase().contains('error') ||
-          line.toLowerCase().contains('not found') ||
-          line.toLowerCase().contains('could not')) {
-        return line;
-      }
+      if (line.toLowerCase().contains('error:')) return line;
     }
     return fallback;
   }
@@ -265,4 +251,5 @@ class IosFileSystem extends ToolProcessRunner implements DeviceFileSystem {
 
   static final RegExp _ansi = RegExp(r'\x1B\[[0-9;]*m');
   static final RegExp _prompt = RegExp(r'afc:[^\n>]*>\s?');
+  static final RegExp _infoAttribute = RegExp(r'(st_\w+|LinkTarget)\s+(\S+)');
 }

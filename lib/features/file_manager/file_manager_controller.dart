@@ -310,8 +310,9 @@ class FileManagerController extends FeatureController {
   }
 
   int _compareEntries(DeviceFileEntry a, DeviceFileEntry b) {
-    // Directories always sort before files regardless of the active field.
-    if (a.isDirectory != b.isDirectory) return a.isDirectory ? -1 : 1;
+    // Folder-like entries (directories and symlinks, which navigate like
+    // folders) always sort before files regardless of the active field.
+    if (a.isNavigable != b.isNavigable) return a.isNavigable ? -1 : 1;
 
     final direction = sortAscending ? 1 : -1;
     final result = switch (sortField) {

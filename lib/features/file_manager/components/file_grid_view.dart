@@ -84,11 +84,7 @@ class _GridTile extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              FileEntryVisuals.iconFor(entry),
-              size: 40,
-              color: FileEntryVisuals.colorFor(entry, theme.colorScheme),
-            ),
+            FileEntryIcon(entry: entry, size: 40),
             const SizedBox(height: 8),
             Text(
               entry.name,
