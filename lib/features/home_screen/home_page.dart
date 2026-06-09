@@ -5,9 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../constants/app_constants.dart';
-import '../logs/log_constants.dart';
 import '../logs/log_controller.dart';
-import '../../intents/intents.dart';
+import '../../app_menu/intents.dart';
 import '../../services/eagly_info_service.dart';
 import '../../services/preferences_service.dart';
 import '../../session/device_session_manager.dart';
@@ -15,8 +14,11 @@ import '../../utils/log_feedback.dart';
 import '../settings/settings_screen.dart';
 import '../wireless_connection/wireless_connection_dialog.dart';
 import 'app_header.dart';
+import '../../app_menu/app_menu_controller.dart';
+import '../../app_menu/app_menu_scope.dart';
+import '../../app_menu/shortcuts.dart';
+import '../../app_menu/app_platform_menu_bar.dart';
 import 'device_screen.dart';
-import 'home_page_support.dart';
 import 'home_view.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -28,6 +30,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final DeviceSessionManager _manager = DeviceSessionManager();
+  late final AppMenuController _menuController = AppMenuController(_manager);
   final ValueNotifier<int> _appMemoryBytes = ValueNotifier<int>(0);
   Timer? _memoryRefreshTimer;
 
@@ -39,7 +42,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _manager.addListener(_onManagerChanged);
     _refreshAppMemory();
     _memoryRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _refreshAppMemory();
@@ -50,13 +52,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _memoryRefreshTimer?.cancel();
     _appMemoryBytes.dispose();
-    _manager.removeListener(_onManagerChanged);
+    _menuController.dispose();
     _manager.dispose();
     super.dispose();
-  }
-
-  void _onManagerChanged() {
-    if (mounted) setState(() {});
   }
 
   void _refreshAppMemory() {
@@ -128,320 +126,117 @@ class _HomeScreenState extends State<HomeScreen> {
     _showSnackBar(formatExportLogsMessage(result));
   }
 
-  void _runOnActiveLog(void Function(LogController log) action) {
-    final log = _activeLog;
-    if (log == null) return;
-    action(log);
-  }
+  /// The single place that maps each command [Intent] to its behavior. Both the
+  /// macOS menu (via `onSelectedIntent`) and the keyboard [appShortcuts] route
+  /// through this map. Log commands delegate to [AppMenuController]; window/UI
+  /// commands run here where the [BuildContext] lives.
+  Map<Type, Action<Intent>> _buildActions() {
+    CallbackAction<T> on<T extends Intent>(void Function(T intent) run) {
+      return CallbackAction<T>(
+        onInvoke: (intent) {
+          run(intent);
+          return null;
+        },
+      );
+    }
 
-  List<PlatformMenuItem> _logLevelFilterMenuItems() {
-    final isIos = _activeLog?.isIosLogContext ?? false;
-    return buildLogLevelMenuItems(
-      isIos: isIos,
-      onSelected: (level) =>
-          _runOnActiveLog((log) => log.setSelectedLogLevel(level)),
-    );
-  }
-
-  List<PlatformMenuItem> _buildDesktopMenus() {
-    final canInstall = _manager.selected?.isConnected == true;
-
-    return [
-      // ── File ──────────────────────────────────────────────────────────────
-      PlatformMenu(
-        label: 'File',
-        menus: [
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Install App on Selected Device…',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyI,
-                  meta: true,
-                  shift: true,
-                ),
-                onSelected: canInstall
-                    ? () => unawaited(_handleInstallApp())
-                    : null,
-              ),
-              PlatformMenuItem(
-                label: 'Export Logs…',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyS,
-                  meta: true,
-                  shift: true,
-                ),
-                onSelected: _activeLog == null
-                    ? null
-                    : () => unawaited(_handleExportLogs()),
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Settings…',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.comma,
-                  meta: true,
-                ),
-                onSelected: _openSettings,
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Quit ${AppConstants.appName}',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyQ,
-                  meta: true,
-                ),
-                onSelected: () => SystemNavigator.pop(),
-              ),
-            ],
-          ),
-        ],
+    return <Type, Action<Intent>>{
+      // App / window
+      OpenSettingsIntent: on<OpenSettingsIntent>(
+        (_) => unawaited(_openSettings()),
       ),
-
-      // ── Logs ──────────────────────────────────────────────────────────────
-      PlatformMenu(
-        label: 'Logs',
-        menus: [
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Reload Devices',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyR,
-                  meta: true,
-                  shift: true,
-                ),
-                onSelected: () => unawaited(_manager.refreshDevices()),
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Start / Restart Logcat',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyR,
-                  meta: true,
-                ),
-                onSelected: () => _runOnActiveLog((log) => log.startLogcat()),
-              ),
-              PlatformMenuItem(
-                label: 'Pause / Resume Logcat',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.space,
-                  meta: true,
-                ),
-                onSelected: () =>
-                    _runOnActiveLog((log) => log.togglePauseResume()),
-              ),
-              PlatformMenuItem(
-                label: 'Clear Logs',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyK,
-                  meta: true,
-                ),
-                onSelected: () => _runOnActiveLog((log) => log.clearLogs()),
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Scroll to End',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.end,
-                  meta: true,
-                ),
-                onSelected: () => _runOnActiveLog((log) => log.scrollToEnd()),
-              ),
-            ],
-          ),
-        ],
+      ShowAboutIntent: on<ShowAboutIntent>((_) => _showAboutApp()),
+      QuitAppIntent: on<QuitAppIntent>((_) => SystemNavigator.pop()),
+      ReloadDevicesIntent: on<ReloadDevicesIntent>(
+        (_) => _menuController.reloadDevices(),
       ),
-
-      // ── Search ────────────────────────────────────────────────────────────
-      PlatformMenu(
-        label: 'Search',
-        menus: [
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Find…',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyF,
-                  meta: true,
-                ),
-                onSelected: () =>
-                    _runOnActiveLog((log) => log.activateSearchFromSelection()),
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Previous Match',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyG,
-                  meta: true,
-                  shift: true,
-                ),
-                onSelected: () => _runOnActiveLog((log) => log.onSearchPrev()),
-              ),
-              PlatformMenuItem(
-                label: 'Next Match',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyG,
-                  meta: true,
-                ),
-                onSelected: () => _runOnActiveLog((log) => log.onSearchNext()),
-              ),
-            ],
-          ),
-        ],
+      InstallAppIntent: on<InstallAppIntent>(
+        (_) => unawaited(_handleInstallApp()),
       ),
-
-      // ── Filter ────────────────────────────────────────────────────────────
-      PlatformMenu(
-        label: 'Filter',
-        menus: [
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Focus Filter Input',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyL,
-                  meta: true,
-                ),
-                onSelected: () =>
-                    _runOnActiveLog((log) => log.focusFilterInputs()),
-              ),
-              PlatformMenuItem(
-                label: 'Clear Filter',
-                onSelected: () => _runOnActiveLog((log) => log.clearFilter()),
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(members: _logLevelFilterMenuItems()),
-        ],
+      ExportLogsIntent: on<ExportLogsIntent>(
+        (_) => unawaited(_handleExportLogs()),
       ),
-
-      // ── View ──────────────────────────────────────────────────────────────
-      PlatformMenu(
-        label: 'View',
-        menus: [
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Toggle Wrap Text',
-                onSelected: () =>
-                    _runOnActiveLog((log) => log.toggleWrapText()),
-              ),
-              PlatformMenuItem(
-                label: 'Toggle Auto-scroll',
-                onSelected: () =>
-                    _runOnActiveLog((log) => log.toggleAutoScroll()),
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Increase Font Size',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.equal,
-                  meta: true,
-                ),
-                onSelected: () => _changeLogFontSize(1),
-              ),
-              PlatformMenuItem(
-                label: 'Decrease Font Size',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.minus,
-                  meta: true,
-                ),
-                onSelected: () => _changeLogFontSize(-1),
-              ),
-            ],
-          ),
-        ],
+      // Capture
+      StartLogcatIntent: on<StartLogcatIntent>(
+        (_) => _menuController.startOrRestartLogcat(),
       ),
-
-      // ── Help ──────────────────────────────────────────────────────────────
-      PlatformMenu(
-        label: 'Help',
-        menus: [
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'About ${AppConstants.appName}',
-                onSelected: _showAboutApp,
-              ),
-            ],
-          ),
-        ],
+      TogglePauseResumeIntent: on<TogglePauseResumeIntent>(
+        (_) => _menuController.togglePauseResume(),
       ),
-    ];
+      ClearLogsIntent: on<ClearLogsIntent>((_) => _menuController.clearLogs()),
+      ScrollToEndIntent: on<ScrollToEndIntent>(
+        (_) => _menuController.scrollToEnd(),
+      ),
+      // Search
+      ActivateSearchIntent: on<ActivateSearchIntent>(
+        (_) => _menuController.activateSearch(),
+      ),
+      NextMatchIntent: on<NextMatchIntent>((_) => _menuController.searchNext()),
+      PreviousMatchIntent: on<PreviousMatchIntent>(
+        (_) => _menuController.searchPrevious(),
+      ),
+      // Filter
+      FocusFilterIntent: on<FocusFilterIntent>(
+        (_) => _menuController.focusFilter(),
+      ),
+      ClearFilterIntent: on<ClearFilterIntent>(
+        (_) => _menuController.clearFilter(),
+      ),
+      SetLogLevelIntent: on<SetLogLevelIntent>(
+        (intent) => _menuController.setLogLevel(intent.level),
+      ),
+      // View
+      ToggleWrapTextIntent: on<ToggleWrapTextIntent>(
+        (_) => _menuController.toggleWrapText(),
+      ),
+      ToggleAutoScrollIntent: on<ToggleAutoScrollIntent>(
+        (_) => _menuController.toggleAutoScroll(),
+      ),
+      IncreaseFontIntent: on<IncreaseFontIntent>((_) => _changeLogFontSize(1)),
+      DecreaseFontIntent: on<DecreaseFontIntent>((_) => _changeLogFontSize(-1)),
+    };
   }
 
   @override
   Widget build(BuildContext context) {
     final materialTheme = Theme.of(context);
 
-    final content = Shortcuts(
-      shortcuts: homePageShortcuts,
-      child: Actions(
-        actions: <Type, Action<Intent>>{
-          ActivateSearchIntent: CallbackAction<ActivateSearchIntent>(
-            onInvoke: (_) {
-              _activeLog?.activateSearchFromSelection();
-              return null;
-            },
-          ),
-          IncreaseFontIntent: CallbackAction<IncreaseFontIntent>(
-            onInvoke: (_) {
-              _changeLogFontSize(1);
-              return null;
-            },
-          ),
-          DecreaseFontIntent: CallbackAction<DecreaseFontIntent>(
-            onInvoke: (_) {
-              _changeLogFontSize(-1);
-              return null;
-            },
-          ),
-        },
-        child: Focus(
-          autofocus: true,
-          child: Scaffold(
-            backgroundColor: materialTheme.scaffoldBackgroundColor,
-            body: SafeArea(
-              child: Column(
-                children: [
-                  AppHeader(
-                    manager: _manager,
-                    onOpenSettings: _openSettings,
-                    onShowWireless: _showWirelessDialog,
-                  ),
-                  Expanded(child: _buildBody()),
-                ],
+    final appBody = Focus(
+      autofocus: true,
+      child: Scaffold(
+        backgroundColor: materialTheme.scaffoldBackgroundColor,
+        body: SafeArea(
+          child: Column(
+            children: [
+              AppHeader(
+                manager: _manager,
+                onOpenSettings: _openSettings,
+                onShowWireless: _showWirelessDialog,
               ),
-            ),
+              Expanded(
+                child: ListenableBuilder(
+                  listenable: _manager,
+                  builder: (context, _) => _buildBody(),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
 
-    if (_supportsDesktopMenuBar) {
-      return PlatformMenuBar(menus: _buildDesktopMenus(), child: content);
-    }
-
-    return content;
+    return Actions(
+      actions: _buildActions(),
+      child: Shortcuts(
+        shortcuts: appShortcuts,
+        child: AppMenuScope(
+          controller: _menuController,
+          child: _supportsDesktopMenuBar
+              ? AppPlatformMenuBar(child: appBody)
+              : appBody,
+        ),
+      ),
+    );
   }
 
   Widget _buildBody() {

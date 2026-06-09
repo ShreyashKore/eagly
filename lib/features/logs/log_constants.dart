@@ -26,17 +26,3 @@ List<DropdownMenuItem<LogLevel>> buildLogLevelDropdownItems({
       )
       .toList(growable: false);
 }
-
-List<PlatformMenuItem> buildLogLevelMenuItems({
-  required ValueChanged<LogLevel> onSelected,
-  bool isIos = false,
-}) {
-  return _logLevelsForPlatform(isIos: isIos)
-      .map(
-        (level) => PlatformMenuItem(
-          label: level.labelWithDisplayCode(isIos: isIos),
-          onSelected: () => onSelected(level),
-        ),
-      )
-      .toList(growable: false);
-}

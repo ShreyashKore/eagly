@@ -423,7 +423,8 @@ void main() {
 
     expect(rowTexts, contains('04-20 10:00:00.000 '));
     expect(rowTexts, contains('123 '));
-    expect(rowTexts, contains('456 '));
+    // The PID/TID column renders both ids combined (Android shows the real TID).
+    expect(rowTexts, contains('123/456 '));
     expect(rowTexts, contains('I '));
     expect(rowTexts, contains('Tag '));
     expect(rowTexts, contains('short message\n '));

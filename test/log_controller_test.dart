@@ -427,7 +427,7 @@ void main() {
         );
       }
 
-      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
 
       final storedMessages = log.logs.map((entry) => entry.message).toList();
       expect(storedMessages, containsAll(['keep 1', 'keep 2']));

@@ -68,7 +68,9 @@ class FeatureRail extends StatelessWidget {
                 isActive: session.isFilesOpen,
                 enabled: session.canManageFiles || session.isFilesOpen,
                 tooltip: session.canManageFiles || session.isFilesOpen
-                    ? (session.isFilesOpen ? 'Hide files' : 'Browse device files')
+                    ? (session.isFilesOpen
+                          ? 'Hide files'
+                          : 'Browse device files')
                     : 'Connect the device to browse files',
                 onTap: session.canManageFiles || session.isFilesOpen
                     ? session.toggleFiles

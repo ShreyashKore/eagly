@@ -1,3 +1,4 @@
+import 'package:eagly/features/logs/data/models/log_column.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/services/log_formats/log_formats.dart';
 import 'package:eagly/features/logs/services/log_parsers/logcat_parser.dart';
@@ -58,6 +59,21 @@ void main() {
       );
 
       expect(entry.id, customId);
+    });
+
+    test('PID/TID column combines pid and tid for Android, pid-only for iOS', () {
+      final entry = LogEntry(
+        timestamp: '2026-04-26 20:54:02.025',
+        pid: '1234',
+        tid: '5678',
+        level: 'I',
+        tag: 'AuthTag',
+        message: 'message body',
+      );
+
+      // Android shows both (TID is real); iOS shows only PID (TID is always 0).
+      expect(entry.valueForColumn(LogColumn.tid), '1234/5678');
+      expect(entry.valueForColumn(LogColumn.tid, isIos: true), '1234');
     });
 
     test('special state factories create non-selectable entries', () {

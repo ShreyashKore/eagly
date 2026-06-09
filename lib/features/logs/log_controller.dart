@@ -1350,7 +1350,9 @@ class LogController extends FeatureController {
         continue;
       }
       for (final column in visibleColumns) {
-        if (pattern.matches(log.valueForColumn(column))) {
+        if (pattern.matches(
+          log.valueForColumn(column, isIos: isIosLogContext),
+        )) {
           result.add(index);
           break;
         }
