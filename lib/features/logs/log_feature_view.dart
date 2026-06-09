@@ -280,6 +280,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
       columnWidths: controller.columnWidths,
       onHiddenColumnsChanged: controller.setHiddenColumns,
       onColumnWidthsChanged: controller.setColumnWidths,
+      isIos: controller.isIosLogContext,
     );
   }
 

@@ -236,19 +236,37 @@ class _IosSyslogEntryBuilder {
   }
 
   LogEntry build() {
+    // idevicesyslog line format (group 2 of the header pattern):
+    //   <processName>[(<variant>)]*(<category>)
+    // Examples:
+    //   "novio (R14)(CoreFoundation)"  → process: "novio",        category: "CoreFoundation"
+    //   "runningboardd(RunningBoard)"  → process: "runningboardd", category: "RunningBoard"
+    //   "AssetCacheLocatorService"     → process: "AssetCacheLoc…", category: falls back to full label
+    // TID is not present in idevicesyslog output; we store '0' as a sentinel.
     final processName = _compactProcessName(processLabel);
+    final tag = _extractCategory(processLabel) ?? processLabel;
     return LogEntry(
       timestamp: timestamp,
       pid: pid,
       tid: '0',
       level: level,
-      tag: processLabel,
+      tag: tag,
       message: _message.toString(),
       packageName: processName,
       processName: processLabel,
     );
   }
 
+  // Returns the text inside the last (...) group of rawLabel, which iOS uses
+  // as the subsystem/category (e.g. "CoreFoundation", "RunningBoard").
+  String? _extractCategory(String rawLabel) {
+    final match = RegExp(r'\(([^)]+)\)\s*$').firstMatch(rawLabel.trim());
+    return match?.group(1);
+  }
+
+  // Returns everything before the first '(' (trimmed), which is the bare
+  // process name (e.g. "novio", "runningboardd"). Falls back to the full
+  // label when nothing precedes the first parenthesis.
   String _compactProcessName(String rawLabel) {
     final separatorIndex = rawLabel.indexOf('(');
     final compact = separatorIndex < 0

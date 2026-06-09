@@ -120,6 +120,8 @@ class LogViewer extends StatefulWidget {
   /// the active tab state.
   final ValueChanged<Map<String, double>>? onColumnWidthsChanged;
 
+  final bool isIos;
+
   const LogViewer({
     super.key,
     required this.logs,
@@ -141,6 +143,7 @@ class LogViewer extends StatefulWidget {
     this.columnWidths = const <String, double>{},
     this.hiddenColumns = const <String>{},
     this.onColumnWidthsChanged,
+    this.isIos = false,
   });
 
   @override
@@ -644,7 +647,7 @@ class _LogViewerState extends State<LogViewer> {
                     },
                   ),
                   Text(
-                    col.label,
+                    col.labelFor(isIos: widget.isIos),
                     style: Theme.of(
                       context,
                     ).textTheme.bodySmall?.copyWith(fontSize: 12),
@@ -1048,6 +1051,7 @@ class _LogViewerState extends State<LogViewer> {
       onMessageResize: (dx) => _updateMessageWidth(dx, messageWidth),
       onShowColumnVisibilityMenu: (position) =>
           _showColumnVisibilityMenu(context, position),
+      isIos: widget.isIos,
     );
   }
 
@@ -1069,7 +1073,7 @@ class _LogViewerState extends State<LogViewer> {
       allowSelectionStart: log.isUserSelectable,
       onSelectionPointerDown: (event) => _startRowSelectionDrag(index, event),
       onSelectionPointerMove: (event) => _extendRowSelectionDrag(index, event),
-      contentValueForColumn: log.valueForColumn,
+      contentValueForColumn: (col) => log.valueForColumn(col, isIos: widget.isIos),
     );
   }
 

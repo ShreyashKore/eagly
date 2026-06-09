@@ -16,6 +16,7 @@ class LogViewerHeader extends StatelessWidget {
     required this.onFixedColumnResize,
     required this.onMessageResize,
     required this.onShowColumnVisibilityMenu,
+    this.isIos = false,
   });
 
   final bool rowSelectionMode;
@@ -28,6 +29,7 @@ class LogViewerHeader extends StatelessWidget {
   final void Function(LogColumn column, double dx) onFixedColumnResize;
   final ValueChanged<double> onMessageResize;
   final ValueChanged<Offset> onShowColumnVisibilityMenu;
+  final bool isIos;
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +56,7 @@ class LogViewerHeader extends StatelessWidget {
             ],
             for (final column in visibleFixedColumns) ...[
               _HeaderCell(
-                text: column.label,
+                text: column.labelFor(isIos: isIos),
                 width: widthOf(column),
                 style: headerStyle,
               ),
