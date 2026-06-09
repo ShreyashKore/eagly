@@ -42,7 +42,9 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 # The runtime DLLs (avcodec-62/avutil-60/avformat-62) already ship in
 # platform-tools/windows; build-time headers + import libs come from FFmpeg dev
 # (e.g. `vcpkg install ffmpeg`). Prefer pkg-config; otherwise set
-# -DFFMPEG_INCLUDE_DIR=... -DFFMPEG_LIB_DIR=... when configuring.
+# FFMPEG_INCLUDE_DIR / FFMPEG_LIB_DIR, either as -D defines or environment
+# variables (CI uses the env vars since `flutter build windows` can't forward
+# -D defines).
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/../native")
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
@@ -51,10 +53,16 @@ endif()
 if(TARGET PkgConfig::FFMPEG)
   target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::FFMPEG)
 else()
+  if(NOT DEFINED FFMPEG_INCLUDE_DIR AND DEFINED ENV{FFMPEG_INCLUDE_DIR})
+    set(FFMPEG_INCLUDE_DIR "$ENV{FFMPEG_INCLUDE_DIR}")
+  endif()
+  if(NOT DEFINED FFMPEG_LIB_DIR AND DEFINED ENV{FFMPEG_LIB_DIR})
+    set(FFMPEG_LIB_DIR "$ENV{FFMPEG_LIB_DIR}")
+  endif()
   if(NOT DEFINED FFMPEG_INCLUDE_DIR OR NOT DEFINED FFMPEG_LIB_DIR)
     message(FATAL_ERROR
       "FFmpeg not found via pkg-config. Install FFmpeg dev (e.g. vcpkg install ffmpeg) "
-      "or pass -DFFMPEG_INCLUDE_DIR=<dir> -DFFMPEG_LIB_DIR=<dir>.")
+      "or set FFMPEG_INCLUDE_DIR / FFMPEG_LIB_DIR (-D define or environment variable).")
   endif()
   target_include_directories(${BINARY_NAME} PRIVATE "${FFMPEG_INCLUDE_DIR}")
   target_link_directories(${BINARY_NAME} PRIVATE "${FFMPEG_LIB_DIR}")
