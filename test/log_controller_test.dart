@@ -1,9 +1,9 @@
 import 'package:eagly/data/device.dart';
-import 'package:eagly/data/log_column.dart';
-import 'package:eagly/data/log_entry.dart';
-import 'package:eagly/data/log_level.dart';
-import 'package:eagly/data/log_tab_settings.dart';
-import 'package:eagly/data/log_view_mode.dart';
+import 'package:eagly/features/logs/data/models/log_column.dart';
+import 'package:eagly/features/logs/data/models/log_entry.dart';
+import 'package:eagly/features/logs/data/models/log_level.dart';
+import 'package:eagly/features/logs/data/models/log_tab_settings.dart';
+import 'package:eagly/features/logs/presentation/models/log_view_mode.dart';
 import 'package:eagly/features/logs/log_controller.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
@@ -36,10 +36,7 @@ void main() {
         withDevice ??
         Device('emulator-5554', 'device', platform: DevicePlatform.android);
     service = FakeSessionService(device);
-    session = DeviceSessionController(
-      device: device,
-      service: service,
-    );
+    session = DeviceSessionController(device: device, service: service);
     return session!.logSessionManager.selectedTab!;
   }
 
@@ -349,44 +346,47 @@ void main() {
     expect(log.recentMessageFilters, isEmpty);
   });
 
-  test('inline bare text matches the whole log entry, not only the message', () {
-    final log = createLog(
-      settings: testSettings(filterViewMode: LogFilterViewMode.inline),
-    );
+  test(
+    'inline bare text matches the whole log entry, not only the message',
+    () {
+      final log = createLog(
+        settings: testSettings(filterViewMode: LogFilterViewMode.inline),
+      );
 
-    log.logs = [
-      LogEntry(
-        timestamp: '2026-04-26 10:00:00.000',
-        pid: '900',
-        tid: '901',
-        level: 'I',
-        tag: 'AuthService',
-        message: 'No matching message text here',
-        packageName: 'com.example.auth',
-      ),
-      LogEntry(
-        timestamp: '2026-04-26 10:00:01.000',
-        pid: '902',
-        tid: '903',
-        level: 'I',
-        tag: 'SyncService',
-        message: 'No matching message text here either',
-        packageName: 'com.example.sync',
-      ),
-    ];
+      log.logs = [
+        LogEntry(
+          timestamp: '2026-04-26 10:00:00.000',
+          pid: '900',
+          tid: '901',
+          level: 'I',
+          tag: 'AuthService',
+          message: 'No matching message text here',
+          packageName: 'com.example.auth',
+        ),
+        LogEntry(
+          timestamp: '2026-04-26 10:00:01.000',
+          pid: '902',
+          tid: '903',
+          level: 'I',
+          tag: 'SyncService',
+          message: 'No matching message text here either',
+          packageName: 'com.example.sync',
+        ),
+      ];
 
-    log.onInlineFilterChanged('AuthService');
-    log.applyFiltersNow();
+      log.onInlineFilterChanged('AuthService');
+      log.applyFiltersNow();
 
-    expect(log.filteredLogs, hasLength(1));
-    expect(log.filteredLogs.single.tag, 'AuthService');
+      expect(log.filteredLogs, hasLength(1));
+      expect(log.filteredLogs.single.tag, 'AuthService');
 
-    log.onInlineFilterChanged('com.example.sync');
-    log.applyFiltersNow();
+      log.onInlineFilterChanged('com.example.sync');
+      log.applyFiltersNow();
 
-    expect(log.filteredLogs, hasLength(1));
-    expect(log.filteredLogs.single.packageName, 'com.example.sync');
-  });
+      expect(log.filteredLogs, hasLength(1));
+      expect(log.filteredLogs.single.packageName, 'com.example.sync');
+    },
+  );
 
   test('changing filter mode updates the active per-device setting', () {
     final log = createLog();
@@ -427,7 +427,7 @@ void main() {
         );
       }
 
-      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
 
       final storedMessages = log.logs.map((entry) => entry.message).toList();
       expect(storedMessages, containsAll(['keep 1', 'keep 2']));
@@ -534,24 +534,27 @@ void main() {
     expect(clipboard?.text, 'Selected needle');
   });
 
-  test('search navigation disables auto-scroll when moving between matches', () {
-    final log = createLog();
+  test(
+    'search navigation disables auto-scroll when moving between matches',
+    () {
+      final log = createLog();
 
-    log.logs = [
-      testLogEntry(message: 'needle one'),
-      testLogEntry(message: 'needle two'),
-    ];
+      log.logs = [
+        testLogEntry(message: 'needle one'),
+        testLogEntry(message: 'needle two'),
+      ];
 
-    log.openSearchBar(query: 'needle');
-    expect(log.autoScroll, isFalse);
+      log.openSearchBar(query: 'needle');
+      expect(log.autoScroll, isFalse);
 
-    log.toggleAutoScroll();
-    expect(log.autoScroll, isTrue);
+      log.toggleAutoScroll();
+      expect(log.autoScroll, isTrue);
 
-    log.onSearchNext();
-    expect(log.searchCurrentMatch, 1);
-    expect(log.autoScroll, isFalse);
-  });
+      log.onSearchNext();
+      expect(log.searchCurrentMatch, 1);
+      expect(log.autoScroll, isFalse);
+    },
+  );
 
   test('filteredLogs keeps entries with unknown log levels', () {
     final log = createLog();
@@ -571,73 +574,79 @@ void main() {
     expect(log.filteredLogs, hasLength(1));
   });
 
-  test('copyAllLogs copies formatted full log lines from cached logs', () async {
-    final log = createLog();
-    log.logs = [
-      LogEntry(
-        timestamp: '2026-04-26 10:00:00.000',
-        pid: '123',
-        tid: '456',
-        level: 'I',
-        tag: 'Auth',
-        message: 'Signed in',
-        packageName: 'com.example.auth',
-      ),
-      LogEntry(
-        timestamp: '2026-04-26 10:00:01.000',
-        pid: '789',
-        tid: '987',
-        level: 'W',
-        tag: 'Sync',
-        message: 'Retry scheduled',
-      ),
-    ];
+  test(
+    'copyAllLogs copies formatted full log lines from cached logs',
+    () async {
+      final log = createLog();
+      log.logs = [
+        LogEntry(
+          timestamp: '2026-04-26 10:00:00.000',
+          pid: '123',
+          tid: '456',
+          level: 'I',
+          tag: 'Auth',
+          message: 'Signed in',
+          packageName: 'com.example.auth',
+        ),
+        LogEntry(
+          timestamp: '2026-04-26 10:00:01.000',
+          pid: '789',
+          tid: '987',
+          level: 'W',
+          tag: 'Sync',
+          message: 'Retry scheduled',
+        ),
+      ];
 
-    final copiedCount = await log.copyAllLogs();
-    final clipboard = await Clipboard.getData('text/plain');
+      final copiedCount = await log.copyAllLogs();
+      final clipboard = await Clipboard.getData('text/plain');
 
-    expect(copiedCount, 2);
-    expect(
-      clipboard?.text,
-      '2026-04-26 10:00:00.000 com.example.auth 456 I Auth: Signed in\n'
-      '2026-04-26 10:00:01.000 789 987 W Sync: Retry scheduled',
-    );
-  });
+      expect(copiedCount, 2);
+      expect(
+        clipboard?.text,
+        '2026-04-26 10:00:00.000 com.example.auth 456 I Auth: Signed in\n'
+        '2026-04-26 10:00:01.000 789 987 W Sync: Retry scheduled',
+      );
+    },
+  );
 
-  test('special entries are skipped by selection and copy operations', () async {
-    final log = createLog();
-    log.logs = [
-      testLogEntry(message: 'First message'),
-      LogEntryUtils.buildLoggingState(
-        type: LogEntryType.paused,
-        message: 'Paused live logging for emulator-5554.',
-        processName: 'emulator-5554',
-      ),
-      testLogEntry(message: 'Second message'),
-    ];
+  test(
+    'special entries are skipped by selection and copy operations',
+    () async {
+      final log = createLog();
+      log.logs = [
+        testLogEntry(message: 'First message'),
+        LogEntryUtils.buildLoggingState(
+          type: LogEntryType.paused,
+          message: 'Paused live logging for emulator-5554.',
+          processName: 'emulator-5554',
+        ),
+        testLogEntry(message: 'Second message'),
+      ];
 
-    log.setRowSelectionMode(true);
+      log.setRowSelectionMode(true);
 
-    expect(log.beginRowSelectionGesture(1), isNull);
-    expect(log.selectedRowIndices, isEmpty);
+      expect(log.beginRowSelectionGesture(1), isNull);
+      expect(log.selectedRowIndices, isEmpty);
 
-    expect(log.beginRowSelectionGesture(0), isTrue);
-    log.selectRowRangeTo(2);
-    expect(log.selectedRowIndices, {0, 2});
+      expect(log.beginRowSelectionGesture(0), isTrue);
+      log.selectRowRangeTo(2);
+      expect(log.selectedRowIndices, {0, 2});
 
-    log.setSelectedRows({0, 1, 2});
-    expect(log.selectedRowIndices, {0, 2});
+      log.setSelectedRows({0, 1, 2});
+      expect(log.selectedRowIndices, {0, 2});
 
-    final copiedCount = await log.copyFilteredRows([
-      0,
-      1,
-      2,
-    ], format: LogCopyFormat.messageOnly);
-    final clipboard = await Clipboard.getData('text/plain');
+      final copiedCount = await log.copyFilteredRows([
+        0,
+        1,
+        2,
+      ], format: LogCopyFormat.messageOnly);
+      final clipboard = await Clipboard.getData('text/plain');
 
-    expect(copiedCount, 2);
-    expect(clipboard?.text, 'First message\nSecond message');
-  });
+      expect(copiedCount, 2);
+      expect(clipboard?.text, 'First message\nSecond message');
+    },
+  );
 
   test(
     'copyRowsForContextMenu copies selected rows when clicked row is selected',

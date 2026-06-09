@@ -7,11 +7,11 @@
 
 import 'dart:ui' as ui;
 
-import 'package:eagly/data/log_column.dart';
-import 'package:eagly/data/log_entry.dart';
+import 'package:eagly/features/logs/data/models/log_column.dart';
+import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/services/preferences_service.dart';
-import 'package:eagly/theme/app_theme.dart';
-import 'package:eagly/ui/log_viewer/log_viewer.dart';
+import 'package:eagly/presentation/theme/app_theme.dart';
+import 'package:eagly/features/logs/presentation/components/log_viewer.dart';
 import 'package:eagly/utils/log_entry_utils.dart';
 import 'package:eagly/utils/text_search_pattern.dart';
 import 'package:flutter/gestures.dart';
@@ -423,7 +423,8 @@ void main() {
 
     expect(rowTexts, contains('04-20 10:00:00.000 '));
     expect(rowTexts, contains('123 '));
-    expect(rowTexts, contains('456 '));
+    // The PID/TID column renders both ids combined (Android shows the real TID).
+    expect(rowTexts, contains('123/456 '));
     expect(rowTexts, contains('I '));
     expect(rowTexts, contains('Tag '));
     expect(rowTexts, contains('short message\n '));

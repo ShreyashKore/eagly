@@ -1,13 +1,13 @@
 import 'package:flutter/foundation.dart';
 
 import '../data/device.dart';
-import '../services/device_session_service.dart';
+import '../services/device_session_repository.dart';
 import 'device_session_controller.dart';
 
 /// Base class for per-device feature controllers (logs, mirror, …).
 ///
 /// A feature controller receives its owning [DeviceSessionController] and gets
-/// convenient access to the device + its [DeviceSessionService]. It listens to
+/// convenient access to the device + its [DeviceSessionRepository]. It listens to
 /// the session and turns connectivity changes into [onDeviceConnected] /
 /// [onDeviceDisconnected] hooks so features can react (e.g. stop a stream when
 /// the device drops) without any feature talking to another feature directly.
@@ -18,7 +18,7 @@ abstract class FeatureController extends ChangeNotifier {
 
   final DeviceSessionController session;
 
-  DeviceSessionService get service => session.service;
+  DeviceSessionRepository get service => session.service;
   Device get device => session.device;
   bool get isConnected => session.isConnected;
 

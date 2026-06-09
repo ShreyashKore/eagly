@@ -6,19 +6,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../data/device.dart';
-import '../../data/log_column.dart';
-import '../../data/log_entry.dart';
-import '../../data/log_filters.dart';
-import '../../data/log_level.dart';
-import '../../data/log_tab_settings.dart';
-import '../../data/log_view_mode.dart';
-import '../../services/log_file_service.dart';
+import 'data/models/log_column.dart';
+import 'data/models/log_entry.dart';
+import 'data/models/log_filters.dart';
+import 'data/models/log_level.dart';
+import 'data/models/log_tab_settings.dart';
+import 'presentation/models/log_view_mode.dart';
+import 'services/log_file_service.dart';
 import '../../session/device_session_controller.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/log_buffer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/text_search_pattern.dart';
-import 'components/inline_filter_bar.dart';
+import 'presentation/components/inline_filter_bar.dart';
 
 enum LogcatState { stopped, running, paused }
 
@@ -1263,7 +1263,7 @@ class LogController extends FeatureController {
     });
 
     _flushTimer?.cancel();
-    _flushTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+    _flushTimer = Timer.periodic(const Duration(milliseconds: 300), (_) {
       if (_disposed || _pendingLogs.isEmpty) return;
 
       final pendingLogs = List<LogEntry>.of(_pendingLogs);
@@ -1350,7 +1350,9 @@ class LogController extends FeatureController {
         continue;
       }
       for (final column in visibleColumns) {
-        if (pattern.matches(log.valueForColumn(column))) {
+        if (pattern.matches(
+          log.valueForColumn(column, isIos: isIosLogContext),
+        )) {
           result.add(index);
           break;
         }

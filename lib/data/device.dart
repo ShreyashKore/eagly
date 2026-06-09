@@ -19,6 +19,8 @@ sealed class Device {
     this.connectionState = DeviceConnectionState.connected,
   });
 
+  static const String _statusOnline = 'device';
+
   factory Device(
     String id,
     String status, {
@@ -80,7 +82,13 @@ sealed class Device {
   bool get isConnected => connectionState == DeviceConnectionState.connected;
   bool get isDisconnected => !isConnected;
 
-  String get statusLabel => isDisconnected ? 'disconnected' : status;
+  String get statusLabel {
+    if (isDisconnected) return 'disconnected';
+    return switch (status) {
+      _statusOnline => 'online',
+      _ => status,
+    };
+  }
 
   ({String primary, String? secondary}) get displayLabel;
 
@@ -138,16 +146,61 @@ final class AndroidDevice extends Device {
     super.model,
     super.name,
     super.connectionState,
+    this.serialNumber,
   }) : super._();
+
+  /// Underlying device serial number, populated when available (e.g. from
+  /// `adb shell getprop ro.serialno`). Used internally for deduplication.
+  final String? serialNumber;
 
   @override
   DevicePlatform get platform => DevicePlatform.android;
 
+  /// True when this device is connected over Wi-Fi (TCP/IP or mDNS ADB TLS).
+  bool get isWireless {
+    if (RegExp(r'^\d+\.\d+\.\d+\.\d+:\d+$').hasMatch(id)) return true;
+    if (id.contains('._adb-tls-')) return true;
+    return false;
+  }
+
   @override
-  ({String primary, String? secondary}) get displayLabel => (
-    primary: _subString(id, 10),
-    secondary: _androidPrimaryLabel ?? _normalizedValue(name),
-  );
+  AndroidDevice copyWith({
+    String? id,
+    String? status,
+    String? brand,
+    String? model,
+    String? name,
+    DevicePlatform? platform,
+    DeviceConnectionState? connectionState,
+    String? serialNumber,
+  }) {
+    return AndroidDevice(
+      id ?? this.id,
+      status ?? this.status,
+      brand: brand ?? this.brand,
+      model: model ?? this.model,
+      name: name ?? this.name,
+      connectionState: connectionState ?? this.connectionState,
+      serialNumber: serialNumber ?? this.serialNumber,
+    );
+  }
+
+  @override
+  ({String primary, String? secondary}) get displayLabel {
+    if (isWireless) {
+      final label = _androidPrimaryLabel;
+      final hint = _wirelessShortId;
+      if (label != null) {
+        // Brand/model as primary; short wireless ID as disambiguating secondary.
+        return (primary: label, secondary: hint);
+      }
+      return (primary: hint, secondary: null);
+    }
+    return (
+      primary: _subString(id, 10),
+      secondary: _androidPrimaryLabel ?? _normalizedValue(name),
+    );
+  }
 
   String _subString(String value, int maxLength) {
     if (value.length <= maxLength) {
@@ -159,15 +212,36 @@ final class AndroidDevice extends Device {
   @override
   String get displayName {
     final primary = _androidPrimaryLabel;
+    if (isWireless) {
+      // Never append the full mDNS or IP:port ID — it's unreadable noise.
+      return primary ??
+          _normalizedValue(name) ??
+          _normalizedValue(model) ??
+          _normalizedValue(brand) ??
+          _wirelessShortId;
+    }
     if (primary != null && _isDistinctFrom(primary, name)) {
       return '$primary ($id)';
     }
-
     return primary ??
         _normalizedValue(name) ??
         _normalizedValue(model) ??
         _normalizedValue(brand) ??
         id;
+  }
+
+  /// A short, human-readable identifier derived from the wireless ADB device
+  /// ID. For mDNS IDs the embedded serial is extracted; for IP:port IDs the
+  /// ephemeral port is dropped so only the IP address remains.
+  String get _wirelessShortId {
+    // IP:port — drop the port, show just the IP.
+    if (RegExp(r'^\d+\.\d+\.\d+\.\d+:\d+$').hasMatch(id)) {
+      return id.split(':').first;
+    }
+    // mDNS: adb-SERIAL-suffix._adb-tls-connect._tcp — extract the serial.
+    final match = RegExp(r'^adb-([A-Za-z0-9]+)-').firstMatch(id);
+    if (match != null) return match.group(1)!;
+    return _subString(id, 12);
   }
 
   String? get _androidPrimaryLabel {

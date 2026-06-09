@@ -3,32 +3,38 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../data/device.dart';
+import '../features/crash_reports/crash_report_controller.dart';
+import '../features/file_manager/file_manager_controller.dart';
 import '../features/logs/log_session_manager.dart';
 import '../features/mirror/mirror_controller.dart';
 import '../services/app_install_service.dart';
-import '../services/device_session_service.dart';
+import '../services/device_session_repository.dart';
 import '../utils/utils.dart';
 
 /// Owns everything for a single device session: the live [Device] + its
-/// connectivity, the [DeviceSessionService], and (lazily) the per-feature
+/// connectivity, the [DeviceSessionRepository], and (lazily) the per-feature
 /// controllers. It does not own feature state — that lives in the feature
 /// controllers.
 class DeviceSessionController extends ChangeNotifier {
   DeviceSessionController({
     required Device device,
-    DeviceSessionService? service,
+    DeviceSessionRepository? service,
   }) : _device = device,
-       service = service ?? DeviceSessionService(device: device) {
+       service = service ?? DeviceSessionRepository(device: device) {
     this.service.sessionLabel = device.id;
   }
 
   Device _device;
-  final DeviceSessionService service;
+  final DeviceSessionRepository service;
 
   LogSessionManager? _logSessionManager;
   MirrorController? _mirrorController;
+  CrashReportController? _crashReportController;
+  FileManagerController? _fileManagerController;
 
   bool _mirrorOpen = false;
+  bool _crashReportsOpen = false;
+  bool _filesOpen = false;
   bool _activated = false;
   bool _disposed = false;
 
@@ -37,16 +43,31 @@ class DeviceSessionController extends ChangeNotifier {
   DevicePlatform get platform => _device.platform;
   bool get isConnected => _device.isConnected;
   bool get isMirrorOpen => _mirrorOpen;
+  bool get isCrashReportsOpen => _crashReportsOpen;
+  bool get isFilesOpen => _filesOpen;
   bool get isActivated => _activated;
 
   /// Whether this device can be screen-mirrored right now.
   bool get canMirror => _device is AndroidDevice && _device.isConnected;
+
+  /// Whether crash reports can be read for this device (iOS only).
+  bool get canReadCrashReports => _device is IosDevice;
+
+  /// Whether the file manager can browse this device right now (both
+  /// platforms, when connected).
+  bool get canManageFiles => _device.isConnected;
 
   LogSessionManager get logSessionManager =>
       _logSessionManager ??= LogSessionManager(session: this);
 
   MirrorController get mirrorController =>
       _mirrorController ??= MirrorController(this);
+
+  CrashReportController get crashReportController =>
+      _crashReportController ??= CrashReportController(this);
+
+  FileManagerController get fileManagerController =>
+      _fileManagerController ??= FileManagerController(this);
 
   /// Updates the live device snapshot from the repository. Feature controllers
   /// listen to this controller and react to connectivity transitions.
@@ -82,6 +103,41 @@ class DeviceSessionController extends ChangeNotifier {
   }
 
   void toggleMirror() => _mirrorOpen ? closeMirror() : openMirror();
+
+  void openCrashReports() {
+    if (!_crashReportsOpen) {
+      _crashReportsOpen = true;
+      _notify();
+    }
+    if (canReadCrashReports) {
+      unawaited(crashReportController.ensureLoaded());
+    }
+  }
+
+  void closeCrashReports() {
+    if (!_crashReportsOpen) return;
+    _crashReportsOpen = false;
+    _notify();
+  }
+
+  void toggleCrashReports() =>
+      _crashReportsOpen ? closeCrashReports() : openCrashReports();
+
+  void openFiles() {
+    if (!_filesOpen) {
+      _filesOpen = true;
+      _notify();
+    }
+    unawaited(fileManagerController.ensureLoaded());
+  }
+
+  void closeFiles() {
+    if (!_filesOpen) return;
+    _filesOpen = false;
+    _notify();
+  }
+
+  void toggleFiles() => _filesOpen ? closeFiles() : openFiles();
 
   // ── App install (device-level) ──────────────────────────────────────────
   bool _isInstallingApp = false;
@@ -200,6 +256,8 @@ class DeviceSessionController extends ChangeNotifier {
     _disposed = true;
     _logSessionManager?.dispose();
     _mirrorController?.dispose();
+    _crashReportController?.dispose();
+    _fileManagerController?.dispose();
     unawaited(service.dispose());
     super.dispose();
   }

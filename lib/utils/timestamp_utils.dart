@@ -62,7 +62,7 @@ class TimestampUtils {
           : 0;
 
       final dateTime = DateTime(
-        year ?? DateTime.now().year, // TODO: Improve logic later
+        year ?? DateTime.now().year,
         month,
         day,
         hour,

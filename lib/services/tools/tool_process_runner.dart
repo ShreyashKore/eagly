@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import '../../data/log_entry.dart';
+import '../../features/logs/data/models/log_entry.dart';
 import '../../features/app_log/app_logger.dart';
-import '../../utils/adb_path.dart';
+import '../../utils/tools_path.dart';
 import '../../utils/log_entry_utils.dart';
 
 class ToolCommandResult {

@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:eagly/data/device.dart';
-import 'package:eagly/services/device_session_service.dart';
-import 'package:eagly/services/wireless_connection_service.dart';
+import 'package:eagly/services/device_session_repository.dart';
+import 'package:eagly/features/wireless_connection/services/wireless_connection_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -63,8 +63,8 @@ exit 0
     }
   });
 
-  DeviceSessionService buildService(Device device) {
-    return DeviceSessionService(
+  DeviceSessionRepository buildService(Device device) {
+    return DeviceSessionRepository(
       device: device,
       adbPath: adbPath,
       ideviceInstallerPath: ideviceInstallerPath,
@@ -73,9 +73,7 @@ exit 0
   }
 
   WirelessConnectionService buildWirelessService() {
-    return WirelessConnectionService(
-      adbPath: adbPath,
-    );
+    return WirelessConnectionService(adbPath: adbPath);
   }
 
   test('pairDevice returns success output from adb', () async {

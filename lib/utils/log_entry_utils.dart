@@ -1,5 +1,5 @@
-import '../data/log_column.dart';
-import '../data/log_entry.dart';
+import '../features/logs/data/models/log_column.dart';
+import '../features/logs/data/models/log_entry.dart';
 import 'timestamp_utils.dart';
 
 enum LogCopyFormat { messageOnly, timestampAndMessage, fullLine }
@@ -106,14 +106,19 @@ extension LogEntryExt on LogEntry {
     ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' ');
   }
 
-  String valueForColumn(LogColumn column) => switch (column) {
-    LogColumn.timestamp => timestamp,
-    LogColumn.pid => packageName ?? processName ?? pid,
-    LogColumn.tid => tid,
-    LogColumn.level => isSpecialEntry ? typeLabel : level,
-    LogColumn.tag => tag,
-    LogColumn.message => message,
-  };
+  String valueForColumn(LogColumn column, {bool isIos = false}) =>
+      switch (column) {
+        LogColumn.timestamp => timestamp,
+        // iOS: packageName holds the compact process name ("novio", "runningboardd").
+        // Android: packageName is the resolved package name, or PID as fallback.
+        LogColumn.pid => packageName ?? processName ?? pid,
+        // iOS has no thread ID in syslog output (stored as '0'); show PID instead.
+        // Android: combined "PID/TID" so both are visible in one cell.
+        LogColumn.tid => isIos ? pid : '$pid/$tid',
+        LogColumn.level => isSpecialEntry ? typeLabel : level,
+        LogColumn.tag => tag,
+        LogColumn.message => message,
+      };
 
   String formatForCopy(LogCopyFormat format) {
     return switch (format) {

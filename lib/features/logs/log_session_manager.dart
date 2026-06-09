@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
-import '../../services/log_file_service.dart';
+import 'services/log_file_service.dart';
 import '../../services/preferences_service.dart';
 import '../../session/device_session_controller.dart';
 import 'log_controller.dart';

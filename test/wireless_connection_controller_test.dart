@@ -1,14 +1,14 @@
 import 'dart:async';
 
-import 'package:eagly/services/wireless_connection_service.dart';
+import 'package:eagly/features/wireless_connection/services/wireless_connection_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/data/device.dart';
-import 'package:eagly/data/wireless_debug_models.dart';
-import 'package:eagly/services/device_repository.dart';
+import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
+import 'package:eagly/services/devices_repository.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/services/tools/idevice_id_tool.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
-import 'package:eagly/ui/wireless_connection/wireless_connection_controller.dart';
+import 'package:eagly/features/wireless_connection/wireless_connection_controller.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -164,10 +164,7 @@ void main() {
       expect(result.isSuccess, isTrue);
       expect(result.autoConnected, isTrue);
       expect(activatedDeviceId, connectAddress);
-      expect(adbTool.pairRequests.single, (
-        '192.168.0.77:40000',
-        '123456',
-      ));
+      expect(adbTool.pairRequests.single, ('192.168.0.77:40000', '123456'));
       expect(adbTool.connectRequests, [connectAddress]);
       expect(result.message, contains('Live logs are ready in this tab'));
     },
@@ -237,7 +234,9 @@ class _FakeWirelessAdbTool extends AdbTool {
     required String pairingCode,
   }) async {
     pairRequests.add((address, pairingCode));
-    return DeviceCommandResult.success(message: 'Successfully paired with $address.');
+    return DeviceCommandResult.success(
+      message: 'Successfully paired with $address.',
+    );
   }
 
   @override

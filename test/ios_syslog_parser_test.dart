@@ -1,6 +1,6 @@
-import 'package:eagly/data/log_entry.dart';
-import 'package:eagly/services/log_formats/log_formats.dart';
-import 'package:eagly/services/log_parsers/ios_syslog_parser.dart';
+import 'package:eagly/features/logs/data/models/log_entry.dart';
+import 'package:eagly/features/logs/services/log_formats/log_formats.dart';
+import 'package:eagly/features/logs/services/log_parsers/ios_syslog_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _format = AndroidLogcatFormat();
@@ -75,13 +75,44 @@ void main() {
       expect(logs, hasLength(1));
       expect(logs.single.timestamp, '2026-04-23 17:10:40.588');
       expect(logs.single.level, 'default');
-      expect(logs.single.tag, 'novio (R14)(Flutter)');
+      // Tag is the last bracketed value (the iOS subsystem/category); the bare
+      // process name and the full label are kept separately.
+      expect(logs.single.tag, 'Flutter');
       expect(logs.single.packageName, 'novio');
       expect(logs.single.processName, 'novio (R14)(Flutter)');
       expect(
         logs.single.message,
         'flutter: ╟ x-xss-protection: [1; mode=block]',
       );
+    });
+
+    test('extracts process name and category from labels with parentheses', () {
+      final parser = IosSyslogParser(now: () => DateTime(2026, 6, 9));
+      final logs = <LogEntry>[];
+      final lines = <String>[
+        'Jun  9 15:06:06.533981 novio (R14)(CoreFoundation)[2768] <Debug>: looked up value',
+        'Jun  9 15:06:06.534469 runningboardd(RunningBoard)[33] <Info>: PERF: Received request',
+      ];
+      for (final line in lines) {
+        logs.addAll(parser.addLine(line));
+      }
+      final trailing = parser.flush();
+      if (trailing != null) logs.add(trailing);
+
+      expect(logs, hasLength(2));
+
+      // "novio (R14)(CoreFoundation)" → process "novio", category "CoreFoundation".
+      expect(logs.first.packageName, 'novio');
+      expect(logs.first.tag, 'CoreFoundation');
+      expect(logs.first.processName, 'novio (R14)(CoreFoundation)');
+      // TID is never available in idevicesyslog output; PID is captured.
+      expect(logs.first.pid, '2768');
+      expect(logs.first.tid, '0');
+
+      // "runningboardd(RunningBoard)" → process "runningboardd", category "RunningBoard".
+      expect(logs.last.packageName, 'runningboardd');
+      expect(logs.last.tag, 'RunningBoard');
+      expect(logs.last.processName, 'runningboardd(RunningBoard)');
     });
 
     test('decodes cat-v style meta escapes emitted by piped iOS syslog', () {
