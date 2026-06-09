@@ -69,5 +69,15 @@ else()
   target_link_libraries(${BINARY_NAME} PRIVATE avcodec avutil)
 endif()
 
+# FFmpeg's public headers trip MSVC /W4 warnings (e.g. C4244 narrowing in
+# libavutil's inline clip helpers), and the runner builds with /WX. Keep
+# warnings-as-errors for our own code but relax it for the one decoder TU that
+# pulls in those headers (/WX- comes last, so it overrides the inherited /WX).
+if(MSVC)
+  set_source_files_properties(
+    "${CMAKE_SOURCE_DIR}/../native/scrcpy_video_decoder.cc"
+    PROPERTIES COMPILE_OPTIONS "/WX-")
+endif()
+
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
