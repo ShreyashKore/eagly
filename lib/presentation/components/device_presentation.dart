@@ -9,6 +9,47 @@ IconData devicePlatformIcon(Device device) {
   };
 }
 
+/// Platform icon, with a subtle Wi-Fi badge for wireless Android devices.
+class DevicePlatformIconWidget extends StatelessWidget {
+  const DevicePlatformIconWidget({
+    super.key,
+    required this.device,
+    required this.color,
+    required this.size,
+  });
+
+  final Device device;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = Icon(devicePlatformIcon(device), color: color, size: size);
+    final isWireless = device is AndroidDevice && (device as AndroidDevice).isWireless;
+    if (!isWireless) return icon;
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          icon,
+          Positioned(
+            right: -3,
+            bottom: -3,
+            child: Icon(
+              Icons.wifi,
+              size: size * 0.48,
+              color: color.withValues(alpha: 0.85),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class DeviceLabel extends StatelessWidget {
   const DeviceLabel({
     super.key,
@@ -64,10 +105,10 @@ class DeviceLabel extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          devicePlatformIcon(device),
+        DevicePlatformIconWidget(
+          device: device,
           color: effectiveIconColor,
-          size: iconSize,
+          size: iconSize ?? 24,
         ),
         const SizedBox(width: 8),
         if (maxWidth != null)
@@ -149,10 +190,10 @@ class DeviceSelectionLabel extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          devicePlatformIcon(device),
+        DevicePlatformIconWidget(
+          device: device,
           color: effectiveIconColor,
-          size: iconSize,
+          size: iconSize ?? 24,
         ),
         const SizedBox(width: 8),
         if (maxWidth != null)

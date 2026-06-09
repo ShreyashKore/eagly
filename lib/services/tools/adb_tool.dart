@@ -83,13 +83,18 @@ class AdbTool extends ToolProcessRunner {
         properties['ro.product.device'],
         properties['ro.product.name'],
       );
+      final serialNumber = _firstNonEmpty(
+        properties['ro.serialno'],
+        properties['ro.boot.serialno'],
+      );
 
-      return Device.android(
+      return AndroidDevice(
         deviceId,
         'device',
         brand: brand,
         model: model,
         name: name,
+        serialNumber: serialNumber,
       );
     } on ProcessException catch (error) {
       logError('ProcessException describing Android device $deviceId', error);

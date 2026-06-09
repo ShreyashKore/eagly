@@ -169,10 +169,13 @@ class DeviceRepository extends ChangeNotifier {
     final describedAndroidDevices = await Future.wait(
       androidDevices.map(_resolveAndroidDevice),
     );
+    final deduplicatedAndroid = _deduplicateWirelessAndroid(
+      describedAndroidDevices,
+    );
     final iosDeviceIds = await _ideviceIdTool.getDeviceIds();
     final iosDevices = await Future.wait(iosDeviceIds.map(_resolveIosDevice));
     final nextDevices = _mergeDevices([
-      ...describedAndroidDevices,
+      ...deduplicatedAndroid,
       ...iosDevices,
     ]);
 
@@ -234,6 +237,41 @@ class DeviceRepository extends ChangeNotifier {
     return merged;
   }
 
+  /// When a device is connected wirelessly over ADB TLS (mDNS), two entries
+  /// can appear: one with an IP:port ID and one with an mDNS service name that
+  /// embeds the device serial. This removes the IP:port duplicate when a
+  /// matching mDNS entry (by serial) is present.
+  List<Device> _deduplicateWirelessAndroid(List<Device> devices) {
+    // Collect serials from mDNS device IDs: adb-SERIAL-suffix._adb-tls-..._tcp
+    final mdnsSerials = <String>{}; // serials already represented by mDNS entries
+    for (final device in devices) {
+      final serial = _extractMdnsSerial(device.id);
+      if (serial != null) mdnsSerials.add(serial.toUpperCase());
+    }
+
+    if (mdnsSerials.isEmpty) return devices;
+
+    return devices.where((device) {
+      if (!_isIpPortAndroidId(device.id)) return true;
+      final serial = (device is AndroidDevice) ? device.serialNumber : null;
+      if (serial == null) return true;
+      // Drop the IP:port entry when an mDNS entry covers the same serial.
+      return !mdnsSerials.contains(serial.toUpperCase());
+    }).toList();
+  }
+
+  bool _isIpPortAndroidId(String id) =>
+      RegExp(r'^\d+\.\d+\.\d+\.\d+:\d+$').hasMatch(id);
+
+  /// Extracts the device serial from an mDNS ADB service ID.
+  /// Format: `adb-SERIAL-suffix._adb-tls-connect._tcp`
+  String? _extractMdnsSerial(String id) {
+    final match = RegExp(
+      r'^adb-([A-Za-z0-9]+)-[^.]+\._adb-tls-',
+    ).firstMatch(id);
+    return match?.group(1);
+  }
+
   Future<Device> _resolveAndroidDevice(Device device) async {
     final cached = _androidDescriptionCache[device.id];
     if (cached != null) {
@@ -245,11 +283,16 @@ class DeviceRepository extends ChangeNotifier {
     }
 
     final described = await _adbTool.describeDevice(device.id);
-    final enriched = device.copyWith(
+    final describedSerial =
+        described is AndroidDevice ? described.serialNumber : null;
+    Device enriched = device.copyWith(
       brand: described.brand ?? device.brand,
       model: described.model ?? device.model,
       name: described.name ?? device.name,
     );
+    if (describedSerial != null && enriched is AndroidDevice) {
+      enriched = enriched.copyWith(serialNumber: describedSerial);
+    }
     if (enriched.brand != null ||
         enriched.model != null ||
         enriched.name != null) {
@@ -257,6 +300,7 @@ class DeviceRepository extends ChangeNotifier {
         brand: enriched.brand,
         model: enriched.model,
         name: enriched.name,
+        serialNumber: describedSerial,
       );
     }
     return enriched;
@@ -371,18 +415,28 @@ class DeviceRepository extends ChangeNotifier {
 }
 
 class _CachedAndroidDeviceDescription {
-  const _CachedAndroidDeviceDescription({this.brand, this.model, this.name});
+  const _CachedAndroidDeviceDescription({
+    this.brand,
+    this.model,
+    this.name,
+    this.serialNumber,
+  });
 
   final String? brand;
   final String? model;
   final String? name;
+  final String? serialNumber;
 
   Device applyTo(Device device) {
-    return device.copyWith(
+    Device enriched = device.copyWith(
       brand: brand ?? device.brand,
       model: model ?? device.model,
       name: name ?? device.name,
     );
+    if (serialNumber != null && enriched is AndroidDevice) {
+      enriched = enriched.copyWith(serialNumber: serialNumber);
+    }
+    return enriched;
   }
 }
 

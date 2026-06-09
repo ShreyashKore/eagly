@@ -1263,7 +1263,7 @@ class LogController extends FeatureController {
     });
 
     _flushTimer?.cancel();
-    _flushTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+    _flushTimer = Timer.periodic(const Duration(milliseconds: 300), (_) {
       if (_disposed || _pendingLogs.isEmpty) return;
 
       final pendingLogs = List<LogEntry>.of(_pendingLogs);
