@@ -173,6 +173,26 @@ class DeviceSessionRepository {
 
   bool get isLogStreamActive => _logStreamActive;
 
+  /// Lightweight liveness probe for the bound device. Returns false when the
+  /// device is not responding within [timeout] (e.g. a wedged adb transport
+  /// that still appears connected). iOS devices have no cheap equivalent probe,
+  /// so they are assumed responsive here — the log stream's own end-of-stream
+  /// signal handles iOS disconnects.
+  Future<bool> pingDevice({Duration timeout = const Duration(seconds: 5)}) {
+    return switch (device) {
+      AndroidDevice() => _adbTool.pingDevice(_deviceId, timeout: timeout),
+      IosDevice() => Future<bool>.value(true),
+    };
+  }
+
+  /// Best-effort recovery of a wedged transport before re-attaching the log
+  /// stream. Android issues `adb reconnect`; iOS has no equivalent (no-op).
+  Future<void> recoverConnection() async {
+    if (device is AndroidDevice) {
+      await _adbTool.reconnectDevice(_deviceId);
+    }
+  }
+
   /// Clears the logcat buffer on the (Android) device.
   Future<void> clearLogs() async {
     _sessionLogger.info('Clearing logs for $_deviceId');

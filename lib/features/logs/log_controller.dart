@@ -28,6 +28,23 @@ enum LogcatState { stopped, running, paused }
 class LogController extends FeatureController {
   static const int _maxRecentFilterValues = 8;
 
+  /// Number of automatic recovery cycles attempted before the warning banner
+  /// is surfaced for manual intervention.
+  static const int _maxAutoRecoveryAttempts = 2;
+
+  /// How long the live stream may go without emitting anything before the
+  /// watchdog actively probes the device for liveness (Android only).
+  @visibleForTesting
+  static Duration streamStallThreshold = const Duration(seconds: 30);
+
+  /// Watchdog poll interval while a tab is actively capturing.
+  @visibleForTesting
+  static Duration watchdogInterval = const Duration(seconds: 10);
+
+  /// Delay before an automatic recovery attempt re-probes / re-attaches.
+  @visibleForTesting
+  static Duration recoveryBackoff = const Duration(seconds: 2);
+
   LogController(super.session, {required LogTabSettings initialSettings})
     : _settings = initialSettings,
       _logsBuffer = LogBuffer<LogEntry>(
@@ -77,6 +94,8 @@ class LogController extends FeatureController {
   Timer? _debounceTimer;
   Timer? _filterSaveDebounceTimer;
   Timer? _inlineSearchDebounce;
+  Timer? _watchdogTimer;
+  Timer? _recoveryTimer;
 
   var logcatState = LogcatState.stopped;
   var searchQuery = '';
@@ -111,8 +130,21 @@ class LogController extends FeatureController {
 
   var _disposed = false;
   var _activated = false;
-  var _wasRunningBeforeDisconnect = false;
   var _isImported = false;
+
+  /// Wall-clock time of the last entry received from the live stream. Drives
+  /// the stall watchdog.
+  DateTime? _lastStreamActivityAt;
+
+  /// True when the live stream was lost and could not be resumed automatically;
+  /// drives the warning banner.
+  var _liveStreamInterrupted = false;
+
+  /// True while an automatic recovery cycle is in flight.
+  var _recovering = false;
+  var _recoveryAttempts = 0;
+  var _probeInFlight = false;
+  String? _interruptionMessage;
   String? _importedFileName;
   LogTabSettings _settings;
 
@@ -157,6 +189,17 @@ class LogController extends FeatureController {
   int get logViewerRevision => _logViewerRevision;
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;
+
+  /// True when live capture was active but the stream dropped and could not be
+  /// recovered automatically. The UI surfaces a warning banner while true.
+  bool get liveLoggingInterrupted => _liveStreamInterrupted;
+
+  /// True while the controller is automatically trying to re-establish a lost
+  /// live stream.
+  bool get isRecovering => _recovering;
+
+  /// Human-readable explanation shown in the interruption banner.
+  String? get liveLoggingInterruptionMessage => _interruptionMessage;
 
   bool get hasLogs => _logsBuffer.size > 0;
   bool get hasAnyCachedLogs => hasLogs || _pendingLogs.isNotEmpty;
@@ -1248,61 +1291,98 @@ class LogController extends FeatureController {
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
     logcatState = LogcatState.running;
+    _liveStreamInterrupted = false;
+    _recovering = false;
+    _recoveryAttempts = 0;
+    _interruptionMessage = null;
+    _lastStreamActivityAt = DateTime.now();
     _appendSessionStateEntry(LogEntryType.started);
     _notify();
 
-    _logSub = service.startLogStream().listen((logEntry) {
-      if (_disposed) return;
-      if (logEntry.isSpecialEntry) {
-        _appendImmediateLogEntry(logEntry);
-        return;
-      }
-      if (logcatState == LogcatState.paused) return;
-      _pendingLogs.add(logEntry);
-      _pendingLogsMemoryBytes += _estimateLogEntryBytes(logEntry);
-    });
+    _attachLogStream();
+    _startFlushTimer();
+    _startWatchdog();
+  }
 
+  /// Subscribes to a fresh live stream. The subscription is captured so that
+  /// late `onDone` / `onError` callbacks from a stream we have already replaced
+  /// (or cancelled ourselves) are ignored.
+  void _attachLogStream() {
+    late final StreamSubscription<LogEntry> sub;
+    sub = service.startLogStream().listen(
+      (logEntry) {
+        if (_disposed) return;
+        _lastStreamActivityAt = DateTime.now();
+        if (_liveStreamInterrupted || _recovering || _recoveryAttempts > 0) {
+          _markStreamRecovered();
+        }
+        if (logEntry.isSpecialEntry) {
+          _appendImmediateLogEntry(logEntry);
+          return;
+        }
+        if (logcatState == LogcatState.paused) return;
+        _pendingLogs.add(logEntry);
+        _pendingLogsMemoryBytes += _estimateLogEntryBytes(logEntry);
+      },
+      onError: (Object error, StackTrace _) {
+        if (_disposed || !identical(_logSub, sub)) return;
+        unawaited(_onLiveStreamLost(reason: error.toString()));
+      },
+      onDone: () {
+        if (_disposed || !identical(_logSub, sub)) return;
+        unawaited(_onLiveStreamLost());
+      },
+      cancelOnError: true,
+    );
+    _logSub = sub;
+  }
+
+  void _startFlushTimer() {
     _flushTimer?.cancel();
     _flushTimer = Timer.periodic(const Duration(milliseconds: 300), (_) {
-      if (_disposed || _pendingLogs.isEmpty) return;
-
-      final pendingLogs = List<LogEntry>.of(_pendingLogs);
-      final pendingLogsMemoryBytes = _pendingLogsMemoryBytes;
-      _pendingLogs.clear();
-      _pendingLogsMemoryBytes = 0;
-
-      var evictedMemoryBytes = 0;
-      var didEvictStoredLogs = false;
-      for (final logEntry in pendingLogs) {
-        final evictedLogs = _logsBuffer.append(logEntry);
-        if (evictedLogs.isEmpty) continue;
-        didEvictStoredLogs = true;
-        evictedMemoryBytes += _estimateLogsBytes(evictedLogs);
-      }
-
-      _logsMemoryBytes += pendingLogsMemoryBytes - evictedMemoryBytes;
-      if (_logsMemoryBytes < 0) {
-        _logsMemoryBytes = 0;
-      }
-
-      if (didEvictStoredLogs) {
-        clearSelectedRows(notify: false);
-      }
-
-      _invalidateFilteredLogs();
-      _notify();
-
-      if (autoScroll && scrollController.hasClients) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!scrollController.hasClients) return;
-          scrollController.animateTo(
-            scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 100),
-            curve: Curves.easeOut,
-          );
-        });
-      }
+      _flushPendingLogs();
     });
+  }
+
+  void _flushPendingLogs() {
+    if (_disposed || _pendingLogs.isEmpty) return;
+
+    final pendingLogs = List<LogEntry>.of(_pendingLogs);
+    final pendingLogsMemoryBytes = _pendingLogsMemoryBytes;
+    _pendingLogs.clear();
+    _pendingLogsMemoryBytes = 0;
+
+    var evictedMemoryBytes = 0;
+    var didEvictStoredLogs = false;
+    for (final logEntry in pendingLogs) {
+      final evictedLogs = _logsBuffer.append(logEntry);
+      if (evictedLogs.isEmpty) continue;
+      didEvictStoredLogs = true;
+      evictedMemoryBytes += _estimateLogsBytes(evictedLogs);
+    }
+
+    _logsMemoryBytes += pendingLogsMemoryBytes - evictedMemoryBytes;
+    if (_logsMemoryBytes < 0) {
+      _logsMemoryBytes = 0;
+    }
+
+    if (didEvictStoredLogs) {
+      clearSelectedRows(notify: false);
+    }
+
+    _invalidateFilteredLogs();
+    _notify();
+
+    if (autoScroll && scrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!scrollController.hasClients) return;
+        scrollController.animateTo(
+          scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+        );
+      });
+    }
   }
 
   Future<void> stopLogcat() => _stopLogcatInternal(resetState: true);
@@ -1310,6 +1390,10 @@ class LogController extends FeatureController {
   Future<void> _stopLogcatInternal({required bool resetState}) async {
     _flushTimer?.cancel();
     _flushTimer = null;
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
+    _recoveryTimer?.cancel();
+    _recoveryTimer = null;
 
     await _logSub?.cancel();
     _logSub = null;
@@ -1317,19 +1401,253 @@ class LogController extends FeatureController {
 
     if (resetState && !_disposed) {
       logcatState = LogcatState.stopped;
+      _liveStreamInterrupted = false;
+      _recovering = false;
+      _recoveryAttempts = 0;
+      _interruptionMessage = null;
       _appendSessionStateEntry(LogEntryType.stopped);
       _notify();
     }
   }
 
-  void togglePauseResume() {
-    if (!isRunning) return;
-    final wasPaused = isPaused;
-    logcatState = wasPaused ? LogcatState.running : LogcatState.paused;
-    _appendSessionStateEntry(
-      wasPaused ? LogEntryType.resumed : LogEntryType.paused,
-    );
+  // ── Stall detection & recovery ─────────────────────────────────────────────
+
+  bool get _supportsStallWatchdog => device is AndroidDevice;
+
+  void _startWatchdog() {
+    _watchdogTimer?.cancel();
+    if (!_supportsStallWatchdog) return;
+    _watchdogTimer = Timer.periodic(watchdogInterval, (_) {
+      unawaited(_checkStreamLiveness());
+    });
+  }
+
+  /// Periodically verifies that a silently-idle live stream still has a
+  /// responsive device behind it. A wedged adb transport keeps the device
+  /// listed as connected while no logs (and no end-of-stream) ever arrive, so
+  /// an active probe is the only reliable signal.
+  Future<void> _checkStreamLiveness() async {
+    if (_disposed || _probeInFlight) return;
+    if (logcatState != LogcatState.running) return;
+    if (_liveStreamInterrupted || _recovering) return;
+    final lastActivity = _lastStreamActivityAt;
+    if (lastActivity == null) return;
+    if (DateTime.now().difference(lastActivity) < streamStallThreshold) return;
+
+    _probeInFlight = true;
+    try {
+      final alive = await service.pingDevice();
+      if (_disposed || logcatState != LogcatState.running) return;
+      if (_liveStreamInterrupted || _recovering) return;
+      if (alive) {
+        // Healthy but genuinely idle — reset the baseline so we don't re-probe
+        // every tick.
+        _lastStreamActivityAt = DateTime.now();
+        return;
+      }
+      await _onLiveStreamLost(stalled: true, reason: 'no response from device');
+    } finally {
+      _probeInFlight = false;
+    }
+  }
+
+  /// Handles a live stream that ended/errored unexpectedly, or one the watchdog
+  /// found wedged. Tears down the stream while preserving captured logs, then
+  /// either schedules automatic recovery or surfaces the warning banner.
+  Future<void> _onLiveStreamLost({String? reason, bool stalled = false}) async {
+    if (_disposed || logcatState == LogcatState.stopped) return;
+
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
+    _recoveryTimer?.cancel();
+    _recoveryTimer = null;
+    _flushPendingLogs();
+    await _logSub?.cancel();
+    _logSub = null;
+    await service.stopActiveLogStream();
+    if (_disposed || logcatState == LogcatState.stopped) return;
+
+    if (!isConnected) {
+      _enterInterruptedState(
+        'Live logging stopped — ${device.displayName} disconnected. '
+        'Reconnect the device, then restart logging or open a new tab.',
+      );
+      return;
+    }
+
+    if (logcatState == LogcatState.paused) {
+      _enterInterruptedState(
+        'Live logging stopped while paused. Resume to reconnect, or open a '
+        'new tab.',
+      );
+      return;
+    }
+
+    if (_recoveryAttempts >= _maxAutoRecoveryAttempts) {
+      _enterInterruptedState(
+        'Live logging stopped and could not be resumed automatically. '
+        'Restart logging or open a new tab.',
+      );
+      return;
+    }
+
+    // Tiered recovery: a gentle stream restart first, escalating to an
+    // `adb reconnect` once the gentle attempt has been tried (or immediately
+    // for a watchdog-detected stall, which is always a wedged transport).
+    _scheduleRecovery(reconnect: stalled || _recoveryAttempts >= 1);
+  }
+
+  void _scheduleRecovery({required bool reconnect}) {
+    _recovering = true;
+    _recoveryAttempts++;
+    _interruptionMessage = null;
     _notify();
+
+    _recoveryTimer?.cancel();
+    _recoveryTimer = Timer(recoveryBackoff, () async {
+      if (_disposed || logcatState == LogcatState.stopped) return;
+      if (!isConnected) {
+        _enterInterruptedState(
+          'Live logging stopped — ${device.displayName} disconnected.',
+        );
+        return;
+      }
+
+      if (reconnect) {
+        await service.recoverConnection();
+        if (_disposed || logcatState == LogcatState.stopped) return;
+      }
+
+      final alive = await service.pingDevice();
+      if (_disposed || logcatState == LogcatState.stopped) return;
+      if (!alive) {
+        if (_recoveryAttempts < _maxAutoRecoveryAttempts) {
+          _scheduleRecovery(reconnect: true);
+        } else {
+          _enterInterruptedState(
+            'Live logging stopped — ${device.displayName} is not responding. '
+            'Restart logging or open a new tab.',
+          );
+        }
+        return;
+      }
+
+      _recovering = false;
+      _lastStreamActivityAt = DateTime.now();
+      _appendSessionStateEntry(
+        LogEntryType.notice,
+        message: 'Reconnecting live logging for ${device.displayName}…',
+        tag: 'device connection',
+      );
+      _attachLogStream();
+      _startFlushTimer();
+      _startWatchdog();
+    });
+  }
+
+  /// Called when activity resumes on a stream that had dropped. Clears the
+  /// recovery/interruption state and (if a banner was showing) notes the resume.
+  void _markStreamRecovered() {
+    if (!_liveStreamInterrupted && !_recovering && _recoveryAttempts == 0) {
+      return;
+    }
+    final wasInterrupted = _liveStreamInterrupted;
+    _liveStreamInterrupted = false;
+    _recovering = false;
+    _recoveryAttempts = 0;
+    _interruptionMessage = null;
+    _recoveryTimer?.cancel();
+    _recoveryTimer = null;
+    if (wasInterrupted) {
+      _appendSessionStateEntry(
+        LogEntryType.resumed,
+        message: 'Live logging resumed for ${device.displayName}.',
+        tag: 'device connection',
+      );
+    } else {
+      _notify();
+    }
+  }
+
+  void _enterInterruptedState(String message) {
+    _recovering = false;
+    _liveStreamInterrupted = true;
+    _interruptionMessage = message;
+    _recoveryTimer?.cancel();
+    _recoveryTimer = null;
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
+    _appendSessionStateEntry(
+      LogEntryType.error,
+      message: message,
+      tag: 'device connection',
+    );
+  }
+
+  /// Re-attaches the live stream while preserving captured logs. Used by the
+  /// device-reconnect hook and the manual "Restart logging" banner action.
+  Future<void> _resumeLiveStream({
+    bool reconnect = false,
+    String? message,
+  }) async {
+    if (_disposed || _isImported || !isConnected) return;
+
+    await _stopLogcatInternal(resetState: false);
+    if (_disposed) return;
+
+    logcatState = LogcatState.running;
+    _recovering = false;
+    _recoveryAttempts = 0;
+    _notify();
+
+    if (reconnect) {
+      await service.recoverConnection();
+      if (_disposed || !isConnected) return;
+    }
+
+    _liveStreamInterrupted = false;
+    _interruptionMessage = null;
+    _lastStreamActivityAt = DateTime.now();
+    _appendSessionStateEntry(
+      LogEntryType.resumed,
+      message: message,
+      tag: message == null ? null : 'device connection',
+    );
+    _attachLogStream();
+    _startFlushTimer();
+    _startWatchdog();
+  }
+
+  /// Manual recovery triggered from the interruption banner. Preserves captured
+  /// logs and forces an `adb reconnect` before re-attaching.
+  Future<void> resumeLiveLogging() async {
+    if (_disposed || _isImported || !isConnected) return;
+    _recoveryAttempts = 0;
+    await _resumeLiveStream(
+      reconnect: true,
+      message: 'Restarting live logging for ${device.displayName}…',
+    );
+  }
+
+  void togglePauseResume() {
+    if (logcatState == LogcatState.stopped) return;
+    if (isPaused) {
+      logcatState = LogcatState.running;
+      // If the stream dropped while paused, re-attach (preserving logs) instead
+      // of merely flipping the flag.
+      if (_liveStreamInterrupted || _logSub == null) {
+        unawaited(_resumeLiveStream());
+        return;
+      }
+      _appendSessionStateEntry(LogEntryType.resumed);
+      _notify();
+    } else {
+      logcatState = LogcatState.paused;
+      _appendSessionStateEntry(LogEntryType.paused);
+      _notify();
+    }
   }
 
   List<int> _computeSearchMatches(List<LogEntry> items) {
@@ -1408,38 +1726,38 @@ class LogController extends FeatureController {
   @override
   void onDeviceDisconnected() {
     if (_isImported) return;
-    if (!isRunning) {
-      _wasRunningBeforeDisconnect = false;
-      return;
-    }
-    _wasRunningBeforeDisconnect = true;
-    unawaited(_handleDisconnect());
-  }
-
-  Future<void> _handleDisconnect() async {
-    await _stopLogcatInternal(resetState: false);
-    if (_disposed) return;
-    logcatState = LogcatState.stopped;
-    _appendSessionStateEntry(
-      LogEntryType.stopped,
-      message:
-          'Device disconnected; stopped capturing logs for ${device.displayName}.',
-      tag: 'device connection',
-    );
+    // Stopped tabs have no live capture to interrupt. For running/paused tabs
+    // the intent is preserved so logging can resume on reconnect.
+    if (logcatState == LogcatState.stopped) return;
+    unawaited(_onLiveStreamLost(reason: '${device.displayName} disconnected'));
   }
 
   @override
   void onDeviceConnected() {
-    if (_isImported || !_activated) return;
-    final shouldRestart = _wasRunningBeforeDisconnect;
-    _wasRunningBeforeDisconnect = false;
-    _appendSessionStateEntry(
-      LogEntryType.notice,
-      message: 'Device reconnected: ${device.displayName}.',
-      tag: 'device connection',
-    );
-    if (shouldRestart && !isRunning) {
-      unawaited(startLogcat());
+    if (_isImported) return;
+    // Only running/paused tabs carry live-capture intent worth resuming; a
+    // stopped tab falls through the switch and does nothing.
+    switch (logcatState) {
+      case LogcatState.running:
+        unawaited(
+          _resumeLiveStream(
+            message:
+                'Device reconnected: ${device.displayName}. Resumed live logging.',
+          ),
+        );
+      case LogcatState.paused:
+        // Keep the user's pause; clear the disconnect banner and let the manual
+        // resume re-attach the stream.
+        _liveStreamInterrupted = false;
+        _interruptionMessage = null;
+        _appendSessionStateEntry(
+          LogEntryType.notice,
+          message:
+              'Device reconnected: ${device.displayName}. Resume to continue logging.',
+          tag: 'device connection',
+        );
+      case LogcatState.stopped:
+        break;
     }
   }
 
@@ -1447,6 +1765,8 @@ class LogController extends FeatureController {
   void dispose() {
     _disposed = true;
     _flushTimer?.cancel();
+    _watchdogTimer?.cancel();
+    _recoveryTimer?.cancel();
     _debounceTimer?.cancel();
     _filterSaveDebounceTimer?.cancel();
     _inlineSearchDebounce?.cancel();

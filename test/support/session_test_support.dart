@@ -65,23 +65,54 @@ class FakeSessionService extends DeviceSessionRepository {
   int startLogStreamCount = 0;
   int startedMirrorCount = 0;
   int stoppedMirrorCount = 0;
+  int pingCount = 0;
+  int recoverCount = 0;
+
+  /// Controls what [pingDevice] reports. Set to false to simulate a wedged /
+  /// unresponsive device.
+  bool pingResult = true;
   final List<String> installRequests = [];
   DeviceCommandResult installResult = DeviceCommandResult.success(
     message: 'Success',
   );
-  final StreamController<LogEntry> _logController =
-      StreamController<LogEntry>.broadcast();
+  StreamController<LogEntry>? _activeStream;
 
   @override
   Stream<LogEntry> startLogStream() {
     startLogStreamCount++;
-    return _logController.stream;
+    final controller = StreamController<LogEntry>();
+    _activeStream = controller;
+    return controller.stream;
   }
 
-  void emit(LogEntry entry) => _logController.add(entry);
+  void emit(LogEntry entry) => _activeStream?.add(entry);
+
+  /// Simulates the underlying tool/pipe dying so the live stream completes.
+  Future<void> endStream() async {
+    final controller = _activeStream;
+    _activeStream = null;
+    await controller?.close();
+  }
 
   @override
-  Future<void> stopActiveLogStream() async {}
+  Future<void> stopActiveLogStream() async {
+    final controller = _activeStream;
+    _activeStream = null;
+    await controller?.close();
+  }
+
+  @override
+  Future<bool> pingDevice({
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    pingCount++;
+    return pingResult;
+  }
+
+  @override
+  Future<void> recoverConnection() async {
+    recoverCount++;
+  }
 
   @override
   Future<DeviceCommandResult> installApp({required String filePath}) async {
@@ -115,7 +146,8 @@ class FakeSessionService extends DeviceSessionRepository {
 
   @override
   Future<void> dispose() async {
-    await _logController.close();
+    await _activeStream?.close();
+    _activeStream = null;
     await super.dispose();
   }
 }

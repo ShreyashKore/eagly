@@ -174,10 +174,7 @@ class DeviceRepository extends ChangeNotifier {
     );
     final iosDeviceIds = await _ideviceIdTool.getDeviceIds();
     final iosDevices = await Future.wait(iosDeviceIds.map(_resolveIosDevice));
-    final nextDevices = _mergeDevices([
-      ...deduplicatedAndroid,
-      ...iosDevices,
-    ]);
+    final nextDevices = _mergeDevices([...deduplicatedAndroid, ...iosDevices]);
 
     _logger.info(
       'Device list refreshed: '
@@ -215,12 +212,20 @@ class DeviceRepository extends ChangeNotifier {
 
     for (final device in currentDevices) {
       final previous = previousById[device.id];
+      // An Android device that appears in `adb devices` but is not in the
+      // `device` (online) state — e.g. `offline` or `unauthorized` — cannot
+      // stream logs, so treat it as disconnected even though it is listed.
+      // iOS devices are only reported while physically attached, so their
+      // presence implies a usable connection regardless of pairing/lock state.
+      final isOnline = device is! AndroidDevice || device.status == 'device';
       merged.add(
         device.copyWith(
           brand: device.brand ?? previous?.brand,
           model: device.model ?? previous?.model,
           name: device.name ?? previous?.name,
-          connectionState: DeviceConnectionState.connected,
+          connectionState: isOnline
+              ? DeviceConnectionState.connected
+              : DeviceConnectionState.disconnected,
         ),
       );
     }
@@ -243,7 +248,8 @@ class DeviceRepository extends ChangeNotifier {
   /// matching mDNS entry (by serial) is present.
   List<Device> _deduplicateWirelessAndroid(List<Device> devices) {
     // Collect serials from mDNS device IDs: adb-SERIAL-suffix._adb-tls-..._tcp
-    final mdnsSerials = <String>{}; // serials already represented by mDNS entries
+    final mdnsSerials =
+        <String>{}; // serials already represented by mDNS entries
     for (final device in devices) {
       final serial = _extractMdnsSerial(device.id);
       if (serial != null) mdnsSerials.add(serial.toUpperCase());
@@ -283,8 +289,9 @@ class DeviceRepository extends ChangeNotifier {
     }
 
     final described = await _adbTool.describeDevice(device.id);
-    final describedSerial =
-        described is AndroidDevice ? described.serialNumber : null;
+    final describedSerial = described is AndroidDevice
+        ? described.serialNumber
+        : null;
     Device enriched = device.copyWith(
       brand: described.brand ?? device.brand,
       model: described.model ?? device.model,

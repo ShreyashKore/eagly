@@ -361,6 +361,42 @@ class AdbTool extends ToolProcessRunner {
     await runText(['-s', deviceId, 'shell', 'pkill', 'logcat']);
   }
 
+  /// Best-effort `adb reconnect <id>` to recover a wedged USB/TCP transport.
+  /// The device briefly bounces (drops offline then re-enumerates), which the
+  /// device watcher observes and reflects in the device list.
+  Future<void> reconnectDevice(String deviceId) async {
+    logInfo('Reconnecting $deviceId');
+    try {
+      await runText(['-s', deviceId, 'reconnect']);
+    } catch (error) {
+      logError('Failed to reconnect $deviceId', error);
+    }
+  }
+
+  /// Returns true when the device answers a lightweight shell round-trip within
+  /// [timeout]. A healthy (even idle) device replies almost immediately, while
+  /// a wedged transport hangs — so the timeout elapses and this returns false.
+  Future<bool> pingDevice(
+    String deviceId, {
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    Process? process;
+    try {
+      process = await startProcess(['-s', deviceId, 'shell', 'true']);
+      final exitCode = await process.exitCode.timeout(
+        timeout,
+        onTimeout: () {
+          process?.kill(ProcessSignal.sigkill);
+          return -1;
+        },
+      );
+      return exitCode == 0;
+    } catch (error) {
+      logError('Liveness probe failed for $deviceId', error);
+      return false;
+    }
+  }
+
   Future<void> clearLogs(String deviceId) async {
     logInfo('Clearing adb logcat buffer for $deviceId');
     await runText(['-s', deviceId, 'logcat', '-c']);
