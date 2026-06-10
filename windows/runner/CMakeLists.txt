@@ -34,7 +34,11 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 
 # Add dependency libraries and include directories. Add any application-specific
 # dependencies here.
-target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
+# flutter_wrapper_plugin (not just _app) because scrcpy_video_plugin.cpp is
+# compiled into the runner and references flutter::PluginRegistrar[Manager],
+# which live in the plugin wrapper. Normally each plugin is its own static lib
+# that links this; here the plugin lives in the runner, so link it directly.
+target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app flutter_wrapper_plugin)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
