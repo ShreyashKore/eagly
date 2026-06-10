@@ -18,7 +18,11 @@ jobs:
             targets: dmg
             upload-path: dist/*/*.dmg
             stable-glob: eagly-macos.*
-          - os: ubuntu-latest
+          # Pinned (not ubuntu-latest): the runner links this image's
+          # libavcodec/libavutil sonames, and the .deb declares matching
+          # versioned dependencies (libavcodec60/libavutil58 — see
+          # linux/packaging/deb/make_config.yaml). Bump both together.
+          - os: ubuntu-24.04
             platform: linux
             targets: deb
             upload-path: dist/*/*.deb

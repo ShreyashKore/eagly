@@ -115,3 +115,27 @@ if(EXISTS "${MOBILE_TOOLS_DIR}")
 else()
   message(WARNING "Bundled mobile tools were not found at ${MOBILE_TOOLS_DIR}. Run scripts/download_platform_tools.sh first.")
 endif()
+
+# The runner imports FFmpeg (scrcpy H.264 decoder) at load time, so the runtime
+# DLLs must sit NEXT TO the executable — Windows does not search data/ when
+# resolving an exe's import table, and the app fails at startup with
+# "avcodec-XX.dll was not found" otherwise. swresample is libavcodec's own
+# load-time dependency. The glob keeps this version-agnostic, but the bundled
+# runtime (from the scrcpy release zip) must stay at the same FFmpeg major
+# version as the import libs used at build time (avcodec-62/avutil-60 ⇔
+# FFmpeg 8.x — see .github/workflows/release.yml and native/README.md).
+if(EXISTS "${MOBILE_TOOLS_DIR}")
+  file(GLOB FFMPEG_RUNTIME_DLLS
+    "${MOBILE_TOOLS_DIR}/avcodec-*.dll"
+    "${MOBILE_TOOLS_DIR}/avutil-*.dll"
+    "${MOBILE_TOOLS_DIR}/avformat-*.dll"
+    "${MOBILE_TOOLS_DIR}/swresample-*.dll"
+    "${MOBILE_TOOLS_DIR}/swscale-*.dll")
+  if(FFMPEG_RUNTIME_DLLS)
+    install(FILES ${FFMPEG_RUNTIME_DLLS}
+      DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+      COMPONENT Runtime)
+  else()
+    message(WARNING "No FFmpeg runtime DLLs (avcodec/avutil/swresample) found in ${MOBILE_TOOLS_DIR}; ${BINARY_NAME}.exe will not start without them. Run scripts/download_platform_tools.sh windows.")
+  endif()
+endif()
