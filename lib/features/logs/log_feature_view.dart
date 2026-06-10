@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
@@ -130,10 +132,73 @@ class _LogFeatureViewState extends State<LogFeatureView> {
     return Column(
       children: [
         _buildToolbar(context, controller),
+        if (controller.liveLoggingInterrupted)
+          _buildInterruptionBanner(context, controller),
         _buildFilterArea(context, controller),
         Expanded(child: _buildViewerArea(context, controller)),
         _buildStatusBar(context, controller),
       ],
+    );
+  }
+
+  /// Full-width warning shown when live logging dropped and could not be
+  /// resumed automatically. Offers manual recovery and a fresh tab.
+  Widget _buildInterruptionBanner(
+    BuildContext context,
+    LogController controller,
+  ) {
+    final warning = context.eaglyTheme.warningColor;
+    final connected = session.isConnected;
+    final message =
+        controller.liveLoggingInterruptionMessage ??
+        'Live logging has stopped.';
+
+    return Material(
+      color: warning.withValues(alpha: 0.14),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: warning.withValues(alpha: 0.4)),
+            bottom: BorderSide(color: warning.withValues(alpha: 0.4)),
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        child: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 18, color: warning),
+            const Gap(10),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: warning,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            const Gap(8),
+            TextButton.icon(
+              onPressed: connected
+                  ? () => unawaited(controller.resumeLiveLogging())
+                  : null,
+              icon: const Icon(Icons.restart_alt_rounded, size: 16),
+              label: const Text('Restart logging'),
+              style: TextButton.styleFrom(foregroundColor: warning),
+            ),
+            const Gap(4),
+            TextButton.icon(
+              onPressed: logManager.addLiveTab,
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('New tab'),
+              style: TextButton.styleFrom(
+                foregroundColor: context.eaglyTheme.inlineNoticeForeground,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -400,6 +465,18 @@ class _LogFeatureViewState extends State<LogFeatureView> {
     );
   }
 
+  (String, Color) _liveStatusLabel(EaglyTheme theme, LogController controller) {
+    if (controller.liveLoggingInterrupted) {
+      return ('Interrupted', theme.statusStoppedColor);
+    }
+    if (controller.isRecovering) {
+      return ('Reconnecting…', theme.statusPausedColor);
+    }
+    if (controller.isPaused) return ('Paused', theme.statusPausedColor);
+    if (controller.isRunning) return ('Live', theme.statusLiveColor);
+    return ('Stopped', theme.statusStoppedColor);
+  }
+
   Widget _buildStatusBar(BuildContext context, LogController controller) {
     final theme = context.eaglyTheme;
 
@@ -454,21 +531,18 @@ class _LogFeatureViewState extends State<LogFeatureView> {
               ),
             )
           else
-            Text(
-              controller.isPaused
-                  ? 'Paused'
-                  : controller.isRunning
-                  ? 'Live'
-                  : 'Stopped',
-              style: TextStyle(
-                fontSize: 12,
-                color: controller.isPaused
-                    ? theme.statusPausedColor
-                    : controller.isRunning
-                    ? theme.statusLiveColor
-                    : theme.statusStoppedColor,
-                fontWeight: FontWeight.bold,
-              ),
+            Builder(
+              builder: (context) {
+                final (label, color) = _liveStatusLabel(theme, controller);
+                return Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                );
+              },
             ),
           ListenableBuilder(
             listenable: AppLogger.global.entriesListenable,

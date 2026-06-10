@@ -91,6 +91,27 @@ void main() {
   );
 
   test(
+    'Android device not in the online state is treated as disconnected',
+    () async {
+      adbTool.androidDevices = [
+        Device('emulator-5554', 'offline', platform: DevicePlatform.android),
+      ];
+
+      await repository.refreshDevices(force: true);
+
+      expect(repository.devices, hasLength(1));
+      expect(repository.devices.single.isDisconnected, isTrue);
+
+      adbTool.androidDevices = [
+        Device('emulator-5554', 'device', platform: DevicePlatform.android),
+      ];
+      await repository.refreshDevices(force: true);
+
+      expect(repository.devices.single.isConnected, isTrue);
+    },
+  );
+
+  test(
     'refreshDevices reuses cached iOS descriptions when the device remains connected',
     () async {
       ideviceIdTool.iosDeviceIds = ['ios-1'];

@@ -46,9 +46,17 @@ void main() {
     );
   }
 
+  void reconnect() {
+    session!.updateDevice(
+      device.copyWith(connectionState: DeviceConnectionState.connected),
+    );
+  }
+
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await PreferencesService.init();
+    // Keep automatic recovery fast and deterministic in tests.
+    LogController.recoveryBackoff = const Duration(milliseconds: 10);
     clipboardText = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (methodCall) async {
@@ -71,6 +79,9 @@ void main() {
         .setMockMethodCallHandler(SystemChannels.platform, null);
     session?.dispose();
     session = null;
+    LogController.recoveryBackoff = const Duration(seconds: 2);
+    LogController.watchdogInterval = const Duration(seconds: 10);
+    LogController.streamStallThreshold = const Duration(seconds: 30);
   });
 
   test('activate starts log capture once for a connected device', () async {
@@ -106,30 +117,119 @@ void main() {
     expect(log.logcatState, LogcatState.stopped);
   });
 
-  test('device disconnect stops capture and appends a stopped entry', () async {
-    final log = createLog(
-      withDevice: Device(
-        'emulator-5554',
-        'device',
-        platform: DevicePlatform.android,
-        brand: 'Google',
-        model: 'Pixel 8',
-      ),
-    );
+  test(
+    'device disconnect interrupts live logging and preserves captured logs',
+    () async {
+      final log = createLog(
+        withDevice: Device(
+          'emulator-5554',
+          'device',
+          platform: DevicePlatform.android,
+          brand: 'Google',
+          model: 'Pixel 8',
+        ),
+      );
 
-    await log.startLogcat();
-    expect(log.isRunning, isTrue);
+      await log.startLogcat();
+      expect(log.isRunning, isTrue);
 
-    disconnect();
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+      service.emit(testLogEntry(message: 'before disconnect'));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
 
-    expect(log.logcatState, LogcatState.stopped);
-    expect(log.logs.last.type, LogEntryType.stopped);
-    expect(
-      log.logs.last.message,
-      contains('Device disconnected; stopped capturing logs for'),
-    );
-  });
+      disconnect();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(log.liveLoggingInterrupted, isTrue);
+      expect(log.logs.last.type, LogEntryType.error);
+      expect(log.logs.last.message, contains('disconnected'));
+      expect(
+        log.logs.any((entry) => entry.message == 'before disconnect'),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'reconnect resumes a running tab without clearing existing logs',
+    () async {
+      final log = createLog();
+
+      await log.startLogcat();
+      service.emit(testLogEntry(message: 'kept across reconnect'));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      disconnect();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(log.liveLoggingInterrupted, isTrue);
+
+      reconnect();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(log.liveLoggingInterrupted, isFalse);
+      expect(log.isRunning, isTrue);
+      expect(
+        log.logs.any((entry) => entry.message == 'kept across reconnect'),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'unexpected stream end auto-recovers when the device is responsive',
+    () async {
+      final log = createLog();
+
+      await log.startLogcat();
+      final startsBefore = service.startLogStreamCount;
+      service.pingResult = true;
+
+      await service.endStream();
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(log.liveLoggingInterrupted, isFalse);
+      expect(service.startLogStreamCount, greaterThan(startsBefore));
+    },
+  );
+
+  test(
+    'unexpected stream end shows the banner when the device is unresponsive',
+    () async {
+      final log = createLog();
+
+      await log.startLogcat();
+      service.pingResult = false;
+
+      await service.endStream();
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      expect(log.liveLoggingInterrupted, isTrue);
+      expect(log.isRecovering, isFalse);
+      expect(log.logs.last.type, LogEntryType.error);
+      // Tiered recovery escalates to an adb reconnect before giving up.
+      expect(service.recoverCount, greaterThanOrEqualTo(1));
+    },
+  );
+
+  test(
+    'resumeLiveLogging restarts a dropped stream and clears the banner',
+    () async {
+      final log = createLog();
+
+      await log.startLogcat();
+      service.pingResult = false;
+      await service.endStream();
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(log.liveLoggingInterrupted, isTrue);
+
+      service.pingResult = true;
+      await log.resumeLiveLogging();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(log.liveLoggingInterrupted, isFalse);
+      expect(log.isRunning, isTrue);
+      expect(service.recoverCount, greaterThanOrEqualTo(1));
+    },
+  );
 
   test('submitLogLinesLimit rejects values below minimum threshold', () {
     final log = createLog();
