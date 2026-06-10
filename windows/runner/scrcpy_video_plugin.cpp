@@ -2,6 +2,7 @@
 
 #include <flutter/binary_messenger.h>
 #include <flutter/encodable_value.h>
+#include <flutter/flutter_engine.h>
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
 #include <flutter/standard_method_codec.h>

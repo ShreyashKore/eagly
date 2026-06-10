@@ -34,7 +34,11 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 
 # Add dependency libraries and include directories. Add any application-specific
 # dependencies here.
-target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
+# flutter_wrapper_plugin (not just _app) because scrcpy_video_plugin.cpp is
+# compiled into the runner and references flutter::PluginRegistrar[Manager],
+# which live in the plugin wrapper. Normally each plugin is its own static lib
+# that links this; here the plugin lives in the runner, so link it directly.
+target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app flutter_wrapper_plugin)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
@@ -42,7 +46,9 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 # The runtime DLLs (avcodec-62/avutil-60/avformat-62) already ship in
 # platform-tools/windows; build-time headers + import libs come from FFmpeg dev
 # (e.g. `vcpkg install ffmpeg`). Prefer pkg-config; otherwise set
-# -DFFMPEG_INCLUDE_DIR=... -DFFMPEG_LIB_DIR=... when configuring.
+# FFMPEG_INCLUDE_DIR / FFMPEG_LIB_DIR, either as -D defines or environment
+# variables (CI uses the env vars since `flutter build windows` can't forward
+# -D defines).
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/../native")
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
@@ -51,14 +57,30 @@ endif()
 if(TARGET PkgConfig::FFMPEG)
   target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::FFMPEG)
 else()
+  if(NOT DEFINED FFMPEG_INCLUDE_DIR AND DEFINED ENV{FFMPEG_INCLUDE_DIR})
+    set(FFMPEG_INCLUDE_DIR "$ENV{FFMPEG_INCLUDE_DIR}")
+  endif()
+  if(NOT DEFINED FFMPEG_LIB_DIR AND DEFINED ENV{FFMPEG_LIB_DIR})
+    set(FFMPEG_LIB_DIR "$ENV{FFMPEG_LIB_DIR}")
+  endif()
   if(NOT DEFINED FFMPEG_INCLUDE_DIR OR NOT DEFINED FFMPEG_LIB_DIR)
     message(FATAL_ERROR
       "FFmpeg not found via pkg-config. Install FFmpeg dev (e.g. vcpkg install ffmpeg) "
-      "or pass -DFFMPEG_INCLUDE_DIR=<dir> -DFFMPEG_LIB_DIR=<dir>.")
+      "or set FFMPEG_INCLUDE_DIR / FFMPEG_LIB_DIR (-D define or environment variable).")
   endif()
   target_include_directories(${BINARY_NAME} PRIVATE "${FFMPEG_INCLUDE_DIR}")
   target_link_directories(${BINARY_NAME} PRIVATE "${FFMPEG_LIB_DIR}")
   target_link_libraries(${BINARY_NAME} PRIVATE avcodec avutil)
+endif()
+
+# FFmpeg's public headers trip MSVC /W4 warnings (e.g. C4244 narrowing in
+# libavutil's inline clip helpers), and the runner builds with /WX. Keep
+# warnings-as-errors for our own code but relax it for the one decoder TU that
+# pulls in those headers (/WX- comes last, so it overrides the inherited /WX).
+if(MSVC)
+  set_source_files_properties(
+    "${CMAKE_SOURCE_DIR}/../native/scrcpy_video_decoder.cc"
+    PROPERTIES COMPILE_OPTIONS "/WX-")
 endif()
 
 # Run the Flutter tool portions of the build. This must not be removed.

@@ -49,7 +49,7 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libavcodec-dev libavutil-dev
 
       - name: Install macOS packaging dependencies
         if: matrix.platform == 'macos'
@@ -62,6 +62,25 @@ jobs:
       - name: Install Windows packaging dependencies
         if: matrix.platform == 'windows'
         run: choco install innosetup --no-progress -y
+
+      - name: Install Windows FFmpeg dev libraries
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Build-time headers + MSVC import libs for the shared scrcpy decoder.
+          # Pinned to FFmpeg 8.0.x so the import libs match the avcodec-62/avutil-60
+          # runtime DLLs bundled from scrcpy. `flutter build windows` can't forward
+          # -D defines, so hand the dirs to CMake via the environment
+          # (see windows/runner/CMakeLists.txt).
+          $url = 'https://github.com/GyanD/codexffmpeg/releases/download/8.0.1/ffmpeg-8.0.1-full_build-shared.zip'
+          $zip = Join-Path $env:RUNNER_TEMP 'ffmpeg-shared.zip'
+          $dest = Join-Path $env:RUNNER_TEMP 'ffmpeg-shared'
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $dest -Force
+          $root = (Get-ChildItem -Path $dest -Directory | Select-Object -First 1).FullName -replace '\\','/'
+          Add-Content -Path $env:GITHUB_ENV -Value "FFMPEG_INCLUDE_DIR=$root/include"
+          Add-Content -Path $env:GITHUB_ENV -Value "FFMPEG_LIB_DIR=$root/lib"
 
       - name: Install Fastforge
         shell: bash
