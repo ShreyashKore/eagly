@@ -67,24 +67,10 @@ jobs:
         if: matrix.platform == 'windows'
         run: choco install innosetup --no-progress -y
 
-      - name: Install Windows FFmpeg dev libraries
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          # Build-time headers + MSVC import libs for the shared scrcpy decoder.
-          # Pinned to FFmpeg 8.0.x so the import libs match the avcodec-62/avutil-60
-          # runtime DLLs bundled from scrcpy. `flutter build windows` can't forward
-          # -D defines, so hand the dirs to CMake via the environment
-          # (see windows/runner/CMakeLists.txt).
-          $url = 'https://github.com/GyanD/codexffmpeg/releases/download/8.0.1/ffmpeg-8.0.1-full_build-shared.zip'
-          $zip = Join-Path $env:RUNNER_TEMP 'ffmpeg-shared.zip'
-          $dest = Join-Path $env:RUNNER_TEMP 'ffmpeg-shared'
-          Invoke-WebRequest -Uri $url -OutFile $zip
-          Expand-Archive -Path $zip -DestinationPath $dest -Force
-          $root = (Get-ChildItem -Path $dest -Directory | Select-Object -First 1).FullName -replace '\\','/'
-          Add-Content -Path $env:GITHUB_ENV -Value "FFMPEG_INCLUDE_DIR=$root/include"
-          Add-Content -Path $env:GITHUB_ENV -Value "FFMPEG_LIB_DIR=$root/lib"
+      # NOTE: Windows FFmpeg dev headers/import libs are downloaded by the
+      # "Prepare bundled mobile tools" step below (download_platform_tools.sh
+      # → download_windows_ffmpeg_dev), which forwards FFMPEG_INCLUDE_DIR /
+      # FFMPEG_LIB_DIR to GITHUB_ENV for the build step.
 
       - name: Install Fastforge
         shell: bash
