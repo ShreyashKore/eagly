@@ -84,4 +84,7 @@ Eagly bundles all required Android and iOS communication tools, including adb an
 
 ## Building from Source
 
-See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
+First-time setup is scripted — run [`scripts/setup.sh`](scripts/setup.sh)
+(on Windows, from Git Bash: `bash scripts/setup.sh`). See
+[docs/SETUP.md](docs/SETUP.md) for prerequisites and details, and
+[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for the packaging flow.

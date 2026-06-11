@@ -12,6 +12,8 @@ MACOS_URL="https://dl.google.com/android/repository/platform-tools-latest-darwin
 LINUX_URL="https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
 WINDOWS_URL="https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
 LIBIMOBILEDEVICE_PACKAGE_URL="https://github.com/libimobiledevice-win32/imobiledevice-net/releases/download/v1.3.17/iMobileDevice-net.1.3.17.nupkg"
+FFMPEG_VERSION="${FFMPEG_VERSION:-8.0.1}"
+FFMPEG_WINDOWS_URL="https://github.com/GyanD/codexffmpeg/releases/download/${FFMPEG_VERSION}/ffmpeg-${FFMPEG_VERSION}-full_build-shared.zip"
 SCRCPY_VERSION="${SCRCPY_VERSION:-4.0}"
 SCRCPY_MACOS_ARCH="${SCRCPY_MACOS_ARCH:-$(uname -m | sed 's/arm64/aarch64/')}"
 SCRCPY_LINUX_URL="https://github.com/Genymobile/scrcpy/releases/download/v${SCRCPY_VERSION}/scrcpy-linux-x86_64-v${SCRCPY_VERSION}.tar.gz"
@@ -432,6 +434,61 @@ platform_bundle_spec() {
   esac
 }
 
+current_host_platform() {
+  case "$(uname -s)" in
+    Darwin) printf '%s' 'macos' ;;
+    Linux) printf '%s' 'linux' ;;
+    MINGW*|MSYS*|CYGWIN*) printf '%s' 'windows' ;;
+    *) printf '%s' 'unknown' ;;
+  esac
+}
+
+is_macos_host() {
+  [ "$(current_host_platform)" = "macos" ]
+}
+
+download_windows_ffmpeg_dev() {
+  # Build-time headers + MSVC import libs, pinned to match the avcodec-62/avutil-60
+  # runtime DLLs that ship with scrcpy (see windows/runner/CMakeLists.txt).
+  local dest="$PROJECT_DIR/.ffmpeg-dev"
+
+  if [ ! -d "$dest/include" ] || [ ! -d "$dest/lib" ]; then
+    echo "Downloading Windows FFmpeg ${FFMPEG_VERSION} dev headers..."
+    local zip="$TMP_DIR/ffmpeg-shared.zip"
+    local extracted="$TMP_DIR/ffmpeg-shared"
+    curl -L --fail -o "$zip" "$FFMPEG_WINDOWS_URL"
+    mkdir -p "$extracted"
+    unzip -o "$zip" -d "$extracted" >/dev/null
+    local root
+    root="$(find "$extracted" -mindepth 1 -maxdepth 1 -type d | head -1)"
+    mkdir -p "$dest"
+    cp -r "$root/include" "$dest/"
+    cp -r "$root/lib" "$dest/"
+    echo "FFmpeg dev headers ready at $dest"
+  else
+    echo "FFmpeg dev headers already present at $dest"
+  fi
+
+  # Resolve a Windows-style absolute path for CMake and .env consumers.
+  local win_dest
+  if command -v cygpath >/dev/null 2>&1; then
+    win_dest="$(cygpath -w "$dest")"
+  else
+    # Fallback for MSYS2 /c/... style paths; leave unchanged on non-Windows.
+    win_dest="$(echo "$dest" | sed 's|^/\([a-zA-Z]\)/|\1:/|; s|/|\\|g')"
+  fi
+
+  # Write .env so setup.sh can persist the vars as user environment variables.
+  printf 'FFMPEG_INCLUDE_DIR=%s\\include\n' "$win_dest" > "$dest/.env"
+  printf 'FFMPEG_LIB_DIR=%s\\lib\n' "$win_dest" >> "$dest/.env"
+
+  # In GitHub Actions, forward to GITHUB_ENV for subsequent build steps.
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    printf 'FFMPEG_INCLUDE_DIR=%s\\include\n' "$win_dest" >> "$GITHUB_ENV"
+    printf 'FFMPEG_LIB_DIR=%s\\lib\n' "$win_dest" >> "$GITHUB_ENV"
+  fi
+}
+
 prepare_platform_bundle() {
   local platform="$1"
   local target_dir="$PLATFORM_TOOLS_DIR/$platform"
@@ -456,8 +513,18 @@ prepare_platform_bundle() {
 
   stage_optional_bundle "$(platform_bundle_spec "$platform")" "$target_dir" "$platform"
   stage_scrcpy_bundle "$(scrcpy_bundle_spec "$platform")" "$target_dir" "$platform"
+  if [ "$platform" = "windows" ]; then
+    # Build-time FFmpeg headers + import libs for the native scrcpy decoder.
+    # Writes .ffmpeg-dev/.env (consumed by scripts/setup.sh) and forwards
+    # FFMPEG_INCLUDE_DIR / FFMPEG_LIB_DIR to GITHUB_ENV when running in CI.
+    download_windows_ffmpeg_dev
+  fi
   if [ "$platform" = "macos" ]; then
-    prepare_macos_bundle_runtime "$target_dir"
+    if is_macos_host; then
+      prepare_macos_bundle_runtime "$target_dir"
+    else
+      echo "Skipping macOS runtime build on non-macOS host ($(current_host_platform)); this step requires a macOS machine with Xcode/Clang."
+    fi
   fi
   mark_binaries_executable "$target_dir"
   verify_expected_tools "$target_dir" "$platform"
