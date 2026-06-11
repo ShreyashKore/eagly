@@ -17,7 +17,7 @@ void main() {
   late _FakeWirelessIdeviceIdTool ideviceIdTool;
   late _FakeWirelessIdeviceInfoTool ideviceInfoTool;
   late _FakeWirelessSessionService sessionService;
-  late DeviceRepository repository;
+  late DevicesRepository repository;
   WirelessConnectionController? controller;
 
   setUp(() {
@@ -25,7 +25,7 @@ void main() {
     ideviceIdTool = _FakeWirelessIdeviceIdTool();
     ideviceInfoTool = _FakeWirelessIdeviceInfoTool();
     sessionService = _FakeWirelessSessionService();
-    repository = DeviceRepository.forTesting(
+    repository = DevicesRepository.forTesting(
       adbTool: adbTool,
       ideviceIdTool: ideviceIdTool,
       ideviceInfoTool: ideviceInfoTool,
@@ -172,14 +172,14 @@ void main() {
 }
 
 WirelessConnectionController _buildController({
-  required DeviceRepository repository,
+  required DevicesRepository repository,
   required _FakeWirelessSessionService sessionService,
   Future<void> Function(Device device)? onActivateDevice,
   String? Function()? selectedDeviceIdProvider,
   bool Function()? isRunningProvider,
 }) {
   return WirelessConnectionController(
-    deviceRepository: repository,
+    devicesRepository: repository,
     onDevicesApplied: (_) async {},
     onActivateDevice: onActivateDevice ?? (_) async {},
     selectedDeviceIdProvider: selectedDeviceIdProvider,

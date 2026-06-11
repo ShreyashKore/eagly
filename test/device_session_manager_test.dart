@@ -16,7 +16,7 @@ void main() {
   late FakeAdbTool adbTool;
   late FakeIdeviceIdTool ideviceIdTool;
   late FakeIdeviceInfoTool ideviceInfoTool;
-  late DeviceRepository repository;
+  late DevicesRepository repository;
   late Directory tempDir;
   DeviceSessionManager? manager;
 
@@ -29,7 +29,7 @@ void main() {
     adbTool = FakeAdbTool();
     ideviceIdTool = FakeIdeviceIdTool();
     ideviceInfoTool = FakeIdeviceInfoTool();
-    repository = DeviceRepository.forTesting(
+    repository = DevicesRepository.forTesting(
       adbTool: adbTool,
       ideviceIdTool: ideviceIdTool,
       ideviceInfoTool: ideviceInfoTool,

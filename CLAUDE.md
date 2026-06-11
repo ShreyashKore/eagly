@@ -26,19 +26,19 @@ fetches them.
 
 Strict layered ownership, no DI framework — plain `ChangeNotifier` + `ListenableBuilder`/
 `AnimatedBuilder`. `DeviceSessionManager` is created in `HomePage`'s State and passed down
-by constructor; `DeviceRepository.instance` is the one singleton.
+by constructor; `DevicesRepository.instance` is the one singleton.
 
 ```
 tools (process wrappers)         services/tools/*  — AdbTool, IdeviceSyslogTool, … extend ToolProcessRunner
   └─ device facade               services/device_session_repository.dart — per-device, wraps all tools
-discovery                        services/devices_repository.dart (DeviceRepository) — adb/idevice polling + track-devices
+discovery                        services/devices_repository.dart (DevicesRepository) — adb/idevice polling + track-devices
 app coordinator                  session/device_session_manager.dart — one DeviceSessionController per device, tab order, selection
 per-device session               session/device_session_controller.dart — owns the live Device + feature controllers (lazy)
 per-feature controllers          session/feature_controller.dart (base) → LogController, MirrorController, CrashReportController, FileManagerController
 views                            features/<feature>/..._feature_view.dart
 ```
 
-**Connectivity flow (important):** `DeviceRepository` produces `Device`s with a
+**Connectivity flow (important):** `DevicesRepository` produces `Device`s with a
 `DeviceConnectionState`. `DeviceSessionManager._sync` pushes updates via
 `DeviceSessionController.updateDevice`, which `notifyListeners()`. `FeatureController`
 listens and turns connect/disconnect transitions into `onDeviceConnected()` /

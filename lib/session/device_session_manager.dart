@@ -10,7 +10,7 @@ import 'device_session_controller.dart';
 typedef DeviceSessionServiceFactory =
     DeviceSessionRepository Function(Device device);
 
-/// App-level coordinator. Listens to the [DeviceRepository] and maintains one
+/// App-level coordinator. Listens to the [DevicesRepository] and maintains one
 /// [DeviceSessionController] per detected device, the tab order, and the
 /// currently selected device (null = Home).
 ///
@@ -19,16 +19,16 @@ typedef DeviceSessionServiceFactory =
 /// device reconnects.
 class DeviceSessionManager extends ChangeNotifier {
   DeviceSessionManager({
-    DeviceRepository? repository,
+    DevicesRepository? repository,
     DeviceSessionServiceFactory? serviceFactory,
-  }) : _repository = repository ?? DeviceRepository.instance,
+  }) : _repository = repository ?? DevicesRepository.instance,
        _serviceFactory = serviceFactory {
     _repository.addListener(_sync);
     unawaited(_repository.ensureStarted(refreshImmediately: true));
     _sync();
   }
 
-  final DeviceRepository _repository;
+  final DevicesRepository _repository;
   final DeviceSessionServiceFactory? _serviceFactory;
 
   final Map<String, DeviceSessionController> _sessions = {};
@@ -38,7 +38,7 @@ class DeviceSessionManager extends ChangeNotifier {
   bool _autoSelectedOnce = false;
   bool _disposed = false;
 
-  DeviceRepository get repository => _repository;
+  DevicesRepository get repository => _repository;
 
   List<DeviceSessionController> get sessions =>
       List.unmodifiable([for (final id in _order) _sessions[id]!]);

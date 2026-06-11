@@ -12,13 +12,13 @@ void main() {
   late _FakeAdbTool adbTool;
   late _FakeIdeviceIdTool ideviceIdTool;
   late _FakeIdeviceInfoTool ideviceInfoTool;
-  late DeviceRepository repository;
+  late DevicesRepository repository;
 
   setUp(() {
     adbTool = _FakeAdbTool();
     ideviceIdTool = _FakeIdeviceIdTool();
     ideviceInfoTool = _FakeIdeviceInfoTool();
-    repository = DeviceRepository.forTesting(
+    repository = DevicesRepository.forTesting(
       adbTool: adbTool,
       ideviceIdTool: ideviceIdTool,
       ideviceInfoTool: ideviceInfoTool,
