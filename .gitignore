@@ -53,6 +53,9 @@ platform-tools/macos/
 platform-tools/linux/
 platform-tools/windows/
 
+# Windows FFmpeg build-time headers + import libs (scripts/download_platform_tools.sh)
+.ffmpeg-dev/
+
 # Windows MSIX signing material
 windows/certificates/*.pfx
 windows/certificates/*.p12

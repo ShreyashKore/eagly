@@ -70,8 +70,10 @@ bash scripts/setup.sh
 bash scripts/setup.sh --packaging
 ```
 
-> On Windows, open a **new** terminal after setup so the persisted
-> `FFMPEG_INCLUDE_DIR` / `FFMPEG_LIB_DIR` variables are picked up.
+> On Windows, the build finds the FFmpeg dev libraries automatically from the
+> staged `.ffmpeg-dev/` directory, so no terminal restart is needed. `setup.sh`
+> also persists `FFMPEG_INCLUDE_DIR` / `FFMPEG_LIB_DIR` as user variables (picked
+> up by a **new** terminal) for builds run from outside the repo.
 
 ---
 
