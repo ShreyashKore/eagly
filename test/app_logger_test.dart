@@ -13,7 +13,7 @@ void main() {
   test(
     'scoped loggers submit to the shared root store with inherited defaults',
     () {
-      final repositoryLogger = AppLogger(source: 'DeviceRepository');
+      final repositoryLogger = AppLogger(source: 'DevicesRepository');
       final sessionLogger = repositoryLogger.scoped(
         sessionTag: 'workspace-tab-1',
       );
@@ -25,7 +25,7 @@ void main() {
 
       expect(AppLogger.global.entries, hasLength(1));
       final entry = AppLogger.global.entries.single;
-      expect(entry.source, 'DeviceRepository');
+      expect(entry.source, 'DevicesRepository');
       expect(entry.sessionTag, 'workspace-tab-1');
       expect(entry.message, 'Failed to refresh devices');
       expect(entry.detail, 'adb unavailable');

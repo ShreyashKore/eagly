@@ -11,8 +11,8 @@ import 'tools/adb_tool.dart';
 import 'tools/idevice_id_tool.dart';
 import 'tools/idevice_info_tool.dart';
 
-class DeviceRepository extends ChangeNotifier {
-  DeviceRepository._({
+class DevicesRepository extends ChangeNotifier {
+  DevicesRepository._({
     AdbTool? adbTool,
     IdeviceIdTool? ideviceIdTool,
     IdeviceInfoTool? ideviceInfoTool,
@@ -20,19 +20,19 @@ class DeviceRepository extends ChangeNotifier {
        _ideviceIdTool = ideviceIdTool ?? IdeviceIdTool(),
        _ideviceInfoTool = ideviceInfoTool ?? IdeviceInfoTool();
 
-  factory DeviceRepository.forTesting({
+  factory DevicesRepository.forTesting({
     AdbTool? adbTool,
     IdeviceIdTool? ideviceIdTool,
     IdeviceInfoTool? ideviceInfoTool,
   }) {
-    return DeviceRepository._(
+    return DevicesRepository._(
       adbTool: adbTool,
       ideviceIdTool: ideviceIdTool,
       ideviceInfoTool: ideviceInfoTool,
     );
   }
 
-  static final DeviceRepository instance = DeviceRepository._();
+  static final DevicesRepository instance = DevicesRepository._();
 
   static const Duration _minimumRefreshInterval = Duration(seconds: 2);
   static const Duration _androidRefreshDebounce = Duration(milliseconds: 350);
@@ -46,7 +46,7 @@ class DeviceRepository extends ChangeNotifier {
   final AdbTool _adbTool;
   final IdeviceIdTool _ideviceIdTool;
   final IdeviceInfoTool _ideviceInfoTool;
-  final AppLogger _logger = AppLogger(source: 'DeviceRepository');
+  final AppLogger _logger = AppLogger(source: 'DevicesRepository');
   final Map<String, _CachedAndroidDeviceDescription> _androidDescriptionCache =
       {};
   final Map<String, _CachedIosDeviceDescription> _iosDescriptionCache = {};

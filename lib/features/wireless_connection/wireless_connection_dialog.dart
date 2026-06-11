@@ -29,7 +29,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   late final TextEditingController _pairingCodeController;
   late final TextEditingController _connectAddressController;
   late final wirelessController = WirelessConnectionController(
-    deviceRepository: manager.repository,
+    devicesRepository: manager.repository,
     onDevicesApplied: (_) async {},
     onActivateDevice: (device) async => manager.select(device.id),
     selectedDeviceIdProvider: () => manager.selectedId,
