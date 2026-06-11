@@ -91,12 +91,16 @@ abstract class ToolProcessRunner {
     return result.stdout as List<int>;
   }
 
-  Future<Process> startProcess(List<String> arguments) {
+  Future<Process> startProcess(
+    List<String> arguments, {
+    ProcessStartMode mode = ProcessStartMode.normal,
+  }) {
     return Process.start(
       executable,
       arguments,
       environment: _toolEnvironment(),
       workingDirectory: _toolWorkingDirectory(),
+      mode: mode,
     );
   }
 
