@@ -184,9 +184,6 @@ class _LogViewerState extends State<LogViewer> {
   TextStyle _applyFont(TextStyle base) =>
       base.copyWith(fontSize: PreferencesService.logFontSize);
 
-  bool get _textSelectionEnabled =>
-      widget.selectedRowIndices.isEmpty && !_isDraggingRowSelection;
-
   TextSearchPattern get _searchPattern =>
       TextSearchPattern.fromConfig(widget.search);
 
@@ -228,7 +225,8 @@ class _LogViewerState extends State<LogViewer> {
     if (!widget.rowSelectionMode && old.rowSelectionMode) {
       _resetDragSelectionState();
     }
-    if (widget.selectedRowIndices.isNotEmpty && old.selectedRowIndices.isEmpty) {
+    if (widget.selectedRowIndices.isNotEmpty &&
+        old.selectedRowIndices.isEmpty) {
       widget.onSelectedTextChanged?.call(null);
     }
   }
@@ -902,10 +900,7 @@ class _LogViewerState extends State<LogViewer> {
         globalPosition.dy,
       ),
       items: const [
-        PopupMenuItem(
-          value: LogViewerCopyAction.copyRow,
-          child: Text('Copy'),
-        ),
+        PopupMenuItem(value: LogViewerCopyAction.copyRow, child: Text('Copy')),
         PopupMenuItem(
           value: LogViewerCopyAction.copyMessage,
           child: Text('Copy message'),
@@ -974,22 +969,6 @@ class _LogViewerState extends State<LogViewer> {
         final messageWidth = _messageColumnWidth(viewportWidth);
         final contentWidth = _contentWidth(viewportWidth);
         final logViewport = _buildLogViewport(messageWidth);
-        final interactiveViewport = _textSelectionEnabled
-            ? SelectionArea(
-                key: const ValueKey('log-viewer-selection-area'),
-                onSelectionChanged: (selectedContent) {
-                  widget.onSelectedTextChanged?.call(
-                    selectedContent?.plainText,
-                  );
-                },
-                contextMenuBuilder: (ctx, selectableRegionState) {
-                  return AdaptiveTextSelectionToolbar.selectableRegion(
-                    selectableRegionState: selectableRegionState,
-                  );
-                },
-                child: logViewport,
-              )
-            : logViewport;
 
         return Stack(
           children: [
@@ -1136,7 +1115,8 @@ class _LogViewerState extends State<LogViewer> {
                 ),
               ),
             ),
-            if (widget.selectedRowIndices.isNotEmpty) _buildRowSelectionToolbar(),
+            if (widget.selectedRowIndices.isNotEmpty)
+              _buildRowSelectionToolbar(),
           ],
         );
       },
@@ -1177,13 +1157,15 @@ class _LogViewerState extends State<LogViewer> {
       monoStyle: _monoStyle,
       wholeRowSelectionEnabled: widget.rowSelectionMode,
       allowSelectionStart: log.isUserSelectable,
-      onRowSelectionChanged: () => widget.onRowSelectionChanged?.call(index, false),
+      onRowSelectionChanged: () =>
+          widget.onRowSelectionChanged?.call(index, false),
       onSelectionPointerDown: (event) => _startRowSelectionDrag(index, event),
       onSelectionPointerMove: (event) => _extendRowSelectionDrag(index, event),
       onRowContextMenuRequested: (globalPosition) {
         _showRowCopyMenu(globalPosition: globalPosition, index: index);
       },
-      contentValueForColumn: (col) => log.valueForColumn(col, isIos: widget.isIos),
+      contentValueForColumn: (col) =>
+          log.valueForColumn(col, isIos: widget.isIos),
     );
   }
 

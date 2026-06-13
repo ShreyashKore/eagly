@@ -198,12 +198,16 @@ void main() {
   List<Offset> selectionDetectorCenters(
     WidgetTester tester,
     Iterable<int> rowIndices, {
-    int detectorIndex = 0,
+    // The gap immediately after the selection checkbox cell is a plain spacer
+    // (no drag detector), so the first hittable detector is index 1.
+    int detectorIndex = 1,
   }) {
     return [
       for (final rowIndex in rowIndices)
         tester.getCenter(
-          find.byKey(ValueKey('row-selection-detector-$rowIndex-$detectorIndex')),
+          find.byKey(
+            ValueKey('row-selection-detector-$rowIndex-$detectorIndex'),
+          ),
         ),
     ];
   }
@@ -445,8 +449,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Selected rows: 0'), findsOneWidget);
       expect(find.text('Selection mode: on'), findsOneWidget);
-      expect(find.byKey(const ValueKey('row-selection-toolbar')), findsOneWidget);
-      expect(find.byType(SelectionArea), findsNothing);
+      expect(
+        find.byKey(const ValueKey('row-selection-toolbar')),
+        findsOneWidget,
+      );
+      // The SelectionArea stays mounted in row-selection mode; visible text
+      // selection is suppressed via a transparent selection color, not removal.
+      expect(find.byType(SelectionArea), findsOneWidget);
 
       final mouse = await tester.createGesture(
         kind: ui.PointerDeviceKind.mouse,
@@ -464,16 +473,23 @@ void main() {
     'whole-row selection mode disables text selection and clear restores it',
     (WidgetTester tester) async {
       await pumpSelectableLogViewer(tester);
-      final firstDetector = selectionDetectorCenters(tester, [0]).single;
+      // Capture both rows' hit points up front: selecting the first row switches
+      // the viewer into whole-row mode, which removes the per-row detectors.
+      final centers = selectionDetectorCenters(tester, [0, 1]);
 
-      await tester.tapAt(firstDetector);
+      await tester.tapAt(centers[0]);
       await tester.pumpAndSettle();
 
-      expect(find.byType(SelectionArea), findsNothing);
-      expect(find.byKey(const ValueKey('row-selection-toolbar')), findsOneWidget);
+      // The SelectionArea remains mounted while rows are selected; row mode only
+      // suppresses the visible text selection (transparent selection color).
+      expect(find.byType(SelectionArea), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('row-selection-toolbar')),
+        findsOneWidget,
+      );
       expect(find.text('1 row selected'), findsOneWidget);
 
-      await tester.tap(find.text('Second message'));
+      await tester.tapAt(centers[1]);
       await tester.pumpAndSettle();
 
       expect(find.text('Selected rows: 0,1'), findsOneWidget);
@@ -581,7 +597,7 @@ void main() {
     'secondary click still opens the copy menu after drag selection',
     (WidgetTester tester) async {
       await pumpSelectableLogViewer(tester);
-      final centers = selectionCellCenters(tester);
+      final centers = selectionDetectorCenters(tester, [0, 1, 2]);
 
       final mouse = await tester.createGesture(
         kind: ui.PointerDeviceKind.mouse,
@@ -631,7 +647,9 @@ void main() {
         find.byKey(const ValueKey('log-viewer-selection-area')),
         findsOneWidget,
       );
-      expect(find.byIcon(Icons.check_box_outline_blank), findsNothing);
+      // The selection column is always present, so its checkboxes stay rendered
+      // even after row-selection mode is toggled off.
+      expect(find.byIcon(Icons.check_box_outline_blank), findsNWidgets(2));
 
       final selectionArea = find.byType(SelectionArea);
       final mouse = await tester.createGesture(
@@ -672,8 +690,7 @@ class _SelectableLogViewerHarnessState
   int? _anchorIndex;
   bool _rowSelectionMode = false;
 
-  String get _selectedRowsLabel =>
-      _selected.isEmpty
+  String get _selectedRowsLabel => _selected.isEmpty
       ? 'Selected rows: none'
       : 'Selected rows: ${(_selected.toList()..sort()).join(',')}';
 

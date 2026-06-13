@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../../data/models/log_column.dart';
@@ -279,7 +277,10 @@ class LogRow extends StatelessWidget {
       return fontSize * lineHeight + verticalPadding;
     }
     // Monospace char width ≈ 0.6× font size; estimate how many lines message wraps to.
-    final charsPerLine = (messageWidth / (fontSize * 0.6)).clamp(1.0, double.infinity);
+    final charsPerLine = (messageWidth / (fontSize * 0.6)).clamp(
+      1.0,
+      double.infinity,
+    );
     final lines = (log.message.length / charsPerLine).ceil().clamp(1, 200);
     return fontSize * lineHeight * lines + verticalPadding;
   }
@@ -487,7 +488,8 @@ class LogRow extends StatelessWidget {
       return rowContent;
     }
 
-    final selectionEnabled = allowSelectionStart && onSelectionPointerDown != null;
+    final selectionEnabled =
+        allowSelectionStart && onSelectionPointerDown != null;
     return MouseRegion(
       cursor: selectionEnabled ? SystemMouseCursors.click : MouseCursor.defer,
       child: Listener(
