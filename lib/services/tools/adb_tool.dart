@@ -40,10 +40,12 @@ class AdbTool extends ToolProcessRunner {
       // inherited-handle hang) and it outlives this call like a normal adb
       // server. A second server can't bind a busy port and simply exits, which
       // is harmless — we connect to whichever server ends up listening.
-      await startProcess(
-        ['-L', 'tcp:$port', 'nodaemon', 'server'],
-        mode: ProcessStartMode.detached,
-      );
+      await startProcess([
+        '-L',
+        'tcp:$port',
+        'nodaemon',
+        'server',
+      ], mode: ProcessStartMode.detached);
     } catch (error) {
       logError('Failed to launch adb server', error);
     }
@@ -79,7 +81,7 @@ class AdbTool extends ToolProcessRunner {
       if (!result.isSuccess) {
         logError(
           'adb devices -l returned non-zero exit code',
-          '${result.exitCode}' + ' adda ' + result.combinedOutput,
+          '${result.exitCode} ${result.combinedOutput}',
         );
         return const [];
       }

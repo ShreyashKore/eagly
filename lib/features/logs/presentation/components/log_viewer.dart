@@ -184,9 +184,6 @@ class _LogViewerState extends State<LogViewer> {
   TextStyle _applyFont(TextStyle base) =>
       base.copyWith(fontSize: PreferencesService.logFontSize);
 
-  bool get _textSelectionEnabled =>
-      widget.selectedRowIndices.isEmpty && !_isDraggingRowSelection;
-
   TextSearchPattern get _searchPattern =>
       TextSearchPattern.fromConfig(widget.search);
 
@@ -972,22 +969,6 @@ class _LogViewerState extends State<LogViewer> {
         final messageWidth = _messageColumnWidth(viewportWidth);
         final contentWidth = _contentWidth(viewportWidth);
         final logViewport = _buildLogViewport(messageWidth);
-        final interactiveViewport = _textSelectionEnabled
-            ? SelectionArea(
-                key: const ValueKey('log-viewer-selection-area'),
-                onSelectionChanged: (selectedContent) {
-                  widget.onSelectedTextChanged?.call(
-                    selectedContent?.plainText,
-                  );
-                },
-                contextMenuBuilder: (ctx, selectableRegionState) {
-                  return AdaptiveTextSelectionToolbar.selectableRegion(
-                    selectableRegionState: selectableRegionState,
-                  );
-                },
-                child: logViewport,
-              )
-            : logViewport;
 
         final innerColumn = Column(
           children: [
