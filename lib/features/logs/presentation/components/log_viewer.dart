@@ -930,28 +930,24 @@ class _LogViewerState extends State<LogViewer> {
         padding: const EdgeInsets.only(bottom: 16),
         child: Material(
           key: const ValueKey('row-selection-toolbar'),
-          elevation: 6,
-          color: theme.colorScheme.surfaceContainerHigh,
-          shadowColor: Colors.black.withValues(alpha: 0.18),
+          elevation: 10,
+          color: theme.colorScheme.surfaceContainerHighest,
+          shadowColor: Colors.black.withValues(alpha: 0.8),
           borderRadius: BorderRadius.circular(20),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
+                Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 10,
                   ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
                   child: Text(
                     count == 1 ? '1 row selected' : '$count rows selected',
                     style: theme.textTheme.labelLarge?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer,
+                      color: theme.colorScheme.onSurface,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

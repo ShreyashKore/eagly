@@ -66,7 +66,7 @@ class AppHeader extends StatelessWidget {
                         Expanded(child: _DeviceTabStrip(manager: manager)),
                         const Gap(8),
                         _HeaderAction(
-                          icon: manager.isLoadingDevices ? null : Icons.usb,
+                          icon: manager.isLoadingDevices ? null : Icons.refresh_rounded,
                           tooltip: 'Load / refresh devices',
                           busy: manager.isLoadingDevices,
                           onPressed: () => manager.refreshDevices(),

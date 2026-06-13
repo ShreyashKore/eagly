@@ -269,6 +269,21 @@ class LogRow extends StatelessWidget {
     );
   }
 
+  // Approximates the row height from font metrics to size hit-test areas without
+  // IntrinsicHeight (which would add an extra measure pass per row).
+  double _approximateRowHeight() {
+    final fontSize = monoStyle.fontSize ?? 12;
+    final lineHeight = monoStyle.height ?? 1.2;
+    const verticalPadding = 4.0; // Padding(vertical: 2) → 2 top + 2 bottom
+    if (!wrapText || messageWidth <= 0) {
+      return fontSize * lineHeight + verticalPadding;
+    }
+    // Monospace char width ≈ 0.6× font size; estimate how many lines message wraps to.
+    final charsPerLine = (messageWidth / (fontSize * 0.6)).clamp(1.0, double.infinity);
+    final lines = (log.message.length / charsPerLine).ceil().clamp(1, 200);
+    return fontSize * lineHeight * lines + verticalPadding;
+  }
+
   Widget _selectionDetector(int detectorIndex) {
     final enabled = allowSelectionStart && onSelectionPointerDown != null;
     return MouseRegion(
@@ -278,9 +293,12 @@ class LogRow extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onPointerDown: enabled ? onSelectionPointerDown : null,
         onPointerMove: onSelectionPointerMove,
-        child: const ColoredBox(
+        child: ColoredBox(
           color: Colors.transparent,
-          child: SizedBox(width: LogViewer.columnSpacing, height: 24),
+          child: SizedBox(
+            width: LogViewer.columnSpacing,
+            height: _approximateRowHeight(),
+          ),
         ),
       ),
     );
@@ -448,7 +466,12 @@ class LogRow extends StatelessWidget {
     final rowChildren = <Widget>[];
     for (var cellIndex = 0; cellIndex < rowCells.length; cellIndex++) {
       if (cellIndex > 0) {
-        rowChildren.add(_columnGap(cellIndex - 1));
+        if (cellIndex == 1) {
+          // Add an extra gap after the selection cell for better separation.
+          rowChildren.add(const SizedBox(width: LogViewer.columnSpacing));
+        } else {
+          rowChildren.add(_columnGap(cellIndex - 1));
+        }
       }
       rowChildren.add(rowCells[cellIndex]);
     }
