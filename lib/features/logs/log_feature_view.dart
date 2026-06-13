@@ -153,51 +153,50 @@ class _LogFeatureViewState extends State<LogFeatureView> {
         controller.liveLoggingInterruptionMessage ??
         'Live logging has stopped.';
 
-    return Material(
-      color: warning.withValues(alpha: 0.14),
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: warning.withValues(alpha: 0.4)),
-            bottom: BorderSide(color: warning.withValues(alpha: 0.4)),
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: warning.withValues(alpha: 0.14),
+        border: Border(
+          top: BorderSide(color: warning.withValues(alpha: 0.4)),
+          bottom: BorderSide(color: warning.withValues(alpha: 0.4)),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 18, color: warning),
+          const Gap(10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: warning,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
           ),
-        ),
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-        child: Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, size: 18, color: warning),
-            const Gap(10),
-            Expanded(
-              child: Text(
-                message,
-                style: TextStyle(
-                  color: warning,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-              ),
+          const Gap(8),
+          TextButton.icon(
+            onPressed: connected
+                ? () => unawaited(controller.resumeLiveLogging())
+                : null,
+            icon: const Icon(Icons.restart_alt_rounded, size: 16),
+            label: const Text('Restart logging'),
+            style: TextButton.styleFrom(foregroundColor: warning),
+          ),
+          const Gap(4),
+          TextButton.icon(
+            onPressed: logManager.addLiveTab,
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('New tab'),
+            style: TextButton.styleFrom(
+              foregroundColor: context.eaglyTheme.inlineNoticeForeground,
             ),
-            const Gap(8),
-            TextButton.icon(
-              onPressed: connected
-                  ? () => unawaited(controller.resumeLiveLogging())
-                  : null,
-              icon: const Icon(Icons.restart_alt_rounded, size: 16),
-              label: const Text('Restart logging'),
-              style: TextButton.styleFrom(foregroundColor: warning),
-            ),
-            const Gap(4),
-            TextButton.icon(
-              onPressed: logManager.addLiveTab,
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('New tab'),
-              style: TextButton.styleFrom(
-                foregroundColor: context.eaglyTheme.inlineNoticeForeground,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

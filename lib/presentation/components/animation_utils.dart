@@ -38,3 +38,30 @@ class AnimatedSection extends StatelessWidget {
     );
   }
 }
+
+class AnimatedContent extends StatelessWidget {
+  const AnimatedContent({
+    this.duration = const Duration(milliseconds: 250),
+    required this.child,
+    super.key,
+  });
+
+  final Duration duration;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: duration,
+      child: AnimatedSwitcher(
+        duration: duration,
+        switchInCurve: Curves.easeInOut,
+        switchOutCurve: Curves.easeInOut,
+        transitionBuilder: (child, animation) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        child: child,
+      ),
+    );
+  }
+}

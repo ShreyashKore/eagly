@@ -1,3 +1,4 @@
+import 'package:eagly/presentation/components/animation_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
@@ -110,7 +111,8 @@ class HomeView extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
-        child: manager.isLoadingDevices
+        child: AnimatedContent(
+          child: manager.isLoadingDevices
             ? Column(
                 children: [
                   const SizedBox(
@@ -144,6 +146,7 @@ class HomeView extends StatelessWidget {
                   ),
                 ],
               ),
+        )
       );
     }
 
