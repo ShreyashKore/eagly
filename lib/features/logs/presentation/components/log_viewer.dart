@@ -886,124 +886,114 @@ class _LogViewerState extends State<LogViewer> {
         final contentWidth = _contentWidth(viewportWidth);
         final logViewport = _buildLogViewport(messageWidth);
 
-        return Stack(
+        final innerColumn = Column(
           children: [
-            Scrollbar(
-              controller: _horizontalScrollController,
-              thumbVisibility: true,
-              notificationPredicate: (notification) =>
-                  notification.metrics.axis == Axis.horizontal,
-              child: SingleChildScrollView(
-                controller: _horizontalScrollController,
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(
-                  width: contentWidth,
-                  child: Column(
-                    children: [
-                      _buildHeader(messageWidth),
-                      const Divider(height: 1, thickness: 1),
-                      Expanded(
-                        child: NotificationListener<ScrollNotification>(
-                          onNotification: (notification) {
-                            if (notification.metrics.axis != Axis.vertical) {
-                              return false;
-                            }
-                            final isUserScroll =
-                                notification is UserScrollNotification ||
-                                notification is ScrollStartNotification &&
-                                    notification.dragDetails != null ||
-                                notification is ScrollUpdateNotification &&
-                                    notification.dragDetails != null ||
-                                notification is OverscrollNotification &&
-                                    notification.dragDetails != null;
-                            if (isUserScroll) {
-                              widget.onUserScroll?.call();
-                            }
-                            return false;
+            _buildHeader(messageWidth),
+            const Divider(height: 1, thickness: 1),
+            Expanded(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  if (notification.metrics.axis != Axis.vertical) return false;
+                  final isUserScroll =
+                      notification is UserScrollNotification ||
+                      (notification is ScrollStartNotification &&
+                          notification.dragDetails != null) ||
+                      (notification is ScrollUpdateNotification &&
+                          notification.dragDetails != null) ||
+                      (notification is OverscrollNotification &&
+                          notification.dragDetails != null);
+                  if (isUserScroll) widget.onUserScroll?.call();
+                  return false;
+                },
+                child: GestureDetector(
+                  onScaleStart: (details) {
+                    _scaleBaseFontSize = PreferencesService.logFontSize;
+                  },
+                  onScaleUpdate: (details) {
+                    if (details.pointerCount < 2) return;
+                    final base =
+                        _scaleBaseFontSize ?? PreferencesService.logFontSize;
+                    PreferencesService.logFontSize = (base * details.scale)
+                        .roundToDouble();
+                  },
+                  onScaleEnd: (_) => _scaleBaseFontSize = null,
+                  child: Listener(
+                    onPointerDown: widget.rowSelectionMode
+                        ? null
+                        : (event) {
+                            if ((event.buttons & kPrimaryButton) == 0) return;
+                            widget.onLogRowTap?.call();
                           },
-                          child: Scrollbar(
-                            controller: widget.scrollController,
-                            thumbVisibility: true,
-                            child: GestureDetector(
-                              // Support pinch-to-zoom on trackpads / touchpads to change log font size.
-                              onScaleStart: (details) {
-                                // Record the base font size at gesture start.
-                                _scaleBaseFontSize =
-                                    PreferencesService.logFontSize;
-                              },
-                              onScaleUpdate: (details) {
-                                // Only react when there are multiple pointers (pinch gesture).
-                                if (details.pointerCount < 2) return;
-                                final base =
-                                    _scaleBaseFontSize ??
-                                    PreferencesService.logFontSize;
-                                final target = base * details.scale;
-                                // Use integer steps to avoid jitter; PreferencesService
-                                // will clamp and avoid redundant writes.
-                                final rounded = target.roundToDouble();
-                                PreferencesService.logFontSize = rounded;
-                              },
-                              onScaleEnd: (_) {
-                                _scaleBaseFontSize = null;
-                              },
-                              child: Listener(
-                                onPointerDown: widget.rowSelectionMode
-                                    ? null
-                                    : (event) {
-                                        if ((event.buttons & kPrimaryButton) ==
-                                            0) {
-                                          return;
-                                        }
-                                        widget.onLogRowTap?.call();
-                                      },
-                                onPointerUp: (event) =>
-                                    _endRowSelectionDrag(event.pointer),
-                                onPointerCancel: (event) =>
-                                    _endRowSelectionDrag(event.pointer),
-                                child: Theme(
-                                  data: widget.rowSelectionMode
-                                      ? Theme.of(context).copyWith(
-                                          textSelectionTheme:
-                                              const TextSelectionThemeData(
-                                                selectionColor:
-                                                    Colors.transparent,
-                                              ),
-                                        )
-                                      : Theme.of(context),
-                                  child: SelectionArea(
-                                    key: const ValueKey(
-                                      'log-viewer-selection-area',
-                                    ),
-                                    onSelectionChanged: (selectedContent) {
-                                      widget.onSelectedTextChanged?.call(
-                                        selectedContent?.plainText,
-                                      );
-                                    },
-                                    contextMenuBuilder:
-                                        (ctx, selectableRegionState) =>
-                                            _buildSelectionContextMenu(
-                                              ctx,
-                                              selectableRegionState,
-                                            ),
-                                    child: logViewport,
-                                  ),
-                                ),
+                    onPointerUp: (event) => _endRowSelectionDrag(event.pointer),
+                    onPointerCancel: (event) =>
+                        _endRowSelectionDrag(event.pointer),
+                    child: Theme(
+                      data: widget.rowSelectionMode
+                          ? Theme.of(context).copyWith(
+                              textSelectionTheme: const TextSelectionThemeData(
+                                selectionColor: Colors.transparent,
                               ),
+                            )
+                          : Theme.of(context),
+                      child: SelectionArea(
+                        key: const ValueKey('log-viewer-selection-area'),
+                        onSelectionChanged: (selectedContent) {
+                          widget.onSelectedTextChanged?.call(
+                            selectedContent?.plainText,
+                          );
+                        },
+                        contextMenuBuilder: (ctx, selectableRegionState) =>
+                            _buildSelectionContextMenu(
+                              ctx,
+                              selectableRegionState,
                             ),
-                          ),
-                        ),
+                        child: logViewport,
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
-            // Sticky column-visibility button pinned to the top-right corner.
-            // It stays in place regardless of horizontal scroll.
+          ],
+        );
+
+        // Wrap SingleChildScrollView in a ScrollConfiguration that disables
+        // ALL ambient scrollbars. This prevents Flutter's ScrollBehavior from
+        // auto-painting a second ghost thumb on desktop/web — our explicit
+        // Scrollbar widgets above are the only ones that should render.
+        final scrollableContent = ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+          child: SingleChildScrollView(
+            controller: _horizontalScrollController,
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(width: contentWidth, child: innerColumn),
+          ),
+        );
+
+        return Stack(
+          children: [
+            // Vertical scrollbar — pinned to screen right, vertical axis only.
+            Scrollbar(
+              controller: widget.scrollController,
+              thumbVisibility: true,
+              notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
+              // Horizontal scrollbar — pinned to screen bottom, shown only when
+              // content actually overflows (i.e. wrapText == false).
+              child: widget.wrapText
+                  ? scrollableContent
+                  : Scrollbar(
+                      controller: _horizontalScrollController,
+                      thumbVisibility: true,
+                      notificationPredicate: (n) =>
+                          n.metrics.axis == Axis.horizontal,
+                      child: scrollableContent,
+                    ),
+            ),
+            // Column-visibility button — always pinned top-right.
             Positioned(
               top: 0,
               right: 0,
-              height: 29, // match header + divider height (28 + 1)
+              height: 29,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -1016,7 +1006,6 @@ class _LogViewerState extends State<LogViewer> {
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     onTap: () {
-                      // Show popup anchored to the button's position.
                       final renderBox =
                           context.findRenderObject() as RenderBox?;
                       final offset =
@@ -1073,7 +1062,8 @@ class _LogViewerState extends State<LogViewer> {
       allowSelectionStart: log.isUserSelectable,
       onSelectionPointerDown: (event) => _startRowSelectionDrag(index, event),
       onSelectionPointerMove: (event) => _extendRowSelectionDrag(index, event),
-      contentValueForColumn: (col) => log.valueForColumn(col, isIos: widget.isIos),
+      contentValueForColumn: (col) =>
+          log.valueForColumn(col, isIos: widget.isIos),
     );
   }
 
