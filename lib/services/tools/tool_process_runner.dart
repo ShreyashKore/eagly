@@ -135,6 +135,10 @@ abstract class ToolProcessRunner {
     logger.error(message, detail: error?.toString());
   }
 
+  void logWarning(String message, [Object? detail]) {
+    logger.warning(message, detail: detail?.toString());
+  }
+
   void logInfo(String message) {
     logger.info(message);
   }

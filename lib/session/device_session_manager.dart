@@ -51,6 +51,7 @@ class DeviceSessionManager extends ChangeNotifier {
 
   bool get isLoadingDevices => _repository.isLoading;
   bool get hasAttemptedDeviceLoad => _repository.hasAttemptedLoad;
+  bool get iosSupportUnavailable => _repository.iosSupportUnavailable;
   List<Device> get devices => _repository.devices;
 
   void _sync() {

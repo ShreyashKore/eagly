@@ -52,6 +52,7 @@ class DevicesRepository extends ChangeNotifier {
   final Map<String, _CachedIosDeviceDescription> _iosDescriptionCache = {};
 
   List<Device> _devices = const [];
+  bool _iosSupportUnavailable = false;
   bool _isLoading = false;
   bool _hasAttemptedLoad = false;
   bool _started = false;
@@ -66,6 +67,11 @@ class DevicesRepository extends ChangeNotifier {
   Timer? _iosRefreshTimer;
 
   List<Device> get devices => List.unmodifiable(_devices);
+
+  /// True when iOS detection failed because usbmuxd is unreachable (e.g. Apple
+  /// Mobile Device Support is not installed on Windows). The UI surfaces a hint
+  /// to install it. Stays false while iOS detection works, even with no devices.
+  bool get iosSupportUnavailable => _iosSupportUnavailable;
   bool get isLoading => _isLoading;
   bool get hasAttemptedLoad => _hasAttemptedLoad;
 
@@ -173,6 +179,7 @@ class DevicesRepository extends ChangeNotifier {
       describedAndroidDevices,
     );
     final iosDeviceIds = await _ideviceIdTool.getDeviceIds();
+    final iosSupportUnavailable = _ideviceIdTool.usbmuxdUnavailable;
     final iosDevices = await Future.wait(iosDeviceIds.map(_resolveIosDevice));
     final nextDevices = _mergeDevices([...deduplicatedAndroid, ...iosDevices]);
 
@@ -195,11 +202,14 @@ class DevicesRepository extends ChangeNotifier {
     });
 
     _lastRefreshAt = DateTime.now();
-    if (listEquals(_devices, nextDevices)) {
+    final devicesChanged = !listEquals(_devices, nextDevices);
+    final iosSupportChanged = _iosSupportUnavailable != iosSupportUnavailable;
+    if (!devicesChanged && !iosSupportChanged) {
       return;
     }
 
     _devices = nextDevices;
+    _iosSupportUnavailable = iosSupportUnavailable;
     _notify();
   }
 
