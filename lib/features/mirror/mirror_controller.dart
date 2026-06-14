@@ -12,7 +12,8 @@ enum ScreenMirrorState { stopped, starting, running, unsupported, error }
 /// Encoder quality presets for the screen mirror. Higher quality streams more
 /// pixels/bits, which increases latency.
 enum MirrorQuality {
-  fast('Fast', 'Lower quality, lowest latency'),
+  fastest('Fastest', 'Lowest quality, lowest latency'),
+  fast('Fast', 'Lower quality, lower latency'),
   normal('Normal', 'Balanced quality and latency'),
   high('High', 'Best quality, higher latency');
 
@@ -22,6 +23,12 @@ enum MirrorQuality {
   final String description;
 
   ScrcpyVideoOptions toOptions() => switch (this) {
+    MirrorQuality.fastest => const ScrcpyVideoOptions(
+      maxSize: 480,
+      maxFps: 30,
+      videoBitRate: 800000,
+      control: true,
+    ),
     MirrorQuality.fast => const ScrcpyVideoOptions(
       maxSize: 720,
       maxFps: 60,
