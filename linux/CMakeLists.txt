@@ -131,6 +131,26 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
     COMPONENT Runtime)
 endif()
 
+# Bundle the minimal, glibc-only FFmpeg (libavcodec/libavutil) staged by
+# scripts/build_linux_ffmpeg.sh alongside the other bundled libraries. The runner
+# links these at build time (see runner/CMakeLists.txt) and loads them at runtime
+# via RUNPATH "$ORIGIN/lib", so the .deb carries its own FFmpeg instead of
+# depending on the distro's libavcodec/libavutil soname. install(DIRECTORY)
+# preserves the soname symlinks the loader resolves (e.g. libavcodec.so.62).
+if(DEFINED ENV{FFMPEG_LIB_DIR})
+  set(_ffmpeg_lib_dir "$ENV{FFMPEG_LIB_DIR}")
+else()
+  set(_ffmpeg_lib_dir "${CMAKE_CURRENT_SOURCE_DIR}/../.ffmpeg-dev/linux/lib")
+endif()
+if(EXISTS "${_ffmpeg_lib_dir}")
+  install(DIRECTORY "${_ffmpeg_lib_dir}/"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime
+    FILES_MATCHING PATTERN "libav*.so*")
+else()
+  message(WARNING "Minimal FFmpeg not found at ${_ffmpeg_lib_dir}; ${BINARY_NAME} will fall back to the system libavcodec/libavutil and the .deb will need them at the distro's soname. Run scripts/build_linux_ffmpeg.sh (or scripts/download_platform_tools.sh linux).")
+endif()
+
 # Copy bundled mobile tools into the app bundle.
 set(MOBILE_TOOLS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../platform-tools/linux")
 if(EXISTS "${MOBILE_TOOLS_DIR}")

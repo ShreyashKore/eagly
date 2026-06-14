@@ -21,8 +21,19 @@ apply_standard_settings(${BINARY_NAME})
 # Add preprocessor definitions for the application ID.
 add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 
-# The shared scrcpy H.264 decoder (native/) needs FFmpeg.
-# Install with: sudo apt install libavcodec-dev libavutil-dev
+# The shared scrcpy H.264 decoder (native/) needs FFmpeg's libavcodec/libavutil.
+# Prefer the minimal, glibc-only FFmpeg staged by scripts/build_linux_ffmpeg.sh
+# (.ffmpeg-dev/linux) so the build links — and the .deb bundles (see
+# linux/CMakeLists.txt) — a self-contained FFmpeg instead of the distro one,
+# whose soname would pin the package to a single Ubuntu release. CI forwards the
+# same location via FFMPEG_LIB_DIR. Falls back to the system FFmpeg
+# (sudo apt install libavcodec-dev libavutil-dev) only when neither is present.
+set(_bundled_ffmpeg "${CMAKE_SOURCE_DIR}/../.ffmpeg-dev/linux")
+if(DEFINED ENV{FFMPEG_LIB_DIR} AND EXISTS "$ENV{FFMPEG_LIB_DIR}/pkgconfig")
+  set(ENV{PKG_CONFIG_PATH} "$ENV{FFMPEG_LIB_DIR}/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+elseif(EXISTS "${_bundled_ffmpeg}/lib/pkgconfig")
+  set(ENV{PKG_CONFIG_PATH} "${_bundled_ffmpeg}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+endif()
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavcodec libavutil)
 
 # Add dependency libraries. Add any application-specific dependencies here.

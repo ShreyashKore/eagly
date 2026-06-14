@@ -48,7 +48,8 @@ them for you.
 
 - Nothing extra — `setup.sh` installs the apt packages for you (`clang`, `cmake`,
   `ninja-build`, `pkg-config`, `libgtk-3-dev`, `liblzma-dev`, `libstdc++-12-dev`,
-  `libavcodec-dev`, `libavutil-dev`). On non-apt distros, install the equivalents.
+  `nasm`, `patchelf`) and builds a minimal, bundled FFmpeg for the scrcpy decoder
+  (`scripts/build_linux_ffmpeg.sh`). On non-apt distros, install the equivalents.
 
 ---
 

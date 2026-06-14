@@ -29,12 +29,20 @@ real devices is still being hardened — please report issues.
 ## Build prerequisites
 
 ### Linux (Ubuntu)
+The decoder links a minimal, glibc-only FFmpeg that the build also **bundles**
+into the app, so the `.deb` doesn't depend on the distro's libavcodec/libavutil
+soname (which would pin it to one Ubuntu release and drag in the whole codec
+tree). `scripts/build_linux_ffmpeg.sh` builds it into `.ffmpeg-dev/linux`, and
+`pkg_check_modules(FFMPEG ...)` in `linux/runner/CMakeLists.txt` picks it up via
+pkg-config; `linux/CMakeLists.txt` copies the `.so` into the bundle's `lib/`.
 ```bash
-sudo apt install libavcodec-dev libavutil-dev
+sudo apt install nasm patchelf          # nasm: x86 SIMD, patchelf: $ORIGIN rpath
+bash scripts/build_linux_ffmpeg.sh      # or run scripts/setup.sh
 flutter run -d linux
 ```
-`pkg_check_modules(FFMPEG ...)` in `linux/runner/CMakeLists.txt` finds them via
-pkg-config (already used for GTK). Ubuntu ships libavcodec at runtime too.
+(If the staged build is absent, CMake falls back to the system FFmpeg —
+`sudo apt install libavcodec-dev libavutil-dev` — but that path isn't used for
+releases.)
 
 ### Windows
 1. Install FFmpeg dev libraries (headers + import libs), e.g. with vcpkg:

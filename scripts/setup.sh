@@ -78,8 +78,12 @@ fi
 
 # ── platform build dependencies ──────────────────────────────────────────────
 install_linux_build_deps() {
+  # nasm + patchelf build the minimal, bundled FFmpeg for the native scrcpy
+  # decoder (scripts/build_linux_ffmpeg.sh, run via download_platform_tools.sh).
+  # That replaces the system libav*-dev: the decoder links the bundled FFmpeg so
+  # the .deb doesn't pin the distro's libavcodec/libavutil soname.
   local pkgs=(clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
-              libstdc++-12-dev libavcodec-dev libavutil-dev)
+              libstdc++-12-dev nasm patchelf)
   if ! have apt-get; then
     warn "Non-apt distro detected. Install the equivalents of: ${pkgs[*]}"
     return

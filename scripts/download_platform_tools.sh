@@ -519,6 +519,13 @@ prepare_platform_bundle() {
     # FFMPEG_INCLUDE_DIR / FFMPEG_LIB_DIR to GITHUB_ENV when running in CI.
     download_windows_ffmpeg_dev
   fi
+  if [ "$platform" = "linux" ]; then
+    # Build a minimal, glibc-only FFmpeg (H.264 decode) for the native scrcpy
+    # decoder, staged under .ffmpeg-dev/linux and bundled into the app's lib/
+    # dir so the .deb stays portable across distros. Forwards FFMPEG_* to
+    # GITHUB_ENV in CI.
+    FFMPEG_VERSION="$FFMPEG_VERSION" bash "$SCRIPT_DIR/build_linux_ffmpeg.sh"
+  fi
   if [ "$platform" = "macos" ]; then
     if is_macos_host; then
       prepare_macos_bundle_runtime "$target_dir"
