@@ -83,7 +83,7 @@ class IdeviceCrashReportTool extends ToolProcessRunner {
 
       try {
         final stat = await entity.stat();
-        final content = await entity.readAsString();
+        final content = await readTextLenient(entity);
         reports.add(
           CrashReport.fromFile(
             fileName: extractFileName(entity.path),
