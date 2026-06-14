@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../../services/eagly_info_service.dart';
 import '../../session/device_session_controller.dart';
 
 /// Far-left vertical rail listing the features available for a device.
 /// Logs is always open; Mirror toggles its pane; Install opens a file picker.
+/// Settings and the app version are pinned to the bottom.
 class FeatureRail extends StatelessWidget {
   const FeatureRail({
     super.key,
     required this.session,
     required this.onInstall,
+    required this.onOpenSettings,
   });
 
   final DeviceSessionController session;
   final VoidCallback onInstall;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -30,74 +34,124 @@ class FeatureRail extends StatelessWidget {
             ),
           ),
           child: Column(
-            spacing: 8,
             children: [
-              const SizedBox(height: 8),
-              _RailButton(
-                icon: Icons.article_outlined,
-                label: 'Logs',
-                isActive: true,
-                tooltip: 'Logs',
-                onTap: null,
-              ),
-              _RailButton(
-                icon: Icons.mobile_screen_share,
-                label: 'Mirror',
-                isActive: session.isMirrorOpen,
-                enabled: session.canMirror || session.isMirrorOpen,
-                tooltip: session.canMirror
-                    ? (session.isMirrorOpen ? 'Hide mirror' : 'Open mirror')
-                    : 'Screen mirror supports connected Android devices',
-                onTap: session.canMirror || session.isMirrorOpen
-                    ? session.toggleMirror
-                    : null,
-              ),
-              if (session.canReadCrashReports)
-                _RailButton(
-                  icon: Icons.bug_report_outlined,
-                  label: 'Crashes',
-                  isActive: session.isCrashReportsOpen,
-                  tooltip: session.isCrashReportsOpen
-                      ? 'Hide crash reports'
-                      : 'Read crash reports',
-                  onTap: session.toggleCrashReports,
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    spacing: 8,
+                    children: [
+                      const SizedBox(height: 8),
+                      _RailButton(
+                        icon: Icons.article_outlined,
+                        label: 'Logs',
+                        isActive: true,
+                        tooltip: 'Logs',
+                        onTap: null,
+                      ),
+                      _RailButton(
+                        icon: Icons.mobile_screen_share,
+                        label: 'Mirror',
+                        isActive: session.isMirrorOpen,
+                        enabled: session.canMirror || session.isMirrorOpen,
+                        tooltip: session.canMirror
+                            ? (session.isMirrorOpen
+                                  ? 'Hide mirror'
+                                  : 'Open mirror')
+                            : 'Screen mirror supports connected Android devices',
+                        onTap: session.canMirror || session.isMirrorOpen
+                            ? session.toggleMirror
+                            : null,
+                      ),
+                      if (session.canReadCrashReports)
+                        _RailButton(
+                          icon: Icons.bug_report_outlined,
+                          label: 'Crashes',
+                          isActive: session.isCrashReportsOpen,
+                          tooltip: session.isCrashReportsOpen
+                              ? 'Hide crash reports'
+                              : 'Read crash reports',
+                          onTap: session.toggleCrashReports,
+                        ),
+                      _RailButton(
+                        icon: Icons.folder_outlined,
+                        label: 'Files',
+                        isActive: session.isFilesOpen,
+                        enabled: session.canManageFiles || session.isFilesOpen,
+                        tooltip: session.canManageFiles || session.isFilesOpen
+                            ? (session.isFilesOpen
+                                  ? 'Hide files'
+                                  : 'Browse device files')
+                            : 'Connect the device to browse files',
+                        onTap: session.canManageFiles || session.isFilesOpen
+                            ? session.toggleFiles
+                            : null,
+                      ),
+                      _RailButton(
+                        icon: session.isInstallingApp
+                            ? Icons.hourglass_top_rounded
+                            : Icons.system_update_outlined,
+                        label: 'Install',
+                        isActive: session.isInstallingApp,
+                        enabled: session.isConnected,
+                        tooltip: session.isInstallingApp
+                            ? (session.installingAppName == null
+                                  ? 'Installing…'
+                                  : 'Installing ${session.installingAppName}…')
+                            : session.isConnected
+                            ? 'Install app on this device'
+                            : 'Connect the device to install an app',
+                        onTap: session.isConnected && !session.isInstallingApp
+                            ? onInstall
+                            : null,
+                      ),
+                    ],
+                  ),
                 ),
-              _RailButton(
-                icon: Icons.folder_outlined,
-                label: 'Files',
-                isActive: session.isFilesOpen,
-                enabled: session.canManageFiles || session.isFilesOpen,
-                tooltip: session.canManageFiles || session.isFilesOpen
-                    ? (session.isFilesOpen
-                          ? 'Hide files'
-                          : 'Browse device files')
-                    : 'Connect the device to browse files',
-                onTap: session.canManageFiles || session.isFilesOpen
-                    ? session.toggleFiles
-                    : null,
               ),
               _RailButton(
-                icon: session.isInstallingApp
-                    ? Icons.hourglass_top_rounded
-                    : Icons.system_update_outlined,
-                label: 'Install',
-                isActive: session.isInstallingApp,
-                enabled: session.isConnected,
-                tooltip: session.isInstallingApp
-                    ? (session.installingAppName == null
-                          ? 'Installing…'
-                          : 'Installing ${session.installingAppName}…')
-                    : session.isConnected
-                    ? 'Install app on this device'
-                    : 'Connect the device to install an app',
-                onTap: session.isConnected && !session.isInstallingApp
-                    ? onInstall
-                    : null,
+                icon: Icons.settings_rounded,
+                label: 'Settings',
+                isActive: false,
+                tooltip: 'Settings',
+                onTap: onOpenSettings,
               ),
+              const _RailFooter(),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+/// Bottom-pinned separator and the app version, shown unobtrusively.
+class _RailFooter extends StatelessWidget {
+  const _RailFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Divider(
+          height: 1,
+          thickness: 1,
+          indent: 16,
+          endIndent: 16,
+          color: colorScheme.outlineVariant,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'v${EaglyInfoService.appVersion}',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 10,
+            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
     );
   }
 }

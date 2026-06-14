@@ -415,7 +415,7 @@ class AppTheme {
           ),
         ),
       ),
-      // iconTheme: IconThemeData(size: 20),
+      iconTheme: IconThemeData(size: 20, color: colorScheme.onSurfaceVariant),
       iconButtonTheme: IconButtonThemeData(
         style: ButtonStyle(
           mouseCursor: cursorStyle,

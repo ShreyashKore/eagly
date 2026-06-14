@@ -22,10 +22,12 @@ class DeviceScreen extends StatefulWidget {
     super.key,
     required this.session,
     required this.appMemoryBytesListenable,
+    required this.onOpenSettings,
   });
 
   final DeviceSessionController session;
   final ValueListenable<int> appMemoryBytesListenable;
+  final VoidCallback onOpenSettings;
 
   @override
   State<DeviceScreen> createState() => _DeviceScreenState();
@@ -52,7 +54,11 @@ class _DeviceScreenState extends State<DeviceScreen> {
       decoration: BoxDecoration(color: theme.colorScheme.surface),
       child: Row(
         children: [
-          FeatureRail(session: widget.session, onInstall: _handleInstallApp),
+          FeatureRail(
+            session: widget.session,
+            onInstall: _handleInstallApp,
+            onOpenSettings: widget.onOpenSettings,
+          ),
           Expanded(
             child: ListenableBuilder(
               listenable: widget.session,
@@ -183,8 +189,7 @@ Widget? _guidanceForDevice(Device device) {
       'unavailable' => const _IosGuidance(
         icon: Icons.usb_off_outlined,
         title: 'Device Unavailable',
-        message:
-            'Could not communicate with your iPhone. Try the steps below.',
+        message: 'Could not communicate with your iPhone. Try the steps below.',
         steps: [
           'Unlock your iPhone',
           'Disconnect and reconnect the USB cable',
@@ -214,11 +219,7 @@ class _AndroidUnauthorizedGuidance extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(
-                    Icons.usb,
-                    size: 32,
-                    color: theme.colorScheme.primary,
-                  ),
+                  Icon(Icons.usb, size: 32, color: theme.colorScheme.primary),
                   const Gap(12),
                   Expanded(
                     child: Text(
@@ -345,12 +346,7 @@ class _StepList extends StatelessWidget {
                 ),
               ),
               const Gap(10),
-              Expanded(
-                child: Text(
-                  step,
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ),
+              Expanded(child: Text(step, style: theme.textTheme.bodyMedium)),
             ],
           ),
       ],
