@@ -9,6 +9,11 @@ installed_size: 120000
 dependencies:
   - libgtk-3-0
   - liblzma5
+  # NOTE: no libavcodec/libavutil here. The scrcpy H.264 decoder links a minimal,
+  # glibc-only FFmpeg that is bundled inside the package under lib/ (built by
+  # scripts/build_linux_ffmpeg.sh, installed by linux/CMakeLists.txt), so the
+  # .deb installs on any glibc distro instead of pinning the build image's
+  # libavcodec/libavutil soname.
 icon: linux/runner/resources/app_icon.png
 generic_name: Device Log Viewer
 categories:

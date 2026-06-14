@@ -12,12 +12,21 @@ MACOS_URL="https://dl.google.com/android/repository/platform-tools-latest-darwin
 LINUX_URL="https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
 WINDOWS_URL="https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
 LIBIMOBILEDEVICE_PACKAGE_URL="https://github.com/libimobiledevice-win32/imobiledevice-net/releases/download/v1.3.17/iMobileDevice-net.1.3.17.nupkg"
+FFMPEG_VERSION="${FFMPEG_VERSION:-8.0.1}"
+FFMPEG_WINDOWS_URL="https://github.com/GyanD/codexffmpeg/releases/download/${FFMPEG_VERSION}/ffmpeg-${FFMPEG_VERSION}-full_build-shared.zip"
 SCRCPY_VERSION="${SCRCPY_VERSION:-4.0}"
 SCRCPY_MACOS_ARCH="${SCRCPY_MACOS_ARCH:-$(uname -m | sed 's/arm64/aarch64/')}"
 SCRCPY_LINUX_URL="https://github.com/Genymobile/scrcpy/releases/download/v${SCRCPY_VERSION}/scrcpy-linux-x86_64-v${SCRCPY_VERSION}.tar.gz"
 SCRCPY_MACOS_URL="https://github.com/Genymobile/scrcpy/releases/download/v${SCRCPY_VERSION}/scrcpy-macos-${SCRCPY_MACOS_ARCH}-v${SCRCPY_VERSION}.tar.gz"
 SCRCPY_WINDOWS_URL="https://github.com/Genymobile/scrcpy/releases/download/v${SCRCPY_VERSION}/scrcpy-win64-v${SCRCPY_VERSION}.zip"
 MACOS_OPENSSL_URL="https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1w/openssl-1.1.1w.tar.gz"
+# The bundled libimobiledevice (imobiledevice-net runtimes/ubuntu.16.04-x64) is
+# linked against OpenSSL 1.0 (libssl.so.1.0.0 / libcrypto.so.1.0.0), a soname no
+# modern distro ships. We stage the matching libs from Ubuntu 16.04's official
+# libssl1.0.0 package (OpenSSL 1.0.2g — the exact ABI that runtime targets); they
+# depend only on glibc, so they stay portable across distros. See
+# stage_linux_openssl_runtime.
+LINUX_OPENSSL_DEB_URL="http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.0.0_1.0.2g-1ubuntu4.20_amd64.deb"
 MACOS_HOMEBREW_LIBZIP_BOTTLE_URL="https://ghcr.io/v2/homebrew/core/libzip/blobs/sha256:5b808617db89e546465d756a8d8e0ee7068806e7dc58ae06952eea528ebdce8f"
 MACOS_HOMEBREW_LIBUSB_BOTTLE_URL="https://ghcr.io/v2/homebrew/core/libusb/blobs/sha256:1387aea9bbed3a1e57884b5b43166fc83cfdae415e5f3803a8259ff77a4ba613"
 MACOS_HOMEBREW_XZ_BOTTLE_URL="https://ghcr.io/v2/homebrew/core/xz/blobs/sha256:fcd2df6962b5b94ef14232d02df71ee0b329482c2d8478942e07287f016ebe73"
@@ -220,6 +229,51 @@ build_macos_openssl_runtime() {
   cp -f "$source_dir/libcrypto.1.1.dylib" "$target_dir/libcrypto.1.1.dylib"
 }
 
+stage_linux_openssl_runtime() {
+  local target_dir="$1"
+  local deb_path="$TMP_DIR/libssl1.0.0.deb"
+  local extract_dir="$TMP_DIR/libssl1.0.0"
+
+  if bundle_contains_file "$target_dir" 'libssl.so.1.0.0' && bundle_contains_file "$target_dir" 'libcrypto.so.1.0.0'; then
+    return
+  fi
+
+  echo "Staging OpenSSL 1.0 runtime for Linux libimobiledevice..."
+  curl -L --fail -o "$deb_path" "$LINUX_OPENSSL_DEB_URL"
+
+  rm -rf "$extract_dir"
+  mkdir -p "$extract_dir"
+
+  # A .deb is an ar(1) archive whose payload is data.tar.{xz,gz,zst}. Prefer
+  # dpkg-deb when present; otherwise fall back to ar + tar with auto-detection.
+  if command -v dpkg-deb >/dev/null 2>&1; then
+    dpkg-deb -x "$deb_path" "$extract_dir"
+  else
+    (
+      cd "$extract_dir"
+      ar x "$deb_path"
+      local data_archive
+      data_archive="$(find . -maxdepth 1 -name 'data.tar.*' | head -1)"
+      if [ -z "$data_archive" ]; then
+        echo "error: no data.tar.* payload found in $deb_path" >&2
+        exit 1
+      fi
+      tar -xf "$data_archive"
+    )
+  fi
+
+  local lib
+  for lib in libssl.so.1.0.0 libcrypto.so.1.0.0; do
+    local found
+    found="$(find "$extract_dir" -name "$lib" -type f | head -1)"
+    if [ -z "$found" ]; then
+      echo "error: $lib not found in $LINUX_OPENSSL_DEB_URL" >&2
+      exit 1
+    fi
+    cp -f "$found" "$target_dir/$lib"
+  done
+}
+
 rewrite_macos_bundle_load_paths() {
   local target_dir="$1"
 
@@ -384,8 +438,14 @@ stage_scrcpy_bundle() {
 mark_binaries_executable() {
   local target_dir="$1"
   if [ "$(uname -s)" = "Darwin" ] || [ "$(uname -s)" = "Linux" ]; then
+    # 'idevice*' (not 'idevice_*') so every libimobiledevice tool gets +x, not
+    # just idevice_id; the other CLIs (idevicesyslog, ideviceinfo, …) and the
+    # standalone helpers below ship without an exec bit in the upstream bundle.
     find "$target_dir" -maxdepth 1 -type f \
-      \( -name 'adb' -o -name 'scrcpy' -o -name 'idevice_*' -o -name '*.dylib' -o -name '*.so' -o -name '*.so.*' \) \
+      \( -name 'adb' -o -name 'scrcpy' -o -name 'idevice*' \
+         -o -name 'inetcat' -o -name 'iproxy' -o -name 'irecovery' \
+         -o -name 'ios_webkit_debug_proxy' -o -name 'plistutil' -o -name 'usbmuxd' \
+         -o -name '*.dylib' -o -name '*.so' -o -name '*.so.*' \) \
       -exec chmod +x {} +
   fi
 }
@@ -432,6 +492,61 @@ platform_bundle_spec() {
   esac
 }
 
+current_host_platform() {
+  case "$(uname -s)" in
+    Darwin) printf '%s' 'macos' ;;
+    Linux) printf '%s' 'linux' ;;
+    MINGW*|MSYS*|CYGWIN*) printf '%s' 'windows' ;;
+    *) printf '%s' 'unknown' ;;
+  esac
+}
+
+is_macos_host() {
+  [ "$(current_host_platform)" = "macos" ]
+}
+
+download_windows_ffmpeg_dev() {
+  # Build-time headers + MSVC import libs, pinned to match the avcodec-62/avutil-60
+  # runtime DLLs that ship with scrcpy (see windows/runner/CMakeLists.txt).
+  local dest="$PROJECT_DIR/.ffmpeg-dev"
+
+  if [ ! -d "$dest/include" ] || [ ! -d "$dest/lib" ]; then
+    echo "Downloading Windows FFmpeg ${FFMPEG_VERSION} dev headers..."
+    local zip="$TMP_DIR/ffmpeg-shared.zip"
+    local extracted="$TMP_DIR/ffmpeg-shared"
+    curl -L --fail -o "$zip" "$FFMPEG_WINDOWS_URL"
+    mkdir -p "$extracted"
+    unzip -o "$zip" -d "$extracted" >/dev/null
+    local root
+    root="$(find "$extracted" -mindepth 1 -maxdepth 1 -type d | head -1)"
+    mkdir -p "$dest"
+    cp -r "$root/include" "$dest/"
+    cp -r "$root/lib" "$dest/"
+    echo "FFmpeg dev headers ready at $dest"
+  else
+    echo "FFmpeg dev headers already present at $dest"
+  fi
+
+  # Resolve a Windows-style absolute path for CMake and .env consumers.
+  local win_dest
+  if command -v cygpath >/dev/null 2>&1; then
+    win_dest="$(cygpath -w "$dest")"
+  else
+    # Fallback for MSYS2 /c/... style paths; leave unchanged on non-Windows.
+    win_dest="$(echo "$dest" | sed 's|^/\([a-zA-Z]\)/|\1:/|; s|/|\\|g')"
+  fi
+
+  # Write .env so setup.sh can persist the vars as user environment variables.
+  printf 'FFMPEG_INCLUDE_DIR=%s\\include\n' "$win_dest" > "$dest/.env"
+  printf 'FFMPEG_LIB_DIR=%s\\lib\n' "$win_dest" >> "$dest/.env"
+
+  # In GitHub Actions, forward to GITHUB_ENV for subsequent build steps.
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    printf 'FFMPEG_INCLUDE_DIR=%s\\include\n' "$win_dest" >> "$GITHUB_ENV"
+    printf 'FFMPEG_LIB_DIR=%s\\lib\n' "$win_dest" >> "$GITHUB_ENV"
+  fi
+}
+
 prepare_platform_bundle() {
   local platform="$1"
   local target_dir="$PLATFORM_TOOLS_DIR/$platform"
@@ -456,8 +571,29 @@ prepare_platform_bundle() {
 
   stage_optional_bundle "$(platform_bundle_spec "$platform")" "$target_dir" "$platform"
   stage_scrcpy_bundle "$(scrcpy_bundle_spec "$platform")" "$target_dir" "$platform"
+  if [ "$platform" = "windows" ]; then
+    # Build-time FFmpeg headers + import libs for the native scrcpy decoder.
+    # Writes .ffmpeg-dev/.env (consumed by scripts/setup.sh) and forwards
+    # FFMPEG_INCLUDE_DIR / FFMPEG_LIB_DIR to GITHUB_ENV when running in CI.
+    download_windows_ffmpeg_dev
+  fi
+  if [ "$platform" = "linux" ]; then
+    # Stage the OpenSSL 1.0 libs the bundled libimobiledevice links against, so
+    # idevice_* tools load via their RUNPATH ($ORIGIN, alongside the tools in
+    # data/) instead of failing on the absent libssl.so.1.0.0 soname.
+    stage_linux_openssl_runtime "$target_dir"
+    # Build a minimal, glibc-only FFmpeg (H.264 decode) for the native scrcpy
+    # decoder, staged under .ffmpeg-dev/linux and bundled into the app's lib/
+    # dir so the .deb stays portable across distros. Forwards FFMPEG_* to
+    # GITHUB_ENV in CI.
+    FFMPEG_VERSION="$FFMPEG_VERSION" bash "$SCRIPT_DIR/build_linux_ffmpeg.sh"
+  fi
   if [ "$platform" = "macos" ]; then
-    prepare_macos_bundle_runtime "$target_dir"
+    if is_macos_host; then
+      prepare_macos_bundle_runtime "$target_dir"
+    else
+      echo "Skipping macOS runtime build on non-macOS host ($(current_host_platform)); this step requires a macOS machine with Xcode/Clang."
+    fi
   fi
   mark_binaries_executable "$target_dir"
   verify_expected_tools "$target_dir" "$platform"

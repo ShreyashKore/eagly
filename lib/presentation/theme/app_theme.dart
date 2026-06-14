@@ -241,6 +241,10 @@ class AppTheme {
       surfaceContainerLowest: Colors.grey.shade200,
       onSurface: Color(0xFF181818),
       onSurfaceVariant: Color(0xFF262626),
+      secondary: const Color(0xFF064E3B),
+      secondaryContainer: const Color.fromARGB(255, 197, 230, 216),
+      onSecondary: const Color(0xFF6EE7B7),
+      onSecondaryContainer: const Color(0xFF064E3B),
     );
     return seeded;
   }();
@@ -253,6 +257,10 @@ class AppTheme {
       surfaceContainerLowest: Color(0xFF0E0E0E),
       onSurface: Color(0xFFF1F1F1),
       onSurfaceVariant: Color(0xFF969696),
+      secondary: const Color(0xFF6EE7B7),
+      secondaryContainer: const Color(0xFF064E3B),
+      onSecondary: const Color(0xFF064E3B),
+      onSecondaryContainer: const Color(0xFF6EE7B7),
     );
     return seeded;
   }();
@@ -407,7 +415,7 @@ class AppTheme {
           ),
         ),
       ),
-      // iconTheme: IconThemeData(size: 20),
+      iconTheme: IconThemeData(size: 20, color: colorScheme.onSurfaceVariant),
       iconButtonTheme: IconButtonThemeData(
         style: ButtonStyle(
           mouseCursor: cursorStyle,

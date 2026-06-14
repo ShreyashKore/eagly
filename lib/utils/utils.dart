@@ -1,3 +1,13 @@
+import 'dart:convert';
+import 'dart:io';
+
+/// Reads [file] as UTF-8 text, tolerating malformed byte sequences (replaced
+/// with U+FFFD) rather than throwing. iOS `.ips` reports are normally UTF-8/JSON
+/// but some diagnostic ones (e.g. WiFiLQMMetrics) embed non-UTF-8 bytes that
+/// strict decoding rejects.
+Future<String> readTextLenient(File file) =>
+    file.readAsString(encoding: const Utf8Codec(allowMalformed: true));
+
 String formatBytes(int bytes) {
   const units = ['B', 'KB', 'MB', 'GB'];
   var value = bytes.toDouble();

@@ -251,6 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return DeviceScreen(
       session: session,
       appMemoryBytesListenable: _appMemoryBytes,
+      onOpenSettings: _openSettings,
     );
   }
 }

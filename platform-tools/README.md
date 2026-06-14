@@ -95,4 +95,6 @@ The default upstream bundle currently comes from the public `iMobileDevice-net` 
 
 This keeps the bundled `idevice_*` tools self-contained instead of depending on a host Homebrew installation.
 
+On Linux, the bundled `libimobiledevice` (the `ubuntu.16.04-x64` runtime) links against OpenSSL 1.0 (`libssl.so.1.0.0` / `libcrypto.so.1.0.0`), a soname no modern distro ships. The script stages those two libs from Ubuntu 16.04's official `libssl1.0.0` package (OpenSSL 1.0.2g) so the `idevice_*` tools resolve them via their `$ORIGIN` RUNPATH; the libs depend only on glibc, keeping the bundle portable across distros.
+
 Use the overrides above if you need a different build.

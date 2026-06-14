@@ -13,13 +13,75 @@ import 'tool_process_runner.dart';
 class AdbTool extends ToolProcessRunner {
   AdbTool({super.executablePath}) : super(executableName: 'adb');
 
+  static const int _defaultServerPort = 5037;
+
+  Future<void>? _serverStartup;
+
+  /// Ensures an adb server is listening before any command runs. We must not
+  /// rely on adb's implicit `start-server`: its fork-server readiness handshake
+  /// hangs on some Windows setups (the client never sees the server's "ready"
+  /// signal), wedging the very first `adb devices`. Instead we launch the
+  /// server directly in `nodaemon` mode as a *detached* process — it binds the
+  /// port and runs independently of us — then wait until it accepts
+  /// connections. Once up, every normal adb command connects and returns.
+  /// Idempotent and cached, so concurrent callers share one startup; a
+  /// no-op when a server is already running.
+  Future<void> ensureServerRunning() => _serverStartup ??= _startServer();
+
+  Future<void> _startServer() async {
+    final port =
+        int.tryParse(Platform.environment['ANDROID_ADB_SERVER_PORT'] ?? '') ??
+        _defaultServerPort;
+
+    if (await _serverIsListening(port)) return;
+
+    try {
+      // Detached so the server's stdio isn't tied to ours (avoiding the
+      // inherited-handle hang) and it outlives this call like a normal adb
+      // server. A second server can't bind a busy port and simply exits, which
+      // is harmless — we connect to whichever server ends up listening.
+      await startProcess([
+        '-L',
+        'tcp:$port',
+        'nodaemon',
+        'server',
+      ], mode: ProcessStartMode.detached);
+    } catch (error) {
+      logError('Failed to launch adb server', error);
+    }
+
+    final deadline = DateTime.now().add(const Duration(seconds: 15));
+    while (DateTime.now().isBefore(deadline)) {
+      if (await _serverIsListening(port)) return;
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+
+    logError('adb server did not start listening on port $port within timeout');
+    _serverStartup = null; // allow a retry on the next call
+  }
+
+  Future<bool> _serverIsListening(int port) async {
+    try {
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        port,
+        timeout: const Duration(milliseconds: 500),
+      );
+      socket.destroy();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<List<Device>> getDevices() async {
     try {
+      await ensureServerRunning();
       final result = await runText(['devices', '-l']);
       if (!result.isSuccess) {
         logError(
           'adb devices -l returned non-zero exit code',
-          result.combinedOutput,
+          '${result.exitCode} ${result.combinedOutput}',
         );
         return const [];
       }
@@ -47,6 +109,7 @@ class AdbTool extends ToolProcessRunner {
     Process? process;
 
     try {
+      await ensureServerRunning();
       process = await startProcess(['track-devices', '-l']);
       await for (final line in stdoutLines(process)) {
         if (line.trim().isEmpty) continue;
@@ -359,6 +422,42 @@ class AdbTool extends ToolProcessRunner {
   Future<void> stopLogcat(String deviceId) async {
     logInfo('Stopping logcat for $deviceId');
     await runText(['-s', deviceId, 'shell', 'pkill', 'logcat']);
+  }
+
+  /// Best-effort `adb reconnect <id>` to recover a wedged USB/TCP transport.
+  /// The device briefly bounces (drops offline then re-enumerates), which the
+  /// device watcher observes and reflects in the device list.
+  Future<void> reconnectDevice(String deviceId) async {
+    logInfo('Reconnecting $deviceId');
+    try {
+      await runText(['-s', deviceId, 'reconnect']);
+    } catch (error) {
+      logError('Failed to reconnect $deviceId', error);
+    }
+  }
+
+  /// Returns true when the device answers a lightweight shell round-trip within
+  /// [timeout]. A healthy (even idle) device replies almost immediately, while
+  /// a wedged transport hangs — so the timeout elapses and this returns false.
+  Future<bool> pingDevice(
+    String deviceId, {
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    Process? process;
+    try {
+      process = await startProcess(['-s', deviceId, 'shell', 'true']);
+      final exitCode = await process.exitCode.timeout(
+        timeout,
+        onTimeout: () {
+          process?.kill(ProcessSignal.sigkill);
+          return -1;
+        },
+      );
+      return exitCode == 0;
+    } catch (error) {
+      logError('Liveness probe failed for $deviceId', error);
+      return false;
+    }
   }
 
   Future<void> clearLogs(String deviceId) async {

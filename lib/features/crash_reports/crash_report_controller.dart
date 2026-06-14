@@ -109,7 +109,7 @@ class CrashReportController extends FeatureController {
     selectedReportBody = null;
     _notify();
     try {
-      final body = await File(report.filePath).readAsString();
+      final body = await readTextLenient(File(report.filePath));
       if (_disposed || selectedReport != report) return;
       selectedReportBody = body;
     } catch (err) {

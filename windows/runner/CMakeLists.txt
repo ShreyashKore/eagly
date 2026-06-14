@@ -63,9 +63,20 @@ else()
   if(NOT DEFINED FFMPEG_LIB_DIR AND DEFINED ENV{FFMPEG_LIB_DIR})
     set(FFMPEG_LIB_DIR "$ENV{FFMPEG_LIB_DIR}")
   endif()
+  # Last resort: the project-local dev libs that scripts/download_platform_tools.sh
+  # stages under .ffmpeg-dev/. Lets a fresh `flutter build windows` work right after
+  # setup without depending on env vars propagating to a new terminal.
+  set(_local_ffmpeg "${CMAKE_SOURCE_DIR}/../.ffmpeg-dev")
+  if(NOT DEFINED FFMPEG_INCLUDE_DIR AND EXISTS "${_local_ffmpeg}/include")
+    set(FFMPEG_INCLUDE_DIR "${_local_ffmpeg}/include")
+  endif()
+  if(NOT DEFINED FFMPEG_LIB_DIR AND EXISTS "${_local_ffmpeg}/lib")
+    set(FFMPEG_LIB_DIR "${_local_ffmpeg}/lib")
+  endif()
   if(NOT DEFINED FFMPEG_INCLUDE_DIR OR NOT DEFINED FFMPEG_LIB_DIR)
     message(FATAL_ERROR
-      "FFmpeg not found via pkg-config. Install FFmpeg dev (e.g. vcpkg install ffmpeg) "
+      "FFmpeg not found via pkg-config, env vars, or .ffmpeg-dev/. "
+      "Run scripts/download_platform_tools.sh windows (or scripts/setup.sh), "
       "or set FFMPEG_INCLUDE_DIR / FFMPEG_LIB_DIR (-D define or environment variable).")
   endif()
   target_include_directories(${BINARY_NAME} PRIVATE "${FFMPEG_INCLUDE_DIR}")

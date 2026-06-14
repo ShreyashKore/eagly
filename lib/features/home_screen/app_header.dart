@@ -3,15 +3,16 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:window_manager/window_manager.dart';
-
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../constants/app_constants.dart';
 import '../../constants/local_assets.dart';
 import '../../session/device_session_manager.dart';
+import '../../utils/url_launcher.dart';
 import 'components/device_tab.dart';
 import 'window_controls.dart';
 
 /// Top app header: logo + name, the horizontal device-tab strip (auto-created
-/// per detected device), home/load/wireless actions, and settings.
+/// per detected device), home/load/wireless actions, and a GitHub link.
 class AppHeader extends StatelessWidget {
   const AppHeader({
     super.key,
@@ -66,7 +67,9 @@ class AppHeader extends StatelessWidget {
                         Expanded(child: _DeviceTabStrip(manager: manager)),
                         const Gap(8),
                         _HeaderAction(
-                          icon: manager.isLoadingDevices ? null : Icons.usb,
+                          icon: manager.isLoadingDevices
+                              ? null
+                              : Icons.refresh_rounded,
                           tooltip: 'Load / refresh devices',
                           busy: manager.isLoadingDevices,
                           onPressed: () => manager.refreshDevices(),
@@ -86,6 +89,15 @@ class AppHeader extends StatelessWidget {
                           ),
                         ),
                         const Gap(4),
+                        _HeaderAction(
+                          icon: SvgPicture.asset(
+                            LocalAssets.githubIcon,
+                            color: theme.iconTheme.color,
+                          ),
+                          tooltip: 'View on GitHub',
+                          onPressed: () =>
+                              openExternalUrl(AppConstants.repoUrl),
+                        ),
                         _HeaderAction(
                           icon: Icons.settings_rounded,
                           tooltip: 'Settings',
@@ -232,7 +244,7 @@ class _HeaderAction extends StatelessWidget {
     this.busy = false,
   });
 
-  final IconData? icon;
+  final Object? icon;
   final String tooltip;
   final VoidCallback onPressed;
   final bool busy;
@@ -248,7 +260,11 @@ class _HeaderAction extends StatelessWidget {
               dimension: 18,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : Icon(icon),
+          : icon is IconData
+          ? Icon(icon as IconData)
+          : icon is Widget
+          ? icon as Widget
+          : const SizedBox.shrink(),
     );
   }
 }

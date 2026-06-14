@@ -12,13 +12,13 @@ void main() {
   late _FakeAdbTool adbTool;
   late _FakeIdeviceIdTool ideviceIdTool;
   late _FakeIdeviceInfoTool ideviceInfoTool;
-  late DeviceRepository repository;
+  late DevicesRepository repository;
 
   setUp(() {
     adbTool = _FakeAdbTool();
     ideviceIdTool = _FakeIdeviceIdTool();
     ideviceInfoTool = _FakeIdeviceInfoTool();
-    repository = DeviceRepository.forTesting(
+    repository = DevicesRepository.forTesting(
       adbTool: adbTool,
       ideviceIdTool: ideviceIdTool,
       ideviceInfoTool: ideviceInfoTool,
@@ -91,6 +91,27 @@ void main() {
   );
 
   test(
+    'Android device not in the online state is treated as disconnected',
+    () async {
+      adbTool.androidDevices = [
+        Device('emulator-5554', 'offline', platform: DevicePlatform.android),
+      ];
+
+      await repository.refreshDevices(force: true);
+
+      expect(repository.devices, hasLength(1));
+      expect(repository.devices.single.isDisconnected, isTrue);
+
+      adbTool.androidDevices = [
+        Device('emulator-5554', 'device', platform: DevicePlatform.android),
+      ];
+      await repository.refreshDevices(force: true);
+
+      expect(repository.devices.single.isConnected, isTrue);
+    },
+  );
+
+  test(
     'refreshDevices reuses cached iOS descriptions when the device remains connected',
     () async {
       ideviceIdTool.iosDeviceIds = ['ios-1'];
@@ -112,6 +133,20 @@ void main() {
       expect(ideviceInfoTool.readDeviceInfoCalls['ios-1'], 1);
       expect(repository.devices.single.name, 'QA iPhone');
       expect(repository.devices.single.model, 'iPhone 15');
+    },
+  );
+
+  test(
+    'iosSupportUnavailable mirrors usbmuxd state and toggles back',
+    () async {
+      ideviceIdTool.usbmuxdUnavailableValue = true;
+      await repository.refreshDevices(force: true);
+      expect(repository.iosSupportUnavailable, isTrue);
+
+      // Recovers even though the (empty) device list is unchanged.
+      ideviceIdTool.usbmuxdUnavailableValue = false;
+      await repository.refreshDevices(force: true);
+      expect(repository.iosSupportUnavailable, isFalse);
     },
   );
 }
@@ -151,9 +186,13 @@ class _FakeIdeviceIdTool extends IdeviceIdTool {
   _FakeIdeviceIdTool() : super(executablePath: '/usr/bin/true');
 
   List<String> iosDeviceIds = const [];
+  bool usbmuxdUnavailableValue = false;
 
   @override
   Future<List<String>> getDeviceIds() async => List.of(iosDeviceIds);
+
+  @override
+  bool get usbmuxdUnavailable => usbmuxdUnavailableValue;
 }
 
 class _FakeIdeviceInfoTool extends IdeviceInfoTool {

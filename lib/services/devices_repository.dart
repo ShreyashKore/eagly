@@ -11,8 +11,8 @@ import 'tools/adb_tool.dart';
 import 'tools/idevice_id_tool.dart';
 import 'tools/idevice_info_tool.dart';
 
-class DeviceRepository extends ChangeNotifier {
-  DeviceRepository._({
+class DevicesRepository extends ChangeNotifier {
+  DevicesRepository._({
     AdbTool? adbTool,
     IdeviceIdTool? ideviceIdTool,
     IdeviceInfoTool? ideviceInfoTool,
@@ -20,19 +20,19 @@ class DeviceRepository extends ChangeNotifier {
        _ideviceIdTool = ideviceIdTool ?? IdeviceIdTool(),
        _ideviceInfoTool = ideviceInfoTool ?? IdeviceInfoTool();
 
-  factory DeviceRepository.forTesting({
+  factory DevicesRepository.forTesting({
     AdbTool? adbTool,
     IdeviceIdTool? ideviceIdTool,
     IdeviceInfoTool? ideviceInfoTool,
   }) {
-    return DeviceRepository._(
+    return DevicesRepository._(
       adbTool: adbTool,
       ideviceIdTool: ideviceIdTool,
       ideviceInfoTool: ideviceInfoTool,
     );
   }
 
-  static final DeviceRepository instance = DeviceRepository._();
+  static final DevicesRepository instance = DevicesRepository._();
 
   static const Duration _minimumRefreshInterval = Duration(seconds: 2);
   static const Duration _androidRefreshDebounce = Duration(milliseconds: 350);
@@ -46,12 +46,13 @@ class DeviceRepository extends ChangeNotifier {
   final AdbTool _adbTool;
   final IdeviceIdTool _ideviceIdTool;
   final IdeviceInfoTool _ideviceInfoTool;
-  final AppLogger _logger = AppLogger(source: 'DeviceRepository');
+  final AppLogger _logger = AppLogger(source: 'DevicesRepository');
   final Map<String, _CachedAndroidDeviceDescription> _androidDescriptionCache =
       {};
   final Map<String, _CachedIosDeviceDescription> _iosDescriptionCache = {};
 
   List<Device> _devices = const [];
+  bool _iosSupportUnavailable = false;
   bool _isLoading = false;
   bool _hasAttemptedLoad = false;
   bool _started = false;
@@ -66,6 +67,11 @@ class DeviceRepository extends ChangeNotifier {
   Timer? _iosRefreshTimer;
 
   List<Device> get devices => List.unmodifiable(_devices);
+
+  /// True when iOS detection failed because usbmuxd is unreachable (e.g. Apple
+  /// Mobile Device Support is not installed on Windows). The UI surfaces a hint
+  /// to install it. Stays false while iOS detection works, even with no devices.
+  bool get iosSupportUnavailable => _iosSupportUnavailable;
   bool get isLoading => _isLoading;
   bool get hasAttemptedLoad => _hasAttemptedLoad;
 
@@ -173,11 +179,9 @@ class DeviceRepository extends ChangeNotifier {
       describedAndroidDevices,
     );
     final iosDeviceIds = await _ideviceIdTool.getDeviceIds();
+    final iosSupportUnavailable = _ideviceIdTool.usbmuxdUnavailable;
     final iosDevices = await Future.wait(iosDeviceIds.map(_resolveIosDevice));
-    final nextDevices = _mergeDevices([
-      ...deduplicatedAndroid,
-      ...iosDevices,
-    ]);
+    final nextDevices = _mergeDevices([...deduplicatedAndroid, ...iosDevices]);
 
     _logger.info(
       'Device list refreshed: '
@@ -198,11 +202,14 @@ class DeviceRepository extends ChangeNotifier {
     });
 
     _lastRefreshAt = DateTime.now();
-    if (listEquals(_devices, nextDevices)) {
+    final devicesChanged = !listEquals(_devices, nextDevices);
+    final iosSupportChanged = _iosSupportUnavailable != iosSupportUnavailable;
+    if (!devicesChanged && !iosSupportChanged) {
       return;
     }
 
     _devices = nextDevices;
+    _iosSupportUnavailable = iosSupportUnavailable;
     _notify();
   }
 
@@ -215,12 +222,20 @@ class DeviceRepository extends ChangeNotifier {
 
     for (final device in currentDevices) {
       final previous = previousById[device.id];
+      // An Android device that appears in `adb devices` but is not in the
+      // `device` (online) state — e.g. `offline` or `unauthorized` — cannot
+      // stream logs, so treat it as disconnected even though it is listed.
+      // iOS devices are only reported while physically attached, so their
+      // presence implies a usable connection regardless of pairing/lock state.
+      final isOnline = device is! AndroidDevice || device.status == 'device';
       merged.add(
         device.copyWith(
           brand: device.brand ?? previous?.brand,
           model: device.model ?? previous?.model,
           name: device.name ?? previous?.name,
-          connectionState: DeviceConnectionState.connected,
+          connectionState: isOnline
+              ? DeviceConnectionState.connected
+              : DeviceConnectionState.disconnected,
         ),
       );
     }
@@ -243,7 +258,8 @@ class DeviceRepository extends ChangeNotifier {
   /// matching mDNS entry (by serial) is present.
   List<Device> _deduplicateWirelessAndroid(List<Device> devices) {
     // Collect serials from mDNS device IDs: adb-SERIAL-suffix._adb-tls-..._tcp
-    final mdnsSerials = <String>{}; // serials already represented by mDNS entries
+    final mdnsSerials =
+        <String>{}; // serials already represented by mDNS entries
     for (final device in devices) {
       final serial = _extractMdnsSerial(device.id);
       if (serial != null) mdnsSerials.add(serial.toUpperCase());
@@ -283,8 +299,9 @@ class DeviceRepository extends ChangeNotifier {
     }
 
     final described = await _adbTool.describeDevice(device.id);
-    final describedSerial =
-        described is AndroidDevice ? described.serialNumber : null;
+    final describedSerial = described is AndroidDevice
+        ? described.serialNumber
+        : null;
     Device enriched = device.copyWith(
       brand: described.brand ?? device.brand,
       model: described.model ?? device.model,

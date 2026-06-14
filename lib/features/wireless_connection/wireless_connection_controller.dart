@@ -70,17 +70,17 @@ class WirelessQrPairingSession {
 
 class WirelessConnectionController extends ChangeNotifier {
   WirelessConnectionController({
-    required DeviceRepository deviceRepository,
+    required DevicesRepository devicesRepository,
     required Future<void> Function(List<Device> devices) onDevicesApplied,
     required Future<void> Function(Device device) onActivateDevice,
     this.isDeviceSelectedInAnotherTab,
     this.selectedDeviceIdProvider,
     this.isRunningProvider,
-  }) : _deviceRepository = deviceRepository,
+  }) : _devicesRepository = devicesRepository,
        _onDevicesApplied = onDevicesApplied,
        _onActivateDevice = onActivateDevice;
 
-  final DeviceRepository _deviceRepository;
+  final DevicesRepository _devicesRepository;
   final Future<void> Function(List<Device> devices) _onDevicesApplied;
   final Future<void> Function(Device device) _onActivateDevice;
   final bool Function(String deviceId)? isDeviceSelectedInAnotherTab;
@@ -151,7 +151,7 @@ class WirelessConnectionController extends ChangeNotifier {
     _notify();
 
     try {
-      final result = await _deviceRepository.discoverMdnsServices();
+      final result = await _devicesRepository.discoverMdnsServices();
       if (_disposed) return result;
 
       if (result.isSuccess) {
@@ -209,7 +209,7 @@ class WirelessConnectionController extends ChangeNotifier {
     _notify();
 
     try {
-      final result = await _deviceRepository.pairWirelessAndroidDevice(
+      final result = await _devicesRepository.pairWirelessAndroidDevice(
         address: normalizedAddress,
         pairingCode: normalizedCode,
       );
@@ -345,7 +345,7 @@ class WirelessConnectionController extends ChangeNotifier {
     final deadline = DateTime.now().add(_qrScanTimeout);
     try {
       while (!_qrCancelled && !_disposed && DateTime.now().isBefore(deadline)) {
-        final discovery = await _deviceRepository.discoverMdnsServices();
+        final discovery = await _devicesRepository.discoverMdnsServices();
         if (_qrCancelled || _disposed) return null;
 
         final pairingService = discovery.services.firstWhereOrNull(
@@ -449,10 +449,10 @@ class WirelessConnectionController extends ChangeNotifier {
   }) async {
     const attempts = 5;
     for (var attempt = 0; attempt < attempts; attempt++) {
-      await _deviceRepository.refreshDevices(force: true);
+      await _devicesRepository.refreshDevices(force: true);
       if (_disposed) return null;
 
-      final fetchedDevices = _deviceRepository.devices;
+      final fetchedDevices = _devicesRepository.devices;
       await _onDevicesApplied(fetchedDevices);
       final matchedDevice = fetchedDevices.firstWhereOrNull(
         (device) => _matchesConnectedWirelessDevice(
@@ -524,7 +524,7 @@ class WirelessConnectionController extends ChangeNotifier {
 
       final failures = <String>[];
       for (final candidate in addresses) {
-        final result = await _deviceRepository.connectWirelessAndroidDevice(
+        final result = await _devicesRepository.connectWirelessAndroidDevice(
           candidate,
         );
         if (_disposed) {
@@ -616,7 +616,7 @@ class WirelessConnectionController extends ChangeNotifier {
   Future<WirelessServiceDiscoveryResult>
   _refreshWirelessServicesSnapshot() async {
     _hasAttemptedWirelessDiscovery = true;
-    final result = await _deviceRepository.discoverMdnsServices();
+    final result = await _devicesRepository.discoverMdnsServices();
     if (_disposed) return result;
     if (result.isSuccess) {
       _wirelessServices = result.services;
@@ -656,10 +656,10 @@ class WirelessConnectionController extends ChangeNotifier {
     required List<String> exactAddresses,
     required String? host,
   }) async {
-    await _deviceRepository.refreshDevices(force: true);
+    await _devicesRepository.refreshDevices(force: true);
     if (_disposed) return null;
 
-    final fetchedDevices = _deviceRepository.devices;
+    final fetchedDevices = _devicesRepository.devices;
     await _onDevicesApplied(fetchedDevices);
     return fetchedDevices.firstWhereOrNull(
       (device) => _matchesConnectedWirelessDevice(
