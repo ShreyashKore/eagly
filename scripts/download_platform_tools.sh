@@ -438,8 +438,14 @@ stage_scrcpy_bundle() {
 mark_binaries_executable() {
   local target_dir="$1"
   if [ "$(uname -s)" = "Darwin" ] || [ "$(uname -s)" = "Linux" ]; then
+    # 'idevice*' (not 'idevice_*') so every libimobiledevice tool gets +x, not
+    # just idevice_id; the other CLIs (idevicesyslog, ideviceinfo, …) and the
+    # standalone helpers below ship without an exec bit in the upstream bundle.
     find "$target_dir" -maxdepth 1 -type f \
-      \( -name 'adb' -o -name 'scrcpy' -o -name 'idevice_*' -o -name '*.dylib' -o -name '*.so' -o -name '*.so.*' \) \
+      \( -name 'adb' -o -name 'scrcpy' -o -name 'idevice*' \
+         -o -name 'inetcat' -o -name 'iproxy' -o -name 'irecovery' \
+         -o -name 'ios_webkit_debug_proxy' -o -name 'plistutil' -o -name 'usbmuxd' \
+         -o -name '*.dylib' -o -name '*.so' -o -name '*.so.*' \) \
       -exec chmod +x {} +
   fi
 }
