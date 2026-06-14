@@ -135,6 +135,20 @@ void main() {
       expect(repository.devices.single.model, 'iPhone 15');
     },
   );
+
+  test(
+    'iosSupportUnavailable mirrors usbmuxd state and toggles back',
+    () async {
+      ideviceIdTool.usbmuxdUnavailableValue = true;
+      await repository.refreshDevices(force: true);
+      expect(repository.iosSupportUnavailable, isTrue);
+
+      // Recovers even though the (empty) device list is unchanged.
+      ideviceIdTool.usbmuxdUnavailableValue = false;
+      await repository.refreshDevices(force: true);
+      expect(repository.iosSupportUnavailable, isFalse);
+    },
+  );
 }
 
 class _FakeAdbTool extends AdbTool {
@@ -172,9 +186,13 @@ class _FakeIdeviceIdTool extends IdeviceIdTool {
   _FakeIdeviceIdTool() : super(executablePath: '/usr/bin/true');
 
   List<String> iosDeviceIds = const [];
+  bool usbmuxdUnavailableValue = false;
 
   @override
   Future<List<String>> getDeviceIds() async => List.of(iosDeviceIds);
+
+  @override
+  bool get usbmuxdUnavailable => usbmuxdUnavailableValue;
 }
 
 class _FakeIdeviceInfoTool extends IdeviceInfoTool {

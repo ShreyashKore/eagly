@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:eagly/presentation/components/animation_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
@@ -7,6 +9,7 @@ import '../../constants/local_assets.dart';
 import '../../session/device_session_manager.dart';
 import '../../presentation/components/available_device_card.dart';
 import '../../presentation/components/get_started_action_card.dart';
+import '../../presentation/components/ios_support_notice.dart';
 import '../../presentation/components/layout_constants.dart';
 
 /// Landing screen shown when no device tab is selected. Lets the user load
@@ -85,7 +88,11 @@ class HomeView extends StatelessWidget {
                         label: const Text('Wireless ADB'),
                       ),
                     ],
-                    children: [_buildDeviceList(context)],
+                    children: [
+                      _buildDeviceList(context),
+                      if (Platform.isWindows && manager.iosSupportUnavailable)
+                        const IosSupportNotice(),
+                    ],
                   ),
                 ],
               ),
@@ -113,40 +120,40 @@ class HomeView extends StatelessWidget {
         ),
         child: AnimatedContent(
           child: manager.isLoadingDevices
-            ? Column(
-                children: [
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  const Gap(10),
-                  Text(
-                    'Searching for devices…',
-                    style: theme.textTheme.titleSmall,
-                  ),
-                ],
-              )
-            : Column(
-                children: [
-                  Icon(
-                    Icons.usb_off,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  const Gap(10),
-                  Text('No devices found', style: theme.textTheme.titleSmall),
-                  const Gap(6),
-                  Text(
-                    'Connect an Android device with ADB enabled, or an iOS device '
-                    'supported by libimobiledevice.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
+              ? Column(
+                  children: [
+                    const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const Gap(10),
+                    Text(
+                      'Searching for devices…',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                  ],
+                )
+              : Column(
+                  children: [
+                    Icon(
+                      Icons.usb_off,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-        )
+                    const Gap(10),
+                    Text('No devices found', style: theme.textTheme.titleSmall),
+                    const Gap(6),
+                    Text(
+                      'Connect an Android device with ADB enabled, or an iOS device '
+                      'supported by libimobiledevice.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+        ),
       );
     }
 
