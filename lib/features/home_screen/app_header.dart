@@ -89,15 +89,8 @@ class AppHeader extends StatelessWidget {
                           ),
                         ),
                         const Gap(4),
-                        _HeaderAction(
-                          icon: SvgPicture.asset(
-                            LocalAssets.githubIcon,
-                            color: theme.iconTheme.color,
-                          ),
-                          tooltip: 'View on GitHub',
-                          onPressed: () =>
-                              openExternalUrl(AppConstants.repoUrl),
-                        ),
+                        const _GitHubStarButton(),
+                        const Gap(2),
                         _HeaderAction(
                           icon: Icons.settings_rounded,
                           tooltip: 'Settings',
@@ -232,6 +225,74 @@ class _DeviceTabStripState extends State<_DeviceTabStrip> {
           ),
         );
       },
+    );
+  }
+}
+
+/// A quiet "Star" pill linking to the GitHub repo. The word invites a star
+/// without the loud styling of a promo banner — it sits among the other muted
+/// header actions and only warms up on hover.
+class _GitHubStarButton extends StatefulWidget {
+  const _GitHubStarButton();
+
+  @override
+  State<_GitHubStarButton> createState() => _GitHubStarButtonState();
+}
+
+class _GitHubStarButtonState extends State<_GitHubStarButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final foreground = _hovered
+        ? theme.colorScheme.onSurface
+        : theme.colorScheme.onSurfaceVariant;
+
+    return Tooltip(
+      message: 'Star Eagly on GitHub',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: () => openExternalUrl(AppConstants.repoUrl),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: _hovered ? theme.colorScheme.surface : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(
+                  alpha: _hovered ? 1 : 0.6,
+                ),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SvgPicture.asset(
+                  LocalAssets.githubIcon,
+                  width: 15,
+                  height: 15,
+                  colorFilter: ColorFilter.mode(foreground, BlendMode.srcIn),
+                ),
+                const Gap(6),
+                Icon(Icons.star_rounded, size: 14, color: foreground),
+                const Gap(3),
+                Text(
+                  'Star',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
