@@ -76,7 +76,7 @@ class Toolbar extends StatelessWidget {
           ),
 
           // ── Log tab strip ─────────────────────────────────────────────
-          _LogTabStrip(logManager: logManager),
+          _LogTabStrip(logManager: logManager, onImportLog: onImportLog),
           const Spacer(),
           gap,
           div,
@@ -194,9 +194,13 @@ class _ToolbarDivider extends StatelessWidget {
 // ── Log tab strip ──────────────────────────────────────────────────────────
 
 class _LogTabStrip extends StatefulWidget {
-  const _LogTabStrip({required this.logManager});
+  const _LogTabStrip({required this.logManager, this.onImportLog});
 
   final LogSessionManager logManager;
+
+  /// Used by the trailing "+" button in the imports-only workspace, where new
+  /// tabs come from importing a file rather than starting a live capture.
+  final VoidCallback? onImportLog;
 
   @override
   State<_LogTabStrip> createState() => _LogTabStripState();
@@ -233,11 +237,15 @@ class _LogTabStripState extends State<_LogTabStrip> {
                       ? () => manager.closeTab(i)
                       : null,
                 ),
-              // ── + New log tab ────────────────────────────────────────
+              // ── + New log tab (or import, in the imports-only workspace) ─
               Tooltip(
-                message: 'New log tab',
+                message: manager.isImportsOnly
+                    ? 'Import log file'
+                    : 'New log tab',
                 child: IconButton(
-                  onPressed: manager.addLiveTab,
+                  onPressed: manager.isImportsOnly
+                      ? widget.onImportLog
+                      : manager.addLiveTab,
                   mouseCursor: SystemMouseCursors.click,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(

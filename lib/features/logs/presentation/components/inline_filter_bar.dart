@@ -22,6 +22,7 @@ class InlineFilterTextController extends TextEditingController {
     'app',
     'process',
     'tag',
+    'category',
     'message',
     'msg',
     'text',
@@ -156,7 +157,7 @@ class InlineFilterBar extends StatefulWidget {
     ),
     InlineFilterKeyDefinition(
       canonicalKey: 'tag',
-      aliases: {'tag'},
+      aliases: {'tag', 'category'},
       icon: Icons.sell_outlined,
       label: 'tag:',
       description: 'Filter by tag',
@@ -321,10 +322,10 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
         })
         .map(
           (definition) => _InlineFilterSuggestion(
-            label: definition.label,
-            subtitle: definition.description,
+            label: definition.displayLabel(isIos: widget.isIos),
+            subtitle: definition.displayDescription(isIos: widget.isIos),
             icon: definition.icon,
-            replacementText: '${definition.canonicalKey}:',
+            replacementText: '${definition.displayKey(isIos: widget.isIos)}:',
             addTrailingSpace: false,
             applyImmediately: false,
             reopenSuggestions: true,
@@ -434,7 +435,9 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
         for (final entry in widget.recentTagFilters)
           _InlineFilterValueCandidate(
             value: entry,
-            subtitle: 'Recent tag filter',
+            subtitle: widget.isIos
+                ? 'Recent category filter'
+                : 'Recent tag filter',
           ),
       ]),
       'message' => _mergeValueCandidates([
@@ -454,15 +457,14 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
       _ => const <_InlineFilterValueCandidate>[],
     };
 
-    final normalizedLabel = keyDefinition.canonicalKey!;
+    final displayKey = keyDefinition.displayKey(isIos: widget.isIos);
     return _matchingValueCandidates(valueCandidates, normalizedValue)
         .map(
           (entry) => _InlineFilterSuggestion(
-            label: '$normalizedLabel:${_formatInlineValue(entry.value)}',
+            label: '$displayKey:${_formatInlineValue(entry.value)}',
             subtitle: entry.subtitle,
             icon: keyDefinition.icon,
-            replacementText:
-                '$normalizedLabel:${_formatInlineValue(entry.value)}',
+            replacementText: '$displayKey:${_formatInlineValue(entry.value)}',
             addTrailingSpace: true,
             applyImmediately: true,
             reopenSuggestions: false,
@@ -552,7 +554,9 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             Text(
-              'Bare words search the whole log entry. Use key:value for package, tag, pid, message, or level. Quote values with spaces.',
+              'Bare words search the whole log entry. Use key:value for '
+              'package, ${widget.isIos ? 'category' : 'tag'}, pid, message, or '
+              'level. Quote values with spaces.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -563,8 +567,11 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
                   _appendToken('package:', applyImmediately: false),
             ),
             ActionChip(
-              label: const Text('tag:'),
-              onPressed: () => _appendToken('tag:', applyImmediately: false),
+              label: Text(widget.isIos ? 'category:' : 'tag:'),
+              onPressed: () => _appendToken(
+                widget.isIos ? 'category:' : 'tag:',
+                applyImmediately: false,
+              ),
             ),
             ActionChip(
               label: const Text('message:'),
@@ -628,8 +635,9 @@ class _InlineFilterBarState extends State<InlineFilterBar> {
                             style: const TextStyle(fontSize: 12),
                             decoration: filterInputDecoration(
                               context,
-                              hintText:
-                                  'Try package:com.example.app tag:Auth level:error or just type text',
+                              hintText: widget.isIos
+                                  ? 'Try package:com.example.app category:Network level:error or just type text'
+                                  : 'Try package:com.example.app tag:Auth level:error or just type text',
                               prefixIcon: Icons.message,
                             ),
                             onChanged: widget.onChanged,
@@ -841,6 +849,18 @@ class InlineFilterKeyDefinition {
   final IconData icon;
   final String label;
   final String description;
+
+  /// Key surfaced to the user. iOS presents the `tag` filter as `category` to
+  /// match the log column header, while still filtering on tags under the hood.
+  String displayKey({required bool isIos}) =>
+      isIos && canonicalKey == 'tag' ? 'category' : (canonicalKey ?? '');
+
+  /// `key:` label shown in suggestions, platform-aware.
+  String displayLabel({required bool isIos}) => '${displayKey(isIos: isIos)}:';
+
+  /// Description shown in suggestions, platform-aware.
+  String displayDescription({required bool isIos}) =>
+      isIos && canonicalKey == 'tag' ? 'Filter by category' : description;
 }
 
 class _InlineFilterContext {

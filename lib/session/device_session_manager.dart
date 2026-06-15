@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../constants/app_constants.dart';
 import '../data/device.dart';
+import '../features/logs/services/log_file_service.dart';
 import '../services/devices_repository.dart';
 import '../services/device_session_repository.dart';
 import 'device_session_controller.dart';
@@ -34,6 +36,7 @@ class DeviceSessionManager extends ChangeNotifier {
   final Map<String, DeviceSessionController> _sessions = {};
   final List<String> _order = [];
   final Set<String> _dismissed = {};
+  DeviceSessionController? _importedWorkspace;
   String? _selectedId;
   bool _autoSelectedOnce = false;
   bool _disposed = false;
@@ -125,6 +128,10 @@ class DeviceSessionManager extends ChangeNotifier {
     _sessions.remove(id);
     _order.remove(id);
     _dismissed.add(id);
+    if (identical(controller, _importedWorkspace)) {
+      // Drop the pointer so the next import builds a fresh workspace.
+      _importedWorkspace = null;
+    }
     controller.dispose();
     if (_selectedId == id) {
       _selectedId = _order.isNotEmpty ? _order.last : null;
@@ -137,6 +144,45 @@ class DeviceSessionManager extends ChangeNotifier {
 
   Future<void> refreshDevices() =>
       _repository.refreshDevices(force: true, showLoading: true);
+
+  /// Opens a log file (via picker, or [path] to re-open a recent file) without
+  /// needing a connected device. Imported files are hosted in a single synthetic
+  /// "Imported Logs" workspace tab; each file becomes a sub-tab inside it.
+  /// Returns the [LogImportResult] (may be cancelled or fail).
+  Future<LogImportResult> importLog({String? path}) async {
+    final result = await LogFileService.importLogs(path: path);
+    if (_disposed || !result.isSuccess) return result;
+
+    final workspace = _ensureImportedWorkspace();
+    workspace.logSessionManager.addImportedEntries(
+      result.logs!,
+      result.fileName!,
+    );
+    select(workspace.id);
+    return result;
+  }
+
+  DeviceSessionController _ensureImportedWorkspace() {
+    final existing = _importedWorkspace;
+    if (existing != null) return existing;
+
+    final device = Device.android(
+      AppConstants.importedWorkspaceId,
+      'offline',
+      name: AppConstants.importedWorkspaceLabel,
+      connectionState: DeviceConnectionState.disconnected,
+    );
+    final workspace = DeviceSessionController.importedWorkspace(
+      device: device,
+      service: _serviceFactory?.call(device),
+    );
+    _importedWorkspace = workspace;
+    _dismissed.remove(device.id);
+    _sessions[device.id] = workspace;
+    _order.add(device.id);
+    workspace.activate();
+    return workspace;
+  }
 
   @override
   void dispose() {

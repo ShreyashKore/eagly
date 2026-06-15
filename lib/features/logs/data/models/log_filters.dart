@@ -113,7 +113,7 @@ InlineFilterKey? _canonicalInlineFilterKey(String rawKey) {
     'message' || 'msg' || 'text' => InlineFilterKey.message,
     'package' || 'pkg' || 'app' || 'process' => InlineFilterKey.packageName,
     'pid' || 'tid' || 'thread' || 'pidtid' => InlineFilterKey.pidTid,
-    'tag' => InlineFilterKey.tag,
+    'tag' || 'category' => InlineFilterKey.tag,
     'level' || 'lvl' || 'priority' => InlineFilterKey.level,
     _ => null,
   };

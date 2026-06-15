@@ -481,7 +481,10 @@ class LogRow extends StatelessWidget {
       color: isCurrentMatch
           ? logTheme.searchCurrentRowColor
           : (isSelected ? selectedRowColor : null),
-      child: Row(children: rowChildren),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: rowChildren,
+      ),
     );
 
     if (!wholeRowSelectionEnabled) {

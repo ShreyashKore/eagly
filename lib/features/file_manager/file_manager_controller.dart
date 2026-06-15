@@ -6,6 +6,21 @@ import 'data/device_file_entry.dart';
 import 'services/device_file_system.dart';
 import 'services/file_transfer_picker.dart';
 
+/// Outcome of copying externally-dropped files onto the device. [copied] holds
+/// the file names that landed in [directory]; [errors] are human-readable
+/// per-file failures.
+class FileDropCopyResult {
+  const FileDropCopyResult({
+    required this.directory,
+    this.copied = const [],
+    this.errors = const [],
+  });
+
+  final String directory;
+  final List<String> copied;
+  final List<String> errors;
+}
+
 enum FileManagerViewMode { list, grid }
 
 enum FileLoadState { idle, loading, ready, error }
@@ -197,7 +212,9 @@ class FileManagerController extends FeatureController {
   /// Returns a status message to show, or `null` when cancelled / busy.
   Future<String?> uploadFiles() async {
     if (_busy || !_ensureConnected()) return error;
-    final paths = await FileTransferPicker.pickFilesToUpload(device.displayName);
+    final paths = await FileTransferPicker.pickFilesToUpload(
+      device.displayName,
+    );
     if (_disposed || paths.isEmpty) return null;
 
     return _runTransfer(
@@ -206,7 +223,10 @@ class FileManagerController extends FeatureController {
           : 'Uploading ${paths.length} items…',
       action: () async {
         for (final path in paths) {
-          await fileSystem.upload(localPath: path, deviceDirectory: currentPath);
+          await fileSystem.upload(
+            localPath: path,
+            deviceDirectory: currentPath,
+          );
         }
         await _load(currentPath);
         return paths.length == 1
@@ -216,11 +236,66 @@ class FileManagerController extends FeatureController {
     );
   }
 
+  /// Copies externally-dropped [localPaths] into the device's
+  /// [DeviceFileSystem.dropTargetDirectory]. Used by drag-and-drop, so the pane
+  /// need not be open; the listing is refreshed only when the drop lands in the
+  /// currently-shown directory. Each file is copied independently so one
+  /// failure doesn't abort the rest.
+  Future<FileDropCopyResult> copyExternalFiles(List<String> localPaths) async {
+    final directory = fileSystem.dropTargetDirectory;
+    final copied = <String>[];
+    final errors = <String>[];
+    if (localPaths.isEmpty) {
+      return FileDropCopyResult(directory: directory);
+    }
+    if (!isConnected) {
+      return FileDropCopyResult(
+        directory: directory,
+        errors: const [
+          'The device is disconnected. Reconnect it to copy files.',
+        ],
+      );
+    }
+
+    _busy = true;
+    busyLabel = localPaths.length == 1
+        ? 'Copying ${extractFileName(localPaths.single)}…'
+        : 'Copying ${localPaths.length} items…';
+    error = null;
+    _notify();
+    try {
+      for (final path in localPaths) {
+        try {
+          await fileSystem.upload(localPath: path, deviceDirectory: directory);
+          copied.add(extractFileName(path));
+        } on DeviceFileException catch (err) {
+          errors.add(err.message);
+        } catch (err) {
+          errors.add(describeError(err));
+        }
+      }
+      if (!_disposed && copied.isNotEmpty && currentPath == directory) {
+        await _load(currentPath);
+      }
+    } finally {
+      _busy = false;
+      busyLabel = null;
+      _notify();
+    }
+    return FileDropCopyResult(
+      directory: directory,
+      copied: copied,
+      errors: errors,
+    );
+  }
+
   /// Downloads [entry] to a chosen local folder. Returns a status message, or
   /// `null` when cancelled / busy.
   Future<String?> downloadEntry(DeviceFileEntry entry) async {
     if (_busy || !_ensureConnected()) return error;
-    final directory = await FileTransferPicker.pickDownloadDirectory(entry.name);
+    final directory = await FileTransferPicker.pickDownloadDirectory(
+      entry.name,
+    );
     if (_disposed || directory == null) return null;
 
     return _runTransfer(
@@ -242,7 +317,10 @@ class FileManagerController extends FeatureController {
     return _runTransfer(
       label: 'Creating "$trimmed"…',
       action: () async {
-        await fileSystem.createDirectory(parentPath: currentPath, name: trimmed);
+        await fileSystem.createDirectory(
+          parentPath: currentPath,
+          name: trimmed,
+        );
         await _load(currentPath);
         return 'Created folder "$trimmed".';
       },
@@ -251,7 +329,10 @@ class FileManagerController extends FeatureController {
 
   Future<String?> renameEntry(DeviceFileEntry entry, String newName) async {
     final trimmed = newName.trim();
-    if (trimmed.isEmpty || trimmed == entry.name || _busy || !_ensureConnected()) {
+    if (trimmed.isEmpty ||
+        trimmed == entry.name ||
+        _busy ||
+        !_ensureConnected()) {
       return null;
     }
 
@@ -316,8 +397,9 @@ class FileManagerController extends FeatureController {
 
     final direction = sortAscending ? 1 : -1;
     final result = switch (sortField) {
-      FileSortField.name =>
-        a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      FileSortField.name => a.name.toLowerCase().compareTo(
+        b.name.toLowerCase(),
+      ),
       FileSortField.size => (a.sizeBytes ?? 0).compareTo(b.sizeBytes ?? 0),
       FileSortField.modified => (a.modified ?? DateTime(0)).compareTo(
         b.modified ?? DateTime(0),

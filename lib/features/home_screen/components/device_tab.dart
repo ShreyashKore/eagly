@@ -78,15 +78,18 @@ class _DeviceTabState extends State<DeviceTab> with TickerProviderStateMixin {
         final selected = widget.selected;
         final onClose = widget.onClose;
         final device = session.device;
+        final isWorkspace = session.isImportedWorkspace;
         final background = selected
             ? theme.colorScheme.surface
             : Colors.transparent;
 
         final label = device.displayLabel;
-        final tooltipMessage = [
-          label.primary,
-          label.secondary,
-        ].whereType<String>().join('  ·  ');
+        final tooltipMessage = isWorkspace
+            ? 'Imported log files'
+            : [
+                label.primary,
+                label.secondary,
+              ].whereType<String>().join('  ·  ');
 
         final tab = GestureDetector(
           onSecondaryTapUp: (details) => showTabContextMenu(
@@ -126,15 +129,19 @@ class _DeviceTabState extends State<DeviceTab> with TickerProviderStateMixin {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _ConnectionDot(connected: device.isConnected),
-                            const Gap(6),
-                            DeviceSelectionLabel(
-                              device: device,
-                              maxWidth: 160,
-                              textStyle: theme.textTheme.bodyMedium,
-                              secondaryTextStyle: theme.textTheme.labelSmall,
-                              iconSize: 16,
-                            ),
+                            if (isWorkspace)
+                              _WorkspaceLabel(theme: theme)
+                            else ...[
+                              _ConnectionDot(connected: device.isConnected),
+                              const Gap(6),
+                              DeviceSelectionLabel(
+                                device: device,
+                                maxWidth: 160,
+                                textStyle: theme.textTheme.bodyMedium,
+                                secondaryTextStyle: theme.textTheme.labelSmall,
+                                iconSize: 16,
+                              ),
+                            ],
                             if (onClose != null) ...[
                               const Gap(4),
                               IconButton(
@@ -272,6 +279,30 @@ class _HighlightWavePainter extends CustomPainter {
   @override
   bool shouldRepaint(_HighlightWavePainter old) =>
       old.progress != progress || old.color != color;
+}
+
+/// Leading content for the synthetic "Imported Logs" workspace tab: a file
+/// icon and label instead of a device's connection dot + platform label.
+class _WorkspaceLabel extends StatelessWidget {
+  const _WorkspaceLabel({required this.theme});
+
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.description_outlined,
+          size: 16,
+          color: theme.colorScheme.primary,
+        ),
+        const Gap(6),
+        Text('Imported Logs', style: theme.textTheme.bodyMedium),
+      ],
+    );
+  }
 }
 
 class _ConnectionDot extends StatelessWidget {

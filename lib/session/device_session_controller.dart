@@ -11,6 +11,46 @@ import '../services/app_install_service.dart';
 import '../services/device_session_repository.dart';
 import '../utils/utils.dart';
 
+/// Summary of a drag-and-drop onto a device: which apps were installed, which
+/// files were copied (into [copyDirectory]) and any per-item [errors]. Build a
+/// user-facing string from [message].
+class DropHandlingResult {
+  const DropHandlingResult({
+    this.installed = const [],
+    this.copied = const [],
+    this.copyDirectory,
+    this.errors = const [],
+  });
+
+  final List<String> installed;
+  final List<String> copied;
+  final String? copyDirectory;
+  final List<String> errors;
+
+  /// A single status line summarising the drop, or `null` when nothing
+  /// happened (e.g. an empty drop).
+  String? get message {
+    final parts = <String>[];
+    if (installed.isNotEmpty) {
+      parts.add(
+        installed.length == 1
+            ? 'Installed ${installed.single}.'
+            : 'Installed ${installed.length} apps.',
+      );
+    }
+    if (copied.isNotEmpty) {
+      final where = copyDirectory == null ? '' : ' to $copyDirectory';
+      parts.add(
+        copied.length == 1
+            ? 'Copied ${copied.single}$where.'
+            : 'Copied ${copied.length} files$where.',
+      );
+    }
+    parts.addAll(errors);
+    return parts.isEmpty ? null : parts.join(' ');
+  }
+}
+
 /// Owns everything for a single device session: the live [Device] + its
 /// connectivity, the [DeviceSessionRepository], and (lazily) the per-feature
 /// controllers. It does not own feature state — that lives in the feature
@@ -19,10 +59,27 @@ class DeviceSessionController extends ChangeNotifier {
   DeviceSessionController({
     required Device device,
     DeviceSessionRepository? service,
+  }) : this._(device: device, service: service);
+
+  /// Creates the device-less "Imported Logs" workspace session: a session that
+  /// hosts only imported log tabs (no live capture, mirror, files, etc.). It is
+  /// backed by a synthetic, never-connected [device].
+  DeviceSessionController.importedWorkspace({
+    required Device device,
+    DeviceSessionRepository? service,
+  }) : this._(device: device, service: service, isImportedWorkspace: true);
+
+  DeviceSessionController._({
+    required Device device,
+    DeviceSessionRepository? service,
+    this.isImportedWorkspace = false,
   }) : _device = device,
        service = service ?? DeviceSessionRepository(device: device) {
     this.service.sessionLabel = device.id;
   }
+
+  /// True for the synthetic workspace that only shows imported log files.
+  final bool isImportedWorkspace;
 
   Device _device;
   final DeviceSessionRepository service;
@@ -58,7 +115,9 @@ class DeviceSessionController extends ChangeNotifier {
   bool get canManageFiles => _device.isConnected;
 
   LogSessionManager get logSessionManager =>
-      _logSessionManager ??= LogSessionManager(session: this);
+      _logSessionManager ??= isImportedWorkspace
+      ? LogSessionManager.importsOnly(session: this)
+      : LogSessionManager(session: this);
 
   MirrorController get mirrorController =>
       _mirrorController ??= MirrorController(this);
@@ -243,6 +302,86 @@ class DeviceSessionController extends ChangeNotifier {
     } finally {
       _isInstallingApp = false;
       _installingAppName = null;
+      _notify();
+    }
+  }
+
+  // ── Drag-and-drop (device-level) ─────────────────────────────────────────
+  bool _isHandlingDrop = false;
+
+  /// True while a dropped batch is being installed/copied.
+  bool get isHandlingDrop => _isHandlingDrop;
+
+  /// Handles files dropped onto this device's screen. Installable binaries that
+  /// match this device (APK on Android; IPA/.app on iOS) are installed; every
+  /// other file is copied into the device's drop directory. Installables for
+  /// the *other* platform are rejected rather than copied as plain data. Mixed
+  /// drops are handled item by item. Returns `null` when busy or nothing was
+  /// dropped; otherwise a [DropHandlingResult] to surface.
+  Future<DropHandlingResult?> handleDroppedPaths(Iterable<String> paths) async {
+    if (_isHandlingDrop) return null;
+    final normalizedPaths = paths
+        .map((path) => path.trim())
+        .where((path) => path.isNotEmpty)
+        .toList(growable: false);
+    if (normalizedPaths.isEmpty) return null;
+    if (!isConnected) {
+      return DropHandlingResult(
+        errors: ['Reconnect ${device.displayName} before dropping files.'],
+      );
+    }
+
+    final toInstall = <String>[];
+    final toCopy = <String>[];
+    final errors = <String>[];
+    for (final path in normalizedPaths) {
+      final installablePlatform = AppInstallService.inferSupportedPlatform(
+        path,
+      );
+      if (installablePlatform == null) {
+        toCopy.add(path);
+      } else if (installablePlatform == platform) {
+        toInstall.add(path);
+      } else {
+        errors.add(
+          '${extractFileName(path)} can\'t be installed on '
+          '${device.displayName} — it needs a '
+          '${AppInstallService.supportedFormatLabelFor(device)}.',
+        );
+      }
+    }
+
+    _isHandlingDrop = true;
+    _notify();
+    final installed = <String>[];
+    try {
+      // Installs run through the device-level guard one at a time.
+      for (final path in toInstall) {
+        final result = await installAppFromPath(path);
+        if (_disposed) return null;
+        if (result.isSuccess) {
+          installed.add(result.fileName ?? extractFileName(path));
+        } else if (!result.cancelled) {
+          errors.add(
+            result.error ?? 'Failed to install ${extractFileName(path)}.',
+          );
+        }
+      }
+
+      final copyResult = toCopy.isEmpty
+          ? null
+          : await fileManagerController.copyExternalFiles(toCopy);
+      if (_disposed) return null;
+      if (copyResult != null) errors.addAll(copyResult.errors);
+
+      return DropHandlingResult(
+        installed: installed,
+        copied: copyResult?.copied ?? const [],
+        copyDirectory: copyResult?.directory,
+        errors: errors,
+      );
+    } finally {
+      _isHandlingDrop = false;
       _notify();
     }
   }
