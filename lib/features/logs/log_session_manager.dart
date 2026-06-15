@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import 'data/models/log_entry.dart';
 import 'services/log_file_service.dart';
 import '../../services/preferences_service.dart';
 import '../../session/device_session_controller.dart';
@@ -12,11 +13,22 @@ import 'log_controller.dart';
 /// can be added and closed freely.
 class LogSessionManager extends ChangeNotifier {
   LogSessionManager({required DeviceSessionController session})
-    : _session = session {
+    : _session = session,
+      _importsOnly = false {
     _tabs.add(_createLiveTab());
   }
 
+  /// Creates a manager with no permanent live tab, for the device-less
+  /// "Imported Logs" workspace. Tabs are added via [addImportedEntries]; the
+  /// first imported tab becomes permanent.
+  LogSessionManager.importsOnly({required DeviceSessionController session})
+    : _session = session,
+      _importsOnly = true;
+
   final DeviceSessionController _session;
+
+  /// When true there is no permanent live tab — every tab is an imported file.
+  final bool _importsOnly;
   final List<LogController> _tabs = [];
   int _selectedIndex = 0;
   bool _disposed = false;
@@ -25,6 +37,10 @@ class LogSessionManager extends ChangeNotifier {
   int get selectedIndex => _selectedIndex;
   LogController? get selectedTab =>
       _tabs.isEmpty ? null : _tabs[_selectedIndex];
+
+  /// True for the device-less "Imported Logs" workspace, which has no live
+  /// capture — new tabs come from importing files, not [addLiveTab].
+  bool get isImportsOnly => _importsOnly;
 
   /// Human-readable label for the tab at [index].
   String labelFor(int index) {
@@ -42,10 +58,13 @@ class LogSessionManager extends ChangeNotifier {
     return liveRank <= 1 ? 'Logs' : 'Logs $liveRank';
   }
 
-  /// Whether the tab at [index] can be closed. Imported tabs are always
-  /// closable; a live tab is closable when there is more than one live tab.
+  /// Whether the tab at [index] can be closed. In the imports-only workspace
+  /// at least one tab is always kept (the first imported file is permanent).
+  /// Otherwise imported tabs are always closable and a live tab is closable
+  /// when there is more than one live tab.
   bool canClose(int index) {
     if (index < 0 || index >= _tabs.length) return false;
+    if (_importsOnly) return _tabs.length > 1;
     if (_tabs[index].isImported) return true;
     return _tabs.where((t) => !t.isImported).length > 1;
   }
@@ -56,9 +75,10 @@ class LogSessionManager extends ChangeNotifier {
     if (_tabs.isNotEmpty) _tabs.first.activate();
   }
 
-  /// Opens a new live log tab and immediately starts capture.
+  /// Opens a new live log tab and immediately starts capture. No-op in the
+  /// imports-only workspace, which has no live capture.
   void addLiveTab() {
-    if (_disposed) return;
+    if (_disposed || _importsOnly) return;
     final tab = _createLiveTab();
     _tabs.add(tab);
     _selectedIndex = _tabs.length - 1;
@@ -66,22 +86,29 @@ class LogSessionManager extends ChangeNotifier {
     _notify();
   }
 
-  /// Shows a file picker, parses the chosen log file, and opens the result in
-  /// a new imported tab. Returns the [LogImportResult] (may be cancelled).
-  Future<LogImportResult> importLog() async {
+  /// Parses a log file ([path] re-opens a recent file; otherwise a picker is
+  /// shown) and opens the result in a new imported tab. Returns the
+  /// [LogImportResult] (may be cancelled).
+  Future<LogImportResult> importLog({String? path}) async {
     if (_disposed) return LogImportResult.cancelled();
-    final result = await LogFileService.importLogs();
+    final result = await LogFileService.importLogs(path: path);
     if (!result.isSuccess) return result;
 
+    addImportedEntries(result.logs!, result.fileName!);
+    return result;
+  }
+
+  /// Opens already-parsed [entries] in a new imported tab and selects it.
+  void addImportedEntries(List<LogEntry> entries, String fileName) {
+    if (_disposed) return;
     final tab = LogController.imported(
       _session,
       initialSettings: PreferencesService.defaultTabSettings,
     );
-    tab.loadImportedEntries(result.logs!, result.fileName!);
+    tab.loadImportedEntries(entries, fileName);
     _tabs.add(tab);
     _selectedIndex = _tabs.length - 1;
     _notify();
-    return result;
   }
 
   void selectTab(int index) {

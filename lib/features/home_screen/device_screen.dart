@@ -50,6 +50,19 @@ class _DeviceScreenState extends State<DeviceScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // The device-less "Imported Logs" workspace has no device features (mirror,
+    // files, install, …) — show just the log viewer, full-width.
+    if (widget.session.isImportedWorkspace) {
+      return DecoratedBox(
+        decoration: BoxDecoration(color: theme.colorScheme.surface),
+        child: LogFeatureView(
+          logManager: widget.session.logSessionManager,
+          session: widget.session,
+          appMemoryBytesListenable: widget.appMemoryBytesListenable,
+        ),
+      );
+    }
+
     return DecoratedBox(
       decoration: BoxDecoration(color: theme.colorScheme.surface),
       child: Row(

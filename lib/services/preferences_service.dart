@@ -33,6 +33,8 @@ class PreferencesService {
     themeModeListenable.value = themeMode;
     // Initialize font size listenable
     logFontSizeListenable.value = logFontSize;
+    // Initialize recent log files listenable
+    recentLogFilesListenable.value = recentLogFiles;
   }
 
   // Keys
@@ -48,6 +50,10 @@ class PreferencesService {
   static const _keyThemeMode = 'themeMode';
   static const _keyLastFileDialogDirectory = 'lastFileDialogDirectory';
   static const _keyLogFontSize = 'logFontSize';
+  static const _keyRecentLogFiles = 'recentLogFiles';
+
+  /// Maximum number of recently opened log files retained for quick re-open.
+  static const _maxRecentLogFiles = 10;
 
   // --- Home page preferences ---
 
@@ -91,6 +97,42 @@ class PreferencesService {
   static set themeMode(ThemeMode value) {
     themeModeListenable.value = value;
     _prefs.setString(_keyThemeMode, value.name);
+  }
+
+  // --- Recent log files (most-recent first, capped, for one-click re-open) ---
+  /// Listenable so the home screen rebuilds when the list changes.
+  static final ValueNotifier<List<String>> recentLogFilesListenable =
+      ValueNotifier(const []);
+
+  static List<String> get recentLogFiles =>
+      _prefs.getJson<List<String>>(
+        _keyRecentLogFiles,
+        (json) => (json as List<dynamic>).map((e) => e as String).toList(),
+      ) ??
+      const [];
+
+  /// Records [path] as the most-recently opened log file, de-duplicating and
+  /// capping the list at [_maxRecentLogFiles].
+  static Future<void> addRecentLogFile(String path) {
+    final normalized = path.trim();
+    if (normalized.isEmpty) return Future<void>.value();
+
+    final next = [normalized, ...recentLogFiles.where((p) => p != normalized)];
+    if (next.length > _maxRecentLogFiles) {
+      next.removeRange(_maxRecentLogFiles, next.length);
+    }
+    return _setRecentLogFiles(next);
+  }
+
+  static Future<void> removeRecentLogFile(String path) {
+    final next = recentLogFiles.where((p) => p != path).toList();
+    if (next.length == recentLogFiles.length) return Future<void>.value();
+    return _setRecentLogFiles(next);
+  }
+
+  static Future<void> _setRecentLogFiles(List<String> value) {
+    recentLogFilesListenable.value = List.unmodifiable(value);
+    return _prefs.setJson(_keyRecentLogFiles, value);
   }
 
   // --- Log font size preference (affects the log viewer text size) ---

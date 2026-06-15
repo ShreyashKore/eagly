@@ -6,7 +6,9 @@ import 'package:gap/gap.dart';
 
 import '../../constants/app_constants.dart';
 import '../../constants/local_assets.dart';
+import '../../services/preferences_service.dart';
 import '../../session/device_session_manager.dart';
+import '../../utils/utils.dart';
 import '../../presentation/components/available_device_card.dart';
 import '../../presentation/components/get_started_action_card.dart';
 import '../../presentation/components/ios_support_notice.dart';
@@ -20,11 +22,19 @@ class HomeView extends StatelessWidget {
     required this.manager,
     required this.onShowWireless,
     required this.onShowMessage,
+    required this.onImportLog,
+    required this.onOpenRecent,
   });
 
   final DeviceSessionManager manager;
   final VoidCallback onShowWireless;
   final ValueChanged<String> onShowMessage;
+
+  /// Opens a log file via the system picker (no device required).
+  final VoidCallback onImportLog;
+
+  /// Re-opens a previously imported log file by its absolute [path].
+  final ValueChanged<String> onOpenRecent;
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +79,14 @@ class HomeView extends StatelessWidget {
                     style: theme.textTheme.headlineSmall,
                     textAlign: TextAlign.center,
                   ),
+                  const Gap(6),
+                  Text(
+                    'Stream live device logs, or open a saved log file.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                   const Gap(28),
                   GetStartedActionCard(
                     icon: Icons.phone_android_rounded,
@@ -93,6 +111,22 @@ class HomeView extends StatelessWidget {
                       if (Platform.isWindows && manager.iosSupportUnavailable)
                         const IosSupportNotice(),
                     ],
+                  ),
+                  const Gap(16),
+                  GetStartedActionCard(
+                    icon: Icons.description_outlined,
+                    title: 'Open a log file',
+                    subtitle:
+                        'View a saved logcat or syslog file.',
+                    onTap: onImportLog,
+                    secondaryActions: [
+                      FilledButton.tonalIcon(
+                        onPressed: onImportLog,
+                        icon: const Icon(Icons.folder_open_outlined),
+                        label: const Text('Import log file'),
+                      ),
+                    ],
+                    children: [_RecentFilesList(onOpenRecent: onOpenRecent)],
                   ),
                 ],
               ),
@@ -180,6 +214,125 @@ class HomeView extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// The last opened log files, bound to [PreferencesService.recentLogFilesListenable]
+/// so it rebuilds as files are opened or removed. Empty until the first import.
+class _RecentFilesList extends StatelessWidget {
+  const _RecentFilesList({required this.onOpenRecent});
+
+  final ValueChanged<String> onOpenRecent;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ValueListenableBuilder<List<String>>(
+      valueListenable: PreferencesService.recentLogFilesListenable,
+      builder: (context, recentFiles, _) {
+        if (recentFiles.isEmpty) {
+          return Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Recently opened files will appear here.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Recent files', style: theme.textTheme.titleSmall),
+            ),
+            const Gap(8),
+            for (final path in recentFiles)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: _RecentFileTile(
+                  path: path,
+                  onOpen: () => onOpenRecent(path),
+                  onRemove: () => PreferencesService.removeRecentLogFile(path),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _RecentFileTile extends StatelessWidget {
+  const _RecentFileTile({
+    required this.path,
+    required this.onOpen,
+    required this.onRemove,
+  });
+
+  final String path;
+  final VoidCallback onOpen;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onOpen,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.insert_drive_file_outlined,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+              const Gap(10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      extractFileName(path),
+                      style: theme.textTheme.bodyMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      path,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const Gap(8),
+              IconButton(
+                tooltip: 'Remove from recent',
+                visualDensity: VisualDensity.compact,
+                iconSize: 16,
+                onPressed: onRemove,
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

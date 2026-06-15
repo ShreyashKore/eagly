@@ -34,12 +34,17 @@ class LogImportResult {
   const LogImportResult({
     this.logs,
     this.fileName,
+    this.filePath,
     this.error,
     this.cancelled = false,
   });
 
   final List<LogEntry>? logs;
   final String? fileName;
+
+  /// Absolute path of the imported file, when known. Used to record the file
+  /// in the recent-files list for quick re-open.
+  final String? filePath;
   final String? error;
   final bool cancelled;
 
@@ -48,8 +53,9 @@ class LogImportResult {
   factory LogImportResult.success({
     required List<LogEntry> logs,
     required String fileName,
+    String? filePath,
   }) {
-    return LogImportResult(logs: logs, fileName: fileName);
+    return LogImportResult(logs: logs, fileName: fileName, filePath: filePath);
   }
 
   factory LogImportResult.failure({String? fileName, required String error}) {
@@ -107,35 +113,51 @@ class LogFileService {
 
   /// Import logs from a file using [format] (defaults to [defaultFormat]).
   ///
-  /// Opens a system file-picker dialog, reads the file, and delegates
-  /// parsing to [format].
+  /// When [path] is supplied the picker is skipped and the file is read
+  /// directly (used to re-open a recent file). Otherwise a system file-picker
+  /// dialog is shown. The file is read and parsing is delegated to [format].
+  /// On success the file is recorded in the recent-files list.
   static Future<LogImportResult> importLogs({
     LogFormat format = defaultFormat,
+    String? path,
   }) async {
-    final initialDirectory = await _resolveInitialDirectory();
+    final String filePath;
+    final String fileName;
 
-    final result = await FilePicker.platform.pickFiles(
-      dialogTitle: 'Import Logcat File',
-      initialDirectory: initialDirectory,
-      type: FileType.any,
-    );
+    if (path != null) {
+      filePath = path;
+      fileName = extractFileName(path);
+    } else {
+      final initialDirectory = await _resolveInitialDirectory();
 
-    if (result == null || result.files.isEmpty) {
-      return LogImportResult.cancelled();
-    }
-
-    final pickedFile = result.files.first;
-    final filePath = pickedFile.path;
-    final fileName = pickedFile.name.isNotEmpty
-        ? pickedFile.name
-        : (filePath == null ? 'Imported file' : extractFileName(filePath));
-
-    if (filePath == null) {
-      return LogImportResult.failure(
-        fileName: fileName,
-        error:
-            'Failed to import "$fileName": The selected file could not be accessed.',
+      final result = await FilePicker.platform.pickFiles(
+        dialogTitle: 'Import Logcat File',
+        initialDirectory: initialDirectory,
+        type: FileType.any,
       );
+
+      if (result == null || result.files.isEmpty) {
+        return LogImportResult.cancelled();
+      }
+
+      final pickedFile = result.files.first;
+      final pickedPath = pickedFile.path;
+      final pickedName = pickedFile.name.isNotEmpty
+          ? pickedFile.name
+          : (pickedPath == null
+                ? 'Imported file'
+                : extractFileName(pickedPath));
+
+      if (pickedPath == null) {
+        return LogImportResult.failure(
+          fileName: pickedName,
+          error:
+              'Failed to import "$pickedName": The selected file could not be accessed.',
+        );
+      }
+
+      filePath = pickedPath;
+      fileName = pickedName;
     }
 
     try {
@@ -144,9 +166,12 @@ class LogFileService {
       final content = await File(filePath).readAsString();
       final parseResult = format.parse(content);
 
+      await PreferencesService.addRecentLogFile(filePath);
+
       return LogImportResult.success(
         logs: parseResult.logs,
         fileName: fileName,
+        filePath: filePath,
       );
     } on FormatException catch (e) {
       return LogImportResult.failure(

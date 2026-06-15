@@ -19,10 +19,27 @@ class DeviceSessionController extends ChangeNotifier {
   DeviceSessionController({
     required Device device,
     DeviceSessionRepository? service,
+  }) : this._(device: device, service: service);
+
+  /// Creates the device-less "Imported Logs" workspace session: a session that
+  /// hosts only imported log tabs (no live capture, mirror, files, etc.). It is
+  /// backed by a synthetic, never-connected [device].
+  DeviceSessionController.importedWorkspace({
+    required Device device,
+    DeviceSessionRepository? service,
+  }) : this._(device: device, service: service, isImportedWorkspace: true);
+
+  DeviceSessionController._({
+    required Device device,
+    DeviceSessionRepository? service,
+    this.isImportedWorkspace = false,
   }) : _device = device,
        service = service ?? DeviceSessionRepository(device: device) {
     this.service.sessionLabel = device.id;
   }
+
+  /// True for the synthetic workspace that only shows imported log files.
+  final bool isImportedWorkspace;
 
   Device _device;
   final DeviceSessionRepository service;
@@ -58,7 +75,9 @@ class DeviceSessionController extends ChangeNotifier {
   bool get canManageFiles => _device.isConnected;
 
   LogSessionManager get logSessionManager =>
-      _logSessionManager ??= LogSessionManager(session: this);
+      _logSessionManager ??= isImportedWorkspace
+      ? LogSessionManager.importsOnly(session: this)
+      : LogSessionManager(session: this);
 
   MirrorController get mirrorController =>
       _mirrorController ??= MirrorController(this);

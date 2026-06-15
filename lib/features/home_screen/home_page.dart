@@ -126,6 +126,24 @@ class _HomeScreenState extends State<HomeScreen> {
     _showSnackBar(formatExportLogsMessage(result));
   }
 
+  /// Opens a log file without a connected device (via picker, or [path] to
+  /// re-open a recent file), routing it into the "Imported Logs" workspace tab.
+  Future<void> _handleImportLog({String? path}) async {
+    final result = await _manager.importLog(path: path);
+    if (!mounted || result.cancelled) return;
+    if (result.isSuccess) {
+      _showSnackBar(
+        'Imported ${result.fileName} (${result.logs!.length} entries).',
+      );
+      return;
+    }
+    // A recent file that no longer opens (deleted/moved) is dropped silently.
+    if (path != null) {
+      unawaited(PreferencesService.removeRecentLogFile(path));
+    }
+    if (result.error != null) _showSnackBar(result.error!);
+  }
+
   /// The single place that maps each command [Intent] to its behavior. Both the
   /// macOS menu (via `onSelectedIntent`) and the keyboard [appShortcuts] route
   /// through this map. Log commands delegate to [AppMenuController]; window/UI
@@ -246,6 +264,8 @@ class _HomeScreenState extends State<HomeScreen> {
         manager: _manager,
         onShowWireless: _showWirelessDialog,
         onShowMessage: _showSnackBar,
+        onImportLog: () => unawaited(_handleImportLog()),
+        onOpenRecent: (path) => unawaited(_handleImportLog(path: path)),
       );
     }
     return DeviceScreen(
