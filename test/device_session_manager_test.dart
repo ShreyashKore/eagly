@@ -182,6 +182,51 @@ void main() {
       expect(result.isSuccess, isFalse);
       expect(result.error, contains('single app binary'));
     });
+
+    test('installs a compatible APK dropped onto the device screen', () async {
+      final session = buildSession(Device.android('emulator-5554', 'device'));
+      final apk = File('${tempDir.path}/sample.apk')..writeAsStringSync('apk');
+
+      final result = await session.handleDroppedPaths([apk.path]);
+
+      expect(result, isNotNull);
+      expect(result!.installed, ['sample.apk']);
+      expect(result.errors, isEmpty);
+      expect(result.message, contains('Installed sample.apk'));
+    });
+
+    test(
+      'rejects an other-platform installable rather than copying it',
+      () async {
+        final session = buildSession(Device.android('emulator-5554', 'device'));
+        final ipa = File('${tempDir.path}/Sample.ipa')
+          ..writeAsStringSync('ipa');
+
+        final result = await session.handleDroppedPaths([ipa.path]);
+
+        expect(result, isNotNull);
+        expect(result!.installed, isEmpty);
+        expect(result.copied, isEmpty);
+        expect(result.errors.single, contains('APK'));
+      },
+    );
+
+    test('reports an error when dropping onto a disconnected device', () async {
+      final session = buildSession(
+        Device.android(
+          'emulator-5554',
+          'offline',
+          connectionState: DeviceConnectionState.disconnected,
+        ),
+      );
+      final apk = File('${tempDir.path}/sample.apk')..writeAsStringSync('apk');
+
+      final result = await session.handleDroppedPaths([apk.path]);
+
+      expect(result, isNotNull);
+      expect(result!.installed, isEmpty);
+      expect(result.errors.single, contains('Reconnect'));
+    });
   });
 
   group('imported logs workspace (device-less import)', () {

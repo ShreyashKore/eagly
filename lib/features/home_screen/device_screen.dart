@@ -1,3 +1,4 @@
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
@@ -34,6 +35,8 @@ class DeviceScreen extends StatefulWidget {
 }
 
 class _DeviceScreenState extends State<DeviceScreen> {
+  bool _isDragOver = false;
+
   void _showSnackBar(String message) {
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
@@ -44,6 +47,20 @@ class _DeviceScreenState extends State<DeviceScreen> {
     final result = await widget.session.installAppFromPicker();
     if (!mounted || result.cancelled) return;
     _showSnackBar(formatAppInstallMessage(result));
+  }
+
+  Future<void> _handleDrop(DropDoneDetails detail) async {
+    if (mounted) setState(() => _isDragOver = false);
+    final paths = detail.files
+        .map((file) => file.path)
+        .where((path) => path.isNotEmpty)
+        .toList(growable: false);
+    if (paths.isEmpty) return;
+
+    final result = await widget.session.handleDroppedPaths(paths);
+    if (!mounted || result == null) return;
+    final message = result.message;
+    if (message != null) _showSnackBar(message);
   }
 
   @override
@@ -63,22 +80,33 @@ class _DeviceScreenState extends State<DeviceScreen> {
       );
     }
 
-    return DecoratedBox(
-      decoration: BoxDecoration(color: theme.colorScheme.surface),
-      child: Row(
-        children: [
-          FeatureRail(
-            session: widget.session,
-            onInstall: _handleInstallApp,
-            onOpenSettings: widget.onOpenSettings,
-          ),
-          Expanded(
-            child: ListenableBuilder(
-              listenable: widget.session,
-              builder: (context, _) => _buildContent(context),
+    return DropTarget(
+      onDragEntered: (_) => setState(() => _isDragOver = true),
+      onDragExited: (_) => setState(() => _isDragOver = false),
+      onDragDone: _handleDrop,
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: theme.colorScheme.surface),
+        child: Stack(
+          children: [
+            Row(
+              children: [
+                FeatureRail(
+                  session: widget.session,
+                  onInstall: _handleInstallApp,
+                  onOpenSettings: widget.onOpenSettings,
+                ),
+                Expanded(
+                  child: ListenableBuilder(
+                    listenable: widget.session,
+                    builder: (context, _) => _buildContent(context),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+            if (_isDragOver)
+              Positioned.fill(child: _DropOverlay(session: widget.session)),
+          ],
+        ),
       ),
     );
   }
@@ -363,6 +391,58 @@ class _StepList extends StatelessWidget {
             ],
           ),
       ],
+    );
+  }
+}
+
+/// Full-screen hint shown while files are dragged over the device screen.
+class _DropOverlay extends StatelessWidget {
+  const _DropOverlay({required this.session});
+
+  final DeviceSessionController session;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final installable = session.platform == DevicePlatform.android
+        ? 'APK'
+        : 'IPA / .app';
+    return ColoredBox(
+      color: theme.colorScheme.scrim.withValues(alpha: 0.55),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: theme.colorScheme.primary, width: 2),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.download_for_offline_outlined,
+                size: 40,
+                color: theme.colorScheme.primary,
+              ),
+              const Gap(12),
+              Text(
+                'Drop to install or copy to ${session.device.displayName}',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Gap(4),
+              Text(
+                '$installable installs the app; other files are copied to the device.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

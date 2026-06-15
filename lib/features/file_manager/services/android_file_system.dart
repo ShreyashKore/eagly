@@ -25,6 +25,9 @@ class AndroidFileSystem extends ToolProcessRunner implements DeviceFileSystem {
   String get initialPath => '/sdcard';
 
   @override
+  String get dropTargetDirectory => '/sdcard/Download';
+
+  @override
   String get rootPath => '/';
 
   @override

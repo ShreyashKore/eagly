@@ -34,6 +34,11 @@ class IosFileSystem extends ToolProcessRunner implements DeviceFileSystem {
   @override
   String get initialPath => '/';
 
+  // AFC media sandbox: `/Downloads` is the user-visible spot exposed in Finder
+  // and is writable, so dropped files land somewhere the user can find them.
+  @override
+  String get dropTargetDirectory => '/Downloads';
+
   @override
   String get rootPath => '/';
 
@@ -97,7 +102,9 @@ class IosFileSystem extends ToolProcessRunner implements DeviceFileSystem {
     required String parentPath,
     required String name,
   }) async {
-    final output = await _runAfc(['mkdir ${_afcArg(posixJoin(parentPath, name))}']);
+    final output = await _runAfc([
+      'mkdir ${_afcArg(posixJoin(parentPath, name))}',
+    ]);
     _throwIfAfcError(output, 'Failed to create folder "$name".');
   }
 

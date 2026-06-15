@@ -43,6 +43,10 @@ abstract interface class DeviceFileSystem {
   /// Absolute path the browser opens at on first load.
   String get initialPath;
 
+  /// Absolute device directory where externally-dropped, non-installable files
+  /// are copied (drag-and-drop). A user-visible, writable location.
+  String get dropTargetDirectory;
+
   /// The absolute root past which the user cannot navigate up.
   String get rootPath;
 
