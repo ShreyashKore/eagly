@@ -1431,9 +1431,11 @@ class LogController extends FeatureController {
     _recoveryTimer?.cancel();
     _recoveryTimer = null;
 
+    // Cancelling our own subscription tears down just this tab's stream (its
+    // tool process + the shared PID-cache poll's ref-count). Other live tabs on
+    // the same device are untouched.
     await _logSub?.cancel();
     _logSub = null;
-    await service.stopActiveLogStream();
 
     if (resetState && !_disposed) {
       logcatState = LogcatState.stopped;
@@ -1502,7 +1504,6 @@ class LogController extends FeatureController {
     _flushPendingLogs();
     await _logSub?.cancel();
     _logSub = null;
-    await service.stopActiveLogStream();
     if (_disposed || logcatState == LogcatState.stopped) return;
 
     if (!isConnected) {
@@ -1808,7 +1809,6 @@ class LogController extends FeatureController {
     _filterSaveDebounceTimer?.cancel();
     _inlineSearchDebounce?.cancel();
     unawaited(_logSub?.cancel());
-    unawaited(service.stopActiveLogStream());
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
     scrollController.dispose();
