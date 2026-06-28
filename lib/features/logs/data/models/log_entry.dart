@@ -25,7 +25,6 @@ class LogEntry {
   final String level;
   final String tag;
   final String message;
-  final String lowercaseSearchable;
   String? packageName;
   String? processName;
 
@@ -40,17 +39,22 @@ class LogEntry {
     required this.message,
     this.packageName,
     this.processName,
-  }) : id = id ?? LogEntryIdGenerator.instance.next(),
-       lowercaseSearchable = [
-         timestamp,
-         pid,
-         tid,
-         level,
-         tag,
-         message,
-         if (packageName != null && packageName.trim().isNotEmpty) packageName,
-         if (processName != null && processName.trim().isNotEmpty) processName,
-       ].join(' ').toLowerCase();
+  }) : id = id ?? LogEntryIdGenerator.instance.next();
+
+  /// Lowercased concatenation of all searchable fields, used by raw-term
+  /// filtering. Computed once on first access (after [packageName] /
+  /// [processName] are resolved post-construction) and cached — recomputing it
+  /// per filter pass over a 50k-entry buffer is what made long sessions crawl.
+  late final String lowercaseSearchable = [
+    timestamp,
+    pid,
+    tid,
+    level,
+    tag,
+    message,
+    if (packageName != null && packageName!.trim().isNotEmpty) packageName,
+    if (processName != null && processName!.trim().isNotEmpty) processName,
+  ].join(' ').toLowerCase();
 
   @override
   String toString() {
