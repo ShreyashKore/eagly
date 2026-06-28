@@ -116,8 +116,7 @@ class HomeView extends StatelessWidget {
                   GetStartedActionCard(
                     icon: Icons.description_outlined,
                     title: 'Open a log file',
-                    subtitle:
-                        'View a saved logcat or syslog file.',
+                    subtitle: 'View a saved logcat or syslog file.',
                     onTap: onImportLog,
                     secondaryActions: [
                       FilledButton.tonalIcon(
@@ -139,7 +138,11 @@ class HomeView extends StatelessWidget {
 
   Widget _buildDeviceList(BuildContext context) {
     final theme = Theme.of(context);
-    final sessions = manager.sessions;
+    // Exclude the synthetic "Imported Logs" workspace — it's not a device.
+    final sessions = [
+      for (final session in manager.sessions)
+        if (!session.isImportedWorkspace) session,
+    ];
 
     if (sessions.isEmpty) {
       return Container(

@@ -250,7 +250,7 @@ class _GitHubStarButtonState extends State<_GitHubStarButton> {
         : theme.colorScheme.onSurfaceVariant;
 
     return Tooltip(
-      message: 'Star Eagly on GitHub',
+      message: 'Eagly on GitHub',
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
@@ -261,7 +261,9 @@ class _GitHubStarButtonState extends State<_GitHubStarButton> {
             duration: const Duration(milliseconds: 140),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: _hovered ? theme.colorScheme.surface : Colors.transparent,
+              color: _hovered
+                  ? theme.colorScheme.surfaceContainerHighest
+                  : theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: theme.colorScheme.outlineVariant.withValues(
@@ -277,16 +279,6 @@ class _GitHubStarButtonState extends State<_GitHubStarButton> {
                   width: 15,
                   height: 15,
                   colorFilter: ColorFilter.mode(foreground, BlendMode.srcIn),
-                ),
-                const Gap(6),
-                Icon(Icons.star_rounded, size: 14, color: foreground),
-                const Gap(3),
-                Text(
-                  'Star',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: foreground,
-                    fontWeight: FontWeight.w500,
-                  ),
                 ),
               ],
             ),
