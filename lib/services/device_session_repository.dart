@@ -12,7 +12,6 @@ import 'tools/adb_tool.dart';
 import 'tools/idevice_crash_report_tool.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
-import 'tools/tool_process_runner.dart';
 
 /// Per-device facade over the platform tools (adb / libimobiledevice / scrcpy).
 ///
@@ -28,9 +27,16 @@ class DeviceSessionRepository {
   final ScrcpyMirror _scrcpyMirror;
   final AppLogger _logger = AppLogger(source: 'DeviceSessionService');
   final Map<String, String> _pidToPackageCache = {};
-  Timer? _cacheRefreshTimer;
-  ToolStreamSession<LogEntry>? _activeLogSession;
-  bool _logStreamActive = false;
+
+  /// Shared PID→package refresh timer, ref-counted by [_pidCacheConsumers] so
+  /// concurrent Android log streams share a single `ps -A` poll.
+  Timer? _pidCacheRefreshTimer;
+  int _pidCacheConsumers = 0;
+
+  /// Number of live log streams currently open for this device. Each live tab
+  /// owns an independent stream (see [startLogStream]); this is just a counter
+  /// for [isLogStreamActive].
+  int _activeStreamCount = 0;
 
   /// Optional human-readable label used to tag [AppLogger] entries. Defaults to
   /// the device id when unset.
@@ -85,21 +91,15 @@ class DeviceSessionRepository {
   }
 
   Stream<LogEntry> _startAndroidLogcat() async* {
-    await stopActiveLogStream();
-    await refreshPidToPackageMap();
     final sessionLogger = _sessionLogger;
-
-    _cacheRefreshTimer?.cancel();
-    _cacheRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      refreshPidToPackageMap();
-    });
+    await refreshPidToPackageMap();
+    _retainPidCacheRefresh();
+    _activeStreamCount++;
 
     sessionLogger.info('Log stream started for $_deviceId');
 
     final session = _adbTool.startLogcat(_deviceId);
     try {
-      _activeLogSession = session;
-      _logStreamActive = true;
       await for (final entry in session.stream) {
         if (entry.type == LogEntryType.error) {
           sessionLogger.error(
@@ -113,22 +113,16 @@ class DeviceSessionRepository {
         yield entry;
       }
     } finally {
-      if (identical(_activeLogSession, session)) {
-        _activeLogSession = null;
-        _logStreamActive = false;
-      }
-      _cacheRefreshTimer?.cancel();
-      _cacheRefreshTimer = null;
+      _activeStreamCount--;
+      _releasePidCacheRefresh();
       sessionLogger.info('Log stream stopped for $_deviceId');
       await session.stop();
     }
   }
 
   Stream<LogEntry> _startIosSyslog() async* {
-    await stopActiveLogStream();
-    _cacheRefreshTimer?.cancel();
-    _cacheRefreshTimer = null;
     final sessionLogger = _sessionLogger;
+    _activeStreamCount++;
 
     sessionLogger.info('iOS syslog stream started for ${device.displayName}');
 
@@ -138,8 +132,6 @@ class DeviceSessionRepository {
     );
 
     try {
-      _activeLogSession = session;
-      _logStreamActive = true;
       await for (final entry in session.stream) {
         if (entry.type == LogEntryType.error) {
           sessionLogger.error(
@@ -150,28 +142,33 @@ class DeviceSessionRepository {
         yield entry;
       }
     } finally {
-      if (identical(_activeLogSession, session)) {
-        _activeLogSession = null;
-        _logStreamActive = false;
-      }
+      _activeStreamCount--;
       sessionLogger.info('iOS syslog stream stopped for ${device.displayName}');
       await session.stop();
     }
   }
 
-  Future<void> stopActiveLogStream() async {
-    _cacheRefreshTimer?.cancel();
-    _cacheRefreshTimer = null;
+  /// Each live log tab owns its own stream (the [StreamSubscription] held by its
+  /// [LogController]); a stream tears itself down — stopping its tool process and
+  /// releasing the shared PID-cache poll — when that subscription is cancelled.
+  /// There is deliberately no shared "active stream" to stop, so restarting or
+  /// closing one tab never disturbs another tab on the same device.
+  bool get isLogStreamActive => _activeStreamCount > 0;
 
-    final session = _activeLogSession;
-    _activeLogSession = null;
-    _logStreamActive = false;
-
-    if (session == null) return;
-    await session.stop();
+  void _retainPidCacheRefresh() {
+    _pidCacheConsumers++;
+    _pidCacheRefreshTimer ??= Timer.periodic(const Duration(seconds: 5), (_) {
+      unawaited(refreshPidToPackageMap());
+    });
   }
 
-  bool get isLogStreamActive => _logStreamActive;
+  void _releasePidCacheRefresh() {
+    if (_pidCacheConsumers > 0) _pidCacheConsumers--;
+    if (_pidCacheConsumers == 0) {
+      _pidCacheRefreshTimer?.cancel();
+      _pidCacheRefreshTimer = null;
+    }
+  }
 
   /// Lightweight liveness probe for the bound device. Returns false when the
   /// device is not responding within [timeout] (e.g. a wedged adb transport
@@ -199,7 +196,15 @@ class DeviceSessionRepository {
     await _adbTool.clearLogs(_deviceId);
   }
 
-  Future<void> dispose() => stopActiveLogStream();
+  /// Tears down shared per-device resources. Individual log streams are owned by
+  /// their [LogController]s and are stopped when those controllers are disposed
+  /// (which cancels each stream's subscription), so by the time this runs only
+  /// the shared PID-cache poll remains to clean up.
+  Future<void> dispose() async {
+    _pidCacheRefreshTimer?.cancel();
+    _pidCacheRefreshTimer = null;
+    _pidCacheConsumers = 0;
+  }
 
   Future<DeviceCommandResult> installApp({required String filePath}) {
     return switch (device) {

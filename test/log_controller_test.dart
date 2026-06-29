@@ -231,6 +231,37 @@ void main() {
     },
   );
 
+  test(
+    'opening a second live tab does not interrupt the first tab',
+    () async {
+      createLog();
+      final manager = session!.logSessionManager;
+      final firstTab = manager.tabs.first;
+
+      await firstTab.startLogcat();
+      expect(firstTab.isRunning, isTrue);
+      expect(service.startLogStreamCount, 1);
+
+      // A second live tab for the same device must start its own independent
+      // stream — not tear down the first tab's stream and send it into the
+      // recovery loop (the shared-session reconnect storm).
+      manager.addLiveTab();
+      final secondTab = manager.tabs.last;
+      expect(secondTab, isNot(same(firstTab)));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // Exactly one stream per tab; the first tab never re-attached (which a
+      // recovery cycle would have caused).
+      expect(service.startLogStreamCount, 2);
+      expect(service.recoverCount, 0);
+      expect(firstTab.isRunning, isTrue);
+      expect(firstTab.liveLoggingInterrupted, isFalse);
+      expect(firstTab.isRecovering, isFalse);
+      expect(secondTab.isRunning, isTrue);
+      expect(secondTab.liveLoggingInterrupted, isFalse);
+    },
+  );
+
   test('submitLogLinesLimit rejects values below minimum threshold', () {
     final log = createLog();
 

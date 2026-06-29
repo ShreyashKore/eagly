@@ -95,13 +95,6 @@ class FakeSessionService extends DeviceSessionRepository {
   }
 
   @override
-  Future<void> stopActiveLogStream() async {
-    final controller = _activeStream;
-    _activeStream = null;
-    await controller?.close();
-  }
-
-  @override
   Future<bool> pingDevice({
     Duration timeout = const Duration(seconds: 5),
   }) async {

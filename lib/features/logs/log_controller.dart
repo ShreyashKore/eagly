@@ -28,6 +28,11 @@ enum LogcatState { stopped, running, paused }
 class LogController extends FeatureController {
   static const int _maxRecentFilterValues = 8;
 
+  /// Maximum number of log entries buffered in [_pendingLogs] between flush
+  /// cycles. Entries beyond this limit spill directly into [_logsBuffer] to
+  /// prevent unbounded growth under burst load.
+  static const int _maxPendingLogs = 10000;
+
   /// Number of automatic recovery cycles attempted before the warning banner
   /// is surfaced for manual intervention.
   static const int _maxAutoRecoveryAttempts = 2;
@@ -349,7 +354,6 @@ class LogController extends FeatureController {
     _notify();
   }
 
-
   bool _setRowSelectionModeInternal(bool value) {
     if (_rowSelectionMode == value) return false;
     _rowSelectionMode = value;
@@ -373,9 +377,9 @@ class LogController extends FeatureController {
   }
 
   bool? beginRowSelectionGesture(
-      int filteredIndex, {
-        bool shiftPressed = false,
-      }) {
+    int filteredIndex, {
+    bool shiftPressed = false,
+  }) {
     if (!_isSelectableFilteredIndex(filteredIndex)) return null;
 
     final modeChanged = _enableRowSelectionMode();
@@ -391,8 +395,7 @@ class LogController extends FeatureController {
     final changed = shouldSelect
         ? _selectedRowIndices.add(filteredIndex)
         : _selectedRowIndices.remove(filteredIndex);
-    final clearedMode =
-    !shouldSelect && _selectedRowIndices.isEmpty
+    final clearedMode = !shouldSelect && _selectedRowIndices.isEmpty
         ? _setRowSelectionModeInternal(false)
         : false;
     if (changed || anchorChanged || modeChanged || clearedMode) {
@@ -409,8 +412,7 @@ class LogController extends FeatureController {
     final changed = selected
         ? _selectedRowIndices.add(filteredIndex)
         : _selectedRowIndices.remove(filteredIndex);
-    final clearedMode =
-    !selected && _selectedRowIndices.isEmpty
+    final clearedMode = !selected && _selectedRowIndices.isEmpty
         ? _setRowSelectionModeInternal(false)
         : false;
     if (changed || modeChanged || clearedMode) {
@@ -471,8 +473,8 @@ class LogController extends FeatureController {
   void clearSelectedRows({bool notify = true}) {
     final changed =
         _selectedRowIndices.isNotEmpty ||
-            _rowSelectionAnchorIndex != null ||
-            _rowSelectionMode;
+        _rowSelectionAnchorIndex != null ||
+        _rowSelectionMode;
     if (!changed) return;
     _selectedRowIndices.clear();
     _rowSelectionAnchorIndex = null;
@@ -1351,8 +1353,12 @@ class LogController extends FeatureController {
           return;
         }
         if (logcatState == LogcatState.paused) return;
-        _pendingLogs.add(logEntry);
-        _pendingLogsMemoryBytes += _estimateLogEntryBytes(logEntry);
+        if (_pendingLogs.length >= _maxPendingLogs) {
+          _appendImmediateLogEntry(logEntry);
+        } else {
+          _pendingLogs.add(logEntry);
+          _pendingLogsMemoryBytes += _estimateLogEntryBytes(logEntry);
+        }
       },
       onError: (Object error, StackTrace _) {
         if (_disposed || !identical(_logSub, sub)) return;
@@ -1425,9 +1431,11 @@ class LogController extends FeatureController {
     _recoveryTimer?.cancel();
     _recoveryTimer = null;
 
+    // Cancelling our own subscription tears down just this tab's stream (its
+    // tool process + the shared PID-cache poll's ref-count). Other live tabs on
+    // the same device are untouched.
     await _logSub?.cancel();
     _logSub = null;
-    await service.stopActiveLogStream();
 
     if (resetState && !_disposed) {
       logcatState = LogcatState.stopped;
@@ -1496,7 +1504,6 @@ class LogController extends FeatureController {
     _flushPendingLogs();
     await _logSub?.cancel();
     _logSub = null;
-    await service.stopActiveLogStream();
     if (_disposed || logcatState == LogcatState.stopped) return;
 
     if (!isConnected) {
@@ -1627,6 +1634,7 @@ class LogController extends FeatureController {
     await _stopLogcatInternal(resetState: false);
     if (_disposed) return;
 
+    _flushPendingLogs();
     logcatState = LogcatState.running;
     _recovering = false;
     _recoveryAttempts = 0;
@@ -1801,7 +1809,8 @@ class LogController extends FeatureController {
     _filterSaveDebounceTimer?.cancel();
     _inlineSearchDebounce?.cancel();
     unawaited(_logSub?.cancel());
-    unawaited(service.stopActiveLogStream());
+    _pendingLogs.clear();
+    _pendingLogsMemoryBytes = 0;
     scrollController.dispose();
     filterController.dispose();
     filterFocusNode.dispose();
