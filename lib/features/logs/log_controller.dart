@@ -26,8 +26,6 @@ enum LogcatState { stopped, running, paused }
 /// searches log entries, and manages row selection / copy / export. Holds no
 /// device-selection or mirror state.
 class LogController extends FeatureController {
-  static const int _maxRecentFilterValues = 8;
-
   /// Maximum number of log entries buffered in [_pendingLogs] between flush
   /// cycles. Entries beyond this limit spill directly into [_logsBuffer] to
   /// prevent unbounded growth under burst load.
@@ -57,11 +55,11 @@ class LogController extends FeatureController {
       ) {
     final initialState = LogFilters.empty(selectedLogLevel);
     final suggestions = LogFilterSuggestions(
-      recentMessageFilters: () => _recentMessageFilters,
-      recentPackageFilters: () => _recentPackageFilters,
+      recentMessageFilters: () => _recentFilters.message,
+      recentPackageFilters: () => _recentFilters.package,
       knownPackageFilters: () => knownInlinePackageFilters,
-      recentPidTidFilters: () => _recentPidTidFilters,
-      recentTagFilters: () => _recentTagFilters,
+      recentPidTidFilters: () => _recentFilters.pidTid,
+      recentTagFilters: () => _recentFilters.tag,
     );
     classicFilter = ClassicFilterController(
       initialState: initialState,
@@ -116,10 +114,7 @@ class LogController extends FeatureController {
 
   var logcatState = LogcatState.stopped;
 
-  final List<String> _recentMessageFilters = [];
-  final List<String> _recentPackageFilters = [];
-  final List<String> _recentPidTidFilters = [];
-  final List<String> _recentTagFilters = [];
+  final RecentFilterValues _recentFilters = RecentFilterValues();
   List<String> _knownInlinePackageFilters = const [];
   int _knownInlinePackageFingerprintLength = -1;
   int? _knownInlinePackageFingerprintFirstId;
@@ -164,11 +159,9 @@ class LogController extends FeatureController {
   String _lastAppliedFilterSignature = '';
   LogLevel _lastLogLevel = LogLevel.verbose;
 
-  List<String> _appliedMessageTerms = const [];
-  List<String> _appliedRawTerms = const [];
-  List<String> _appliedPackageTerms = const [];
-  List<String> _appliedPidTidTerms = const [];
-  List<String> _appliedTagTerms = const [];
+  /// The filter configuration currently applied to the log buffer. The level is
+  /// tracked separately in [_settings]; only the term lists here drive matching.
+  LogFilters _appliedFilters = LogFilters.empty(LogLevel.verbose);
 
   List<int>? _cachedSearchMatchIndices;
   TextSearchConfig _smCacheSearch = const TextSearchConfig();
@@ -223,13 +216,11 @@ class LogController extends FeatureController {
       TextSearchPattern.fromConfig(_appliedInlineSearch);
   bool get inlineSearchHasError => inlineSearchPattern.hasError;
   String? get inlineSearchErrorText => inlineSearchPattern.errorText;
-  List<String> get recentMessageFilters =>
-      List.unmodifiable(_recentMessageFilters);
-  List<String> get recentPackageFilters =>
-      List.unmodifiable(_recentPackageFilters);
-  List<String> get recentPidTidFilters =>
-      List.unmodifiable(_recentPidTidFilters);
-  List<String> get recentTagFilters => List.unmodifiable(_recentTagFilters);
+  /// Recently applied filter values, surfaced as autocomplete suggestions via
+  /// the [LogFilterSuggestions] passed to the filter controllers.
+  @visibleForTesting
+  RecentFilterValues get recentFilters => _recentFilters;
+
   List<String> get knownInlinePackageFilters {
     final storedLogs = logs;
     final firstId = storedLogs.firstOrNull?.id;
@@ -530,38 +521,23 @@ class LogController extends FeatureController {
     classicFilter.updateState(cleared);
     inlineFilter.updateState(cleared);
     _settings = _settings.copyWith(selectedLogLevel: defaultLevel);
-    _appliedMessageTerms = const [];
-    _appliedRawTerms = const [];
-    _appliedPackageTerms = const [];
-    _appliedPidTidTerms = const [];
-    _appliedTagTerms = const [];
+    _appliedFilters = cleared;
     _syncLogBufferFilter();
     _invalidateFilteredLogs();
     focusFilterInputs();
     _notify();
   }
 
-  /// Programmatic entry point for driving the inline field (tests and external
-  /// callers). Interactive edits flow through [InlineFilterController] directly.
-  void onInlineFilterChanged(String value) {
-    inlineFilter.setTextFromInput(value);
+  /// Applies a complete filter [configuration], updating both filter bars and
+  /// the active filter. Interactive edits normally flow through the filter
+  /// controllers; this is the single entry point for driving filters
+  /// programmatically (tests / external callers).
+  @visibleForTesting
+  void applyFilters(LogFilters configuration) {
+    classicFilter.updateState(configuration);
+    inlineFilter.updateState(configuration);
+    _applyFilterConfig(configuration);
   }
-
-  /// Programmatic entry points for driving the classic fields (tests / external
-  /// callers). Interactive edits flow through [ClassicFilterController].
-  void onSearchChanged(String value) =>
-      classicFilter.setFieldFromInput(LogFilterField.message, value);
-
-  void onPackageFilterChanged(String value) =>
-      classicFilter.setFieldFromInput(LogFilterField.packageName, value);
-
-  void onPidTidFilterChanged(String value) =>
-      classicFilter.setFieldFromInput(LogFilterField.pidTid, value);
-
-  void onTagFilterChanged(String value) =>
-      classicFilter.setFieldFromInput(LogFilterField.tag, value);
-
-  void applyFiltersNow() => _activeFilterController.applyNow();
 
   void setSelectedLogLevel(LogLevel level) =>
       _activeFilterController.setLevel(level);
@@ -840,109 +816,47 @@ class LogController extends FeatureController {
     });
   }
 
-  /// Applies filter state emitted by one of the filter controllers. Records the
-  /// applied terms/level, keeps the sibling controller in sync so switching
-  /// filter modes preserves the filter, and refreshes the filtered view.
+  /// Applies filter state emitted by one of the filter controllers. Keeps the
+  /// sibling controller in sync so switching filter modes preserves the filter,
+  /// then applies the configuration.
   void _applyFilterState(
     LogFilters state, {
     required LogFilterController source,
   }) {
-    _appliedMessageTerms = state.messageTerms;
-    _appliedRawTerms = state.rawTerms;
-    _appliedPackageTerms = state.packageTerms;
-    _appliedPidTidTerms = state.pidTidTerms;
-    _appliedTagTerms = state.tagTerms;
-    if (selectedLogLevel != state.level) {
-      _settings = _settings.copyWith(selectedLogLevel: state.level);
-    }
-    clearSelectedRows(notify: false);
-
     // Mirror into the other bar (the emitting one already holds this state).
     final sibling = identical(source, inlineFilter)
         ? classicFilter
         : inlineFilter;
     sibling.updateState(state);
+    _applyFilterConfig(state);
+  }
+
+  /// Records the applied terms/level, schedules recording of recent values, and
+  /// refreshes the filtered view. Does not touch the filter bars.
+  void _applyFilterConfig(LogFilters configuration) {
+    _appliedFilters = configuration;
+    if (selectedLogLevel != configuration.level) {
+      _settings = _settings.copyWith(selectedLogLevel: configuration.level);
+    }
+    clearSelectedRows(notify: false);
 
     _filterSaveDebounceTimer?.cancel();
     _filterSaveDebounceTimer = Timer(const Duration(milliseconds: 1000), () {
-      _rememberRecentFilterValues();
+      _recentFilters.rememberFrom(configuration);
     });
     _syncLogBufferFilter();
     _invalidateFilteredLogs();
     _notify();
   }
 
-  void _rememberRecentFilterValues() {
-    for (final value in _appliedMessageTerms) {
-      _rememberRecentFilterValue(_recentMessageFilters, value);
-    }
-    for (final value in _appliedPackageTerms) {
-      _rememberRecentFilterValue(_recentPackageFilters, value);
-    }
-    for (final value in _appliedPidTidTerms) {
-      _rememberRecentFilterValue(_recentPidTidFilters, value);
-    }
-    for (final value in _appliedTagTerms) {
-      _rememberRecentFilterValue(_recentTagFilters, value);
-    }
-  }
-
-  void _rememberRecentFilterValue(List<String> recentValues, String value) {
-    final normalized = value.trim();
-    if (normalized.isEmpty) return;
-
-    recentValues.removeWhere(
-      (existing) => existing.toLowerCase() == normalized.toLowerCase(),
-    );
-    recentValues.insert(0, normalized);
-
-    if (recentValues.length > _maxRecentFilterValues) {
-      recentValues.removeRange(_maxRecentFilterValues, recentValues.length);
-    }
-  }
-
-  bool _matchesAllTerms(
-    String candidate,
-    List<String> terms, {
-    required bool caseSensitive,
-  }) {
-    if (terms.isEmpty) return true;
-    final normalizedCandidate = caseSensitive
-        ? candidate
-        : candidate.toLowerCase();
-    return terms.every((term) {
-      final normalizedTerm = caseSensitive ? term : term.toLowerCase();
-      return normalizedCandidate.contains(normalizedTerm);
-    });
-  }
-
   String get _appliedFilterSignature => [
     selectedLogLevel.code,
-    'm:${_appliedMessageTerms.join('')}',
-    'r:${_appliedRawTerms.join('')}',
-    'p:${_appliedPackageTerms.join('')}',
-    'pt:${_appliedPidTidTerms.join('')}',
-    't:${_appliedTagTerms.join('')}',
+    'm:${_appliedFilters.messageTerms.join('')}',
+    'r:${_appliedFilters.rawTerms.join('')}',
+    'p:${_appliedFilters.packageTerms.join('')}',
+    'pt:${_appliedFilters.pidTidTerms.join('')}',
+    't:${_appliedFilters.tagTerms.join('')}',
   ].join(' ');
-
-  String _packageFilterValue(LogEntry log) {
-    final packageName = log.packageName?.trim();
-    if (packageName != null && packageName.isNotEmpty) return packageName;
-
-    final processName = log.processName?.trim();
-    if (processName != null && processName.isNotEmpty) return processName;
-
-    return '';
-  }
-
-  bool _matchesPidTidFilter(LogEntry log, String query) {
-    final pid = log.pid.toLowerCase();
-    final tid = log.tid.toLowerCase();
-    return pid.contains(query) ||
-        tid.contains(query) ||
-        '$pid/$tid'.contains(query) ||
-        '$pid:$tid'.contains(query);
-  }
 
   bool _matchesLogFilters(LogEntry log) {
     final selectedLevel = effectiveSelectedLogLevel;
@@ -952,7 +866,7 @@ class LogController extends FeatureController {
 
     if (!_matchesAllTerms(
       _packageFilterValue(log),
-      _appliedPackageTerms,
+      _appliedFilters.packageTerms,
       caseSensitive: false,
     )) {
       return false;
@@ -960,23 +874,23 @@ class LogController extends FeatureController {
 
     if (!_matchesAllTerms(
       log.lowercaseSearchable,
-      _appliedRawTerms,
+      _appliedFilters.rawTerms,
       caseSensitive: false,
     )) {
       return false;
     }
 
-    if (_appliedPidTidTerms.any((query) => !_matchesPidTidFilter(log, query))) {
+    if (_appliedFilters.pidTidTerms.any((query) => !_matchesPidTidFilter(log, query))) {
       return false;
     }
 
-    if (!_matchesAllTerms(log.tag, _appliedTagTerms, caseSensitive: false)) {
+    if (!_matchesAllTerms(log.tag, _appliedFilters.tagTerms, caseSensitive: false)) {
       return false;
     }
 
     if (!_matchesAllTerms(
       log.message,
-      _appliedMessageTerms,
+      _appliedFilters.messageTerms,
       caseSensitive: false,
     )) {
       return false;
@@ -990,11 +904,11 @@ class LogController extends FeatureController {
       isIos: isIosLogContext,
     );
     return effectiveSelectedLogLevel.hierarchy < defaultLevel.hierarchy ||
-        _appliedMessageTerms.isNotEmpty ||
-        _appliedRawTerms.isNotEmpty ||
-        _appliedPackageTerms.isNotEmpty ||
-        _appliedPidTidTerms.isNotEmpty ||
-        _appliedTagTerms.isNotEmpty;
+        _appliedFilters.messageTerms.isNotEmpty ||
+        _appliedFilters.rawTerms.isNotEmpty ||
+        _appliedFilters.packageTerms.isNotEmpty ||
+        _appliedFilters.pidTidTerms.isNotEmpty ||
+        _appliedFilters.tagTerms.isNotEmpty;
   }
 
   LogFilter<LogEntry>? get _retentionFilter =>
@@ -1596,6 +1510,99 @@ class LogController extends FeatureController {
     logLinesController.dispose();
     super.dispose();
   }
+}
+
+// -- Filter helpers
+
+/// In-memory, per-field history of recently applied filter values, offered as
+/// autocomplete suggestions. Never persisted to disk.
+class RecentFilterValues {
+  RecentFilterValues({this.maxPerField = 8});
+
+  /// Maximum values retained per field.
+  final int maxPerField;
+
+  final List<String> _message = [];
+  final List<String> _package = [];
+  final List<String> _pidTid = [];
+  final List<String> _tag = [];
+
+  List<String> get message => _message;
+  List<String> get package => _package;
+  List<String> get pidTid => _pidTid;
+  List<String> get tag => _tag;
+
+  /// Records the applied [filters]' per-field terms as the most recent values.
+  void rememberFrom(LogFilters filters) {
+    for (final value in filters.messageTerms) {
+      _addRecentValue(_message, value, maxPerField);
+    }
+    for (final value in filters.packageTerms) {
+      _addRecentValue(_package, value, maxPerField);
+    }
+    for (final value in filters.pidTidTerms) {
+      _addRecentValue(_pidTid, value, maxPerField);
+    }
+    for (final value in filters.tagTerms) {
+      _addRecentValue(_tag, value, maxPerField);
+    }
+  }
+}
+
+/// Inserts [value] at the front of [recents] (case-insensitively de-duplicated),
+/// capping the list at [max]. Blank values are ignored.
+void _addRecentValue(List<String> recents, String value, int max) {
+  final normalized = value.trim();
+  if (normalized.isEmpty) return;
+
+  recents.removeWhere(
+    (existing) => existing.toLowerCase() == normalized.toLowerCase(),
+  );
+  recents.insert(0, normalized);
+
+  if (recents.length > max) {
+    recents.removeRange(max, recents.length);
+  }
+}
+
+/// The package/process name used for package filtering + known-package
+/// suggestions. Prefers the package name, falling back to the process name.
+String _packageFilterValue(LogEntry log) {
+  final packageName = log.packageName?.trim();
+  if (packageName != null && packageName.isNotEmpty) return packageName;
+
+  final processName = log.processName?.trim();
+  if (processName != null && processName.isNotEmpty) return processName;
+
+  return '';
+}
+
+/// True when every term in [terms] is contained in [candidate]. An empty
+/// [terms] matches everything.
+bool _matchesAllTerms(
+  String candidate,
+  List<String> terms, {
+  required bool caseSensitive,
+}) {
+  if (terms.isEmpty) return true;
+  final normalizedCandidate = caseSensitive
+      ? candidate
+      : candidate.toLowerCase();
+  return terms.every((term) {
+    final normalizedTerm = caseSensitive ? term : term.toLowerCase();
+    return normalizedCandidate.contains(normalizedTerm);
+  });
+}
+
+/// True when [query] matches the log's pid, tid, or a `pid/tid` / `pid:tid`
+/// pair.
+bool _matchesPidTidFilter(LogEntry log, String query) {
+  final pid = log.pid.toLowerCase();
+  final tid = log.tid.toLowerCase();
+  return pid.contains(query) ||
+      tid.contains(query) ||
+      '$pid/$tid'.contains(query) ||
+      '$pid:$tid'.contains(query);
 }
 
 // -- Log Entry utils

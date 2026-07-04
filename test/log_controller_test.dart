@@ -1,6 +1,7 @@
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/logs/data/models/log_column.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
+import 'package:eagly/features/logs/data/models/log_filters.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/features/logs/data/models/log_tab_settings.dart';
 import 'package:eagly/features/logs/presentation/models/log_view_mode.dart';
@@ -13,6 +14,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/session_test_support.dart';
+
+/// Applies inline filter syntax the way the inline bar would: parse the text
+/// into a [LogFilters] configuration, then apply it.
+void applyInlineFilter(LogController log, String text) {
+  log.applyFilters(
+    LogFilters.parse(
+      text,
+      fallbackLevel: log.selectedLogLevel,
+      isIosLogContext: log.isIosLogContext,
+    ),
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -331,11 +344,15 @@ void main() {
         ),
       ];
 
-      log.onSearchChanged('signed in');
-      log.onPackageFilterChanged('example.auth');
-      log.onPidTidFilterChanged('101/202');
-      log.onTagFilterChanged('auth');
-      log.applyFiltersNow();
+      log.applyFilters(
+        LogFilters.fromFields(
+          level: log.selectedLogLevel,
+          message: 'signed in',
+          package: 'example.auth',
+          pidTid: '101/202',
+          tag: 'auth',
+        ),
+      );
 
       expect(log.filteredLogs, hasLength(1));
       expect(log.filteredLogs.single.pid, '101');
@@ -361,13 +378,15 @@ void main() {
         ),
       ];
 
-      log.onSearchChanged('needle');
-      log.applyFiltersNow();
+      log.applyFilters(
+        LogFilters.fromFields(level: log.selectedLogLevel, message: 'needle'),
+      );
       expect(log.filteredLogs, isEmpty);
 
       log.clearFilter();
-      log.onTagFilterChanged('needle');
-      log.applyFiltersNow();
+      log.applyFilters(
+        LogFilters.fromFields(level: log.selectedLogLevel, tag: 'needle'),
+      );
       expect(log.filteredLogs, hasLength(1));
     },
   );
@@ -377,24 +396,32 @@ void main() {
     () async {
       final log = createLog();
 
-      log.onSearchChanged('First message');
-      log.onPackageFilterChanged('com.example.app');
-      log.onPidTidFilterChanged('123:456');
-      log.onTagFilterChanged('Auth');
-      log.applyFiltersNow();
+      log.applyFilters(
+        LogFilters.fromFields(
+          level: log.selectedLogLevel,
+          message: 'First message',
+          package: 'com.example.app',
+          pidTid: '123:456',
+          tag: 'Auth',
+        ),
+      );
 
-      log.onSearchChanged('second message');
-      log.onPackageFilterChanged('com.example.app');
-      log.onPidTidFilterChanged('123:456');
-      log.onTagFilterChanged('auth');
-      log.applyFiltersNow();
+      log.applyFilters(
+        LogFilters.fromFields(
+          level: log.selectedLogLevel,
+          message: 'second message',
+          package: 'com.example.app',
+          pidTid: '123:456',
+          tag: 'auth',
+        ),
+      );
 
       await Future<void>.delayed(const Duration(milliseconds: 1100));
 
-      expect(log.recentMessageFilters, ['second message']);
-      expect(log.recentPackageFilters, ['com.example.app']);
-      expect(log.recentPidTidFilters, ['123:456']);
-      expect(log.recentTagFilters, ['auth']);
+      expect(log.recentFilters.message, ['second message']);
+      expect(log.recentFilters.package, ['com.example.app']);
+      expect(log.recentFilters.pidTid, ['123:456']);
+      expect(log.recentFilters.tag, ['auth']);
     },
   );
 
@@ -426,10 +453,10 @@ void main() {
         ),
       ];
 
-      log.onInlineFilterChanged(
+      applyInlineFilter(
+        log,
         'package:com.example.auth tag:Auth pid:101/202 level:error "signed in"',
       );
-      log.applyFiltersNow();
 
       expect(log.selectedLogLevel, LogLevel.error);
       expect(log.filteredLogs, hasLength(1));
@@ -467,14 +494,14 @@ void main() {
       ),
     ];
 
-    log.onInlineFilterChanged(
+    applyInlineFilter(
+      log,
       'message:"background sync" message:worker tag:SyncWorker',
     );
-    log.applyFiltersNow();
 
     expect(log.filteredLogs, hasLength(1));
     expect(log.filteredLogs.single.message, contains('worker'));
-    expect(log.recentMessageFilters, isEmpty);
+    expect(log.recentFilters.message, isEmpty);
   });
 
   test(
@@ -505,14 +532,12 @@ void main() {
         ),
       ];
 
-      log.onInlineFilterChanged('AuthService');
-      log.applyFiltersNow();
+      applyInlineFilter(log, 'AuthService');
 
       expect(log.filteredLogs, hasLength(1));
       expect(log.filteredLogs.single.tag, 'AuthService');
 
-      log.onInlineFilterChanged('com.example.sync');
-      log.applyFiltersNow();
+      applyInlineFilter(log, 'com.example.sync');
 
       expect(log.filteredLogs, hasLength(1));
       expect(log.filteredLogs.single.packageName, 'com.example.sync');
@@ -534,8 +559,9 @@ void main() {
     () async {
       final log = createLog(settings: testSettings(logLinesLimit: 3));
 
-      log.onSearchChanged('keep');
-      log.applyFiltersNow();
+      log.applyFilters(
+        LogFilters.fromFields(level: log.selectedLogLevel, message: 'keep'),
+      );
       await log.startLogcat();
 
       for (final (index, message) in [
