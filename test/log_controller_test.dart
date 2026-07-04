@@ -359,6 +359,43 @@ void main() {
     },
   );
 
+  test('inline age filter keeps only entries within the max age', () {
+    final log = createLog();
+
+    String stamp(DateTime time) {
+      String two(int v) => v.toString().padLeft(2, '0');
+      final year = time.year.toString().padLeft(4, '0');
+      final millis = time.millisecond.toString().padLeft(3, '0');
+      return '$year-${two(time.month)}-${two(time.day)} '
+          '${two(time.hour)}:${two(time.minute)}:${two(time.second)}.$millis';
+    }
+
+    final now = DateTime.now();
+    log.logs = [
+      LogEntry(
+        timestamp: stamp(now.subtract(const Duration(hours: 3))),
+        pid: '101',
+        tid: '202',
+        level: 'I',
+        tag: 'AuthService',
+        message: 'Old entry',
+      ),
+      LogEntry(
+        timestamp: stamp(now.subtract(const Duration(minutes: 5))),
+        pid: '303',
+        tid: '404',
+        level: 'I',
+        tag: 'AuthService',
+        message: 'Recent entry',
+      ),
+    ];
+
+    applyInlineFilter(log, 'age:1h');
+
+    expect(log.filteredLogs, hasLength(1));
+    expect(log.filteredLogs.single.message, 'Recent entry');
+  });
+
   test(
     'message filter only matches the log message while tag filter is separate',
     () {

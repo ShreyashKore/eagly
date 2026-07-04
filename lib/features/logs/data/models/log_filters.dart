@@ -2,7 +2,7 @@ import 'package:eagly/features/logs/data/models/log_level.dart';
 
 enum LogFilterField { message, packageName, pidTid, tag }
 
-enum InlineFilterKey { message, packageName, pidTid, tag, level }
+enum InlineFilterKey { message, packageName, pidTid, tag, level, age }
 
 class LogFilters {
   const LogFilters({
@@ -16,6 +16,7 @@ class LogFilters {
     required this.pidTidTerms,
     required this.tagTerms,
     required this.level,
+    this.maxAge,
   });
 
   final String messageText;
@@ -29,6 +30,10 @@ class LogFilters {
   final List<String> tagTerms;
   final LogLevel level;
 
+  /// When set, only entries whose timestamp is no older than this duration
+  /// (relative to now) match. Parsed from the inline `age:` key (e.g. `1h`).
+  final Duration? maxAge;
+
   /// An empty filter that only constrains by [level].
   factory LogFilters.empty(LogLevel level) => LogFilters(
     messageText: '',
@@ -41,6 +46,7 @@ class LogFilters {
     pidTidTerms: const [],
     tagTerms: const [],
     level: level,
+    maxAge: null,
   );
 
   /// Builds a filter from discrete classic-field values. Each field contributes
@@ -52,6 +58,7 @@ class LogFilters {
     String package = '',
     String pidTid = '',
     String tag = '',
+    Duration? maxAge,
   }) {
     List<String> single(String value) {
       final trimmed = value.trim();
@@ -69,6 +76,7 @@ class LogFilters {
       pidTidTerms: single(pidTid),
       tagTerms: single(tag),
       level: level,
+      maxAge: maxAge,
     );
   }
 
@@ -83,6 +91,7 @@ class LogFilters {
     pidTidTerms: pidTidTerms,
     tagTerms: tagTerms,
     level: level ?? this.level,
+    maxAge: maxAge,
   );
 
   static LogFilters parse(
@@ -105,10 +114,14 @@ class LogFilters {
     String pidTid = '',
     String tag = '',
     String message = '',
+    Duration? maxAge,
   }) {
     final tokens = <String>[];
     if (level != defaultLevel) {
       tokens.add(_composeToken('level', level.code));
+    }
+    if (maxAge != null) {
+      tokens.add(_composeToken('age', formatMaxAge(maxAge)));
     }
     if (package.trim().isNotEmpty) {
       tokens.add(_composeToken('package', package));
@@ -124,6 +137,53 @@ class LogFilters {
     }
     return tokens.where((token) => token.isNotEmpty).join(' ');
   }
+}
+
+/// Parses a human "max age" string into a [Duration]. Accepts a single unit
+/// (`30s`, `15m`, `2h`, `1d`) or a compound of them (`1h30m`). Units are
+/// s(econds), m(inutes), h(ours), d(ays); whitespace between groups is allowed.
+/// Returns null when [value] has no recognizable component or resolves to zero.
+Duration? parseMaxAge(String value) {
+  final trimmed = value.trim().toLowerCase();
+  if (trimmed.isEmpty) return null;
+  if (!RegExp(r'^(?:\d+\s*[smhd]\s*)+$').hasMatch(trimmed)) return null;
+
+  var total = Duration.zero;
+  for (final match in RegExp(r'(\d+)\s*([smhd])').allMatches(trimmed)) {
+    final amount = int.parse(match.group(1)!);
+    total += switch (match.group(2)!) {
+      's' => Duration(seconds: amount),
+      'm' => Duration(minutes: amount),
+      'h' => Duration(hours: amount),
+      'd' => Duration(days: amount),
+      _ => Duration.zero,
+    };
+  }
+  return total == Duration.zero ? null : total;
+}
+
+/// Formats a [Duration] into the compact form understood by [parseMaxAge]
+/// (e.g. `1h30m`), the inverse of parsing. Zero-valued components are omitted.
+String formatMaxAge(Duration age) {
+  var remaining = age;
+  final parts = <String>[];
+
+  void take(int amount, String unit) {
+    if (amount > 0) parts.add('$amount$unit');
+  }
+
+  final days = remaining.inDays;
+  take(days, 'd');
+  remaining -= Duration(days: days);
+  final hours = remaining.inHours;
+  take(hours, 'h');
+  remaining -= Duration(hours: hours);
+  final minutes = remaining.inMinutes;
+  take(minutes, 'm');
+  remaining -= Duration(minutes: minutes);
+  take(remaining.inSeconds, 's');
+
+  return parts.isEmpty ? '0s' : parts.join();
 }
 
 String _composeToken(String key, String value) {
@@ -151,6 +211,7 @@ LogFilters _parseInlineFilters(
   final pidTidTerms = <String>[];
   final tagTerms = <String>[];
   var parsedLevel = fallbackLevel;
+  Duration? parsedMaxAge;
 
   for (final token in _tokenizeInlineFilterText(rawText)) {
     final trimmedToken = token.trim();
@@ -190,6 +251,9 @@ LogFilters _parseInlineFilters(
         parsedLevel = LogLevel.fromStored(
           value,
         ).normalizeSelectionForPlatform(isIos: isIosLogContext);
+      case InlineFilterKey.age:
+        final parsed = parseMaxAge(value);
+        if (parsed != null) parsedMaxAge = parsed;
     }
   }
 
@@ -205,6 +269,7 @@ LogFilters _parseInlineFilters(
     pidTidTerms: List.unmodifiable(pidTidTerms),
     tagTerms: List.unmodifiable(tagTerms),
     level: parsedLevel,
+    maxAge: parsedMaxAge,
   );
 }
 
@@ -215,6 +280,7 @@ InlineFilterKey? _canonicalInlineFilterKey(String rawKey) {
     'pid' || 'tid' || 'thread' || 'pidtid' => InlineFilterKey.pidTid,
     'tag' || 'category' => InlineFilterKey.tag,
     'level' || 'lvl' || 'priority' => InlineFilterKey.level,
+    'age' || 'maxage' || 'since' => InlineFilterKey.age,
     _ => null,
   };
 }

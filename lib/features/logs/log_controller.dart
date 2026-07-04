@@ -1389,6 +1389,7 @@ class LogController extends FeatureController {
 extension on LogFilters {
   String get signature => [
     level.code,
+    'a:${maxAge?.inMilliseconds ?? ''}',
     'm:${messageTerms.join('')}',
     'r:${rawTerms.join('')}',
     'p:${packageTerms.join('')}',
@@ -1405,6 +1406,7 @@ extension on LogFilters {
         rawTerms.isNotEmpty ||
         packageTerms.isNotEmpty ||
         pidTidTerms.isNotEmpty ||
-        tagTerms.isNotEmpty;
+        tagTerms.isNotEmpty ||
+        maxAge != null;
   }
 }

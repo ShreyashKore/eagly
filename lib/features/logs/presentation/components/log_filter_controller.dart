@@ -204,6 +204,9 @@ class ClassicFilterController extends LogFilterController {
     package: packageController.text,
     pidTid: pidTidController.text,
     tag: tagController.text,
+    // The classic bar has no age field, so carry the inline-set age through
+    // rather than dropping it when the user edits a classic field.
+    maxAge: state.maxAge,
   );
 
   void _setText(TextEditingController controller, String value) {
@@ -305,6 +308,7 @@ class InlineFilterController extends LogFilterController {
     pidTid: state.pidTidText,
     tag: state.tagText,
     message: state.messageText,
+    maxAge: state.maxAge,
   );
 
   /// Programmatic text input (tests / external callers). Debounced emit.
@@ -388,6 +392,9 @@ class InlineFilterTextController extends TextEditingController {
     'level',
     'lvl',
     'priority',
+    'age',
+    'maxage',
+    'since',
   };
 
   static bool isKnownKeyValueToken(String token) {
