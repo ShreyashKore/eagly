@@ -38,6 +38,50 @@ class LogFilters {
     fallbackLevel: fallbackLevel,
     isIosLogContext: isIosLogContext,
   );
+
+  /// Serializes discrete filter fields into inline `key:value` syntax, the
+  /// inverse of [parse]. The `level` token is emitted only when it differs from
+  /// [defaultLevel]; blank fields are skipped.
+  static String compose({
+    required LogLevel level,
+    required LogLevel defaultLevel,
+    String package = '',
+    String pidTid = '',
+    String tag = '',
+    String message = '',
+  }) {
+    final tokens = <String>[];
+    if (level != defaultLevel) {
+      tokens.add(_composeToken('level', level.code));
+    }
+    if (package.trim().isNotEmpty) {
+      tokens.add(_composeToken('package', package));
+    }
+    if (pidTid.trim().isNotEmpty) {
+      tokens.add(_composeToken('pid', pidTid));
+    }
+    if (tag.trim().isNotEmpty) {
+      tokens.add(_composeToken('tag', tag));
+    }
+    if (message.trim().isNotEmpty) {
+      tokens.add(_composeToken('message', message));
+    }
+    return tokens.where((token) => token.isNotEmpty).join(' ');
+  }
+}
+
+String _composeToken(String key, String value) {
+  final normalized = value.trim();
+  if (normalized.isEmpty) return '';
+
+  final needsQuotes =
+      normalized.contains(RegExp(r'\s')) || normalized.contains('"');
+  if (!needsQuotes) {
+    return '$key:$normalized';
+  }
+
+  final escaped = normalized.replaceAll('"', r'\"');
+  return '$key:"$escaped"';
 }
 
 LogFilters _parseInlineFilters(

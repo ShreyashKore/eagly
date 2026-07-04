@@ -244,23 +244,13 @@ class _LogFeatureViewState extends State<LogFeatureView> {
               child: isInline
                   ? InlineFilterBar(
                       key: const ValueKey('inline-filter-bar'),
-                      controller: controller.inlineFilterController,
-                      focusNode: controller.inlineFilterFocusNode,
-                      onChanged: controller.onInlineFilterChanged,
-                      onSubmitted: controller.applyFiltersNow,
-                      onSuggestionApplied: controller.setInlineFilterText,
+                      controller: controller.inlineFilter,
                       selectedLogLevel: controller.selectedLogLevel,
                       onLogLevelChanged: (level) {
                         if (level != null) {
                           controller.setSelectedLogLevel(level);
                         }
                       },
-                      recentMessageFilters: controller.recentMessageFilters,
-                      recentPackageFilters: controller.recentPackageFilters,
-                      knownPackageFilters: controller.knownInlinePackageFilters,
-                      recentPidTidFilters: controller.recentPidTidFilters,
-                      recentTagFilters: controller.recentTagFilters,
-                      isIos: controller.isIosLogContext,
                     )
                   : ClassicFilterBar(
                       key: const ValueKey('classic-filter-bar'),

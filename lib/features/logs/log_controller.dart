@@ -18,7 +18,7 @@ import '../../session/feature_controller.dart';
 import '../../utils/log_buffer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/text_search_pattern.dart';
-import 'presentation/components/inline_filter_bar.dart';
+import 'presentation/components/inline_filter_controller.dart';
 
 enum LogcatState { stopped, running, paused }
 
@@ -59,7 +59,18 @@ class LogController extends FeatureController {
     packageFilterController.text = packageFilterQuery;
     pidTidFilterController.text = pidTidFilterQuery;
     tagFilterController.text = tagFilterQuery;
-    inlineFilterController.text = _composeInlineFilterText();
+    inlineFilter = InlineFilterController(
+      isIos: isIosLogContext,
+      initialText: _composeInlineFilterText(),
+      onConfigChanged: _onInlineConfigChanged,
+      sources: InlineFilterSuggestionSources(
+        recentMessageFilters: () => _recentMessageFilters,
+        recentPackageFilters: () => _recentPackageFilters,
+        knownPackageFilters: () => knownInlinePackageFilters,
+        recentPidTidFilters: () => _recentPidTidFilters,
+        recentTagFilters: () => _recentTagFilters,
+      ),
+    );
     logLinesController.text = logLinesLimit.toString();
     _syncLogBufferFilter();
   }
@@ -84,9 +95,11 @@ class LogController extends FeatureController {
   final FocusNode pidTidFilterFocusNode = FocusNode();
   final TextEditingController tagFilterController = TextEditingController();
   final FocusNode tagFilterFocusNode = FocusNode();
-  final InlineFilterTextController inlineFilterController =
-      InlineFilterTextController();
-  final FocusNode inlineFilterFocusNode = FocusNode();
+
+  /// Owns the inline filter field's text controller, focus, and suggestion
+  /// wiring. Emits parsed configurations back through [_onInlineConfigChanged].
+  late final InlineFilterController inlineFilter;
+
   final TextEditingController searchController = TextEditingController();
   final FocusNode searchFocusNode = FocusNode();
   final TextEditingController logLinesController = TextEditingController();
@@ -107,8 +120,6 @@ class LogController extends FeatureController {
   var packageFilterQuery = '';
   var pidTidFilterQuery = '';
   var tagFilterQuery = '';
-
-  var _inlineFilterText = '';
 
   final List<String> _recentMessageFilters = [];
   final List<String> _recentPackageFilters = [];
@@ -300,11 +311,11 @@ class LogController extends FeatureController {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_disposed) return;
       final focusNode = switch (filterViewMode) {
-        LogFilterViewMode.inline => inlineFilterFocusNode,
+        LogFilterViewMode.inline => inlineFilter.focusNode,
         LogFilterViewMode.classic => filterFocusNode,
       };
       final textController = switch (filterViewMode) {
-        LogFilterViewMode.inline => inlineFilterController,
+        LogFilterViewMode.inline => inlineFilter.textController,
         LogFilterViewMode.classic => filterController,
       };
       focusNode.requestFocus();
@@ -532,8 +543,7 @@ class LogController extends FeatureController {
     packageFilterController.clear();
     pidTidFilterController.clear();
     tagFilterController.clear();
-    inlineFilterController.clear();
-    _inlineFilterText = '';
+    inlineFilter.setTextExternally('');
     searchQuery = '';
     packageFilterQuery = '';
     pidTidFilterQuery = '';
@@ -550,39 +560,10 @@ class LogController extends FeatureController {
     _notify();
   }
 
+  /// Programmatic entry point for driving the inline field (tests and external
+  /// callers). Interactive edits flow through [InlineFilterController] directly.
   void onInlineFilterChanged(String value) {
-    _inlineFilterText = value;
-    if (inlineFilterController.text != value) {
-      inlineFilterController.value = TextEditingValue(
-        text: value,
-        selection: TextSelection.collapsed(offset: value.length),
-      );
-    }
-
-    _notify();
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      if (_disposed) return;
-      _applyInlineFilters();
-    });
-  }
-
-  void setInlineFilterText(
-    String value, {
-    TextSelection? selection,
-    bool applyImmediately = false,
-  }) {
-    _inlineFilterText = value;
-    inlineFilterController.value = TextEditingValue(
-      text: value,
-      selection: selection ?? TextSelection.collapsed(offset: value.length),
-    );
-    if (applyImmediately) {
-      _debounceTimer?.cancel();
-      _applyInlineFilters();
-      return;
-    }
-    _notify();
+    inlineFilter.setTextFromInput(value);
   }
 
   void onSearchChanged(String value) {
@@ -623,7 +604,7 @@ class LogController extends FeatureController {
       case LogFilterViewMode.classic:
         _applyTextFilters();
       case LogFilterViewMode.inline:
-        _applyInlineFilters();
+        inlineFilter.applyNow();
     }
   }
 
@@ -966,14 +947,9 @@ class LogController extends FeatureController {
     _applyParsedFilters(_parsedFiltersFromClassicInputs());
   }
 
-  void _applyInlineFilters() {
-    final parsedFilters = LogFilters.parse(
-      _inlineFilterText,
-      fallbackLevel: LogLevel.defaultSelectionForPlatform(
-        isIos: isIosLogContext,
-      ),
-      isIosLogContext: isIosLogContext,
-    );
+  /// Applies a configuration emitted by [inlineFilter]. Mirrors the parsed
+  /// values into the classic fields so the two views stay consistent.
+  void _onInlineConfigChanged(LogFilters parsedFilters) {
     _applyInlineDraftFilters(parsedFilters);
     _applyParsedFilters(parsedFilters);
   }
@@ -1076,52 +1052,21 @@ class LogController extends FeatureController {
     return normalized.isEmpty ? const [] : [normalized];
   }
 
+  /// Pushes the classic-field filter state into the inline field so switching
+  /// views (or editing one surface) keeps both consistent. Does not re-emit a
+  /// config — the inline controller treats this as an external update.
   void _syncInlineFilterText() {
-    final nextValue = _composeInlineFilterText();
-    _inlineFilterText = nextValue;
-    if (inlineFilterController.text == nextValue) return;
-    inlineFilterController.value = TextEditingValue(
-      text: nextValue,
-      selection: TextSelection.collapsed(offset: nextValue.length),
-    );
+    inlineFilter.setTextExternally(_composeInlineFilterText());
   }
 
-  String _composeInlineFilterText() {
-    final tokens = <String>[];
-    final defaultLevel = LogLevel.defaultSelectionForPlatform(
-      isIos: isIosLogContext,
-    );
-    if (selectedLogLevel != defaultLevel) {
-      tokens.add(_serializeInlineToken('level', selectedLogLevel.code));
-    }
-    if (packageFilterQuery.trim().isNotEmpty) {
-      tokens.add(_serializeInlineToken('package', packageFilterQuery.trim()));
-    }
-    if (pidTidFilterQuery.trim().isNotEmpty) {
-      tokens.add(_serializeInlineToken('pid', pidTidFilterQuery.trim()));
-    }
-    if (tagFilterQuery.trim().isNotEmpty) {
-      tokens.add(_serializeInlineToken('tag', tagFilterQuery.trim()));
-    }
-    if (searchQuery.trim().isNotEmpty) {
-      tokens.add(_serializeInlineToken('message', searchQuery.trim()));
-    }
-    return tokens.join(' ');
-  }
-
-  String _serializeInlineToken(String key, String value) {
-    final normalized = value.trim();
-    if (normalized.isEmpty) return '';
-
-    final needsQuotes =
-        normalized.contains(RegExp(r'\s')) || normalized.contains('"');
-    if (!needsQuotes) {
-      return '$key:$normalized';
-    }
-
-    final escaped = normalized.replaceAll('"', r'\"');
-    return '$key:"$escaped"';
-  }
+  String _composeInlineFilterText() => LogFilters.compose(
+    level: selectedLogLevel,
+    defaultLevel: LogLevel.defaultSelectionForPlatform(isIos: isIosLogContext),
+    package: packageFilterQuery,
+    pidTid: pidTidFilterQuery,
+    tag: tagFilterQuery,
+    message: searchQuery,
+  );
 
   bool _matchesAllTerms(
     String candidate,
@@ -1820,8 +1765,7 @@ class LogController extends FeatureController {
     pidTidFilterFocusNode.dispose();
     tagFilterController.dispose();
     tagFilterFocusNode.dispose();
-    inlineFilterController.dispose();
-    inlineFilterFocusNode.dispose();
+    inlineFilter.dispose();
     searchController.dispose();
     searchFocusNode.dispose();
     logLinesController.dispose();
