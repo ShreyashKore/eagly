@@ -434,10 +434,10 @@ void main() {
       expect(log.selectedLogLevel, LogLevel.error);
       expect(log.filteredLogs, hasLength(1));
       expect(log.filteredLogs.single.level, 'E');
-      expect(log.filterController.text, 'signed in');
-      expect(log.packageFilterController.text, 'com.example.auth');
-      expect(log.tagFilterController.text, 'Auth');
-      expect(log.pidTidFilterController.text, '101/202');
+      expect(log.classicFilter.messageController.text, 'signed in');
+      expect(log.classicFilter.packageController.text, 'com.example.auth');
+      expect(log.classicFilter.tagController.text, 'Auth');
+      expect(log.classicFilter.pidTidController.text, '101/202');
     },
   );
 

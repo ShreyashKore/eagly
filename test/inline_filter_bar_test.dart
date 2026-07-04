@@ -21,13 +21,14 @@ void main() {
       'com.example.auth',
       'com.example.billing',
     ],
-    ValueChanged<LogFilters>? onConfigChanged,
+    ValueChanged<LogFilters>? onStateChanged,
   }) {
     return InlineFilterController(
+      initialState: LogFilters.empty(LogLevel.verbose),
       isIos: isIos,
       initialText: initialText,
-      onConfigChanged: onConfigChanged ?? (_) {},
-      sources: InlineFilterSuggestionSources(
+      onStateChanged: onStateChanged ?? (_) {},
+      suggestions: LogFilterSuggestions(
         recentMessageFilters: () => const ['signed in'],
         recentPackageFilters: () => const ['com.example.auth'],
         knownPackageFilters: () => knownPackageFilters,
@@ -40,30 +41,16 @@ void main() {
   Future<void> pumpInlineFilterBar(
     WidgetTester tester, {
     required InlineFilterController controller,
-    LogLevel selectedLogLevel = LogLevel.verbose,
-    ValueChanged<LogLevel>? onLogLevelChanged,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
-        home: StatefulBuilder(
-          builder: (context, setState) {
-            return Scaffold(
-              body: SizedBox(
-                width: 900,
-                child: InlineFilterBar(
-                  controller: controller,
-                  selectedLogLevel: selectedLogLevel,
-                  onLogLevelChanged: (level) {
-                    if (level == null) return;
-                    setState(() => selectedLogLevel = level);
-                    onLogLevelChanged?.call(level);
-                  },
-                ),
-              ),
-            );
-          },
+        home: Scaffold(
+          body: SizedBox(
+            width: 900,
+            child: InlineFilterBar(controller: controller),
+          ),
         ),
       ),
     );
@@ -99,15 +86,13 @@ void main() {
   testWidgets('shows a dedicated inline level dropdown and notifies changes', (
     WidgetTester tester,
   ) async {
-    final controller = buildController();
-    LogLevel? selectedLevel;
+    LogLevel? emittedLevel;
+    final controller = buildController(
+      onStateChanged: (state) => emittedLevel = state.level,
+    );
     addTearDown(controller.dispose);
 
-    await pumpInlineFilterBar(
-      tester,
-      controller: controller,
-      onLogLevelChanged: (level) => selectedLevel = level,
-    );
+    await pumpInlineFilterBar(tester, controller: controller);
 
     expect(find.text('Level'), findsOneWidget);
     expect(find.byType(DropdownButtonFormField<LogLevel>), findsOneWidget);
@@ -117,7 +102,8 @@ void main() {
     await tester.tap(find.text('Error (E)').last);
     await tester.pumpAndSettle();
 
-    expect(selectedLevel, LogLevel.error);
+    expect(controller.selectedLevel, LogLevel.error);
+    expect(emittedLevel, LogLevel.error);
   });
 
   testWidgets(

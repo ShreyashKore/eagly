@@ -29,6 +29,62 @@ class LogFilters {
   final List<String> tagTerms;
   final LogLevel level;
 
+  /// An empty filter that only constrains by [level].
+  factory LogFilters.empty(LogLevel level) => LogFilters(
+    messageText: '',
+    packageText: '',
+    pidTidText: '',
+    tagText: '',
+    messageTerms: const [],
+    rawTerms: const [],
+    packageTerms: const [],
+    pidTidTerms: const [],
+    tagTerms: const [],
+    level: level,
+  );
+
+  /// Builds a filter from discrete classic-field values. Each field contributes
+  /// a single (trimmed) term; the message field filters the message column only
+  /// (no [rawTerms]).
+  factory LogFilters.fromFields({
+    required LogLevel level,
+    String message = '',
+    String package = '',
+    String pidTid = '',
+    String tag = '',
+  }) {
+    List<String> single(String value) {
+      final trimmed = value.trim();
+      return trimmed.isEmpty ? const [] : [trimmed];
+    }
+
+    return LogFilters(
+      messageText: message.trim(),
+      packageText: package.trim(),
+      pidTidText: pidTid.trim(),
+      tagText: tag.trim(),
+      messageTerms: single(message),
+      rawTerms: const [],
+      packageTerms: single(package),
+      pidTidTerms: single(pidTid),
+      tagTerms: single(tag),
+      level: level,
+    );
+  }
+
+  LogFilters copyWith({LogLevel? level}) => LogFilters(
+    messageText: messageText,
+    packageText: packageText,
+    pidTidText: pidTidText,
+    tagText: tagText,
+    messageTerms: messageTerms,
+    rawTerms: rawTerms,
+    packageTerms: packageTerms,
+    pidTidTerms: pidTidTerms,
+    tagTerms: tagTerms,
+    level: level ?? this.level,
+  );
+
   static LogFilters parse(
     String rawText, {
     required LogLevel fallbackLevel,

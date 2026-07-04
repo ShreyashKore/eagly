@@ -18,7 +18,7 @@ import '../../session/feature_controller.dart';
 import '../../utils/log_buffer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/text_search_pattern.dart';
-import 'presentation/components/inline_filter_controller.dart';
+import 'presentation/components/log_filter_controller.dart';
 
 enum LogcatState { stopped, running, paused }
 
@@ -55,21 +55,26 @@ class LogController extends FeatureController {
       _logsBuffer = LogBuffer<LogEntry>(
         baseCapacity: initialSettings.logLinesLimit,
       ) {
-    filterController.text = searchQuery;
-    packageFilterController.text = packageFilterQuery;
-    pidTidFilterController.text = pidTidFilterQuery;
-    tagFilterController.text = tagFilterQuery;
-    inlineFilter = InlineFilterController(
+    final initialState = LogFilters.empty(selectedLogLevel);
+    final suggestions = LogFilterSuggestions(
+      recentMessageFilters: () => _recentMessageFilters,
+      recentPackageFilters: () => _recentPackageFilters,
+      knownPackageFilters: () => knownInlinePackageFilters,
+      recentPidTidFilters: () => _recentPidTidFilters,
+      recentTagFilters: () => _recentTagFilters,
+    );
+    classicFilter = ClassicFilterController(
+      initialState: initialState,
+      suggestions: suggestions,
+      onStateChanged: (state) =>
+          _applyFilterState(state, source: classicFilter),
       isIos: isIosLogContext,
-      initialText: _composeInlineFilterText(),
-      onConfigChanged: _onInlineConfigChanged,
-      sources: InlineFilterSuggestionSources(
-        recentMessageFilters: () => _recentMessageFilters,
-        recentPackageFilters: () => _recentPackageFilters,
-        knownPackageFilters: () => knownInlinePackageFilters,
-        recentPidTidFilters: () => _recentPidTidFilters,
-        recentTagFilters: () => _recentTagFilters,
-      ),
+    );
+    inlineFilter = InlineFilterController(
+      initialState: initialState,
+      suggestions: suggestions,
+      onStateChanged: (state) => _applyFilterState(state, source: inlineFilter),
+      isIos: isIosLogContext,
     );
     logLinesController.text = logLinesLimit.toString();
     _syncLogBufferFilter();
@@ -87,17 +92,12 @@ class LogController extends FeatureController {
   }
 
   final ScrollController scrollController = ScrollController();
-  final TextEditingController filterController = TextEditingController();
-  final FocusNode filterFocusNode = FocusNode();
-  final TextEditingController packageFilterController = TextEditingController();
-  final FocusNode packageFilterFocusNode = FocusNode();
-  final TextEditingController pidTidFilterController = TextEditingController();
-  final FocusNode pidTidFilterFocusNode = FocusNode();
-  final TextEditingController tagFilterController = TextEditingController();
-  final FocusNode tagFilterFocusNode = FocusNode();
 
-  /// Owns the inline filter field's text controller, focus, and suggestion
-  /// wiring. Emits parsed configurations back through [_onInlineConfigChanged].
+  /// The two filter bars are each fully owned by their own controller (text
+  /// controllers, focus nodes, debounce). Both emit updated [LogFilters] state
+  /// through [_applyFilterState]; the sibling is kept in sync so switching modes
+  /// preserves the filter.
+  late final ClassicFilterController classicFilter;
   late final InlineFilterController inlineFilter;
 
   final TextEditingController searchController = TextEditingController();
@@ -109,17 +109,12 @@ class LogController extends FeatureController {
 
   StreamSubscription<LogEntry>? _logSub;
   Timer? _flushTimer;
-  Timer? _debounceTimer;
   Timer? _filterSaveDebounceTimer;
   Timer? _inlineSearchDebounce;
   Timer? _watchdogTimer;
   Timer? _recoveryTimer;
 
   var logcatState = LogcatState.stopped;
-  var searchQuery = '';
-  var packageFilterQuery = '';
-  var pidTidFilterQuery = '';
-  var tagFilterQuery = '';
 
   final List<String> _recentMessageFilters = [];
   final List<String> _recentPackageFilters = [];
@@ -307,22 +302,15 @@ class LogController extends FeatureController {
     _notify();
   }
 
+  LogFilterController get _activeFilterController => switch (filterViewMode) {
+    LogFilterViewMode.inline => inlineFilter,
+    LogFilterViewMode.classic => classicFilter,
+  };
+
   void focusFilterInputs() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_disposed) return;
-      final focusNode = switch (filterViewMode) {
-        LogFilterViewMode.inline => inlineFilter.focusNode,
-        LogFilterViewMode.classic => filterFocusNode,
-      };
-      final textController = switch (filterViewMode) {
-        LogFilterViewMode.inline => inlineFilter.textController,
-        LogFilterViewMode.classic => filterController,
-      };
-      focusNode.requestFocus();
-      textController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: textController.text.length,
-      );
+      _activeFilterController.focusPrimaryField();
     });
   }
 
@@ -533,21 +521,14 @@ class LogController extends FeatureController {
   }
 
   void clearFilter() {
-    _debounceTimer?.cancel();
     _filterSaveDebounceTimer?.cancel();
     clearSelectedRows(notify: false);
     final defaultLevel = LogLevel.defaultSelectionForPlatform(
       isIos: isIosLogContext,
     );
-    filterController.clear();
-    packageFilterController.clear();
-    pidTidFilterController.clear();
-    tagFilterController.clear();
-    inlineFilter.setTextExternally('');
-    searchQuery = '';
-    packageFilterQuery = '';
-    pidTidFilterQuery = '';
-    tagFilterQuery = '';
+    final cleared = LogFilters.empty(defaultLevel);
+    classicFilter.updateState(cleared);
+    inlineFilter.updateState(cleared);
     _settings = _settings.copyWith(selectedLogLevel: defaultLevel);
     _appliedMessageTerms = const [];
     _appliedRawTerms = const [];
@@ -566,58 +547,35 @@ class LogController extends FeatureController {
     inlineFilter.setTextFromInput(value);
   }
 
-  void onSearchChanged(String value) {
-    _setFilterField(LogFilterField.message, value);
-  }
+  /// Programmatic entry points for driving the classic fields (tests / external
+  /// callers). Interactive edits flow through [ClassicFilterController].
+  void onSearchChanged(String value) =>
+      classicFilter.setFieldFromInput(LogFilterField.message, value);
 
-  void onPackageFilterChanged(String value) {
-    _setFilterField(LogFilterField.packageName, value);
-  }
+  void onPackageFilterChanged(String value) =>
+      classicFilter.setFieldFromInput(LogFilterField.packageName, value);
 
-  void onPidTidFilterChanged(String value) {
-    _setFilterField(LogFilterField.pidTid, value);
-  }
+  void onPidTidFilterChanged(String value) =>
+      classicFilter.setFieldFromInput(LogFilterField.pidTid, value);
 
-  void onTagFilterChanged(String value) {
-    _setFilterField(LogFilterField.tag, value);
-  }
+  void onTagFilterChanged(String value) =>
+      classicFilter.setFieldFromInput(LogFilterField.tag, value);
 
-  void selectMessageFilterSuggestion(String value) {
-    _setFilterField(LogFilterField.message, value, applyImmediately: true);
-  }
+  void applyFiltersNow() => _activeFilterController.applyNow();
 
-  void selectPackageFilterSuggestion(String value) {
-    _setFilterField(LogFilterField.packageName, value, applyImmediately: true);
-  }
-
-  void selectPidTidFilterSuggestion(String value) {
-    _setFilterField(LogFilterField.pidTid, value, applyImmediately: true);
-  }
-
-  void selectTagFilterSuggestion(String value) {
-    _setFilterField(LogFilterField.tag, value, applyImmediately: true);
-  }
-
-  void applyFiltersNow() {
-    _debounceTimer?.cancel();
-    switch (filterViewMode) {
-      case LogFilterViewMode.classic:
-        _applyTextFilters();
-      case LogFilterViewMode.inline:
-        inlineFilter.applyNow();
-    }
-  }
-
-  void setSelectedLogLevel(LogLevel level) {
-    _updateSettings(_settings.copyWith(selectedLogLevel: level));
-    clearSelectedRows(notify: false);
-    _syncLogBufferFilter();
-    _invalidateFilteredLogs();
-    _syncInlineFilterText();
-  }
+  void setSelectedLogLevel(LogLevel level) =>
+      _activeFilterController.setLevel(level);
 
   void setFilterViewMode(LogFilterViewMode mode) {
     if (mode == filterViewMode) return;
+    // Carry the current (possibly un-applied) draft into the bar that is about
+    // to become visible so both surfaces show the same filter. This does not
+    // apply the filter — that still waits for submit / debounce.
+    final target = switch (mode) {
+      LogFilterViewMode.inline => inlineFilter,
+      LogFilterViewMode.classic => classicFilter,
+    };
+    target.updateState(_activeFilterController.state);
     _updateSettings(_settings.copyWith(filterViewMode: mode));
     focusFilterInputs();
   }
@@ -882,88 +840,28 @@ class LogController extends FeatureController {
     });
   }
 
-  void _setFilterField(
-    LogFilterField field,
-    String value, {
-    bool applyImmediately = false,
+  /// Applies filter state emitted by one of the filter controllers. Records the
+  /// applied terms/level, keeps the sibling controller in sync so switching
+  /// filter modes preserves the filter, and refreshes the filtered view.
+  void _applyFilterState(
+    LogFilters state, {
+    required LogFilterController source,
   }) {
-    final selection = TextSelection.collapsed(offset: value.length);
-
-    switch (field) {
-      case LogFilterField.message:
-        searchQuery = value;
-        if (filterController.text != value) {
-          filterController.value = TextEditingValue(
-            text: value,
-            selection: selection,
-          );
-        }
-        break;
-      case LogFilterField.packageName:
-        packageFilterQuery = value;
-        if (packageFilterController.text != value) {
-          packageFilterController.value = TextEditingValue(
-            text: value,
-            selection: selection,
-          );
-        }
-        break;
-      case LogFilterField.pidTid:
-        pidTidFilterQuery = value;
-        if (pidTidFilterController.text != value) {
-          pidTidFilterController.value = TextEditingValue(
-            text: value,
-            selection: selection,
-          );
-        }
-        break;
-      case LogFilterField.tag:
-        tagFilterQuery = value;
-        if (tagFilterController.text != value) {
-          tagFilterController.value = TextEditingValue(
-            text: value,
-            selection: selection,
-          );
-        }
-        break;
-    }
-
-    _syncInlineFilterText();
-
-    if (applyImmediately) {
-      _applyTextFilters();
-      return;
-    }
-
-    _notify();
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      if (_disposed) return;
-      _applyTextFilters();
-    });
-  }
-
-  void _applyTextFilters() {
-    _applyParsedFilters(_parsedFiltersFromClassicInputs());
-  }
-
-  /// Applies a configuration emitted by [inlineFilter]. Mirrors the parsed
-  /// values into the classic fields so the two views stay consistent.
-  void _onInlineConfigChanged(LogFilters parsedFilters) {
-    _applyInlineDraftFilters(parsedFilters);
-    _applyParsedFilters(parsedFilters);
-  }
-
-  void _applyParsedFilters(LogFilters parsedFilters) {
-    _appliedMessageTerms = parsedFilters.messageTerms;
-    _appliedRawTerms = parsedFilters.rawTerms;
-    _appliedPackageTerms = parsedFilters.packageTerms;
-    _appliedPidTidTerms = parsedFilters.pidTidTerms;
-    _appliedTagTerms = parsedFilters.tagTerms;
-    if (selectedLogLevel != parsedFilters.level) {
-      _settings = _settings.copyWith(selectedLogLevel: parsedFilters.level);
+    _appliedMessageTerms = state.messageTerms;
+    _appliedRawTerms = state.rawTerms;
+    _appliedPackageTerms = state.packageTerms;
+    _appliedPidTidTerms = state.pidTidTerms;
+    _appliedTagTerms = state.tagTerms;
+    if (selectedLogLevel != state.level) {
+      _settings = _settings.copyWith(selectedLogLevel: state.level);
     }
     clearSelectedRows(notify: false);
+
+    // Mirror into the other bar (the emitting one already holds this state).
+    final sibling = identical(source, inlineFilter)
+        ? classicFilter
+        : inlineFilter;
+    sibling.updateState(state);
 
     _filterSaveDebounceTimer?.cancel();
     _filterSaveDebounceTimer = Timer(const Duration(milliseconds: 1000), () {
@@ -1002,71 +900,6 @@ class LogController extends FeatureController {
       recentValues.removeRange(_maxRecentFilterValues, recentValues.length);
     }
   }
-
-  LogFilters _parsedFiltersFromClassicInputs() {
-    return LogFilters(
-      messageText: searchQuery.trim(),
-      packageText: packageFilterQuery.trim(),
-      pidTidText: pidTidFilterQuery.trim(),
-      tagText: tagFilterQuery.trim(),
-      messageTerms: _singleTerm(searchQuery),
-      rawTerms: const [],
-      packageTerms: _singleTerm(packageFilterQuery),
-      pidTidTerms: _singleTerm(pidTidFilterQuery),
-      tagTerms: _singleTerm(tagFilterQuery),
-      level: selectedLogLevel,
-    );
-  }
-
-  void _applyInlineDraftFilters(LogFilters parsedFilters) {
-    searchQuery = parsedFilters.messageText;
-    packageFilterQuery = parsedFilters.packageText;
-    pidTidFilterQuery = parsedFilters.pidTidText;
-    tagFilterQuery = parsedFilters.tagText;
-
-    _setControllerTextIfNeeded(filterController, parsedFilters.messageText);
-    _setControllerTextIfNeeded(
-      packageFilterController,
-      parsedFilters.packageText,
-    );
-    _setControllerTextIfNeeded(
-      pidTidFilterController,
-      parsedFilters.pidTidText,
-    );
-    _setControllerTextIfNeeded(tagFilterController, parsedFilters.tagText);
-  }
-
-  void _setControllerTextIfNeeded(
-    TextEditingController controller,
-    String value,
-  ) {
-    if (controller.text == value) return;
-    controller.value = TextEditingValue(
-      text: value,
-      selection: TextSelection.collapsed(offset: value.length),
-    );
-  }
-
-  List<String> _singleTerm(String value) {
-    final normalized = value.trim();
-    return normalized.isEmpty ? const [] : [normalized];
-  }
-
-  /// Pushes the classic-field filter state into the inline field so switching
-  /// views (or editing one surface) keeps both consistent. Does not re-emit a
-  /// config — the inline controller treats this as an external update.
-  void _syncInlineFilterText() {
-    inlineFilter.setTextExternally(_composeInlineFilterText());
-  }
-
-  String _composeInlineFilterText() => LogFilters.compose(
-    level: selectedLogLevel,
-    defaultLevel: LogLevel.defaultSelectionForPlatform(isIos: isIosLogContext),
-    package: packageFilterQuery,
-    pidTid: pidTidFilterQuery,
-    tag: tagFilterQuery,
-    message: searchQuery,
-  );
 
   bool _matchesAllTerms(
     String candidate,
@@ -1750,21 +1583,13 @@ class LogController extends FeatureController {
     _flushTimer?.cancel();
     _watchdogTimer?.cancel();
     _recoveryTimer?.cancel();
-    _debounceTimer?.cancel();
     _filterSaveDebounceTimer?.cancel();
     _inlineSearchDebounce?.cancel();
     unawaited(_logSub?.cancel());
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
     scrollController.dispose();
-    filterController.dispose();
-    filterFocusNode.dispose();
-    packageFilterController.dispose();
-    packageFilterFocusNode.dispose();
-    pidTidFilterController.dispose();
-    pidTidFilterFocusNode.dispose();
-    tagFilterController.dispose();
-    tagFilterFocusNode.dispose();
+    classicFilter.dispose();
     inlineFilter.dispose();
     searchController.dispose();
     searchFocusNode.dispose();

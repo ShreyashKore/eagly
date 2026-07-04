@@ -245,47 +245,10 @@ class _LogFeatureViewState extends State<LogFeatureView> {
                   ? InlineFilterBar(
                       key: const ValueKey('inline-filter-bar'),
                       controller: controller.inlineFilter,
-                      selectedLogLevel: controller.selectedLogLevel,
-                      onLogLevelChanged: (level) {
-                        if (level != null) {
-                          controller.setSelectedLogLevel(level);
-                        }
-                      },
                     )
                   : ClassicFilterBar(
                       key: const ValueKey('classic-filter-bar'),
-                      messageController: controller.filterController,
-                      messageFocusNode: controller.filterFocusNode,
-                      onMessageFilterChanged: controller.onSearchChanged,
-                      onMessageFilterSelected:
-                          controller.selectMessageFilterSuggestion,
-                      recentMessageFilters: controller.recentMessageFilters,
-                      packageController: controller.packageFilterController,
-                      packageFocusNode: controller.packageFilterFocusNode,
-                      onPackageFilterChanged: controller.onPackageFilterChanged,
-                      onPackageFilterSelected:
-                          controller.selectPackageFilterSuggestion,
-                      recentPackageFilters: controller.recentPackageFilters,
-                      knownPackageFilters: controller.knownInlinePackageFilters,
-                      pidTidController: controller.pidTidFilterController,
-                      pidTidFocusNode: controller.pidTidFilterFocusNode,
-                      onPidTidFilterChanged: controller.onPidTidFilterChanged,
-                      onPidTidFilterSelected:
-                          controller.selectPidTidFilterSuggestion,
-                      recentPidTidFilters: controller.recentPidTidFilters,
-                      tagController: controller.tagFilterController,
-                      tagFocusNode: controller.tagFilterFocusNode,
-                      onTagFilterChanged: controller.onTagFilterChanged,
-                      onTagFilterSelected: controller.selectTagFilterSuggestion,
-                      recentTagFilters: controller.recentTagFilters,
-                      onSubmitFilters: controller.applyFiltersNow,
-                      selectedLogLevel: controller.selectedLogLevel,
-                      onLogLevelChanged: (level) {
-                        if (level != null) {
-                          controller.setSelectedLogLevel(level);
-                        }
-                      },
-                      isIos: controller.isIosLogContext,
+                      controller: controller.classicFilter,
                     ),
             ),
           ),
