@@ -7,13 +7,30 @@ import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/features/home_screen/home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await PreferencesService.init();
   await EaglyInfoService.init();
   await _configureDesktopWindow();
-  runApp(const MyApp());
+  await SentryFlutter.init((options) {
+    options.dsn =
+        'https://ae4a6b39a9a2ca819748de8112255cb6@o4511675750416384.ingest.us.sentry.io/4511675759984640';
+    // Adds request headers and IP for users, for more info visit:
+    // https://docs.sentry.io/platforms/dart/guides/flutter/data-management/data-collected/
+    options.sendDefaultPii = true;
+    options.enableLogs = true;
+    // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing.
+    // We recommend adjusting this value in production.
+    options.tracesSampleRate = 1.0;
+    // The sampling rate for profiling is relative to tracesSampleRate
+    // Setting to 1.0 will profile 100% of sampled transactions:
+    options.profilesSampleRate = 1.0;
+    // Configure Session Replay
+    options.replay.sessionSampleRate = 0.1;
+    options.replay.onErrorSampleRate = 1.0;
+  }, appRunner: () => runApp(SentryWidget(child: const MyApp())));
 }
 
 /// Removes the native title bar on desktop so the in-app [AppHeader] can act as

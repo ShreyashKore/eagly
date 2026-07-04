@@ -61,3 +61,5 @@ windows/certificates/*.pfx
 windows/certificates/*.p12
 windows/certificates/*.cer
 windows/certificates/*.crt
+
+sentry.properties
