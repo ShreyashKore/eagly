@@ -9,6 +9,7 @@ import 'package:eagly/features/logs/log_controller.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
 import 'package:eagly/utils/log_entry_utils.dart';
+import 'package:eagly/utils/text_search_pattern.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -606,9 +607,10 @@ void main() {
       ),
     ];
 
-    log.onInlineSearchChanged('HiddenNeedle');
     log.setHiddenColumns({LogColumn.message.name});
-    log.setSearchCaseSensitive(true);
+    log.onInlineSearchOptionsChanged(
+      TextSearchConfig(query: 'HiddenNeedle', caseSensitive: true),
+    );
 
     expect(log.searchMatchIndices, isEmpty);
   });
@@ -638,15 +640,16 @@ void main() {
     log.openSearchBar(query: 'error');
     expect(log.searchMatchIndices, [0, 1]);
 
-    log.setSearchWholeWord(true);
+    log.onInlineSearchOptionsChanged(TextSearchConfig(wholeWord: true));
     expect(log.searchMatchIndices, [0]);
 
-    log.setSearchWholeWord(false);
-    log.setSearchRegex(true);
+    log.onInlineSearchOptionsChanged(
+      TextSearchConfig(wholeWord: false, regex: true),
+    );
     log.openSearchBar(query: r'error\d+');
     expect(log.searchMatchIndices, [0, 1]);
 
-    log.setSearchCaseSensitive(true);
+    log.onInlineSearchOptionsChanged(TextSearchConfig(caseSensitive: true));
     log.openSearchBar(query: r'ERROR');
     expect(log.searchMatchIndices, [0]);
   });
@@ -665,7 +668,7 @@ void main() {
       ),
     ];
 
-    log.setSearchRegex(true);
+    log.onInlineSearchOptionsChanged(TextSearchConfig(regex: true));
     log.openSearchBar(query: r'(');
 
     expect(log.inlineSearchHasError, isTrue);

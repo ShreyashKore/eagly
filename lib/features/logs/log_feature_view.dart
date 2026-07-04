@@ -382,8 +382,6 @@ class _LogFeatureViewState extends State<LogFeatureView> {
             top: 24,
             right: 12,
             child: TextSearchBar(
-              controller: controller.searchController,
-              focusNode: controller.searchFocusNode,
               search: controller.inlineSearch,
               hintText: 'Search in logs...',
               hasError: controller.inlineSearchHasError,

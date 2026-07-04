@@ -99,8 +99,6 @@ class LogController extends FeatureController {
   late final ClassicFilterController classicFilter;
   late final InlineFilterController inlineFilter;
 
-  final TextEditingController searchController = TextEditingController();
-  final FocusNode searchFocusNode = FocusNode();
   LogBuffer<LogEntry> _logsBuffer;
   final List<LogEntry> _pendingLogs = [];
 
@@ -256,8 +254,6 @@ class LogController extends FeatureController {
   Map<String, double> get columnWidths => _settings.columnWidths;
 
   bool get isIosLogContext => device is IosDevice;
-
-  LogLevel get effectiveSelectedLogLevel => selectedLogLevel;
 
   void _notify() {
     if (!_disposed) {
@@ -629,8 +625,6 @@ class LogController extends FeatureController {
       _searchBarVisible = true;
       _notify();
     }
-
-    _focusSearchField();
   }
 
   void closeSearchBar() {
@@ -640,7 +634,6 @@ class LogController extends FeatureController {
     _searchBarVisible = false;
     _inlineSearch = _inlineSearch.copyWith(query: '');
     _appliedInlineSearch = _appliedInlineSearch.copyWith(query: '');
-    searchController.clear();
     _invalidateSearchMatches();
     _searchCurrentMatchIndex = 0;
     _notify();
@@ -657,38 +650,14 @@ class LogController extends FeatureController {
     openSearchBar();
   }
 
-  void _focusSearchField() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_disposed) return;
-      searchFocusNode.requestFocus();
-      searchController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: searchController.text.length,
-      );
-    });
-  }
-
-  void onInlineSearchChanged(String value) {
-    updateInlineSearch(_inlineSearch.copyWith(query: value));
-  }
-
-  void setSearchCaseSensitive(bool value) {
+  @visibleForTesting
+  void onInlineSearchOptionsChanged(TextSearchConfig value) {
     updateInlineSearch(
-      _inlineSearch.copyWith(caseSensitive: value),
-      applyImmediately: true,
-    );
-  }
-
-  void setSearchWholeWord(bool value) {
-    updateInlineSearch(
-      _inlineSearch.copyWith(wholeWord: value),
-      applyImmediately: true,
-    );
-  }
-
-  void setSearchRegex(bool value) {
-    updateInlineSearch(
-      _inlineSearch.copyWith(regex: value),
+      _inlineSearch.copyWith(
+        caseSensitive: value.caseSensitive,
+        wholeWord: value.wholeWord,
+        regex: value.regex,
+      ),
       applyImmediately: true,
     );
   }
@@ -787,13 +756,6 @@ class LogController extends FeatureController {
     _inlineSearch = value;
     _searchCurrentMatchIndex = 0;
 
-    if (searchController.text != value.query) {
-      searchController.value = TextEditingValue(
-        text: value.query,
-        selection: TextSelection.collapsed(offset: value.query.length),
-      );
-    }
-
     _inlineSearchDebounce?.cancel();
     if (applyImmediately || optionsChanged) {
       _appliedInlineSearch = value;
@@ -844,30 +806,14 @@ class LogController extends FeatureController {
     _notify();
   }
 
-  String get _appliedFilterSignature => [
-    selectedLogLevel.code,
-    'm:${_appliedFilters.messageTerms.join('')}',
-    'r:${_appliedFilters.rawTerms.join('')}',
-    'p:${_appliedFilters.packageTerms.join('')}',
-    'pt:${_appliedFilters.pidTidTerms.join('')}',
-    't:${_appliedFilters.tagTerms.join('')}',
-  ].join(' ');
+  String get _appliedFilterSignature => _appliedFilters.signature;
 
   bool _matchesLogFilters(LogEntry log) {
-    return matchesLogFilters(log, _appliedFilters, effectiveSelectedLogLevel);
+    return matchesLogFilters(log, _appliedFilters, selectedLogLevel);
   }
 
-  bool get _hasActiveRetentionFilter {
-    final defaultLevel = LogLevel.defaultSelectionForPlatform(
-      isIos: isIosLogContext,
-    );
-    return effectiveSelectedLogLevel.hierarchy < defaultLevel.hierarchy ||
-        _appliedFilters.messageTerms.isNotEmpty ||
-        _appliedFilters.rawTerms.isNotEmpty ||
-        _appliedFilters.packageTerms.isNotEmpty ||
-        _appliedFilters.pidTidTerms.isNotEmpty ||
-        _appliedFilters.tagTerms.isNotEmpty;
-  }
+  bool get _hasActiveRetentionFilter =>
+      _appliedFilters.hasActiveRetentionFilter(isIosLogContext);
 
   LogFilter<LogEntry>? get _retentionFilter =>
       _hasActiveRetentionFilter ? _matchesLogFilters : null;
@@ -1434,8 +1380,31 @@ class LogController extends FeatureController {
     scrollController.dispose();
     classicFilter.dispose();
     inlineFilter.dispose();
-    searchController.dispose();
-    searchFocusNode.dispose();
     super.dispose();
+  }
+}
+
+/// --- Helpers
+
+extension on LogFilters {
+  String get signature => [
+    level.code,
+    'm:${messageTerms.join('')}',
+    'r:${rawTerms.join('')}',
+    'p:${packageTerms.join('')}',
+    'pt:${pidTidTerms.join('')}',
+    't:${tagTerms.join('')}',
+  ].join(' ');
+
+  bool hasActiveRetentionFilter(bool isIosLogContext) {
+    final defaultLevel = LogLevel.defaultSelectionForPlatform(
+      isIos: isIosLogContext,
+    );
+    return level.hierarchy < defaultLevel.hierarchy ||
+        messageTerms.isNotEmpty ||
+        rawTerms.isNotEmpty ||
+        packageTerms.isNotEmpty ||
+        pidTidTerms.isNotEmpty ||
+        tagTerms.isNotEmpty;
   }
 }
