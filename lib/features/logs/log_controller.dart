@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
+import 'package:eagly/features/logs/data/models/recent_fliter_values.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -12,6 +13,7 @@ import 'data/models/log_filters.dart';
 import 'data/models/log_level.dart';
 import 'data/models/log_tab_settings.dart';
 import 'presentation/models/log_view_mode.dart';
+import 'services/filter_utils.dart';
 import 'services/log_file_service.dart';
 import '../../session/device_session_controller.dart';
 import '../../session/feature_controller.dart';
@@ -19,6 +21,7 @@ import '../../utils/log_buffer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/text_search_pattern.dart';
 import 'presentation/components/log_filter_controller.dart';
+import 'services/search_utils.dart';
 
 enum LogcatState { stopped, running, paused }
 
@@ -179,9 +182,6 @@ class LogController extends FeatureController {
   String? get importedFileName => _importedFileName;
 
   bool get searchBarVisible => _searchBarVisible;
-  bool get searchCaseSensitive => _inlineSearch.caseSensitive;
-  bool get searchWholeWord => _inlineSearch.wholeWord;
-  bool get searchRegex => _inlineSearch.regex;
   int get searchCurrentMatch => _searchCurrentMatchIndex;
   String? get selectedSearchText => _selectedSearchText;
   bool get rowSelectionMode => _rowSelectionMode;
@@ -208,14 +208,13 @@ class LogController extends FeatureController {
   bool get hasLogs => _logsBuffer.size > 0;
   bool get hasAnyCachedLogs => hasLogs || _pendingLogs.isNotEmpty;
   int get totalLogsMemoryBytes => _logsMemoryBytes + _pendingLogsMemoryBytes;
-  String get appliedInlineSearchQuery => _appliedInlineSearch.query;
-  String get inlineSearchQuery => _inlineSearch.query;
   TextSearchConfig get inlineSearch => _inlineSearch;
   TextSearchConfig get appliedInlineSearch => _appliedInlineSearch;
   TextSearchPattern get inlineSearchPattern =>
       TextSearchPattern.fromConfig(_appliedInlineSearch);
   bool get inlineSearchHasError => inlineSearchPattern.hasError;
   String? get inlineSearchErrorText => inlineSearchPattern.errorText;
+
   /// Recently applied filter values, surfaced as autocomplete suggestions via
   /// the [LogFilterSuggestions] passed to the filter controllers.
   @visibleForTesting
@@ -233,7 +232,7 @@ class LogController extends FeatureController {
 
     final counts = <String, int>{};
     for (final log in storedLogs) {
-      final value = _packageFilterValue(log).trim();
+      final value = packageFilterValue(log).trim();
       if (value.isEmpty) continue;
       counts.update(value, (count) => count + 1, ifAbsent: () => 1);
     }
@@ -751,7 +750,12 @@ class LogController extends FeatureController {
     _smCacheSearch = _appliedInlineSearch;
     _smCacheHiddenCols = Set.of(hiddenColumns);
     _smCacheFilteredLen = filtered.length;
-    _cachedSearchMatchIndices = _computeSearchMatches(filtered);
+    _cachedSearchMatchIndices = computeSearchMatches(
+      filtered,
+      hiddenColumns,
+      isIosLogContext,
+      inlineSearchPattern,
+    );
     return _cachedSearchMatchIndices!;
   }
 
@@ -859,44 +863,7 @@ class LogController extends FeatureController {
   ].join(' ');
 
   bool _matchesLogFilters(LogEntry log) {
-    final selectedLevel = effectiveSelectedLogLevel;
-    if (LogLevel.fromStored(log.level).hierarchy > selectedLevel.hierarchy) {
-      return false;
-    }
-
-    if (!_matchesAllTerms(
-      _packageFilterValue(log),
-      _appliedFilters.packageTerms,
-      caseSensitive: false,
-    )) {
-      return false;
-    }
-
-    if (!_matchesAllTerms(
-      log.lowercaseSearchable,
-      _appliedFilters.rawTerms,
-      caseSensitive: false,
-    )) {
-      return false;
-    }
-
-    if (_appliedFilters.pidTidTerms.any((query) => !_matchesPidTidFilter(log, query))) {
-      return false;
-    }
-
-    if (!_matchesAllTerms(log.tag, _appliedFilters.tagTerms, caseSensitive: false)) {
-      return false;
-    }
-
-    if (!_matchesAllTerms(
-      log.message,
-      _appliedFilters.messageTerms,
-      caseSensitive: false,
-    )) {
-      return false;
-    }
-
-    return true;
+    return matchesLogFilters(log, _appliedFilters, effectiveSelectedLogLevel);
   }
 
   bool get _hasActiveRetentionFilter {
@@ -926,7 +893,7 @@ class LogController extends FeatureController {
     }
     nextBuffer.trimToCapacity();
     _logsBuffer = nextBuffer;
-    _logsMemoryBytes = _estimateLogsBytes(_logsBuffer.getLogs());
+    _logsMemoryBytes = estimateLogsBytes(_logsBuffer.getLogs());
     _invalidateFilteredLogs();
   }
 
@@ -967,8 +934,8 @@ class LogController extends FeatureController {
 
   void _appendImmediateLogEntry(LogEntry entry) {
     final evictedLogs = _logsBuffer.append(entry);
-    final addedBytes = _estimateLogEntryBytes(entry);
-    final evictedBytes = _estimateLogsBytes(evictedLogs);
+    final addedBytes = estimateLogEntryBytes(entry);
+    final evictedBytes = estimateLogsBytes(evictedLogs);
 
     _logsMemoryBytes += addedBytes - evictedBytes;
     if (_logsMemoryBytes < 0) {
@@ -1049,7 +1016,7 @@ class LogController extends FeatureController {
           _appendImmediateLogEntry(logEntry);
         } else {
           _pendingLogs.add(logEntry);
-          _pendingLogsMemoryBytes += _estimateLogEntryBytes(logEntry);
+          _pendingLogsMemoryBytes += estimateLogEntryBytes(logEntry);
         }
       },
       onError: (Object error, StackTrace _) {
@@ -1086,7 +1053,7 @@ class LogController extends FeatureController {
       final evictedLogs = _logsBuffer.append(logEntry);
       if (evictedLogs.isEmpty) continue;
       didEvictStoredLogs = true;
-      evictedMemoryBytes += _estimateLogsBytes(evictedLogs);
+      evictedMemoryBytes += estimateLogsBytes(evictedLogs);
     }
 
     _logsMemoryBytes += pendingLogsMemoryBytes - evictedMemoryBytes;
@@ -1380,35 +1347,6 @@ class LogController extends FeatureController {
     }
   }
 
-  List<int> _computeSearchMatches(List<LogEntry> items) {
-    final pattern = inlineSearchPattern;
-    if (!pattern.isActive || !pattern.isValid) return [];
-
-    final visibleColumns = LogColumn.values
-        .where((column) => !hiddenColumns.contains(column.name))
-        .toList();
-
-    final result = <int>[];
-    for (var index = 0; index < items.length; index++) {
-      final log = items[index];
-      if (log.isSpecialEntry) {
-        if (pattern.matches(log.specialSearchableText)) {
-          result.add(index);
-        }
-        continue;
-      }
-      for (final column in visibleColumns) {
-        if (pattern.matches(
-          log.valueForColumn(column, isIos: isIosLogContext),
-        )) {
-          result.add(index);
-          break;
-        }
-      }
-    }
-    return result;
-  }
-
   List<LogEntry> get _currentLogsSnapshot =>
       List<LogEntry>.unmodifiable([..._logsBuffer.getLogs(), ..._pendingLogs]);
 
@@ -1510,122 +1448,4 @@ class LogController extends FeatureController {
     logLinesController.dispose();
     super.dispose();
   }
-}
-
-// -- Filter helpers
-
-/// In-memory, per-field history of recently applied filter values, offered as
-/// autocomplete suggestions. Never persisted to disk.
-class RecentFilterValues {
-  RecentFilterValues({this.maxPerField = 8});
-
-  /// Maximum values retained per field.
-  final int maxPerField;
-
-  final List<String> _message = [];
-  final List<String> _package = [];
-  final List<String> _pidTid = [];
-  final List<String> _tag = [];
-
-  List<String> get message => _message;
-  List<String> get package => _package;
-  List<String> get pidTid => _pidTid;
-  List<String> get tag => _tag;
-
-  /// Records the applied [filters]' per-field terms as the most recent values.
-  void rememberFrom(LogFilters filters) {
-    for (final value in filters.messageTerms) {
-      _addRecentValue(_message, value, maxPerField);
-    }
-    for (final value in filters.packageTerms) {
-      _addRecentValue(_package, value, maxPerField);
-    }
-    for (final value in filters.pidTidTerms) {
-      _addRecentValue(_pidTid, value, maxPerField);
-    }
-    for (final value in filters.tagTerms) {
-      _addRecentValue(_tag, value, maxPerField);
-    }
-  }
-}
-
-/// Inserts [value] at the front of [recents] (case-insensitively de-duplicated),
-/// capping the list at [max]. Blank values are ignored.
-void _addRecentValue(List<String> recents, String value, int max) {
-  final normalized = value.trim();
-  if (normalized.isEmpty) return;
-
-  recents.removeWhere(
-    (existing) => existing.toLowerCase() == normalized.toLowerCase(),
-  );
-  recents.insert(0, normalized);
-
-  if (recents.length > max) {
-    recents.removeRange(max, recents.length);
-  }
-}
-
-/// The package/process name used for package filtering + known-package
-/// suggestions. Prefers the package name, falling back to the process name.
-String _packageFilterValue(LogEntry log) {
-  final packageName = log.packageName?.trim();
-  if (packageName != null && packageName.isNotEmpty) return packageName;
-
-  final processName = log.processName?.trim();
-  if (processName != null && processName.isNotEmpty) return processName;
-
-  return '';
-}
-
-/// True when every term in [terms] is contained in [candidate]. An empty
-/// [terms] matches everything.
-bool _matchesAllTerms(
-  String candidate,
-  List<String> terms, {
-  required bool caseSensitive,
-}) {
-  if (terms.isEmpty) return true;
-  final normalizedCandidate = caseSensitive
-      ? candidate
-      : candidate.toLowerCase();
-  return terms.every((term) {
-    final normalizedTerm = caseSensitive ? term : term.toLowerCase();
-    return normalizedCandidate.contains(normalizedTerm);
-  });
-}
-
-/// True when [query] matches the log's pid, tid, or a `pid/tid` / `pid:tid`
-/// pair.
-bool _matchesPidTidFilter(LogEntry log, String query) {
-  final pid = log.pid.toLowerCase();
-  final tid = log.tid.toLowerCase();
-  return pid.contains(query) ||
-      tid.contains(query) ||
-      '$pid/$tid'.contains(query) ||
-      '$pid:$tid'.contains(query);
-}
-
-// -- Log Entry utils
-
-int _estimateLogEntryBytes(LogEntry log) {
-  int stringBytes(String value) => value.length * 2;
-
-  return 128 +
-      stringBytes(log.type.name) +
-      stringBytes(log.timestamp) +
-      stringBytes(log.pid) +
-      stringBytes(log.tid) +
-      stringBytes(log.level) +
-      stringBytes(log.tag) +
-      stringBytes(log.message) +
-      stringBytes(log.lowercaseSearchable) +
-      (log.packageName == null ? 0 : stringBytes(log.packageName!));
-}
-
-int _estimateLogsBytes(Iterable<LogEntry> entries) {
-  var total = 0;
-  for (final entry in entries) {
-    total += _estimateLogEntryBytes(entry);
-  }
-  return total;
 }
