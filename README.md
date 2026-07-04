@@ -1,15 +1,33 @@
-# Eagly - Universal Logcat and Console
+# Eagly — Universal Logcat & Console for Android and iOS
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev)
 [![Desktop](https://img.shields.io/badge/Platforms-macOS%20%7C%20Windows%20%7C%20Linux-informational?logo=apple&logoColor=white)](https://flutter.dev/desktop)
+[![Size](https://img.shields.io/badge/Download-under%2050%20MB-brightgreen)](#download)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-A cross-platform **desktop** companion for **Android** and **iOS** devices — stream
-logs, mirror & control the screen, browse files, read crash reports, and install
-apps, all without any command-line setup. `adb` and `libimobiledevice` come bundled.
+**Eagly** is a lightweight, cross-platform **desktop log viewer** for **Android** and
+**iOS** devices. View **logcat** and **iOS device logs & crash reports** on **Windows,
+macOS, and Linux** — no Android Studio, no Xcode, and no command-line setup required.
+It works as a **universal ADB** and **universal logcat** console: stream live logs,
+mirror and control the screen, browse files, read iOS crashes, and install apps. `adb`
+and `libimobiledevice` come bundled, the whole app is **under 50 MB**, and it stays
+light on memory.
 
-**Jump to:** [Features](#features) · [Screenshots](#screenshots) · [Download](#download) · [Usage](#usage) · [Build from Source](#building-from-source)
+**Jump to:** [Why Eagly?](#why-eagly) · [Features](#features) · [Screenshots](#screenshots) · [Download](#download) · [Usage](#usage) · [Build from Source](#building-from-source)
+
+---
+
+## Why Eagly?
+
+- 📱 **View iOS logs and crash reports on Windows** — inspect iPhone & iPad device logs
+  and crashes without owning a Mac.
+- 🔁 **One universal logcat / ADB console** — the same log viewer and workflow on
+  **Windows, Ubuntu / Linux, and macOS**.
+- 🚫 **View logs without Android Studio or Xcode** — read live device logs and crashes
+  without installing heavyweight IDEs or SDKs.
+- 🪶 **Small & efficient** — **under 50 MB** to download and a low memory footprint, so
+  it launches instantly and stays out of the way while you debug.
 
 ---
 
@@ -45,7 +63,9 @@ Fast, colour-coded streaming with timestamps, package, PID/TID, level and tag co
 ### 🔎 Filtering & regex search
 Narrow down noisy logs by level, tag or process, and find anything with regex search.
 
-▶️ **[Watch: filtering](docs/screenshots/filter.mov)** &nbsp;·&nbsp; ▶️ **[Watch: regex search](docs/screenshots/search-regex.mov)**
+| Filtering | Regex search |
+|---|---|
+| <video src="https://github.com/user-attachments/assets/a93d115b-8899-4c03-895c-3aa0f33dec17" width="400"></video> | <video src="https://github.com/user-attachments/assets/10971f7b-a0a0-418b-a0b7-c70c43b9b77b" width="400"></video> |
 
 ### 🐞 iOS crash reports
 Pull and read crash logs from connected iPhones and iPads.
@@ -88,8 +108,10 @@ Grab the latest release for your platform:
 
 For all versions and changelogs, see the [Releases](https://github.com/ShreyashKore/eagly/releases) page.
 
-Eagly bundles all required Android and iOS communication tools, including `adb` and
-`libimobiledevice`. **On Windows, iTunes must be installed for iOS device support.**
+Every build is **under 50 MB** and runs with a low memory footprint. Eagly bundles all
+required Android and iOS communication tools, including `adb` and `libimobiledevice`, so
+there's nothing else to install. **On Windows, iTunes must be installed for iOS device
+support.**
 
 ---
 
@@ -111,9 +133,9 @@ Eagly bundles all required Android and iOS communication tools, including `adb` 
 ### iOS — Windows
 
 > **iTunes is required** for iOS device communication on Windows.
-> Download and install iTunes from [https://www.apple.com/itunes/](https://www.apple.com/itunes/) before connecting your device.
+> Download and install iTunes from [https://www.apple.com/itunes/](https://www.apple.com/itunes/) or [Apple Devices](https://apps.microsoft.com/detail/9np83lwlpz9k) before connecting your device.
 
-1. Install [iTunes](https://www.apple.com/itunes/).
+1. Install [iTunes](https://www.apple.com/itunes/) or [Apple Devices](https://apps.microsoft.com/detail/9np83lwlpz9k).
 2. Connect your iPhone or iPad via USB.
 3. When prompted on the device, tap **Trust This Computer** and enter your passcode.
 4. Launch Eagly — your device should appear automatically.
@@ -126,5 +148,10 @@ First-time setup is scripted — run [`scripts/setup.sh`](scripts/setup.sh)
 (on Windows, from Git Bash: `bash scripts/setup.sh`). See
 [docs/SETUP.md](docs/SETUP.md) for prerequisites and details, and
 [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for the packaging flow.
-</content>
-</invoke>
+
+
+## Contributions
+
+<a href="https://github.com/ShreyashKore/eagly/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=ShreyashKore/eagly" />
+</a>
