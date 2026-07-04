@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../data/device.dart';
-import 'data/models/log_column.dart';
 import 'data/models/log_entry.dart';
 import 'data/models/log_filters.dart';
 import 'data/models/log_level.dart';
@@ -77,7 +76,6 @@ class LogController extends FeatureController {
       onStateChanged: (state) => _applyFilterState(state, source: inlineFilter),
       isIos: isIosLogContext,
     );
-    logLinesController.text = logLinesLimit.toString();
     _syncLogBufferFilter();
   }
 
@@ -103,8 +101,6 @@ class LogController extends FeatureController {
 
   final TextEditingController searchController = TextEditingController();
   final FocusNode searchFocusNode = FocusNode();
-  final TextEditingController logLinesController = TextEditingController();
-
   LogBuffer<LogEntry> _logsBuffer;
   final List<LogEntry> _pendingLogs = [];
 
@@ -586,25 +582,20 @@ class LogController extends FeatureController {
 
   void setEditingLogLinesLimit(bool value) {
     _editingLogLinesLimit = value;
-    if (value) {
-      logLinesController.text = logLinesLimit.toString();
-    }
     _notify();
   }
 
-  bool submitLogLinesLimit([String? rawValue]) {
-    final parsed = int.tryParse((rawValue ?? logLinesController.text).trim());
-    if (parsed == null || parsed < 1000) {
+  bool submitLogLinesLimit(int value) {
+    if (value < 1000) {
       _editingLogLinesLimit = false;
       _notify();
       return false;
     }
 
     _editingLogLinesLimit = false;
-    logLinesController.text = parsed.toString();
     final storedLogs = logs;
     final previousCount = storedLogs.length;
-    _updateSettings(_settings.copyWith(logLinesLimit: parsed));
+    _updateSettings(_settings.copyWith(logLinesLimit: value));
 
     _replaceStoredLogs(storedLogs);
     if (_logsBuffer.size < previousCount) {
@@ -1445,7 +1436,6 @@ class LogController extends FeatureController {
     inlineFilter.dispose();
     searchController.dispose();
     searchFocusNode.dispose();
-    logLinesController.dispose();
     super.dispose();
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import 'data/models/log_entry.dart';
+import 'presentation/components/log_lines_limit_input.dart';
 import 'presentation/models/log_view_mode.dart';
 import '../../features/app_log/app_logger.dart';
 import '../../session/device_session_controller.dart';
@@ -550,38 +551,13 @@ class _LogFeatureViewState extends State<LogFeatureView> {
                 ),
               ),
             )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IntrinsicWidth(
-                  child: TextField(
-                    onTapOutside: (_) =>
-                        controller.setEditingLogLinesLimit(false),
-                    controller: controller.logLinesController,
-                    autofocus: true,
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(fontSize: 13),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 4,
-                        horizontal: 4,
-                      ),
-                      prefixText: 'Max lines: ',
-                      border: const OutlineInputBorder(),
-                      suffix: IconButton(
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        onPressed: controller.submitLogLinesLimit,
-                        icon: const Icon(Icons.check, size: 14),
-                      ),
-                    ),
-                    onSubmitted: controller.submitLogLinesLimit,
-                    onEditingComplete: () =>
-                        controller.setEditingLogLinesLimit(false),
-                  ),
-                ),
-              ],
+          : IntrinsicWidth(
+              child: LogLinesLimitInput(
+                setEditingLogLinesLimit: controller.setEditingLogLinesLimit,
+                submitLogLinesLimit: controller.submitLogLinesLimit,
+                logLinesLimit: controller.logLinesLimit,
+                isEditing: controller.editingLogLinesLimit,
+              ),
             ),
     );
   }

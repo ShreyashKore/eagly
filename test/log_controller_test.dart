@@ -275,7 +275,7 @@ void main() {
   test('submitLogLinesLimit rejects values below minimum threshold', () {
     final log = createLog();
 
-    final submitted = log.submitLogLinesLimit('999');
+    final submitted = log.submitLogLinesLimit(999);
 
     expect(submitted, isFalse);
     expect(log.logLinesLimit, 50000);
@@ -297,13 +297,12 @@ void main() {
       ),
     );
 
-    final submitted = log.submitLogLinesLimit('1000');
+    final submitted = log.submitLogLinesLimit(1000);
 
     expect(submitted, isTrue);
     expect(log.logLinesLimit, 1000);
     expect(log.logs, hasLength(1000));
     expect(log.logs.first.message, 'Message 5');
-    expect(log.logLinesController.text, '1000');
   });
 
   test(
