@@ -19,8 +19,18 @@ fvm dart format <files>         # format before finishing; CI-style 80-col wrapp
 
 Bundled CLI tools (`adb`, `libimobiledevice`, `scrcpy-server`) live under
 `platform-tools/<os>/` and are resolved at runtime by `lib/utils/tools_path.dart`. They
-are **not** on PATH — never assume a system `adb`. `scripts/download_platform_tools.sh`
-fetches them.
+are **not** on PATH — never assume a system `adb`.
+
+Dev scripts (`scripts/`):
+
+- `setup.sh` — one-shot first-time onboarding: validates the toolchain, installs platform
+  build deps, downloads the bundled tools, and runs `pub get` (`--packaging` also installs
+  Fastforge). See `docs/SETUP.md`.
+- `download_platform_tools.sh <os…>` — fetches `adb`/`libimobiledevice`; on Linux it also
+  invokes `build_linux_ffmpeg.sh`, on Windows it fetches the FFmpeg dev libs.
+- `build_linux_ffmpeg.sh` — builds the minimal, glibc-only H.264 FFmpeg bundled for the
+  native scrcpy decoder into `.ffmpeg-dev/linux/` (keeps the `.deb` distro-independent).
+- `copy_macos_bundled_tools.sh` — stages the bundled tools into the macOS build.
 
 ## Architecture
 

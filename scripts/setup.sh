@@ -82,8 +82,10 @@ install_linux_build_deps() {
   # decoder (scripts/build_linux_ffmpeg.sh, run via download_platform_tools.sh).
   # That replaces the system libav*-dev: the decoder links the bundled FFmpeg so
   # the .deb doesn't pin the distro's libavcodec/libavutil soname.
+  # libcurl4-openssl-dev: sentry-native (from sentry_flutter) links libcurl for
+  # its Linux crash-upload transport.
   local pkgs=(clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
-              libstdc++-12-dev nasm patchelf)
+              libstdc++-12-dev nasm patchelf libcurl4-openssl-dev)
   if ! have apt-get; then
     warn "Non-apt distro detected. Install the equivalents of: ${pkgs[*]}"
     return

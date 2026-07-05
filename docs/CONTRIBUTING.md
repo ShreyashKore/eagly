@@ -7,6 +7,24 @@ Thank you for your interest in contributing!
 - [Flutter](https://flutter.dev/docs/get-started/install) (this workspace uses `fvm flutter`)
 - Dart SDK `^3.9.0`
 
+## Quick Setup
+
+The fastest way to get a working checkout is the one-shot setup script, which validates
+your toolchain, installs the platform build dependencies, downloads the bundled mobile
+tools, and runs `flutter pub get`:
+
+```bash
+./scripts/setup.sh              # set up for the current host platform
+./scripts/setup.sh --packaging  # also install release-packaging tooling (Fastforge, …)
+```
+
+On Windows, run it from **Git Bash** (`bash scripts/setup.sh`). See
+[`docs/SETUP.md`](SETUP.md) for the full, platform-by-platform walkthrough and
+prerequisites the script can't install for you.
+
+The rest of this document describes the individual steps `setup.sh` automates, for when
+you want to run them manually.
+
 ## Preparing Bundled Platform Tools
 
 End users do **not** need to install `adb` or `libimobiledevice` separately — the desktop build ships these executables directly inside the app:
@@ -27,6 +45,8 @@ plus their runtime libraries (`.dylib`, `.so`, `.dll`) for each target platform.
 `scripts/download_platform_tools.sh` always downloads `adb` for the requested platforms and downloads a default upstream `libimobiledevice` bundle (from the `iMobileDevice-net` release package) for macOS, Linux, and Windows.
 
 On macOS the script also builds and bundles OpenSSL 1.1 runtime dylibs from the public OpenSSL 1.1.1w source so the `idevice_*` tools work without a Homebrew installation.
+
+On Linux the script invokes [`scripts/build_linux_ffmpeg.sh`](../scripts/build_linux_ffmpeg.sh), which builds a minimal, glibc-only H.264 FFmpeg (libavcodec/libavutil) for the native scrcpy screen-mirror decoder and stages it under `.ffmpeg-dev/linux/`. Keeping FFmpeg out of the distro packages keeps the resulting `.deb` distro-independent. On Windows the equivalent FFmpeg dev headers/import libs are downloaded instead.
 
 ### Pinning a custom `libimobiledevice` build
 
