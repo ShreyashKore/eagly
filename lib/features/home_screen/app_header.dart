@@ -8,6 +8,7 @@ import '../../constants/app_constants.dart';
 import '../../constants/local_assets.dart';
 import '../../session/device_session_manager.dart';
 import '../../utils/url_launcher.dart';
+import '../updates/update_chip.dart';
 import 'components/device_tab.dart';
 import 'window_controls.dart';
 
@@ -79,6 +80,8 @@ class AppHeader extends StatelessWidget {
                           tooltip: 'Wireless ADB',
                           onPressed: onShowWireless,
                         ),
+                        const Gap(6),
+                        const AppUpdateChip(),
                         const Gap(4),
                         SizedBox(
                           height: 22,
