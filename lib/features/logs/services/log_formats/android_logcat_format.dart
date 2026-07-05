@@ -50,13 +50,14 @@ class AndroidLogcatFormat extends LogFormat {
   }
 
   /// Serialises a single [LogEntry] to the Android Studio JSON map format.
+  /// Never add any new keys to the map; as Android Studio will not import them.
+  /// Only use the keys that are already present in the exported files.
   Map<String, dynamic> _entryToMap(LogEntry entry) {
     final timestampObj = TimestampUtils.parseTimestampToSecondsNanos(
       entry.timestamp,
     );
     return {
       'header': {
-        'entryType': entry.type.name,
         'logLevel': _exportLevel(entry.level),
         'pid': int.tryParse(entry.pid) ?? 0,
         'tid': int.tryParse(entry.tid) ?? 0,
