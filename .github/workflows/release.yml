@@ -56,9 +56,11 @@ jobs:
           sudo apt-get update
           # nasm: x86 SIMD for the minimal FFmpeg built by build_linux_ffmpeg.sh.
           # patchelf: stamps $ORIGIN RUNPATH on the bundled FFmpeg .so files.
+          # libcurl4-openssl-dev: sentry-native (from sentry_flutter) links libcurl
+          # for its Linux crash-upload transport.
           # No libav*-dev: the scrcpy decoder links the bundled FFmpeg, not the
           # system one.
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev nasm patchelf
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev nasm patchelf libcurl4-openssl-dev
 
       - name: Install macOS packaging dependencies
         if: matrix.platform == 'macos'
