@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:eagly/features/logs/data/models/log_filters.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/presentation/theme/log_level_presentation.dart';
@@ -13,56 +14,43 @@ void main() {
     GoogleFonts.config.allowRuntimeFetching = false;
   });
 
-  Future<void> pumpInlineFilterBar(
-    WidgetTester tester, {
-    required InlineFilterTextController controller,
-    required FocusNode focusNode,
-    LogLevel selectedLogLevel = LogLevel.verbose,
-    ValueChanged<LogLevel>? onLogLevelChanged,
+  InlineFilterController buildController({
+    String initialText = '',
+    bool isIos = false,
     List<String> knownPackageFilters = const [
       'com.example.auth',
       'com.example.billing',
     ],
-  }) async {
-    void onSuggestionApplied(
-      String text, {
-      TextSelection selection = const TextSelection.collapsed(offset: -1),
-      bool applyImmediately = false,
-    }) {
-      controller.value = TextEditingValue(text: text, selection: selection);
-    }
+    ValueChanged<LogFilters>? onStateChanged,
+  }) {
+    return InlineFilterController(
+      initialState: LogFilters.empty(LogLevel.verbose),
+      isIos: isIos,
+      initialText: initialText,
+      onStateChanged: onStateChanged ?? (_) {},
+      suggestions: LogFilterSuggestions(
+        recentMessageFilters: () => const ['signed in'],
+        recentPackageFilters: () => const ['com.example.auth'],
+        knownPackageFilters: () => knownPackageFilters,
+        recentPidTidFilters: () => const ['101/202'],
+        recentTagFilters: () => const ['AuthService'],
+      ),
+    );
+  }
 
+  Future<void> pumpInlineFilterBar(
+    WidgetTester tester, {
+    required InlineFilterController controller,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
-        home: StatefulBuilder(
-          builder: (context, setState) {
-            return Scaffold(
-              body: SizedBox(
-                width: 900,
-                child: InlineFilterBar(
-                  controller: controller,
-                  focusNode: focusNode,
-                  onChanged: (_) {},
-                  onSubmitted: () {},
-                  onSuggestionApplied: onSuggestionApplied,
-                  selectedLogLevel: selectedLogLevel,
-                  onLogLevelChanged: (level) {
-                    if (level == null) return;
-                    setState(() => selectedLogLevel = level);
-                    onLogLevelChanged?.call(level);
-                  },
-                  recentMessageFilters: const ['signed in'],
-                  recentPackageFilters: const ['com.example.auth'],
-                  knownPackageFilters: knownPackageFilters,
-                  recentPidTidFilters: const ['101/202'],
-                  recentTagFilters: const ['AuthService'],
-                  isIos: false,
-                ),
-              ),
-            );
-          },
+        home: Scaffold(
+          body: SizedBox(
+            width: 900,
+            child: InlineFilterBar(controller: controller),
+          ),
         ),
       ),
     );
@@ -72,19 +60,15 @@ void main() {
   testWidgets('suggests filter keys and inserts a colon automatically', (
     WidgetTester tester,
   ) async {
-    final controller = InlineFilterTextController(text: 'lev');
-    final focusNode = FocusNode();
+    final controller = buildController(initialText: 'lev');
     addTearDown(controller.dispose);
-    addTearDown(focusNode.dispose);
 
-    await pumpInlineFilterBar(
-      tester,
-      controller: controller,
-      focusNode: focusNode,
+    await pumpInlineFilterBar(tester, controller: controller);
+
+    controller.focusNode.requestFocus();
+    controller.textController.selection = const TextSelection.collapsed(
+      offset: 3,
     );
-
-    focusNode.requestFocus();
-    controller.selection = const TextSelection.collapsed(offset: 3);
     await tester.pumpAndSettle();
 
     expect(find.text('level:'), findsOneWidget);
@@ -92,25 +76,23 @@ void main() {
     await tester.tap(find.text('level:'));
     await tester.pumpAndSettle();
 
-    expect(controller.text, 'level:');
-    expect(controller.selection.baseOffset, controller.text.length);
+    expect(controller.textController.text, 'level:');
+    expect(
+      controller.textController.selection.baseOffset,
+      controller.textController.text.length,
+    );
   });
 
   testWidgets('shows a dedicated inline level dropdown and notifies changes', (
     WidgetTester tester,
   ) async {
-    final controller = InlineFilterTextController();
-    final focusNode = FocusNode();
-    LogLevel? selectedLevel;
-    addTearDown(controller.dispose);
-    addTearDown(focusNode.dispose);
-
-    await pumpInlineFilterBar(
-      tester,
-      controller: controller,
-      focusNode: focusNode,
-      onLogLevelChanged: (level) => selectedLevel = level,
+    LogLevel? emittedLevel;
+    final controller = buildController(
+      onStateChanged: (state) => emittedLevel = state.level,
     );
+    addTearDown(controller.dispose);
+
+    await pumpInlineFilterBar(tester, controller: controller);
 
     expect(find.text('Level'), findsOneWidget);
     expect(find.byType(DropdownButtonFormField<LogLevel>), findsOneWidget);
@@ -120,25 +102,22 @@ void main() {
     await tester.tap(find.text('Error (E)').last);
     await tester.pumpAndSettle();
 
-    expect(selectedLevel, LogLevel.error);
+    expect(controller.selectedLevel, LogLevel.error);
+    expect(emittedLevel, LogLevel.error);
   });
 
   testWidgets(
     'keyboard selection inserts a key suggestion and opens value suggestions',
     (WidgetTester tester) async {
-      final controller = InlineFilterTextController(text: 'lev');
-      final focusNode = FocusNode();
+      final controller = buildController(initialText: 'lev');
       addTearDown(controller.dispose);
-      addTearDown(focusNode.dispose);
 
-      await pumpInlineFilterBar(
-        tester,
-        controller: controller,
-        focusNode: focusNode,
+      await pumpInlineFilterBar(tester, controller: controller);
+
+      controller.focusNode.requestFocus();
+      controller.textController.selection = const TextSelection.collapsed(
+        offset: 3,
       );
-
-      focusNode.requestFocus();
-      controller.selection = const TextSelection.collapsed(offset: 3);
       await tester.pumpAndSettle();
 
       expect(find.text('level:'), findsOneWidget);
@@ -148,7 +127,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
 
-      expect(controller.text, 'level:');
+      expect(controller.textController.text, 'level:');
       expect(find.text('level:error'), findsWidgets);
     },
   );
@@ -156,22 +135,16 @@ void main() {
   testWidgets('clicking a key suggestion appends to existing filters', (
     WidgetTester tester,
   ) async {
-    final controller = InlineFilterTextController(
-      text: 'package:com.example.auth lev',
+    final controller = buildController(
+      initialText: 'package:com.example.auth lev',
     );
-    final focusNode = FocusNode();
     addTearDown(controller.dispose);
-    addTearDown(focusNode.dispose);
 
-    await pumpInlineFilterBar(
-      tester,
-      controller: controller,
-      focusNode: focusNode,
-    );
+    await pumpInlineFilterBar(tester, controller: controller);
 
-    focusNode.requestFocus();
-    controller.selection = TextSelection.collapsed(
-      offset: controller.text.length,
+    controller.focusNode.requestFocus();
+    controller.textController.selection = TextSelection.collapsed(
+      offset: controller.textController.text.length,
     );
     await tester.pumpAndSettle();
 
@@ -180,27 +153,24 @@ void main() {
     await tester.tap(find.text('level:'));
     await tester.pumpAndSettle();
 
-    expect(controller.text, 'package:com.example.auth level:');
-    expect(controller.selection.baseOffset, controller.text.length);
+    expect(controller.textController.text, 'package:com.example.auth level:');
+    expect(
+      controller.textController.selection.baseOffset,
+      controller.textController.text.length,
+    );
   });
 
   testWidgets('suggests concrete level values after typing level colon', (
     WidgetTester tester,
   ) async {
-    final controller = InlineFilterTextController(text: 'level:');
-    final focusNode = FocusNode();
+    final controller = buildController(initialText: 'level:');
     addTearDown(controller.dispose);
-    addTearDown(focusNode.dispose);
 
-    await pumpInlineFilterBar(
-      tester,
-      controller: controller,
-      focusNode: focusNode,
-    );
+    await pumpInlineFilterBar(tester, controller: controller);
 
-    focusNode.requestFocus();
-    controller.selection = TextSelection.collapsed(
-      offset: controller.text.length,
+    controller.focusNode.requestFocus();
+    controller.textController.selection = TextSelection.collapsed(
+      offset: controller.textController.text.length,
     );
     await tester.pumpAndSettle();
 
@@ -209,26 +179,20 @@ void main() {
     await tester.tap(find.text('level:error').first);
     await tester.pumpAndSettle();
 
-    expect(controller.text, 'level:error ');
+    expect(controller.textController.text, 'level:error ');
   });
 
   testWidgets('level suggestions use colored level labels', (
     WidgetTester tester,
   ) async {
-    final controller = InlineFilterTextController(text: 'level:');
-    final focusNode = FocusNode();
+    final controller = buildController(initialText: 'level:');
     addTearDown(controller.dispose);
-    addTearDown(focusNode.dispose);
 
-    await pumpInlineFilterBar(
-      tester,
-      controller: controller,
-      focusNode: focusNode,
-    );
+    await pumpInlineFilterBar(tester, controller: controller);
 
-    focusNode.requestFocus();
-    controller.selection = TextSelection.collapsed(
-      offset: controller.text.length,
+    controller.focusNode.requestFocus();
+    controller.textController.selection = TextSelection.collapsed(
+      offset: controller.textController.text.length,
     );
     await tester.pumpAndSettle();
 
@@ -239,20 +203,18 @@ void main() {
   testWidgets('clicking a package key can apply a package value suggestion', (
     WidgetTester tester,
   ) async {
-    final controller = InlineFilterTextController(text: 'pack');
-    final focusNode = FocusNode();
-    addTearDown(controller.dispose);
-    addTearDown(focusNode.dispose);
-
-    await pumpInlineFilterBar(
-      tester,
-      controller: controller,
-      focusNode: focusNode,
+    final controller = buildController(
+      initialText: 'pack',
       knownPackageFilters: const ['com.example.auth', 'io.sample.payments'],
     );
+    addTearDown(controller.dispose);
 
-    focusNode.requestFocus();
-    controller.selection = const TextSelection.collapsed(offset: 4);
+    await pumpInlineFilterBar(tester, controller: controller);
+
+    controller.focusNode.requestFocus();
+    controller.textController.selection = const TextSelection.collapsed(
+      offset: 4,
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('package:'), findsWidgets);
@@ -260,32 +222,26 @@ void main() {
     await tester.tap(find.text('package:').first);
     await tester.pumpAndSettle();
 
-    expect(controller.text, 'package:');
+    expect(controller.textController.text, 'package:');
     expect(find.text('package:com.example.auth'), findsWidgets);
 
     await tester.tap(find.text('package:com.example.auth').first);
     await tester.pumpAndSettle();
 
-    expect(controller.text, 'package:com.example.auth ');
+    expect(controller.textController.text, 'package:com.example.auth ');
   });
 
   testWidgets('keyboard can select a narrowed value suggestion', (
     WidgetTester tester,
   ) async {
-    final controller = InlineFilterTextController(text: 'level:err');
-    final focusNode = FocusNode();
+    final controller = buildController(initialText: 'level:err');
     addTearDown(controller.dispose);
-    addTearDown(focusNode.dispose);
 
-    await pumpInlineFilterBar(
-      tester,
-      controller: controller,
-      focusNode: focusNode,
-    );
+    await pumpInlineFilterBar(tester, controller: controller);
 
-    focusNode.requestFocus();
-    controller.selection = TextSelection.collapsed(
-      offset: controller.text.length,
+    controller.focusNode.requestFocus();
+    controller.textController.selection = TextSelection.collapsed(
+      offset: controller.textController.text.length,
     );
     await tester.pumpAndSettle();
 
@@ -296,28 +252,22 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 
-    expect(controller.text, 'level:error ');
+    expect(controller.textController.text, 'level:error ');
   });
 
   testWidgets('clicking a value suggestion preserves earlier filters', (
     WidgetTester tester,
   ) async {
-    final controller = InlineFilterTextController(
-      text: 'package:com.example.auth level:',
+    final controller = buildController(
+      initialText: 'package:com.example.auth level:',
     );
-    final focusNode = FocusNode();
     addTearDown(controller.dispose);
-    addTearDown(focusNode.dispose);
 
-    await pumpInlineFilterBar(
-      tester,
-      controller: controller,
-      focusNode: focusNode,
-    );
+    await pumpInlineFilterBar(tester, controller: controller);
 
-    focusNode.requestFocus();
-    controller.selection = TextSelection.collapsed(
-      offset: controller.text.length,
+    controller.focusNode.requestFocus();
+    controller.textController.selection = TextSelection.collapsed(
+      offset: controller.textController.text.length,
     );
     await tester.pumpAndSettle();
 
@@ -326,28 +276,30 @@ void main() {
     await tester.tap(find.text('level:error').first);
     await tester.pumpAndSettle();
 
-    expect(controller.text, 'package:com.example.auth level:error ');
-    expect(controller.selection.baseOffset, controller.text.length);
+    expect(
+      controller.textController.text,
+      'package:com.example.auth level:error ',
+    );
+    expect(
+      controller.textController.selection.baseOffset,
+      controller.textController.text.length,
+    );
   });
 
   testWidgets(
     'package value suggestions include known packages and narrow as user types',
     (WidgetTester tester) async {
-      final controller = InlineFilterTextController(text: 'package:');
-      final focusNode = FocusNode();
-      addTearDown(controller.dispose);
-      addTearDown(focusNode.dispose);
-
-      await pumpInlineFilterBar(
-        tester,
-        controller: controller,
-        focusNode: focusNode,
+      final controller = buildController(
+        initialText: 'package:',
         knownPackageFilters: const ['com.example.auth', 'io.sample.payments'],
       );
+      addTearDown(controller.dispose);
 
-      focusNode.requestFocus();
-      controller.selection = TextSelection.collapsed(
-        offset: controller.text.length,
+      await pumpInlineFilterBar(tester, controller: controller);
+
+      controller.focusNode.requestFocus();
+      controller.textController.selection = TextSelection.collapsed(
+        offset: controller.textController.text.length,
       );
       await tester.pumpAndSettle();
 
@@ -359,30 +311,29 @@ void main() {
 
       expect(find.text('package:io.sample.payments'), findsWidgets);
       expect(find.text('package:com.example.auth'), findsNothing);
+
+      // Flush the debounce scheduled by typing so no timer outlives the test.
+      await tester.pump(const Duration(milliseconds: 350));
     },
   );
 
   testWidgets(
     'keyboard navigation scrolls suggestions to keep the highlighted item visible',
     (WidgetTester tester) async {
-      final controller = InlineFilterTextController(text: 'package:');
-      final focusNode = FocusNode();
-      addTearDown(controller.dispose);
-      addTearDown(focusNode.dispose);
-
-      await pumpInlineFilterBar(
-        tester,
-        controller: controller,
-        focusNode: focusNode,
+      final controller = buildController(
+        initialText: 'package:',
         knownPackageFilters: List<String>.generate(
           18,
           (index) => 'com.example.feature.$index',
         ),
       );
+      addTearDown(controller.dispose);
 
-      focusNode.requestFocus();
-      controller.selection = TextSelection.collapsed(
-        offset: controller.text.length,
+      await pumpInlineFilterBar(tester, controller: controller);
+
+      controller.focusNode.requestFocus();
+      controller.textController.selection = TextSelection.collapsed(
+        offset: controller.textController.text.length,
       );
       await tester.pumpAndSettle();
 
@@ -412,16 +363,10 @@ void main() {
   testWidgets('help content stays collapsed until the help icon is pressed', (
     WidgetTester tester,
   ) async {
-    final controller = InlineFilterTextController();
-    final focusNode = FocusNode();
+    final controller = buildController();
     addTearDown(controller.dispose);
-    addTearDown(focusNode.dispose);
 
-    await pumpInlineFilterBar(
-      tester,
-      controller: controller,
-      focusNode: focusNode,
-    );
+    await pumpInlineFilterBar(tester, controller: controller);
 
     expect(find.byTooltip('Show filter help'), findsOneWidget);
 
@@ -436,34 +381,27 @@ void main() {
     );
   });
 
-  testWidgets(
-    'controller builds highlighted spans for known key:value tokens',
-    (WidgetTester tester) async {
-      final controller = InlineFilterTextController(
-        text: 'package:com.example.auth raw',
-      );
-      final focusNode = FocusNode();
-      addTearDown(controller.dispose);
-      addTearDown(focusNode.dispose);
+  testWidgets('controller builds highlighted spans for known key:value tokens', (
+    WidgetTester tester,
+  ) async {
+    final controller = buildController(
+      initialText: 'package:com.example.auth raw',
+    );
+    addTearDown(controller.dispose);
 
-      await pumpInlineFilterBar(
-        tester,
-        controller: controller,
-        focusNode: focusNode,
-      );
+    await pumpInlineFilterBar(tester, controller: controller);
 
-      final span = controller.buildTextSpan(
-        context: tester.element(find.byType(InlineFilterBar)),
-        style: const TextStyle(fontSize: 12),
-        withComposing: false,
-      );
+    final span = controller.textController.buildTextSpan(
+      context: tester.element(find.byType(InlineFilterBar)),
+      style: const TextStyle(fontSize: 12),
+      withComposing: false,
+    );
 
-      expect(span.children, isNotNull);
-      final highlightedSpan = span.children!.whereType<TextSpan>().firstWhere(
-        (child) => child.children != null && child.children!.isNotEmpty,
-      );
-      expect(highlightedSpan.children!.first.toPlainText(), 'package:');
-      expect(highlightedSpan.children!.last.toPlainText(), 'com.example.auth');
-    },
-  );
+    expect(span.children, isNotNull);
+    final highlightedSpan = span.children!.whereType<TextSpan>().firstWhere(
+      (child) => child.children != null && child.children!.isNotEmpty,
+    );
+    expect(highlightedSpan.children!.first.toPlainText(), 'package:');
+    expect(highlightedSpan.children!.last.toPlainText(), 'com.example.auth');
+  });
 }

@@ -14,7 +14,7 @@ import '../../utils/text_search_pattern.dart';
 /// - Escape to close
 /// - Enter to go to next match
 class TextSearchBar extends StatefulWidget {
-  final TextEditingController controller;
+  final TextEditingController? controller;
   final FocusNode? focusNode;
   final TextSearchConfig search;
   final bool hasError;
@@ -33,7 +33,7 @@ class TextSearchBar extends StatefulWidget {
 
   const TextSearchBar({
     super.key,
-    required this.controller,
+    this.controller,
     this.focusNode,
     required this.search,
     this.hasError = false,
@@ -55,10 +55,15 @@ class TextSearchBar extends StatefulWidget {
 
 class _TextSearchBarState extends State<TextSearchBar> {
   late final FocusNode _internalFocusNode = FocusNode();
+  late final TextEditingController _internalController =
+      TextEditingController();
 
   FocusNode get _focusNode => widget.focusNode ?? _internalFocusNode;
+  TextEditingController get _controller =>
+      widget.controller ?? _internalController;
 
   bool get _ownsFocusNode => widget.focusNode == null;
+  bool get _ownsController => widget.controller == null;
 
   @override
   void initState() {
@@ -71,6 +76,7 @@ class _TextSearchBarState extends State<TextSearchBar> {
       }
       return KeyEventResult.ignored;
     };
+    _controller.text = widget.search.query;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
@@ -83,12 +89,23 @@ class _TextSearchBarState extends State<TextSearchBar> {
     } else {
       _focusNode.onKeyEvent = null;
     }
+    if (_ownsController) {
+      _controller.dispose();
+    }
     super.dispose();
   }
 
   @override
+  void didUpdateWidget(covariant TextSearchBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.search.query != oldWidget.search.query) {
+      _controller.text = widget.search.query;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final hasQuery = widget.controller.text.isNotEmpty;
+    final hasQuery = _controller.text.isNotEmpty;
     final noResults = hasQuery && widget.totalMatches == 0 && !widget.hasError;
     final theme = Theme.of(context);
     final logTheme = context.eaglyTheme;
@@ -116,7 +133,7 @@ class _TextSearchBarState extends State<TextSearchBar> {
               const SizedBox(width: 6),
               Expanded(
                 child: TextField(
-                  controller: widget.controller,
+                  controller: _controller,
                   focusNode: _focusNode,
                   textInputAction: TextInputAction.search,
                   // Prevent the default onEditingComplete behavior which can

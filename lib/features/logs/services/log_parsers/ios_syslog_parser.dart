@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../../../data/device.dart';
 import '../../data/models/log_entry.dart';
 import '../../data/models/log_level.dart';
 
@@ -254,6 +255,7 @@ class _IosSyslogEntryBuilder {
       message: _message.toString(),
       packageName: processName,
       processName: processLabel,
+      platform: DevicePlatform.ios,
     );
   }
 

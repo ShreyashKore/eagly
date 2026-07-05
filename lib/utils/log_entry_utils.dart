@@ -106,19 +106,21 @@ extension LogEntryExt on LogEntry {
     ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' ');
   }
 
-  String valueForColumn(LogColumn column, {bool isIos = false}) =>
-      switch (column) {
-        LogColumn.timestamp => timestamp,
-        // iOS: packageName holds the compact process name ("novio", "runningboardd").
-        // Android: packageName is the resolved package name, or PID as fallback.
-        LogColumn.pid => packageName ?? processName ?? pid,
-        // iOS has no thread ID in syslog output (stored as '0'); show PID instead.
-        // Android: combined "PID/TID" so both are visible in one cell.
-        LogColumn.tid => isIos ? pid : '$pid/$tid',
-        LogColumn.level => isSpecialEntry ? typeLabel : level,
-        LogColumn.tag => tag,
-        LogColumn.message => message,
-      };
+  String valueForColumn(
+    LogColumn column, {
+    bool isIos = false,
+  }) => switch (column) {
+    LogColumn.timestamp => timestamp,
+    // iOS: packageName holds the compact process name ("novio", "runningboardd").
+    // Android: packageName is the resolved package name, or PID as fallback.
+    LogColumn.pid => packageName ?? processName ?? pid,
+    // iOS has no thread ID in syslog output (stored as '0'); show PID instead.
+    // Android: combined "PID/TID" so both are visible in one cell.
+    LogColumn.tid => isIos ? pid : '$pid/$tid',
+    LogColumn.level => isSpecialEntry ? typeLabel : level,
+    LogColumn.tag => tag,
+    LogColumn.message => message,
+  };
 
   String formatForCopy(LogCopyFormat format) {
     return switch (format) {
@@ -128,4 +130,27 @@ extension LogEntryExt on LogEntry {
         '$timestamp ${packageName ?? pid} $tid $level $tag: $message',
     };
   }
+}
+
+int estimateLogsBytes(Iterable<LogEntry> entries) {
+  var total = 0;
+  for (final entry in entries) {
+    total += estimateLogEntryBytes(entry);
+  }
+  return total;
+}
+
+int estimateLogEntryBytes(LogEntry log) {
+  int stringBytes(String value) => value.length * 2;
+
+  return 128 +
+      stringBytes(log.type.name) +
+      stringBytes(log.timestamp) +
+      stringBytes(log.pid) +
+      stringBytes(log.tid) +
+      stringBytes(log.level) +
+      stringBytes(log.tag) +
+      stringBytes(log.message) +
+      stringBytes(log.lowercaseSearchable) +
+      (log.packageName == null ? 0 : stringBytes(log.packageName!));
 }

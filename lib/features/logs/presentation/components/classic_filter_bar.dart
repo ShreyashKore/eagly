@@ -1,72 +1,32 @@
 import 'package:flutter/material.dart';
 
-import '../../data/models/log_level.dart';
+import '../../data/models/log_filters.dart';
 import 'filter_bar_shared.dart';
+import 'log_filter_controller.dart';
 
 export 'filter_bar_shared.dart' show filterInputDecoration, kFilterFieldHeight;
+export 'log_filter_controller.dart'
+    show ClassicFilterController, LogFilterSuggestions;
 
+/// The classic filter bar: separate level / package / tag / message fields.
+/// Fully driven by a [ClassicFilterController]; it owns no filter state.
 class ClassicFilterBar extends StatelessWidget {
-  final TextEditingController messageController;
-  final FocusNode messageFocusNode;
-  final ValueChanged<String> onMessageFilterChanged;
-  final ValueChanged<String> onMessageFilterSelected;
-  final List<String> recentMessageFilters;
-  final TextEditingController packageController;
-  final FocusNode packageFocusNode;
-  final ValueChanged<String> onPackageFilterChanged;
-  final ValueChanged<String> onPackageFilterSelected;
-  final List<String> recentPackageFilters;
-  final List<String> knownPackageFilters;
-  final TextEditingController pidTidController;
-  final FocusNode pidTidFocusNode;
-  final ValueChanged<String> onPidTidFilterChanged;
-  final ValueChanged<String> onPidTidFilterSelected;
-  final List<String> recentPidTidFilters;
-  final TextEditingController tagController;
-  final FocusNode tagFocusNode;
-  final ValueChanged<String> onTagFilterChanged;
-  final ValueChanged<String> onTagFilterSelected;
-  final List<String> recentTagFilters;
-  final VoidCallback onSubmitFilters;
-  final LogLevel selectedLogLevel;
-  final ValueChanged<LogLevel?> onLogLevelChanged;
-  final bool isIos;
+  const ClassicFilterBar({super.key, required this.controller});
 
-  const ClassicFilterBar({
-    super.key,
-    required this.messageController,
-    required this.messageFocusNode,
-    required this.onMessageFilterChanged,
-    required this.onMessageFilterSelected,
-    required this.recentMessageFilters,
-    required this.packageController,
-    required this.packageFocusNode,
-    required this.onPackageFilterChanged,
-    required this.onPackageFilterSelected,
-    required this.recentPackageFilters,
-    required this.knownPackageFilters,
-    required this.pidTidController,
-    required this.pidTidFocusNode,
-    required this.onPidTidFilterChanged,
-    required this.onPidTidFilterSelected,
-    required this.recentPidTidFilters,
-    required this.tagController,
-    required this.tagFocusNode,
-    required this.onTagFilterChanged,
-    required this.onTagFilterSelected,
-    required this.recentTagFilters,
-    required this.onSubmitFilters,
-    required this.selectedLogLevel,
-    required this.onLogLevelChanged,
-    this.isIos = false,
-  });
+  final ClassicFilterController controller;
+
+  bool get _isIos => controller.isIos;
+  LogFilterSuggestions get _suggestions => controller.suggestions;
 
   @override
   Widget build(BuildContext context) {
-    return _buildRow(context: context);
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) => _buildRow(context),
+    );
   }
 
-  Widget _buildRow({required BuildContext context}) {
+  Widget _buildRow(BuildContext context) {
     return Row(
       spacing: 8,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -74,26 +34,28 @@ class ClassicFilterBar extends StatelessWidget {
         Expanded(
           flex: 3,
           child: LogLevelDropdown(
-            selectedLogLevel: selectedLogLevel,
-            onLogLevelChanged: onLogLevelChanged,
-            isIos: isIos,
+            selectedLogLevel: controller.selectedLevel,
+            onLogLevelChanged: (level) {
+              if (level != null) controller.setLevel(level);
+            },
+            isIos: _isIos,
           ),
         ),
         Expanded(
           flex: 3,
           child: _RecentFilterField(
-            controller: packageController,
-            focusNode: packageFocusNode,
-            onChanged: onPackageFilterChanged,
-            onSuggestionSelected: onPackageFilterSelected,
-            onSubmitted: (_) => onSubmitFilters(),
+            controller: controller.packageController,
+            focusNode: controller.packageFocusNode,
+            onSuggestionSelected: (value) =>
+                controller.selectSuggestion(LogFilterField.packageName, value),
+            onSubmitted: (_) => controller.applyNow(),
             recentValues: _mergeSuggestedValues([
-              for (final entry in recentPackageFilters)
+              for (final entry in _suggestions.recentPackageFilters())
                 _SuggestedFilterValue(
                   value: entry,
                   priority: _SuggestionPriority.recent,
                 ),
-              for (final entry in knownPackageFilters)
+              for (final entry in _suggestions.knownPackageFilters())
                 _SuggestedFilterValue(
                   value: entry,
                   priority: _SuggestionPriority.known,
@@ -108,26 +70,26 @@ class ClassicFilterBar extends StatelessWidget {
         Expanded(
           flex: 3,
           child: _RecentFilterField(
-            controller: tagController,
-            focusNode: tagFocusNode,
-            onChanged: onTagFilterChanged,
-            onSuggestionSelected: onTagFilterSelected,
-            onSubmitted: (_) => onSubmitFilters(),
-            recentValues: recentTagFilters,
-            labelText: isIos ? 'Category' : 'Tag',
-            hintText: isIos ? 'Filter category…' : 'Filter tag…',
+            controller: controller.tagController,
+            focusNode: controller.tagFocusNode,
+            onSuggestionSelected: (value) =>
+                controller.selectSuggestion(LogFilterField.tag, value),
+            onSubmitted: (_) => controller.applyNow(),
+            recentValues: _suggestions.recentTagFilters(),
+            labelText: _isIos ? 'Category' : 'Tag',
+            hintText: _isIos ? 'Filter category…' : 'Filter tag…',
             prefixIcon: Icons.sell_outlined,
           ),
         ),
         Expanded(
           flex: 10,
           child: _RecentFilterField(
-            controller: messageController,
-            focusNode: messageFocusNode,
-            onChanged: onMessageFilterChanged,
-            onSuggestionSelected: onMessageFilterSelected,
-            onSubmitted: (_) => onSubmitFilters(),
-            recentValues: recentMessageFilters,
+            controller: controller.messageController,
+            focusNode: controller.messageFocusNode,
+            onSuggestionSelected: (value) =>
+                controller.selectSuggestion(LogFilterField.message, value),
+            onSubmitted: (_) => controller.applyNow(),
+            recentValues: _suggestions.recentMessageFilters(),
             labelText: 'Message',
             hintText: 'Filter message text…',
             prefixIcon: Icons.message_outlined,
@@ -168,7 +130,6 @@ class _RecentFilterField<T extends Object> extends StatelessWidget {
   const _RecentFilterField({
     required this.controller,
     required this.focusNode,
-    required this.onChanged,
     required this.onSuggestionSelected,
     required this.onSubmitted,
     required this.recentValues,
@@ -180,7 +141,6 @@ class _RecentFilterField<T extends Object> extends StatelessWidget {
 
   final TextEditingController controller;
   final FocusNode focusNode;
-  final ValueChanged<String> onChanged;
   final ValueChanged<String> onSuggestionSelected;
   final ValueChanged<String> onSubmitted;
   final List<T> recentValues;
@@ -220,11 +180,7 @@ class _RecentFilterField<T extends Object> extends StatelessWidget {
         focusNode: focusNode,
         optionsBuilder: (textEditingValue) =>
             _matchingOptions(textEditingValue.text),
-        onSelected: (value) {
-          final label = _optionLabel(value);
-          controller.text = label;
-          onSuggestionSelected(label);
-        },
+        onSelected: (value) => onSuggestionSelected(_optionLabel(value)),
         fieldViewBuilder:
             (context, fieldController, fieldFocusNode, onFieldSubmitted) {
               return TextField(
@@ -237,7 +193,6 @@ class _RecentFilterField<T extends Object> extends StatelessWidget {
                   hintText: hintText,
                   prefixIcon: prefixIcon,
                 ),
-                onChanged: onChanged,
                 onSubmitted: (value) {
                   onSubmitted(value);
                   onFieldSubmitted();

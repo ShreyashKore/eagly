@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import 'data/models/log_entry.dart';
+import 'presentation/components/log_lines_limit_input.dart';
 import 'presentation/models/log_view_mode.dart';
 import '../../features/app_log/app_logger.dart';
 import '../../session/device_session_controller.dart';
@@ -244,58 +245,11 @@ class _LogFeatureViewState extends State<LogFeatureView> {
               child: isInline
                   ? InlineFilterBar(
                       key: const ValueKey('inline-filter-bar'),
-                      controller: controller.inlineFilterController,
-                      focusNode: controller.inlineFilterFocusNode,
-                      onChanged: controller.onInlineFilterChanged,
-                      onSubmitted: controller.applyFiltersNow,
-                      onSuggestionApplied: controller.setInlineFilterText,
-                      selectedLogLevel: controller.selectedLogLevel,
-                      onLogLevelChanged: (level) {
-                        if (level != null) {
-                          controller.setSelectedLogLevel(level);
-                        }
-                      },
-                      recentMessageFilters: controller.recentMessageFilters,
-                      recentPackageFilters: controller.recentPackageFilters,
-                      knownPackageFilters: controller.knownInlinePackageFilters,
-                      recentPidTidFilters: controller.recentPidTidFilters,
-                      recentTagFilters: controller.recentTagFilters,
-                      isIos: controller.isIosLogContext,
+                      controller: controller.inlineFilter,
                     )
                   : ClassicFilterBar(
                       key: const ValueKey('classic-filter-bar'),
-                      messageController: controller.filterController,
-                      messageFocusNode: controller.filterFocusNode,
-                      onMessageFilterChanged: controller.onSearchChanged,
-                      onMessageFilterSelected:
-                          controller.selectMessageFilterSuggestion,
-                      recentMessageFilters: controller.recentMessageFilters,
-                      packageController: controller.packageFilterController,
-                      packageFocusNode: controller.packageFilterFocusNode,
-                      onPackageFilterChanged: controller.onPackageFilterChanged,
-                      onPackageFilterSelected:
-                          controller.selectPackageFilterSuggestion,
-                      recentPackageFilters: controller.recentPackageFilters,
-                      knownPackageFilters: controller.knownInlinePackageFilters,
-                      pidTidController: controller.pidTidFilterController,
-                      pidTidFocusNode: controller.pidTidFilterFocusNode,
-                      onPidTidFilterChanged: controller.onPidTidFilterChanged,
-                      onPidTidFilterSelected:
-                          controller.selectPidTidFilterSuggestion,
-                      recentPidTidFilters: controller.recentPidTidFilters,
-                      tagController: controller.tagFilterController,
-                      tagFocusNode: controller.tagFilterFocusNode,
-                      onTagFilterChanged: controller.onTagFilterChanged,
-                      onTagFilterSelected: controller.selectTagFilterSuggestion,
-                      recentTagFilters: controller.recentTagFilters,
-                      onSubmitFilters: controller.applyFiltersNow,
-                      selectedLogLevel: controller.selectedLogLevel,
-                      onLogLevelChanged: (level) {
-                        if (level != null) {
-                          controller.setSelectedLogLevel(level);
-                        }
-                      },
-                      isIos: controller.isIosLogContext,
+                      controller: controller.classicFilter,
                     ),
             ),
           ),
@@ -428,8 +382,6 @@ class _LogFeatureViewState extends State<LogFeatureView> {
             top: 24,
             right: 12,
             child: TextSearchBar(
-              controller: controller.searchController,
-              focusNode: controller.searchFocusNode,
               search: controller.inlineSearch,
               hintText: 'Search in logs...',
               hasError: controller.inlineSearchHasError,
@@ -597,38 +549,13 @@ class _LogFeatureViewState extends State<LogFeatureView> {
                 ),
               ),
             )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IntrinsicWidth(
-                  child: TextField(
-                    onTapOutside: (_) =>
-                        controller.setEditingLogLinesLimit(false),
-                    controller: controller.logLinesController,
-                    autofocus: true,
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(fontSize: 13),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 4,
-                        horizontal: 4,
-                      ),
-                      prefixText: 'Max lines: ',
-                      border: const OutlineInputBorder(),
-                      suffix: IconButton(
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        onPressed: controller.submitLogLinesLimit,
-                        icon: const Icon(Icons.check, size: 14),
-                      ),
-                    ),
-                    onSubmitted: controller.submitLogLinesLimit,
-                    onEditingComplete: () =>
-                        controller.setEditingLogLinesLimit(false),
-                  ),
-                ),
-              ],
+          : IntrinsicWidth(
+              child: LogLinesLimitInput(
+                setEditingLogLinesLimit: controller.setEditingLogLinesLimit,
+                submitLogLinesLimit: controller.submitLogLinesLimit,
+                logLinesLimit: controller.logLinesLimit,
+                isEditing: controller.editingLogLinesLimit,
+              ),
             ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/logs/data/models/log_column.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
+import 'package:eagly/features/logs/data/models/log_filters.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/features/logs/data/models/log_tab_settings.dart';
 import 'package:eagly/features/logs/presentation/models/log_view_mode.dart';
@@ -8,11 +9,24 @@ import 'package:eagly/features/logs/log_controller.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
 import 'package:eagly/utils/log_entry_utils.dart';
+import 'package:eagly/utils/text_search_pattern.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/session_test_support.dart';
+
+/// Applies inline filter syntax the way the inline bar would: parse the text
+/// into a [LogFilters] configuration, then apply it.
+void applyInlineFilter(LogController log, String text) {
+  log.applyFilters(
+    LogFilters.parse(
+      text,
+      fallbackLevel: log.selectedLogLevel,
+      isIosLogContext: log.isIosLogContext,
+    ),
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -231,41 +245,38 @@ void main() {
     },
   );
 
-  test(
-    'opening a second live tab does not interrupt the first tab',
-    () async {
-      createLog();
-      final manager = session!.logSessionManager;
-      final firstTab = manager.tabs.first;
+  test('opening a second live tab does not interrupt the first tab', () async {
+    createLog();
+    final manager = session!.logSessionManager;
+    final firstTab = manager.tabs.first;
 
-      await firstTab.startLogcat();
-      expect(firstTab.isRunning, isTrue);
-      expect(service.startLogStreamCount, 1);
+    await firstTab.startLogcat();
+    expect(firstTab.isRunning, isTrue);
+    expect(service.startLogStreamCount, 1);
 
-      // A second live tab for the same device must start its own independent
-      // stream — not tear down the first tab's stream and send it into the
-      // recovery loop (the shared-session reconnect storm).
-      manager.addLiveTab();
-      final secondTab = manager.tabs.last;
-      expect(secondTab, isNot(same(firstTab)));
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+    // A second live tab for the same device must start its own independent
+    // stream — not tear down the first tab's stream and send it into the
+    // recovery loop (the shared-session reconnect storm).
+    manager.addLiveTab();
+    final secondTab = manager.tabs.last;
+    expect(secondTab, isNot(same(firstTab)));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      // Exactly one stream per tab; the first tab never re-attached (which a
-      // recovery cycle would have caused).
-      expect(service.startLogStreamCount, 2);
-      expect(service.recoverCount, 0);
-      expect(firstTab.isRunning, isTrue);
-      expect(firstTab.liveLoggingInterrupted, isFalse);
-      expect(firstTab.isRecovering, isFalse);
-      expect(secondTab.isRunning, isTrue);
-      expect(secondTab.liveLoggingInterrupted, isFalse);
-    },
-  );
+    // Exactly one stream per tab; the first tab never re-attached (which a
+    // recovery cycle would have caused).
+    expect(service.startLogStreamCount, 2);
+    expect(service.recoverCount, 0);
+    expect(firstTab.isRunning, isTrue);
+    expect(firstTab.liveLoggingInterrupted, isFalse);
+    expect(firstTab.isRecovering, isFalse);
+    expect(secondTab.isRunning, isTrue);
+    expect(secondTab.liveLoggingInterrupted, isFalse);
+  });
 
   test('submitLogLinesLimit rejects values below minimum threshold', () {
     final log = createLog();
 
-    final submitted = log.submitLogLinesLimit('999');
+    final submitted = log.submitLogLinesLimit(999);
 
     expect(submitted, isFalse);
     expect(log.logLinesLimit, 50000);
@@ -287,13 +298,12 @@ void main() {
       ),
     );
 
-    final submitted = log.submitLogLinesLimit('1000');
+    final submitted = log.submitLogLinesLimit(1000);
 
     expect(submitted, isTrue);
     expect(log.logLinesLimit, 1000);
     expect(log.logs, hasLength(1000));
     expect(log.logs.first.message, 'Message 5');
-    expect(log.logLinesController.text, '1000');
   });
 
   test(
@@ -331,11 +341,15 @@ void main() {
         ),
       ];
 
-      log.onSearchChanged('signed in');
-      log.onPackageFilterChanged('example.auth');
-      log.onPidTidFilterChanged('101/202');
-      log.onTagFilterChanged('auth');
-      log.applyFiltersNow();
+      log.applyFilters(
+        LogFilters.fromFields(
+          level: log.selectedLogLevel,
+          message: 'signed in',
+          package: 'example.auth',
+          pidTid: '101/202',
+          tag: 'auth',
+        ),
+      );
 
       expect(log.filteredLogs, hasLength(1));
       expect(log.filteredLogs.single.pid, '101');
@@ -344,6 +358,43 @@ void main() {
       expect(log.filteredLogs, isEmpty);
     },
   );
+
+  test('inline age filter keeps only entries within the max age', () {
+    final log = createLog();
+
+    String stamp(DateTime time) {
+      String two(int v) => v.toString().padLeft(2, '0');
+      final year = time.year.toString().padLeft(4, '0');
+      final millis = time.millisecond.toString().padLeft(3, '0');
+      return '$year-${two(time.month)}-${two(time.day)} '
+          '${two(time.hour)}:${two(time.minute)}:${two(time.second)}.$millis';
+    }
+
+    final now = DateTime.now();
+    log.logs = [
+      LogEntry(
+        timestamp: stamp(now.subtract(const Duration(hours: 3))),
+        pid: '101',
+        tid: '202',
+        level: 'I',
+        tag: 'AuthService',
+        message: 'Old entry',
+      ),
+      LogEntry(
+        timestamp: stamp(now.subtract(const Duration(minutes: 5))),
+        pid: '303',
+        tid: '404',
+        level: 'I',
+        tag: 'AuthService',
+        message: 'Recent entry',
+      ),
+    ];
+
+    applyInlineFilter(log, 'age:1h');
+
+    expect(log.filteredLogs, hasLength(1));
+    expect(log.filteredLogs.single.message, 'Recent entry');
+  });
 
   test(
     'message filter only matches the log message while tag filter is separate',
@@ -361,13 +412,15 @@ void main() {
         ),
       ];
 
-      log.onSearchChanged('needle');
-      log.applyFiltersNow();
+      log.applyFilters(
+        LogFilters.fromFields(level: log.selectedLogLevel, message: 'needle'),
+      );
       expect(log.filteredLogs, isEmpty);
 
       log.clearFilter();
-      log.onTagFilterChanged('needle');
-      log.applyFiltersNow();
+      log.applyFilters(
+        LogFilters.fromFields(level: log.selectedLogLevel, tag: 'needle'),
+      );
       expect(log.filteredLogs, hasLength(1));
     },
   );
@@ -377,24 +430,32 @@ void main() {
     () async {
       final log = createLog();
 
-      log.onSearchChanged('First message');
-      log.onPackageFilterChanged('com.example.app');
-      log.onPidTidFilterChanged('123:456');
-      log.onTagFilterChanged('Auth');
-      log.applyFiltersNow();
+      log.applyFilters(
+        LogFilters.fromFields(
+          level: log.selectedLogLevel,
+          message: 'First message',
+          package: 'com.example.app',
+          pidTid: '123:456',
+          tag: 'Auth',
+        ),
+      );
 
-      log.onSearchChanged('second message');
-      log.onPackageFilterChanged('com.example.app');
-      log.onPidTidFilterChanged('123:456');
-      log.onTagFilterChanged('auth');
-      log.applyFiltersNow();
+      log.applyFilters(
+        LogFilters.fromFields(
+          level: log.selectedLogLevel,
+          message: 'second message',
+          package: 'com.example.app',
+          pidTid: '123:456',
+          tag: 'auth',
+        ),
+      );
 
       await Future<void>.delayed(const Duration(milliseconds: 1100));
 
-      expect(log.recentMessageFilters, ['second message']);
-      expect(log.recentPackageFilters, ['com.example.app']);
-      expect(log.recentPidTidFilters, ['123:456']);
-      expect(log.recentTagFilters, ['auth']);
+      expect(log.recentFilters.message, ['second message']);
+      expect(log.recentFilters.package, ['com.example.app']);
+      expect(log.recentFilters.pidTid, ['123:456']);
+      expect(log.recentFilters.tag, ['auth']);
     },
   );
 
@@ -426,18 +487,18 @@ void main() {
         ),
       ];
 
-      log.onInlineFilterChanged(
+      applyInlineFilter(
+        log,
         'package:com.example.auth tag:Auth pid:101/202 level:error "signed in"',
       );
-      log.applyFiltersNow();
 
       expect(log.selectedLogLevel, LogLevel.error);
       expect(log.filteredLogs, hasLength(1));
       expect(log.filteredLogs.single.level, 'E');
-      expect(log.filterController.text, 'signed in');
-      expect(log.packageFilterController.text, 'com.example.auth');
-      expect(log.tagFilterController.text, 'Auth');
-      expect(log.pidTidFilterController.text, '101/202');
+      expect(log.classicFilter.messageController.text, 'signed in');
+      expect(log.classicFilter.packageController.text, 'com.example.auth');
+      expect(log.classicFilter.tagController.text, 'Auth');
+      expect(log.classicFilter.pidTidController.text, '101/202');
     },
   );
 
@@ -467,14 +528,14 @@ void main() {
       ),
     ];
 
-    log.onInlineFilterChanged(
+    applyInlineFilter(
+      log,
       'message:"background sync" message:worker tag:SyncWorker',
     );
-    log.applyFiltersNow();
 
     expect(log.filteredLogs, hasLength(1));
     expect(log.filteredLogs.single.message, contains('worker'));
-    expect(log.recentMessageFilters, isEmpty);
+    expect(log.recentFilters.message, isEmpty);
   });
 
   test(
@@ -505,14 +566,12 @@ void main() {
         ),
       ];
 
-      log.onInlineFilterChanged('AuthService');
-      log.applyFiltersNow();
+      applyInlineFilter(log, 'AuthService');
 
       expect(log.filteredLogs, hasLength(1));
       expect(log.filteredLogs.single.tag, 'AuthService');
 
-      log.onInlineFilterChanged('com.example.sync');
-      log.applyFiltersNow();
+      applyInlineFilter(log, 'com.example.sync');
 
       expect(log.filteredLogs, hasLength(1));
       expect(log.filteredLogs.single.packageName, 'com.example.sync');
@@ -534,8 +593,9 @@ void main() {
     () async {
       final log = createLog(settings: testSettings(logLinesLimit: 3));
 
-      log.onSearchChanged('keep');
-      log.applyFiltersNow();
+      log.applyFilters(
+        LogFilters.fromFields(level: log.selectedLogLevel, message: 'keep'),
+      );
       await log.startLogcat();
 
       for (final (index, message) in [
@@ -584,9 +644,10 @@ void main() {
       ),
     ];
 
-    log.onInlineSearchChanged('HiddenNeedle');
     log.setHiddenColumns({LogColumn.message.name});
-    log.setSearchCaseSensitive(true);
+    log.onInlineSearchOptionsChanged(
+      TextSearchConfig(query: 'HiddenNeedle', caseSensitive: true),
+    );
 
     expect(log.searchMatchIndices, isEmpty);
   });
@@ -616,15 +677,16 @@ void main() {
     log.openSearchBar(query: 'error');
     expect(log.searchMatchIndices, [0, 1]);
 
-    log.setSearchWholeWord(true);
+    log.onInlineSearchOptionsChanged(TextSearchConfig(wholeWord: true));
     expect(log.searchMatchIndices, [0]);
 
-    log.setSearchWholeWord(false);
-    log.setSearchRegex(true);
+    log.onInlineSearchOptionsChanged(
+      TextSearchConfig(wholeWord: false, regex: true),
+    );
     log.openSearchBar(query: r'error\d+');
     expect(log.searchMatchIndices, [0, 1]);
 
-    log.setSearchCaseSensitive(true);
+    log.onInlineSearchOptionsChanged(TextSearchConfig(caseSensitive: true));
     log.openSearchBar(query: r'ERROR');
     expect(log.searchMatchIndices, [0]);
   });
@@ -643,7 +705,7 @@ void main() {
       ),
     ];
 
-    log.setSearchRegex(true);
+    log.onInlineSearchOptionsChanged(TextSearchConfig(regex: true));
     log.openSearchBar(query: r'(');
 
     expect(log.inlineSearchHasError, isTrue);
@@ -659,8 +721,8 @@ void main() {
 
     final clipboard = await Clipboard.getData('text/plain');
     expect(log.searchBarVisible, isTrue);
-    expect(log.inlineSearchQuery, 'Selected needle');
-    expect(log.appliedInlineSearchQuery, 'Selected needle');
+    expect(log.inlineSearch.query, 'Selected needle');
+    expect(log.appliedInlineSearch.query, 'Selected needle');
     expect(log.autoScroll, isFalse);
     expect(clipboard?.text, 'Selected needle');
   });

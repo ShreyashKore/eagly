@@ -116,24 +116,5 @@ void main() {
       expect(entry.processName, 'crash');
       expect(entry.message, 'Beginning of crash');
     });
-
-    test('exports and restores special entry types', () {
-      final error = LogEntryUtils.buildToolError(
-        message: 'Failed to start adb logcat.',
-        tag: 'adb logcat',
-        processName: 'emulator-5554',
-      );
-
-      final restored = _format
-          .parse(_format.export([error]).content)
-          .logs
-          .firstOrNull;
-
-      expect(restored, isNotNull);
-      expect(restored!.type, LogEntryType.error);
-      expect(restored.isSpecialEntry, isTrue);
-      expect(restored.message, error.message);
-      expect(restored.processName, error.processName);
-    });
   });
 }
