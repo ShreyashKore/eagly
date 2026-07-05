@@ -21,41 +21,28 @@ bool matchesLogFilters(
     return false;
   }
 
-  if (!_matchesAllTerms(
-    packageFilterValue(log),
-    appliedFilters.packageTerms,
-    caseSensitive: false,
-  )) {
+  if (!_matchesAllTerms(packageFilterValue(log), appliedFilters.packageTerms)) {
     return false;
   }
 
-  if (!_matchesAllTerms(
-    log.lowercaseSearchable,
-    appliedFilters.rawTerms,
-    caseSensitive: false,
-  )) {
+  if (!_matchesAllTerms(log.lowercaseSearchable, appliedFilters.rawTerms)) {
     return false;
   }
 
-  if (appliedFilters.pidTidTerms.any(
-    (query) => !_matchesPidTidFilter(log, query),
-  )) {
+  if (appliedFilters.pidTidTerms.isNotEmpty) {
+    final candidates = _pidTidCandidates(log);
+    if (appliedFilters.pidTidTerms.any(
+      (term) => !term.matchesAny(candidates),
+    )) {
+      return false;
+    }
+  }
+
+  if (!_matchesAllTerms(log.tag, appliedFilters.tagTerms)) {
     return false;
   }
 
-  if (!_matchesAllTerms(
-    log.tag,
-    appliedFilters.tagTerms,
-    caseSensitive: false,
-  )) {
-    return false;
-  }
-
-  if (!_matchesAllTerms(
-    log.message,
-    appliedFilters.messageTerms,
-    caseSensitive: false,
-  )) {
+  if (!_matchesAllTerms(log.message, appliedFilters.messageTerms)) {
     return false;
   }
 
@@ -74,22 +61,22 @@ String packageFilterValue(LogEntry log) {
   return '';
 }
 
-/// True when every term in [terms] is contained in [candidate]. An empty
-/// [terms] matches everything.
-bool _matchesAllTerms(
-  String candidate,
-  List<String> terms, {
-  required bool caseSensitive,
-}) {
+/// True when every term in [terms] matches [candidate]. An empty [terms] matches
+/// everything. Each term applies its own mode (contains/exact/regex) and
+/// negation.
+bool _matchesAllTerms(String candidate, List<FilterTerm> terms) {
   if (terms.isEmpty) return true;
-  final normalizedCandidate = caseSensitive
-      ? candidate
-      : candidate.toLowerCase();
-  return terms.every((term) {
-    final normalizedTerm = caseSensitive ? term : term.toLowerCase();
-    return normalizedCandidate.contains(normalizedTerm);
-  });
+  return terms.every((term) => term.matches(candidate));
 }
+
+/// The pid/tid forms a `pid` term is matched against: the pid, the tid, and the
+/// `pid/tid` and `pid:tid` pairs. A term matches when any form matches.
+List<String> _pidTidCandidates(LogEntry log) => [
+  log.pid,
+  log.tid,
+  '${log.pid}/${log.tid}',
+  '${log.pid}:${log.tid}',
+];
 
 /// True when [log] is no older than [maxAge] relative to [now] (defaults to the
 /// current time). Entries whose timestamp can't be parsed — e.g. inline status
@@ -99,15 +86,4 @@ bool _matchesMaxAge(LogEntry log, Duration maxAge, DateTime? now) {
   if (entryTime == null) return true;
   final reference = now ?? DateTime.now();
   return reference.difference(entryTime) <= maxAge;
-}
-
-/// True when [query] matches the log's pid, tid, or a `pid/tid` / `pid:tid`
-/// pair.
-bool _matchesPidTidFilter(LogEntry log, String query) {
-  final pid = log.pid.toLowerCase();
-  final tid = log.tid.toLowerCase();
-  return pid.contains(query) ||
-      tid.contains(query) ||
-      '$pid/$tid'.contains(query) ||
-      '$pid:$tid'.contains(query);
 }

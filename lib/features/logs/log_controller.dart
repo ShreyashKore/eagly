@@ -1387,15 +1387,22 @@ class LogController extends FeatureController {
 /// --- Helpers
 
 extension on LogFilters {
+  /// A cheap change-detection key: two filters with the same signature
+  /// filter identically. Terms carry mode + negation, so those are folded
+  /// in. Fields, and terms within a field, are joined with distinct control
+  /// chars that can't appear in a filter value, so filters never collide.
   String get signature => [
     level.code,
     'a:${maxAge?.inMilliseconds ?? ''}',
-    'm:${messageTerms.join('')}',
-    'r:${rawTerms.join('')}',
-    'p:${packageTerms.join('')}',
-    'pt:${pidTidTerms.join('')}',
-    't:${tagTerms.join('')}',
-  ].join(' ');
+    'm:${_termSignatures(messageTerms)}',
+    'r:${_termSignatures(rawTerms)}',
+    'p:${_termSignatures(packageTerms)}',
+    'pt:${_termSignatures(pidTidTerms)}',
+    't:${_termSignatures(tagTerms)}',
+  ].join('\u0000');
+
+  static String _termSignatures(List<FilterTerm> terms) =>
+      terms.map((term) => term.signature).join('\u0001');
 
   bool hasActiveRetentionFilter(bool isIosLogContext) {
     final defaultLevel = LogLevel.defaultSelectionForPlatform(

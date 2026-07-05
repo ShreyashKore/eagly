@@ -19,18 +19,19 @@ class RecentFilterValues {
   List<String> get tag => _tag;
 
   /// Records the applied [filters]' per-field terms as the most recent values.
+  /// Only plain (case-insensitive contains, non-negated) terms are kept — an
+  /// exact/regex/negated term is not a reusable literal to re-suggest.
   void rememberFrom(LogFilters filters) {
-    for (final value in filters.messageTerms) {
-      _addRecentValue(_message, value, maxPerField);
-    }
-    for (final value in filters.packageTerms) {
-      _addRecentValue(_package, value, maxPerField);
-    }
-    for (final value in filters.pidTidTerms) {
-      _addRecentValue(_pidTid, value, maxPerField);
-    }
-    for (final value in filters.tagTerms) {
-      _addRecentValue(_tag, value, maxPerField);
+    _rememberTerms(_message, filters.messageTerms);
+    _rememberTerms(_package, filters.packageTerms);
+    _rememberTerms(_pidTid, filters.pidTidTerms);
+    _rememberTerms(_tag, filters.tagTerms);
+  }
+
+  void _rememberTerms(List<String> recents, List<FilterTerm> terms) {
+    for (final term in terms) {
+      if (term.mode != FilterMatchMode.contains || term.negate) continue;
+      _addRecentValue(recents, term.value, maxPerField);
     }
   }
 }

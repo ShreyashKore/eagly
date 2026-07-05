@@ -78,9 +78,12 @@ void main() {
 
     test('compose emits an age token that parse reads back', () {
       final text = LogFilters.compose(
-        level: LogLevel.verbose,
+        LogFilters.fromFields(
+          level: LogLevel.verbose,
+          maxAge: const Duration(hours: 1, minutes: 30),
+        ),
         defaultLevel: LogLevel.verbose,
-        maxAge: const Duration(hours: 1, minutes: 30),
+        isIos: false,
       );
       expect(text, 'age:1h30m');
       final reparsed = LogFilters.parse(

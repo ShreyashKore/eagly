@@ -301,15 +301,8 @@ class InlineFilterController extends LogFilterController {
     isIosLogContext: isIos,
   );
 
-  String _composeText(LogFilters state) => LogFilters.compose(
-    level: state.level,
-    defaultLevel: defaultLevel,
-    package: state.packageText,
-    pidTid: state.pidTidText,
-    tag: state.tagText,
-    message: state.messageText,
-    maxAge: state.maxAge,
-  );
+  String _composeText(LogFilters state) =>
+      LogFilters.compose(state, defaultLevel: defaultLevel, isIos: isIos);
 
   /// Programmatic text input (tests / external callers). Debounced emit.
   void setTextFromInput(String text) {
@@ -400,7 +393,13 @@ class InlineFilterTextController extends TextEditingController {
   static bool isKnownKeyValueToken(String token) {
     final colonIndex = token.indexOf(':');
     if (colonIndex <= 0 || colonIndex == token.length - 1) return false;
-    final key = token.substring(0, colonIndex).trim().toLowerCase();
+    var key = token.substring(0, colonIndex).trim().toLowerCase();
+    // Peel the advanced-syntax decorations: a leading `-` (negation) and a
+    // trailing `=`/`~` (exact/regex) still resolve to a known key.
+    if (key.startsWith('-')) key = key.substring(1);
+    if (key.endsWith('=') || key.endsWith('~')) {
+      key = key.substring(0, key.length - 1);
+    }
     return _knownAliases.contains(key);
   }
 
