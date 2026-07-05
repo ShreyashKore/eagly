@@ -95,81 +95,10 @@ bool _matchesAllTerms(
 /// current time). Entries whose timestamp can't be parsed — e.g. inline status
 /// lines with an empty timestamp — are kept, so age never hides those markers.
 bool _matchesMaxAge(LogEntry log, Duration maxAge, DateTime? now) {
-  final reference = now ?? DateTime.now();
-  final entryTime = parseLogEntryTimestamp(log.timestamp, now: reference);
+  final entryTime = log.parsedTimestamp;
   if (entryTime == null) return true;
-  return reference.difference(entryTime) <= maxAge;
-}
-
-final RegExp _fullTimestampPattern = RegExp(
-  r'^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d+))?$',
-);
-
-final RegExp _shortTimestampPattern = RegExp(
-  r'^(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d+))?$',
-);
-
-/// Parses a [LogEntry.timestamp] into a local [DateTime], or null when the
-/// format isn't recognised. Handles the iOS-normalised `YYYY-MM-DD HH:MM:SS.mmm`
-/// form and the Android logcat `MM-DD HH:MM:SS.mmm` form (no year — inferred
-/// from [now], stepping back a year for a date that would otherwise sit in the
-/// future across a Dec→Jan boundary).
-DateTime? parseLogEntryTimestamp(String timestamp, {DateTime? now}) {
-  final trimmed = timestamp.trim();
-  if (trimmed.isEmpty) return null;
   final reference = now ?? DateTime.now();
-
-  int millisFrom(String? fraction) {
-    if (fraction == null || fraction.isEmpty) return 0;
-    final padded = fraction.padRight(3, '0').substring(0, 3);
-    return int.parse(padded);
-  }
-
-  final full = _fullTimestampPattern.firstMatch(trimmed);
-  if (full != null) {
-    return DateTime(
-      int.parse(full.group(1)!),
-      int.parse(full.group(2)!),
-      int.parse(full.group(3)!),
-      int.parse(full.group(4)!),
-      int.parse(full.group(5)!),
-      int.parse(full.group(6)!),
-      millisFrom(full.group(7)),
-    );
-  }
-
-  final short = _shortTimestampPattern.firstMatch(trimmed);
-  if (short != null) {
-    final month = int.parse(short.group(1)!);
-    final day = int.parse(short.group(2)!);
-    final hour = int.parse(short.group(3)!);
-    final minute = int.parse(short.group(4)!);
-    final second = int.parse(short.group(5)!);
-    final millis = millisFrom(short.group(6));
-    var candidate = DateTime(
-      reference.year,
-      month,
-      day,
-      hour,
-      minute,
-      second,
-      millis,
-    );
-    if (candidate.isAfter(reference.add(const Duration(days: 1)))) {
-      candidate = DateTime(
-        reference.year - 1,
-        month,
-        day,
-        hour,
-        minute,
-        second,
-        millis,
-      );
-    }
-    return candidate;
-  }
-
-  return null;
+  return reference.difference(entryTime) <= maxAge;
 }
 
 /// True when [query] matches the log's pid, tid, or a `pid/tid` / `pid:tid`

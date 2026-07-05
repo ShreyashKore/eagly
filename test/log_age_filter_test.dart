@@ -1,16 +1,23 @@
+import 'package:eagly/data/device.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/data/models/log_filters.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/features/logs/services/filter_utils.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-LogEntry _entry(String timestamp) => LogEntry(
+LogEntry _entry(
+  String timestamp, {
+  DevicePlatform platform = DevicePlatform.android,
+  DateTime? now,
+}) => LogEntry(
   timestamp: timestamp,
+  platform: platform,
   pid: '100',
   tid: '200',
   level: 'I',
   tag: 'Tag',
   message: 'message',
+  now: now,
 );
 
 void main() {
@@ -85,19 +92,19 @@ void main() {
     });
   });
 
-  group('parseLogEntryTimestamp', () {
+  group('LogEntry.parsedTimestamp', () {
     final now = DateTime(2026, 7, 5, 12, 0, 0);
 
     test('parses the full YYYY-MM-DD form', () {
       expect(
-        parseLogEntryTimestamp('2026-07-05 11:30:00.250', now: now),
+        _entry('2026-07-05 11:30:00.250', now: now).parsedTimestamp,
         DateTime(2026, 7, 5, 11, 30, 0, 250),
       );
     });
 
     test('parses the short MM-DD Android form using the reference year', () {
       expect(
-        parseLogEntryTimestamp('07-05 11:59:00.000', now: now),
+        _entry('07-05 11:59:00.000', now: now).parsedTimestamp,
         DateTime(2026, 7, 5, 11, 59, 0, 0),
       );
     });
@@ -105,14 +112,25 @@ void main() {
     test('steps back a year for a short date that would sit in the future', () {
       final january = DateTime(2026, 1, 2, 9, 0, 0);
       expect(
-        parseLogEntryTimestamp('12-31 23:00:00.000', now: january),
+        _entry('12-31 23:00:00.000', now: january).parsedTimestamp,
         DateTime(2025, 12, 31, 23, 0, 0),
       );
     });
 
     test('returns null for empty or unrecognised timestamps', () {
-      expect(parseLogEntryTimestamp('', now: now), isNull);
-      expect(parseLogEntryTimestamp('not a timestamp', now: now), isNull);
+      expect(_entry('', now: now).parsedTimestamp, isNull);
+      expect(_entry('not a timestamp', now: now).parsedTimestamp, isNull);
+    });
+
+    test('does not recognise the year-less short form on iOS entries', () {
+      expect(
+        _entry(
+          '07-05 11:59:00.000',
+          platform: DevicePlatform.ios,
+          now: now,
+        ).parsedTimestamp,
+        isNull,
+      );
     });
   });
 
@@ -124,7 +142,7 @@ void main() {
     );
 
     bool matches(String timestamp) => matchesLogFilters(
-      _entry(timestamp),
+      _entry(timestamp, now: now),
       filters,
       LogLevel.verbose,
       now: now,

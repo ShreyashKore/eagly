@@ -136,6 +136,7 @@ class AndroidLogcatFormat extends LogFormat {
         packageName: applicationId,
         processName: processName,
         message: message,
+        platform: DevicePlatform.android,
       );
     } catch (error) {
       debugPrint('Error parsing log entry from exported map: $error');
