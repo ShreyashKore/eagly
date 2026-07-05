@@ -26,6 +26,7 @@ void main() async {
     options.tracesSampleRate = 1.0;
     // The sampling rate for profiling is relative to tracesSampleRate
     // Setting to 1.0 will profile 100% of sampled transactions:
+    // ignore: experimental_member_use
     options.profilesSampleRate = 1.0;
     // Configure Session Replay
     options.replay.sessionSampleRate = 0.1;
