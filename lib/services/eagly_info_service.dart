@@ -14,4 +14,9 @@ class EaglyInfoService {
         ? packageInfo.version
         : '${packageInfo.version}+${packageInfo.buildNumber}';
   }
+
+  /// Plain semantic version (no `+build` suffix), e.g. `1.1.5`. Used for update
+  /// comparisons where a bare semver is required. Falls back to `0.0.0` so a
+  /// missing package info never blocks the update check from running.
+  static String get versionName => _packageInfo?.version ?? '0.0.0';
 }
