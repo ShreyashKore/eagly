@@ -28,10 +28,11 @@ enum LogcatState { stopped, running, paused }
 /// searches log entries, and manages row selection / copy / export. Holds no
 /// device-selection or mirror state.
 class LogController extends FeatureController {
-  /// Maximum number of log entries buffered in [_pendingLogs] between flush
-  /// cycles. Entries beyond this limit spill directly into [_logsBuffer] to
-  /// prevent unbounded growth under burst load.
-  static const int _maxPendingLogs = 10000;
+  /// Upper bound for entries waiting for the next UI flush.  A full queue is
+  /// flushed as one batch rather than appending the next entry immediately:
+  /// immediate appends notify and rebuild the viewer once per log line.
+  @visibleForTesting
+  static int maxPendingLogs = 10000;
 
   /// Number of automatic recovery cycles attempted before the warning banner
   /// is surfaced for manual intervention.
@@ -200,6 +201,7 @@ class LogController extends FeatureController {
   String? get liveLoggingInterruptionMessage => _interruptionMessage;
 
   bool get hasLogs => _logsBuffer.size > 0;
+  int get logCount => _logsBuffer.size;
   bool get hasAnyCachedLogs => hasLogs || _pendingLogs.isNotEmpty;
   int get totalLogsMemoryBytes => _logsMemoryBytes + _pendingLogsMemoryBytes;
   TextSearchConfig get inlineSearch => _inlineSearch;
@@ -949,12 +951,14 @@ class LogController extends FeatureController {
           return;
         }
         if (logcatState == LogcatState.paused) return;
-        if (_pendingLogs.length >= _maxPendingLogs) {
-          _appendImmediateLogEntry(logEntry);
-        } else {
-          _pendingLogs.add(logEntry);
-          _pendingLogsMemoryBytes += estimateLogEntryBytes(logEntry);
+        if (_pendingLogs.length >= maxPendingLogs) {
+          // High-volume streams can fill this queue before the periodic
+          // flush. Flush the whole queue once, rather than falling back to an
+          // immediate append (and a widget rebuild) for every subsequent log.
+          _flushPendingLogs();
         }
+        _pendingLogs.add(logEntry);
+        _pendingLogsMemoryBytes += estimateLogEntryBytes(logEntry);
       },
       onError: (Object error, StackTrace _) {
         if (_disposed || !identical(_logSub, sub)) return;

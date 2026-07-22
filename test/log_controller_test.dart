@@ -71,6 +71,7 @@ void main() {
     await PreferencesService.init();
     // Keep automatic recovery fast and deterministic in tests.
     LogController.recoveryBackoff = const Duration(milliseconds: 10);
+    LogController.maxPendingLogs = 10000;
     clipboardText = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (methodCall) async {
@@ -96,6 +97,7 @@ void main() {
     LogController.recoveryBackoff = const Duration(seconds: 2);
     LogController.watchdogInterval = const Duration(seconds: 10);
     LogController.streamStallThreshold = const Duration(seconds: 30);
+    LogController.maxPendingLogs = 10000;
   });
 
   test('activate starts log capture once for a connected device', () async {
@@ -629,6 +631,26 @@ void main() {
       ]);
     },
   );
+
+  test('full pending queue flushes as a batch during a burst', () async {
+    final log = createLog();
+    LogController.maxPendingLogs = 2;
+
+    await log.startLogcat();
+    service.emit(testLogEntry(message: 'one'));
+    service.emit(testLogEntry(message: 'two'));
+    service.emit(testLogEntry(message: 'three'));
+    await Future<void>.delayed(Duration.zero);
+
+    // The first two entries are flushed together; the latest entry remains
+    // queued for the normal periodic flush instead of triggering its own UI
+    // update.
+    expect(log.logs.map((entry) => entry.message), containsAll(['one', 'two']));
+    expect(log.logs.any((entry) => entry.message == 'three'), isFalse);
+
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    expect(log.logs.map((entry) => entry.message), contains('three'));
+  });
 
   test('searchMatchIndices ignore hidden columns when computing matches', () {
     final log = createLog();

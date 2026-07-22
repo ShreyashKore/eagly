@@ -207,7 +207,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
       controller: controller,
       logManager: logManager,
       onImportLog: _handleImportLog,
-      onExport: controller.logs.isEmpty
+      onExport: !controller.hasLogs
           ? null
           : () async => _handleExportLogs(controller),
       onCopyAll: controller.hasAnyCachedLogs
@@ -312,7 +312,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
     return Stack(
       children: [
         _buildLogViewer(controller, filtered, matches),
-        if (controller.logs.isEmpty)
+        if (!controller.hasLogs)
           CenteredStateMessage(
             icon: controller.isImported
                 ? Icons.description_outlined
@@ -330,7 +330,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
                 ? 'Keep this tab open while logs stream from the device.'
                 : 'Press the play button to start streaming logs for this device.',
           ),
-        if (controller.logs.isNotEmpty && filtered.isEmpty)
+        if (controller.hasLogs && filtered.isEmpty)
           Align(
             alignment: Alignment.center,
             child: Padding(
@@ -404,7 +404,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
           builder: (context, child) {
             return ScrollToEndButton(
               visible:
-                  controller.logs.isNotEmpty &&
+                  controller.hasLogs &&
                   controller.scrollController.hasClients &&
                   controller.scrollController.offset <
                       (controller.scrollController.position.maxScrollExtent -
@@ -438,7 +438,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          Text('Logs: ${controller.logs.length}', style: theme.statusBarStyle),
+          Text('Logs: ${controller.logCount}', style: theme.statusBarStyle),
           const Gap(16),
           Text(
             'Filtered: ${controller.filteredLogs.length}',

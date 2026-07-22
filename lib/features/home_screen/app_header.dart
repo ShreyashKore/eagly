@@ -75,7 +75,6 @@ class AppHeader extends StatelessWidget {
                               Flexible(
                                 child: _DeviceTabStrip(manager: manager),
                               ),
-                              // Spacer(),
                               TipsHeaderPanel(controller: tipsController),
                             ],
                           ),
