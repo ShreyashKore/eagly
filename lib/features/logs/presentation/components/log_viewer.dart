@@ -26,7 +26,7 @@ typedef LogRowSelectionStart = bool? Function(int index, {bool shiftPressed});
 List<ContextMenuButtonItem> buildLogViewerContextMenuItems({
   required bool rowSelectionMode,
   required List<ContextMenuButtonItem> defaultSelectableRegionButtonItems,
-  VoidCallback? onCopySelection,
+  VoidCallback? onCopyAll,
   VoidCallback? onCopyRow,
   VoidCallback? onCopyMessage,
   VoidCallback? onCopyTimestampAndMessage,
@@ -66,14 +66,10 @@ List<ContextMenuButtonItem> buildLogViewerContextMenuItems({
     remainingButtons.add(item);
   }
 
-  copyButton ??= ContextMenuButtonItem(
-    type: ContextMenuButtonType.copy,
-    label: 'Copy',
-    onPressed: onCopySelection,
-  );
-
   return [
-    copyButton,
+    if (copyButton != null) copyButton,
+    if (onCopyAll != null)
+      ContextMenuButtonItem(label: 'Copy all', onPressed: onCopyAll),
     ...remainingButtons,
     if (onToggleRowSelectionMode != null) selectionModeToggleButton(),
   ];
@@ -94,6 +90,7 @@ class LogViewer extends StatefulWidget {
   final void Function(int index, bool selected)? onRowSelectionChanged;
   final Future<void> Function(int? index, LogViewerCopyAction action)?
   onRowCopyAction;
+  final VoidCallback? onCopyAll;
   final VoidCallback? onToggleRowSelectionMode;
   final VoidCallback? onClearRowSelection;
 
@@ -134,6 +131,7 @@ class LogViewer extends StatefulWidget {
     this.onSelectedRowsChanged,
     this.onRowSelectionChanged,
     this.onRowCopyAction,
+    this.onCopyAll,
     this.onToggleRowSelectionMode,
     this.onClearRowSelection,
     this.search = const TextSearchConfig(),
@@ -851,9 +849,9 @@ class _LogViewerState extends State<LogViewer> {
       rowSelectionMode: widget.rowSelectionMode,
       defaultSelectableRegionButtonItems:
           selectableRegionState.contextMenuButtonItems,
-      onCopySelection: () {
+      onCopyAll: () {
         ContextMenuController.removeAny();
-        selectableRegionState.copySelection(SelectionChangedCause.toolbar);
+        widget.onCopyAll?.call();
       },
       onCopyRow: () {
         ContextMenuController.removeAny();

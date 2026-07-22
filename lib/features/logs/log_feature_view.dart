@@ -287,6 +287,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
       onRowSelectionChanged: controller.setRowSelected,
       onRowCopyAction: (index, action) =>
           _handleRowCopyAction(controller, index, action),
+      onCopyAll: () => _handleCopyAllLogs(controller),
       onToggleRowSelectionMode: controller.toggleRowSelectionMode,
       onSelectedTextChanged: controller.setSelectedSearchText,
       search: controller.appliedInlineSearch,

@@ -213,8 +213,9 @@ void main() {
   }
 
   test(
-    'non-row-selection menu removes Select all and appends the selection toggle',
+    'non-row-selection menu adds Copy all and appends the selection toggle',
     () {
+      var didCopyAll = false;
       final items = buildLogViewerContextMenuItems(
         rowSelectionMode: false,
         defaultSelectableRegionButtonItems: [
@@ -230,11 +231,15 @@ void main() {
           ),
           ContextMenuButtonItem(label: 'Look up', onPressed: () {}),
         ],
+        onCopyAll: () {
+          didCopyAll = true;
+        },
         onToggleRowSelectionMode: () {},
       );
 
       expect(items.map((item) => item.label), [
         'Copy',
+        'Copy all',
         'Look up',
         'Enable selection mode',
       ]);
@@ -242,6 +247,8 @@ void main() {
         items.where((item) => item.type == ContextMenuButtonType.selectAll),
         isEmpty,
       );
+      items[1].onPressed!.call();
+      expect(didCopyAll, isTrue);
     },
   );
 
