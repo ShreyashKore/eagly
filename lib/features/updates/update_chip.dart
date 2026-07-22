@@ -24,6 +24,7 @@ class AppUpdateChip extends StatelessWidget {
       currentVersion: EaglyInfoService.versionName,
       getLatestVersion: AppUpdateService.getLatestVersion,
       getBinaryUrl: AppUpdateService.getBinaryUrl,
+      getDownloadFileLocation: AppUpdateService.getDownloadFileLocation,
       getChangelog: AppUpdateService.getChangelog,
       updateChipBuilder: _buildChip,
     );
@@ -60,9 +61,11 @@ class AppUpdateChip extends StatelessWidget {
       case UpdatStatus.readyToInstall:
         return _UpdatePill(
           icon: Icons.check_circle_rounded,
-          label: 'Install',
-          tooltip: 'Open the downloaded installer',
-          onTap: () => launchInstaller(),
+          label: 'Restart',
+          tooltip: 'Quit Eagly and open the downloaded installer',
+          onTap: latestVersion == null
+              ? null
+              : () => _confirmQuitAndInstall(context, latestVersion),
         );
       case UpdatStatus.error:
       case UpdatStatus.checking:
@@ -70,6 +73,42 @@ class AppUpdateChip extends StatelessWidget {
       case UpdatStatus.idle:
       case UpdatStatus.dismissed:
         return const SizedBox.shrink();
+    }
+  }
+
+  Future<void> _confirmQuitAndInstall(
+    BuildContext context,
+    String latestVersion,
+  ) async {
+    final shouldInstall = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Quit Eagly to install update?'),
+        content: Text(
+          'Eagly will quit, then open the downloaded v$latestVersion installer. '
+          'Save any unfinished work before continuing.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Quit and install'),
+          ),
+        ],
+      ),
+    );
+    if (shouldInstall != true || !context.mounted) return;
+
+    try {
+      await AppUpdateService.quitAndOpenInstaller(latestVersion);
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not start the installer: $error')),
+      );
     }
   }
 }

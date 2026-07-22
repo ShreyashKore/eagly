@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:eagly/constants/app_constants.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 /// GitHub-releases-backed update source consumed by `UpdatWidget`.
 ///
@@ -60,11 +61,68 @@ class AppUpdateService {
     return '${AppConstants.repoUrl}/releases/download/v$version/$_assetName';
   }
 
+  /// The stable download location shared with `updat`.
+  ///
+  /// Keeping the location under our control lets us launch the installer only
+  /// after this process has quit, rather than opening it while Eagly still has
+  /// its application bundle in use.
+  static Future<File> getDownloadFileLocation(String? version) async {
+    final downloadsDirectory = await getDownloadsDirectory();
+    if (downloadsDirectory == null) {
+      throw StateError('Unable to find the Downloads folder.');
+    }
+    return File(
+      '${downloadsDirectory.path}${Platform.pathSeparator}'
+      '${AppConstants.appName}-$version.$_assetExtension',
+    );
+  }
+
+  /// Schedules the downloaded installer to open after Eagly has exited, then
+  /// terminates this process. This prevents a macOS DMG from asking the user to
+  /// replace an app bundle that is still running.
+  static Future<void> quitAndOpenInstaller(String version) async {
+    final installer = await getDownloadFileLocation(version);
+    if (!await installer.exists()) {
+      throw StateError('The downloaded installer could not be found.');
+    }
+
+    if (Platform.isWindows) {
+      await Process.start('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-WindowStyle',
+        'Hidden',
+        '-Command',
+        'param([int]\$appProcessId, [string]\$installerPath) '
+            '{ while (Get-Process -Id \$appProcessId '
+            '-ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 100 }; '
+            'Start-Process -FilePath \$installerPath }',
+        '$pid',
+        installer.path,
+      ], mode: ProcessStartMode.detached);
+    } else {
+      final opener = Platform.isMacOS ? 'open' : 'xdg-open';
+      await Process.start('/bin/sh', [
+        '-c',
+        'while kill -0 "\$1" 2>/dev/null; do sleep 0.1; done; '
+            '"\$2" "\$3"',
+        'eagly-updater',
+        '$pid',
+        opener,
+        installer.path,
+      ], mode: ProcessStartMode.detached);
+    }
+
+    exit(0);
+  }
+
   static String get _assetName {
     if (Platform.isMacOS) return 'eagly-macos.dmg';
     if (Platform.isWindows) return 'eagly-windows-setup.exe';
     return 'eagly-linux.deb';
   }
+
+  static String get _assetExtension => _assetName.split('.').last;
 
   static String _stripV(String tag) =>
       tag.startsWith('v') || tag.startsWith('V') ? tag.substring(1) : tag;
