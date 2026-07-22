@@ -30,6 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late LogLevel _selectedLogLevel;
   late LogFilterViewMode _filterViewMode;
   late double _logFontSize;
+  late bool _tipsEnabled;
   late final TextEditingController _logLinesController;
 
   @override
@@ -41,6 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _selectedLogLevel = PreferencesService.selectedLogLevel;
     _filterViewMode = PreferencesService.filterViewMode;
     _logFontSize = PreferencesService.logFontSize;
+    _tipsEnabled = PreferencesService.tipsEnabled;
     _logLinesController = TextEditingController(
       text: PreferencesService.logLinesLimit.toString(),
     );
@@ -223,6 +225,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                 ],
+              ),
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: _tipsEnabled,
+                title: const Text('Feature tips'),
+                subtitle: const Text('Show a rotating tip in the app header'),
+                onChanged: (value) {
+                  setState(() => _tipsEnabled = value);
+                  PreferencesService.tipsEnabled = value;
+                },
               ),
             ],
           ),

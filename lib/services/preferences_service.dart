@@ -35,6 +35,8 @@ class PreferencesService {
     logFontSizeListenable.value = logFontSize;
     // Initialize recent log files listenable
     recentLogFilesListenable.value = recentLogFiles;
+    // Initialize feature-tips listenable
+    tipsEnabledListenable.value = tipsEnabled;
   }
 
   // Keys
@@ -51,6 +53,8 @@ class PreferencesService {
   static const _keyLastFileDialogDirectory = 'lastFileDialogDirectory';
   static const _keyLogFontSize = 'logFontSize';
   static const _keyRecentLogFiles = 'recentLogFiles';
+  static const _keyTipsEnabled = 'tipsEnabled';
+  static const _keyTipRotationIndex = 'tipRotationIndex';
 
   /// Maximum number of recently opened log files retained for quick re-open.
   static const _maxRecentLogFiles = 10;
@@ -98,6 +102,23 @@ class PreferencesService {
     themeModeListenable.value = value;
     _prefs.setString(_keyThemeMode, value.name);
   }
+
+  // --- Feature tips (header panel) ---
+  /// Whether the header feature-tips panel is shown at all. Turning it off is a
+  /// permanent, user-driven choice; re-enable from Settings. Listenable so the
+  /// Settings toggle and the header panel stay in sync.
+  static final ValueNotifier<bool> tipsEnabledListenable = ValueNotifier(true);
+
+  static bool get tipsEnabled => _prefs.getBool(_keyTipsEnabled) ?? true;
+  static set tipsEnabled(bool v) {
+    tipsEnabledListenable.value = v;
+    _prefs.setBool(_keyTipsEnabled, v);
+  }
+
+  /// Monotonic counter used to rotate which tip is shown. Advanced once per app
+  /// launch so a different tip surfaces each time the app is opened.
+  static int get tipRotationIndex => _prefs.getInt(_keyTipRotationIndex) ?? 0;
+  static set tipRotationIndex(int v) => _prefs.setInt(_keyTipRotationIndex, v);
 
   // --- Recent log files (most-recent first, capped, for one-click re-open) ---
   /// Listenable so the home screen rebuilds when the list changes.

@@ -12,6 +12,7 @@ import '../../services/preferences_service.dart';
 import '../../session/device_session_manager.dart';
 import '../../utils/log_feedback.dart';
 import '../settings/settings_screen.dart';
+import '../tips/tips_controller.dart';
 import '../wireless_connection/wireless_connection_dialog.dart';
 import 'app_header.dart';
 import '../../app_menu/app_menu_controller.dart';
@@ -30,6 +31,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final DeviceSessionManager _manager = DeviceSessionManager();
+  final TipsController _tipsController = TipsController();
   late final AppMenuController _menuController = AppMenuController(_manager);
   final ValueNotifier<int> _appMemoryBytes = ValueNotifier<int>(0);
   Timer? _memoryRefreshTimer;
@@ -53,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _memoryRefreshTimer?.cancel();
     _appMemoryBytes.dispose();
     _menuController.dispose();
+    _tipsController.dispose();
     _manager.dispose();
     super.dispose();
   }
@@ -228,6 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               AppHeader(
                 manager: _manager,
+                tipsController: _tipsController,
                 onOpenSettings: _openSettings,
                 onShowWireless: _showWirelessDialog,
               ),

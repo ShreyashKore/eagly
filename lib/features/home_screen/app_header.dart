@@ -9,6 +9,8 @@ import '../../constants/local_assets.dart';
 import '../../session/device_session_manager.dart';
 import '../../utils/url_launcher.dart';
 import '../updates/update_chip.dart';
+import '../tips/tips_controller.dart';
+import '../tips/tips_header_panel.dart';
 import 'components/device_tab.dart';
 import 'window_controls.dart';
 
@@ -18,11 +20,13 @@ class AppHeader extends StatelessWidget {
   const AppHeader({
     super.key,
     required this.manager,
+    required this.tipsController,
     required this.onOpenSettings,
     required this.onShowWireless,
   });
 
   final DeviceSessionManager manager;
+  final TipsController tipsController;
   final VoidCallback onOpenSettings;
   final VoidCallback onShowWireless;
 
@@ -65,7 +69,17 @@ class AppHeader extends StatelessWidget {
                           SizedBox(width: macWindowButtonInset),
                         _Brand(onTap: manager.goHome),
                         const Gap(12),
-                        Expanded(child: _DeviceTabStrip(manager: manager)),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: _DeviceTabStrip(manager: manager),
+                              ),
+                              // Spacer(),
+                              TipsHeaderPanel(controller: tipsController),
+                            ],
+                          ),
+                        ),
                         const Gap(8),
                         _HeaderAction(
                           icon: manager.isLoadingDevices
