@@ -65,6 +65,8 @@ class _TextSearchBarState extends State<TextSearchBar> {
   bool get _ownsFocusNode => widget.focusNode == null;
   bool get _ownsController => widget.controller == null;
 
+  String _controllerQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -76,7 +78,8 @@ class _TextSearchBarState extends State<TextSearchBar> {
       }
       return KeyEventResult.ignored;
     };
-    _controller.text = widget.search.query;
+    _controllerQuery = widget.search.query;
+    _controller.text = _controllerQuery;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
@@ -98,8 +101,9 @@ class _TextSearchBarState extends State<TextSearchBar> {
   @override
   void didUpdateWidget(covariant TextSearchBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.search.query != oldWidget.search.query) {
-      _controller.text = widget.search.query;
+    if (widget.search.query != _controllerQuery) {
+      _controllerQuery = widget.search.query;
+      _controller.text = _controllerQuery;
     }
   }
 
@@ -205,9 +209,12 @@ class _TextSearchBarState extends State<TextSearchBar> {
                       minHeight: 0,
                     ),
                   ),
-                  onChanged: (value) => widget.onSearchChanged(
-                    widget.search.copyWith(query: value),
-                  ),
+                  onChanged: (value) {
+                    _controllerQuery = value;
+                    widget.onSearchChanged(
+                      widget.search.copyWith(query: value),
+                    );
+                  },
                   onSubmitted: (_) {
                     widget.onNext();
                     // Re-request focus after the submission so the TextField

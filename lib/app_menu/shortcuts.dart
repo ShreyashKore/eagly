@@ -68,6 +68,9 @@ const kDecreaseFontShortcut = SingleActivator(
 /// themselves, so a shortcut that fires while its menu item is disabled is a
 /// harmless no-op.
 const appShortcuts = <ShortcutActivator, Intent>{
+  // App
+  kQuitShortcut: QuitAppIntent(),
+
   // Devices / app
   kReloadDevicesShortcut: ReloadDevicesIntent(),
   SingleActivator(LogicalKeyboardKey.keyR, control: true, shift: true):

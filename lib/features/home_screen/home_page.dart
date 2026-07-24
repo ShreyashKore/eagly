@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../constants/app_constants.dart';
 import '../logs/log_controller.dart';
@@ -167,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
         (_) => unawaited(_openSettings()),
       ),
       ShowAboutIntent: on<ShowAboutIntent>((_) => _showAboutApp()),
-      QuitAppIntent: on<QuitAppIntent>((_) => SystemNavigator.pop()),
+      QuitAppIntent: on<QuitAppIntent>((_) => exit(0)),
       ReloadDevicesIntent: on<ReloadDevicesIntent>(
         (_) => _menuController.reloadDevices(),
       ),
