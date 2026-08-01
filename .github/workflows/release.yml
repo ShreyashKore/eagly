@@ -4,6 +4,10 @@ on:
   push:
     tags: ["v*"]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -86,33 +90,39 @@ jobs:
       - name: Prepare bundled mobile tools
         shell: bash
         env:
+          PLATFORM: ${{ matrix.platform }}
           LIBIMOBILEDEVICE_MACOS_ARCHIVE: ${{ vars.LIBIMOBILEDEVICE_MACOS_ARCHIVE }}
           LIBIMOBILEDEVICE_LINUX_ARCHIVE: ${{ vars.LIBIMOBILEDEVICE_LINUX_ARCHIVE }}
           LIBIMOBILEDEVICE_WINDOWS_ARCHIVE: ${{ vars.LIBIMOBILEDEVICE_WINDOWS_ARCHIVE }}
           LIBIMOBILEDEVICE_MACOS_DIR: ${{ vars.LIBIMOBILEDEVICE_MACOS_DIR }}
           LIBIMOBILEDEVICE_LINUX_DIR: ${{ vars.LIBIMOBILEDEVICE_LINUX_DIR }}
           LIBIMOBILEDEVICE_WINDOWS_DIR: ${{ vars.LIBIMOBILEDEVICE_WINDOWS_DIR }}
-        run: bash scripts/download_platform_tools.sh ${{ matrix.platform }}
+        run: bash scripts/download_platform_tools.sh "$PLATFORM"
 
       - name: Install dependencies
         run: flutter pub get
 
       - name: Package release artifacts
         shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          TARGETS: ${{ matrix.targets }}
         run: |
           dart pub global run fastforge:main package \
-            --platform="${{ matrix.platform }}" \
-            --targets="${{ matrix.targets }}" \
+            --platform="$PLATFORM" \
+            --targets="$TARGETS" \
             --artifact-name='eagly-{{build_name}}-{{platform}}{{#is_installer}}-setup{{/is_installer}}{{#ext}}.{{ext}}{{/ext}}'
 
       - name: Create stable-named artifacts
         shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
         run: |
-          if [ "${{ matrix.platform }}" = "macos" ]; then
+          if [ "$PLATFORM" = "macos" ]; then
             find dist -name "*.dmg" | head -1 | xargs -I{} cp {} eagly-macos.dmg
-          elif [ "${{ matrix.platform }}" = "linux" ]; then
+          elif [ "$PLATFORM" = "linux" ]; then
             find dist -name "*.deb" | head -1 | xargs -I{} cp {} eagly-linux.deb
-          elif [ "${{ matrix.platform }}" = "windows" ]; then
+          elif [ "$PLATFORM" = "windows" ]; then
             find dist -name "*.exe" | head -1 | xargs -I{} cp {} eagly-windows-setup.exe
             find dist -name "*.msix" | head -1 | xargs -I{} cp {} eagly-windows.msix
           fi
