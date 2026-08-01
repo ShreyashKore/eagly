@@ -70,8 +70,16 @@ abstract class ToolProcessRunner {
       arguments,
       environment: _toolEnvironment(),
       workingDirectory: _toolWorkingDirectory(),
+      stdoutEncoding: null,
+      stderrEncoding: null,
     );
-    return ToolCommandResult.fromProcessResult(result);
+    return ToolCommandResult(
+      exitCode: result.exitCode,
+      stdout: Utf8Decoder(allowMalformed: true)
+          .convert(result.stdout as List<int>),
+      stderr: Utf8Decoder(allowMalformed: true)
+          .convert(result.stderr as List<int>),
+    );
   }
 
   /// Runs the tool and returns its raw stdout bytes (for binary output such as
