@@ -30,6 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late LogLevel _selectedLogLevel;
   late LogFilterViewMode _filterViewMode;
   late double _logFontSize;
+  late double _zoomLevel;
   late bool _tipsEnabled;
   late final TextEditingController _logLinesController;
 
@@ -42,6 +43,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _selectedLogLevel = PreferencesService.selectedLogLevel;
     _filterViewMode = PreferencesService.filterViewMode;
     _logFontSize = PreferencesService.logFontSize;
+    _zoomLevel = PreferencesService.zoomLevel;
     _tipsEnabled = PreferencesService.tipsEnabled;
     _logLinesController = TextEditingController(
       text: PreferencesService.logLinesLimit.toString(),
@@ -221,6 +223,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             PreferencesService.logFontSize = v;
                           },
                         ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Zoom level', style: theme.textTheme.bodyLarge),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 12,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.zoom_out, size: 18),
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                        onPressed: () {
+                          final next =
+                              (PreferencesService.zoomLevel - 0.05).clamp(
+                                0.7,
+                                1.8,
+                              );
+                          setState(() => _zoomLevel = next);
+                          PreferencesService.zoomLevel = next;
+                        },
+                      ),
+                      SizedBox(
+                        width: 200,
+                        child: Slider(
+                          value: _zoomLevel,
+                          min: 0.7,
+                          max: 1.8,
+                          divisions: 22,
+                          label: '${(_zoomLevel * 100).toStringAsFixed(0)}%',
+                          onChanged: (v) {
+                            setState(() => _zoomLevel = v);
+                            PreferencesService.zoomLevel = v;
+                          },
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.zoom_in, size: 18),
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                        onPressed: () {
+                          final next =
+                              (PreferencesService.zoomLevel + 0.05).clamp(
+                                0.7,
+                                1.8,
+                              );
+                          setState(() => _zoomLevel = next);
+                          PreferencesService.zoomLevel = next;
+                        },
                       ),
                     ],
                   ),

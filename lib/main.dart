@@ -61,13 +61,38 @@ class MyApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: PreferencesService.themeModeListenable,
       builder: (context, themeMode, _) {
-        return MaterialApp(
-          title: AppConstants.appName,
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
-          themeMode: themeMode,
-          home: const HomeScreen(),
-          debugShowCheckedModeBanner: false,
+        return ValueListenableBuilder<double>(
+          valueListenable: PreferencesService.zoomLevelListenable,
+          builder: (context, zoomLevel, _) {
+            return MaterialApp(
+              title: AppConstants.appName,
+              theme: AppTheme.lightTheme,
+              darkTheme: AppTheme.darkTheme,
+              themeMode: themeMode,
+              home: const HomeScreen(),
+              debugShowCheckedModeBanner: false,
+              builder: (context, child) {
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    final childWidth = constraints.maxWidth / zoomLevel;
+                    final childHeight = constraints.maxHeight / zoomLevel;
+                    return OverflowBox(
+                      alignment: Alignment.topLeft,
+                      minWidth: 0,
+                      minHeight: 0,
+                      maxWidth: childWidth,
+                      maxHeight: childHeight,
+                      child: Transform.scale(
+                        scale: zoomLevel,
+                        alignment: Alignment.topLeft,
+                        child: child!,
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
         );
       },
     );
