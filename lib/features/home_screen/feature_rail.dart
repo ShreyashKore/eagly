@@ -42,11 +42,20 @@ class FeatureRail extends StatelessWidget {
                     children: [
                       const SizedBox(height: 8),
                       _RailButton(
+                        icon: Icons.home_outlined,
+                        label: 'Home',
+                        isActive: true,
+                        tooltip: 'Device home',
+                        onTap: null,
+                      ),
+                      _RailButton(
                         icon: Icons.article_outlined,
                         label: 'Logs',
-                        isActive: true,
-                        tooltip: 'Logs',
-                        onTap: null,
+                        isActive: session.isLogsOpen,
+                        tooltip: session.isLogsOpen
+                            ? 'Hide logs'
+                            : 'View device logs',
+                        onTap: session.toggleLogs,
                       ),
                       _RailButton(
                         icon: Icons.mobile_screen_share,

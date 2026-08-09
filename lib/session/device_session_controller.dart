@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/device.dart';
 import '../features/crash_reports/crash_report_controller.dart';
+import '../features/device_home/device_home_controller.dart';
 import '../features/file_manager/file_manager_controller.dart';
 import '../features/logs/log_session_manager.dart';
 import '../features/mirror/mirror_controller.dart';
@@ -88,7 +89,10 @@ class DeviceSessionController extends ChangeNotifier {
   MirrorController? _mirrorController;
   CrashReportController? _crashReportController;
   FileManagerController? _fileManagerController;
+  DeviceHomeController? _homeController;
 
+  bool _homeOpen = true;
+  bool _logsOpen = false;
   bool _mirrorOpen = false;
   bool _crashReportsOpen = false;
   bool _filesOpen = false;
@@ -102,6 +106,8 @@ class DeviceSessionController extends ChangeNotifier {
   bool get isMirrorOpen => _mirrorOpen;
   bool get isCrashReportsOpen => _crashReportsOpen;
   bool get isFilesOpen => _filesOpen;
+  bool get isLogsOpen => _logsOpen;
+  bool get isHomeOpen => _homeOpen;
   bool get isActivated => _activated;
 
   /// Whether this device can be screen-mirrored right now.
@@ -127,6 +133,36 @@ class DeviceSessionController extends ChangeNotifier {
 
   FileManagerController get fileManagerController =>
       _fileManagerController ??= FileManagerController(this);
+
+  DeviceHomeController get homeController =>
+      _homeController ??= DeviceHomeController(this);
+
+  void openHome() {
+    if (_homeOpen) return;
+    _homeOpen = true;
+    _notify();
+  }
+
+  void closeHome() {
+    if (!_homeOpen) return;
+    _homeOpen = false;
+    _notify();
+  }
+
+  void openLogs() {
+    if (!_logsOpen) {
+      _logsOpen = true;
+      _notify();
+    }
+  }
+
+  void closeLogs() {
+    if (!_logsOpen) return;
+    _logsOpen = false;
+    _notify();
+  }
+
+  void toggleLogs() => _logsOpen ? closeLogs() : openLogs();
 
   /// Updates the live device snapshot from the repository. Feature controllers
   /// listen to this controller and react to connectivity transitions.
@@ -397,6 +433,7 @@ class DeviceSessionController extends ChangeNotifier {
     _mirrorController?.dispose();
     _crashReportController?.dispose();
     _fileManagerController?.dispose();
+    _homeController?.dispose();
     unawaited(service.dispose());
     super.dispose();
   }

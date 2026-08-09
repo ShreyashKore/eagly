@@ -635,4 +635,20 @@ class AdbTool extends ToolProcessRunner {
 
     return properties;
   }
+
+  Future<String?> readProcFile(String deviceId, String path) async {
+    try {
+      final result = await runText([
+        '-s',
+        deviceId,
+        'shell',
+        'cat',
+        path,
+      ]);
+      if (!result.isSuccess) return null;
+      return result.stdout;
+    } catch (_) {
+      return null;
+    }
+  }
 }

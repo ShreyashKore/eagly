@@ -5,6 +5,7 @@ import 'package:gap/gap.dart';
 
 import '../crash_reports/crash_report_controller.dart';
 import '../crash_reports/crash_report_feature_view.dart';
+import '../device_home/device_home_feature_view.dart';
 import '../file_manager/file_manager_controller.dart';
 import '../file_manager/file_manager_feature_view.dart';
 import '../logs/log_feature_view.dart';
@@ -13,6 +14,7 @@ import '../mirror/mirror_feature_view.dart';
 import '../../data/device.dart';
 import '../../session/device_session_controller.dart';
 import '../../utils/log_feedback.dart';
+import '../../features/logs/log_controller.dart';
 import '../../presentation/components/animation_utils.dart';
 import 'feature_rail.dart';
 
@@ -118,18 +120,42 @@ class _DeviceScreenState extends State<DeviceScreen> {
       return guidance;
     }
 
-    final logPane = LogFeatureView(
-      logManager: widget.session.logSessionManager,
+    final homePane = DeviceHomeFeatureView(
       session: widget.session,
-      appMemoryBytesListenable: widget.appMemoryBytesListenable,
+      homeController: widget.session.homeController,
+      onShowSnackBar: _showSnackBar,
     );
 
+    final logController = widget.session.logSessionManager.selectedTab;
     final mirror = widget.session.mirrorController;
     final crashReports = widget.session.crashReportController;
     final files = widget.session.fileManagerController;
 
     return Row(
       children: [
+        if (logController != null)
+          ListenableBuilder(
+            listenable: logController,
+            builder: (context, _) {
+              return AnimatedSection(
+                visible: widget.session.isLogsOpen,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: logController.paneWidth,
+                      child: LogFeatureView(
+                        logManager: widget.session.logSessionManager,
+                        session: widget.session,
+                        appMemoryBytesListenable:
+                            widget.appMemoryBytesListenable,
+                      ),
+                    ),
+                    _LogPaneResizeHandle(controller: logController),
+                  ],
+                ),
+              );
+            },
+          ),
         ListenableBuilder(
           listenable: mirror,
           builder: (context, _) {
@@ -190,7 +216,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
             );
           },
         ),
-        Expanded(child: logPane),
+        Expanded(child: homePane),
       ],
     );
   }
@@ -526,6 +552,38 @@ class _MirrorPaneResizeHandle extends StatelessWidget {
         behavior: HitTestBehavior.translucent,
         onHorizontalDragUpdate: (details) =>
             mirror.setPaneWidth(mirror.paneWidth + details.delta.dx),
+        child: Container(
+          width: 8,
+          height: double.infinity,
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.8),
+          child: Center(
+            child: Container(
+              width: 2,
+              height: 24,
+              color: theme.colorScheme.outline.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Thin draggable divider that resizes the log-viewer pane horizontally.
+class _LogPaneResizeHandle extends StatelessWidget {
+  const _LogPaneResizeHandle({required this.controller});
+
+  final LogController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: (details) =>
+            controller.setPaneWidth(controller.paneWidth + details.delta.dx),
         child: Container(
           width: 8,
           height: double.infinity,
