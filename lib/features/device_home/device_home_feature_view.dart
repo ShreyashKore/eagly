@@ -35,17 +35,23 @@ class DeviceHomeFeatureView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _DeviceInfoCard(
-                session: session,
-                onShowSnackBar: onShowSnackBar,
+              Row(
+                children: [
+                  Expanded(
+                    child:  _DeviceInfoCard(
+                      session: session,
+                      onShowSnackBar: onShowSnackBar,
+                    ),
+                  ),
+                  const Gap(20),
+                  _AppInstallCard(
+                    session: session,
+                    onShowSnackBar: onShowSnackBar,
+                  ),
+                ],
               ),
               const Gap(20),
               _PerformanceSection(homeController: homeController),
-              const Gap(20),
-              _AppInstallCard(
-                session: session,
-                onShowSnackBar: onShowSnackBar,
-              ),
               const Gap(20),
               _FeatureShortcuts(session: session),
             ],
@@ -107,7 +113,6 @@ class _DeviceInfoCard extends StatefulWidget {
 }
 
 class _DeviceInfoCardState extends State<_DeviceInfoCard> {
-  bool _idRevealed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -218,16 +223,11 @@ class _DeviceInfoCardState extends State<_DeviceInfoCard> {
           Expanded(
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                onTap: () {
-                  setState(() => _idRevealed = !_idRevealed);
-                },
-                child: SelectableText(
-                  _idRevealed ? id : _maskId(id),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontFamily: 'monospace',
-                    fontSize: 11,
-                  ),
+              child: SelectableText(
+                id,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
                 ),
               ),
             ),
@@ -253,11 +253,6 @@ class _DeviceInfoCardState extends State<_DeviceInfoCard> {
         ],
       ),
     );
-  }
-
-  String _maskId(String id) {
-    if (id.length <= 8) return id;
-    return '${id.substring(0, 4)}${"*" * (id.length - 8)}${id.substring(id.length - 4)}';
   }
 
   Widget _buildPlatformIcon(Device device, ThemeData theme) {
@@ -527,7 +522,7 @@ class _AppInstallCard extends StatelessWidget {
               ),
             ),
             const Gap(12),
-            Row(
+            Column(
               children: [
                 FilledButton.icon(
                   onPressed:
