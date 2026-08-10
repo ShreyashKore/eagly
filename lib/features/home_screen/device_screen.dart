@@ -131,8 +131,8 @@ class _DeviceScreenState extends State<DeviceScreen> {
     final mirror = widget.session.mirrorController;
     final crashReports = widget.session.crashReportController;
     final files = widget.session.fileManagerController;
-
-    return Row(
+    return widget.session.isHomeOpen ? homePane :
+     Row(
       children: [
         if (logController != null)
           ListenableBuilder(
@@ -217,12 +217,6 @@ class _DeviceScreenState extends State<DeviceScreen> {
               ),
             );
           },
-        ),
-        Expanded(
-          child: AnimatedSection(
-            visible: widget.session.isHomeOpen,
-            child: homePane,
-          ),
         ),
       ],
     );

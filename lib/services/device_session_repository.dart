@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import '../data/device.dart';
 import '../features/device_home/data/device_performance_stats.dart';
+import '../features/device_home/data/installed_app_info.dart';
 import '../features/logs/data/models/log_entry.dart';
 import '../features/wireless_connection/data/wireless_debug_models.dart';
 import '../features/app_log/app_logger.dart';
@@ -287,6 +288,13 @@ class DeviceSessionRepository {
         deviceId: _deviceId,
         appPath: filePath,
       ),
+    };
+  }
+
+  Future<List<InstalledAppInfo>> listRecentlyInstalledApps() {
+    return switch (device) {
+      AndroidDevice() => _adbTool.listRecentlyInstalledApps(_deviceId),
+      IosDevice() => _ideviceInstallerTool.listInstalledApps(_deviceId),
     };
   }
 

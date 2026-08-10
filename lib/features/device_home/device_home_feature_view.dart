@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
@@ -46,6 +48,7 @@ class DeviceHomeFeatureView extends StatelessWidget {
                   const Gap(20),
                   _AppInstallCard(
                     session: session,
+                    homeController: homeController,
                     onShowSnackBar: onShowSnackBar,
                   ),
                 ],
@@ -491,10 +494,12 @@ class _ProgressBar extends StatelessWidget {
 class _AppInstallCard extends StatelessWidget {
   const _AppInstallCard({
     required this.session,
+    required this.homeController,
     required this.onShowSnackBar,
   });
 
   final DeviceSessionController session;
+  final DeviceHomeController homeController;
   final void Function(String) onShowSnackBar;
 
   Future<void> _handleInstall(BuildContext context) async {
@@ -504,11 +509,23 @@ class _AppInstallCard extends StatelessWidget {
         ? result.message ?? 'Installed ${result.fileName}.'
         : result.error ?? 'Installation failed.';
     onShowSnackBar(message);
+    if (result.isSuccess) {
+      unawaited(homeController.refreshRecentApps());
+    }
+  }
+
+  String _formatTime(DateTime dt) {
+    final local = dt.toLocal();
+    final h = local.hour.toString().padLeft(2, '0');
+    final m = local.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final recent = homeController.recentApps;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -556,6 +573,64 @@ class _AppInstallCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (homeController.isLoadingRecentApps) ...[
+              const Gap(16),
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(8),
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ),
+            ] else if (recent.isNotEmpty) ...[
+              const Gap(16),
+              const Divider(),
+              const Gap(12),
+              Text(
+                'Recently Installed',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const Gap(8),
+              ...recent.map(
+                (install) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle_outline,
+                        size: 16,
+                        color: const Color(0xFF4ADE80),
+                      ),
+                      const Gap(8),
+                      Expanded(
+                        child: Text(
+                          install.displayName,
+                          style: theme.textTheme.bodySmall,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (install.installTime != null) ...[
+                        const Gap(8),
+                        Text(
+                          _formatTime(install.installTime!),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
