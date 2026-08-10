@@ -149,9 +149,18 @@ class DeviceSessionController extends ChangeNotifier {
     _notify();
   }
 
+  void toggleHome() => _homeOpen ? closeHome() : openHome();
+
+  /// Closes the Home pane when any feature pane is opened, so Home does not
+  /// remain lit after the user switches to a feature.
+  void _ensureHomeClosed() {
+    if (_homeOpen) closeHome();
+  }
+
   void openLogs() {
     if (!_logsOpen) {
       _logsOpen = true;
+      _ensureHomeClosed();
       _notify();
     }
   }
@@ -184,6 +193,7 @@ class DeviceSessionController extends ChangeNotifier {
   void openMirror() {
     if (!_mirrorOpen) {
       _mirrorOpen = true;
+      _ensureHomeClosed();
       _notify();
     }
     if (canMirror) {
@@ -202,6 +212,7 @@ class DeviceSessionController extends ChangeNotifier {
   void openCrashReports() {
     if (!_crashReportsOpen) {
       _crashReportsOpen = true;
+      _ensureHomeClosed();
       _notify();
     }
     if (canReadCrashReports) {
@@ -221,6 +232,7 @@ class DeviceSessionController extends ChangeNotifier {
   void openFiles() {
     if (!_filesOpen) {
       _filesOpen = true;
+      _ensureHomeClosed();
       _notify();
     }
     unawaited(fileManagerController.ensureLoaded());

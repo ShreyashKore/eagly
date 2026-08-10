@@ -33,11 +33,13 @@ class LogFeatureView extends StatefulWidget {
     required this.logManager,
     required this.session,
     required this.appMemoryBytesListenable,
+    required this.onClose,
   });
 
   final LogSessionManager logManager;
   final DeviceSessionController session;
   final ValueListenable<int> appMemoryBytesListenable;
+  final VoidCallback onClose;
 
   @override
   State<LogFeatureView> createState() => _LogFeatureViewState();
@@ -213,6 +215,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
       onCopyAll: controller.hasAnyCachedLogs
           ? () async => _handleCopyAllLogs(controller)
           : null,
+      onClose: widget.onClose,
     );
   }
 

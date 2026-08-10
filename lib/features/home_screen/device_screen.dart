@@ -78,6 +78,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
           logManager: widget.session.logSessionManager,
           session: widget.session,
           appMemoryBytesListenable: widget.appMemoryBytesListenable,
+          onClose: () {},
         ),
       );
     }
@@ -148,6 +149,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
                         session: widget.session,
                         appMemoryBytesListenable:
                             widget.appMemoryBytesListenable,
+                        onClose: widget.session.closeLogs,
                       ),
                     ),
                     _LogPaneResizeHandle(controller: logController),
@@ -216,7 +218,12 @@ class _DeviceScreenState extends State<DeviceScreen> {
             );
           },
         ),
-        Expanded(child: homePane),
+        Expanded(
+          child: AnimatedSection(
+            visible: widget.session.isHomeOpen,
+            child: homePane,
+          ),
+        ),
       ],
     );
   }

@@ -4,7 +4,8 @@ import '../../services/eagly_info_service.dart';
 import '../../session/device_session_controller.dart';
 
 /// Far-left vertical rail listing the features available for a device.
-/// Logs is always open; Mirror toggles its pane; Install opens a file picker.
+/// Home is open by default; opening any feature closes Home. From there each
+/// feature pane toggles on/off independently. Install opens a file picker.
 /// Settings and the app version are pinned to the bottom.
 class FeatureRail extends StatelessWidget {
   const FeatureRail({
@@ -44,9 +45,11 @@ class FeatureRail extends StatelessWidget {
                       _RailButton(
                         icon: Icons.home_outlined,
                         label: 'Home',
-                        isActive: true,
-                        tooltip: 'Device home',
-                        onTap: null,
+                        isActive: session.isHomeOpen,
+                        tooltip: session.isHomeOpen
+                            ? 'Hide device home'
+                            : 'Show device home',
+                        onTap: session.toggleHome,
                       ),
                       _RailButton(
                         icon: Icons.article_outlined,
