@@ -208,16 +208,16 @@ class AppPlatformMenuBar extends StatelessWidget {
           ),
           PlatformMenuItemGroup(
             members: [
-              _item(
-                'Increase Font Size',
-                const IncreaseFontIntent(),
-                shortcut: kIncreaseFontShortcut,
-              ),
-              _item(
-                'Decrease Font Size',
-                const DecreaseFontIntent(),
-                shortcut: kDecreaseFontShortcut,
-              ),
+               _item(
+                 'Zoom In',
+                 const IncreaseFontIntent(),
+                 shortcut: kIncreaseFontShortcut,
+               ),
+               _item(
+                 'Zoom Out',
+                 const DecreaseFontIntent(),
+                 shortcut: kDecreaseFontShortcut,
+               ),
             ],
           ),
         ],

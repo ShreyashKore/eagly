@@ -31,12 +31,10 @@ class PreferencesService {
   static Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     themeModeListenable.value = themeMode;
-    // Initialize font size listenable
     logFontSizeListenable.value = logFontSize;
-    // Initialize recent log files listenable
     recentLogFilesListenable.value = recentLogFiles;
-    // Initialize feature-tips listenable
     tipsEnabledListenable.value = tipsEnabled;
+    zoomLevelListenable.value = zoomLevel;
   }
 
   // Keys
@@ -157,20 +155,36 @@ class PreferencesService {
   }
 
   // --- Log font size preference (affects the log viewer text size) ---
-  /// Listenable so widgets can rebuild when font size changes.
   static final ValueNotifier<double> logFontSizeListenable = ValueNotifier(
     12.0,
   );
 
   static double get logFontSize => _prefs.getDouble(_keyLogFontSize) ?? 12.0;
   static set logFontSize(double v) {
-    // Clamp to allowed range and avoid writing/updating listeners if the
-    // resulting value is unchanged.
     final clamped = (v).clamp(8.0, 24.0);
     final current = logFontSize;
     if ((current - clamped).abs() < 0.0001) return;
     logFontSizeListenable.value = clamped;
     _prefs.setDouble(_keyLogFontSize, clamped);
+  }
+
+  // --- Zoom level (scales the entire app: fonts, paddings, dimensions) ---
+  static const _keyZoomLevel = 'zoomLevel';
+  static const _defaultZoomLevel = 1.0;
+  static const _zoomMin = 0.7;
+  static const _zoomMax = 1.8;
+
+  static final ValueNotifier<double> zoomLevelListenable = ValueNotifier(
+    _defaultZoomLevel,
+  );
+
+  static double get zoomLevel => _prefs.getDouble(_keyZoomLevel) ?? _defaultZoomLevel;
+  static set zoomLevel(double v) {
+    final clamped = v.clamp(_zoomMin, _zoomMax);
+    final current = zoomLevel;
+    if ((current - clamped).abs() < 0.0001) return;
+    zoomLevelListenable.value = clamped;
+    _prefs.setDouble(_keyZoomLevel, clamped);
   }
 
   static LogTabSettings get defaultTabSettings => LogTabSettings(

@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../data/device.dart';
+import '../features/device_home/data/device_performance_stats.dart';
+import '../features/device_home/data/installed_app_info.dart';
 import '../features/logs/data/models/log_entry.dart';
 import '../features/wireless_connection/data/wireless_debug_models.dart';
 import '../features/app_log/app_logger.dart';
@@ -196,6 +198,76 @@ class DeviceSessionRepository {
     await _adbTool.clearLogs(_deviceId);
   }
 
+  Future<DevicePerformanceStats> fetchPerformanceStats() {
+    return switch (device) {
+      AndroidDevice() => _fetchAndroidPerformanceStats(),
+      IosDevice() => Future.value(const DevicePerformanceStats()),
+    };
+  }
+
+  Future<DevicePerformanceStats> _fetchAndroidPerformanceStats() async {
+    final loadavg = await _adbTool.readProcFile(_deviceId, '/proc/loadavg');
+    CpuStats? cpu;
+    if (loadavg != null && loadavg.isNotEmpty) {
+      final columns = loadavg.trim().split(RegExp(r'\s+'));
+      if (columns.length >= 3) {
+        final load1 = double.tryParse(columns[0]);
+        final load5 = double.tryParse(columns[1]);
+        final load15 = double.tryParse(columns[2]);
+        if (load1 != null && load5 != null && load15 != null) {
+          final cpuinfo = await _adbTool.readProcFile(
+            _deviceId,
+            '/proc/cpuinfo',
+          );
+          final cores = cpuinfo != null
+              ? 'processor\t'.allMatches(cpuinfo).length
+              : 0;
+          cpu = CpuStats(
+            coreCount: cores.clamp(1, 999),
+            loadAverage1m: load1,
+            loadAverage5m: load5,
+            loadAverage15m: load15,
+          );
+        }
+      }
+    }
+
+    final meminfo = await _adbTool.readProcFile(_deviceId, '/proc/meminfo');
+    MemoryStats? memory;
+    if (meminfo != null) {
+      final mem = _parseMeminfo(meminfo);
+      final total = mem['MemTotal'];
+      final available = mem['MemAvailable'];
+      final free = mem['MemFree'];
+      if (total != null && available != null && free != null) {
+        memory = MemoryStats(
+          totalKb: total,
+          availableKb: available,
+          freeKb: free,
+        );
+      }
+    }
+
+    return DevicePerformanceStats(cpu: cpu, memory: memory);
+  }
+
+  static Map<String, int> _parseMeminfo(String output) {
+    final result = <String, int>{};
+    for (final line in output.split('\n')) {
+      final colon = line.indexOf(':');
+      if (colon < 0) continue;
+      final key = line.substring(0, colon).trim();
+      final valueStr = line
+          .substring(colon + 1)
+          .trim()
+          .split(RegExp(r'\s+'))
+          .first;
+      final value = int.tryParse(valueStr);
+      if (value != null) result[key] = value;
+    }
+    return result;
+  }
+
   /// Tears down shared per-device resources. Individual log streams are owned by
   /// their [LogController]s and are stopped when those controllers are disposed
   /// (which cancels each stream's subscription), so by the time this runs only
@@ -216,6 +288,13 @@ class DeviceSessionRepository {
         deviceId: _deviceId,
         appPath: filePath,
       ),
+    };
+  }
+
+  Future<List<InstalledAppInfo>> listRecentlyInstalledApps() {
+    return switch (device) {
+      AndroidDevice() => _adbTool.listRecentlyInstalledApps(_deviceId),
+      IosDevice() => _ideviceInstallerTool.listInstalledApps(_deviceId),
     };
   }
 

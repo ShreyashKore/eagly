@@ -92,12 +92,12 @@ class _HomeScreenState extends State<HomeScreen> {
     messenger.showSnackBar(SnackBar(content: Text(message), width: width));
   }
 
-  void _changeLogFontSize(double delta) {
-    final current = PreferencesService.logFontSize;
-    PreferencesService.logFontSize = current + delta;
-    final applied = PreferencesService.logFontSize;
+  void _changeZoomLevel(double delta) {
+    final current = PreferencesService.zoomLevel;
+    PreferencesService.zoomLevel = current + delta;
+    final applied = PreferencesService.zoomLevel;
     _showSnackBar(
-      'Font size: ${applied.toStringAsFixed(0)}',
+      'Zoom: ${(applied * 100).toStringAsFixed(0)}%',
       width: AppConstants.fontSizeSnackBarWidth,
     );
   }
@@ -212,8 +212,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ToggleAutoScrollIntent: on<ToggleAutoScrollIntent>(
         (_) => _menuController.toggleAutoScroll(),
       ),
-      IncreaseFontIntent: on<IncreaseFontIntent>((_) => _changeLogFontSize(1)),
-      DecreaseFontIntent: on<DecreaseFontIntent>((_) => _changeLogFontSize(-1)),
+      IncreaseFontIntent: on<IncreaseFontIntent>((_) => _changeZoomLevel(0.05)),
+      DecreaseFontIntent: on<DecreaseFontIntent>((_) => _changeZoomLevel(-0.05)),
     };
   }
 

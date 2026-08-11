@@ -6,7 +6,7 @@ import '../../log_session_manager.dart';
 
 /// Toolbar for the Logs feature: log-tab strip, capture controls
 /// (start/pause/clear), copy/row-selection, search, view toggles, export,
-/// and import. The install feature has moved to the feature rail.
+/// import, and a pane-level close button.
 class Toolbar extends StatelessWidget {
   const Toolbar({
     super.key,
@@ -15,6 +15,7 @@ class Toolbar extends StatelessWidget {
     required this.onImportLog,
     required this.onExport,
     required this.onCopyAll,
+    required this.onClose,
   });
 
   final LogController controller;
@@ -22,6 +23,7 @@ class Toolbar extends StatelessWidget {
   final VoidCallback? onImportLog;
   final VoidCallback? onExport;
   final VoidCallback? onCopyAll;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -166,6 +168,14 @@ class Toolbar extends StatelessWidget {
             icon: Icons.download_outlined,
             tooltip: 'Import log file',
             onPressed: onImportLog,
+          ),
+          gap,
+          div,
+          gap,
+          ToolbarIconButton(
+            icon: Icons.close,
+            tooltip: 'Close logs pane',
+            onPressed: onClose,
           ),
         ],
       ),

@@ -93,6 +93,13 @@ class LogController extends FeatureController {
 
   final ScrollController scrollController = ScrollController();
 
+  double paneWidth = 600;
+
+  void setPaneWidth(double value) {
+    paneWidth = value.clamp(340, 1200);
+    notifyListeners();
+  }
+
   /// The two filter bars are each fully owned by their own controller (text
   /// controllers, focus nodes, debounce). Both emit updated [LogFilters] state
   /// through [_applyFilterState]; the sibling is kept in sync so switching modes

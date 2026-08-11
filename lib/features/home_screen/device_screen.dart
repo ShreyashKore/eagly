@@ -5,6 +5,7 @@ import 'package:gap/gap.dart';
 
 import '../crash_reports/crash_report_controller.dart';
 import '../crash_reports/crash_report_feature_view.dart';
+import '../device_home/device_home_feature_view.dart';
 import '../file_manager/file_manager_controller.dart';
 import '../file_manager/file_manager_feature_view.dart';
 import '../logs/log_feature_view.dart';
@@ -13,7 +14,7 @@ import '../mirror/mirror_feature_view.dart';
 import '../../data/device.dart';
 import '../../session/device_session_controller.dart';
 import '../../utils/log_feedback.dart';
-import '../../presentation/components/animation_utils.dart';
+import '../../features/logs/log_controller.dart';
 import 'feature_rail.dart';
 
 /// The screen shown for the selected device tab: the feature rail on the far
@@ -76,6 +77,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
           logManager: widget.session.logSessionManager,
           session: widget.session,
           appMemoryBytesListenable: widget.appMemoryBytesListenable,
+          onClose: () {},
         ),
       );
     }
@@ -112,86 +114,106 @@ class _DeviceScreenState extends State<DeviceScreen> {
   }
 
   Widget _buildContent(BuildContext context) {
-    final device = widget.session.device;
-    final guidance = _guidanceForDevice(device);
+    final session = widget.session;
+    final guidance = _guidanceForDevice(session.device);
     if (guidance != null) {
       return guidance;
     }
 
-    final logPane = LogFeatureView(
-      logManager: widget.session.logSessionManager,
-      session: widget.session,
-      appMemoryBytesListenable: widget.appMemoryBytesListenable,
-    );
-
-    final mirror = widget.session.mirrorController;
-    final crashReports = widget.session.crashReportController;
-    final files = widget.session.fileManagerController;
-
-    return Row(
+    // Home and the feature workspace are mutually-exclusive views, but both
+    // stay mounted (via Visibility, not a conditional build) so neither one's
+    // widget-level state (scroll position, in-progress input, …) is lost when
+    // the user switches away and back.
+    return Stack(
       children: [
-        ListenableBuilder(
-          listenable: mirror,
-          builder: (context, _) {
-            return AnimatedSection(
-              visible: widget.session.isMirrorOpen,
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: mirror.paneWidth,
-                    child: MirrorFeatureView(
-                      controller: mirror,
-                      onClose: widget.session.closeMirror,
-                    ),
-                  ),
-                  _MirrorPaneResizeHandle(mirror: mirror),
-                ],
-              ),
-            );
-          },
+        Positioned.fill(
+          child: Visibility(
+            visible: !session.isHomeOpen,
+            maintainState: true,
+            maintainAnimation: true,
+            child: _buildWorkspace(context, session),
+          ),
         ),
-        ListenableBuilder(
-          listenable: crashReports,
-          builder: (context, _) {
-            return AnimatedSection(
-              visible: widget.session.isCrashReportsOpen,
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: crashReports.paneWidth,
-                    child: CrashReportFeatureView(
-                      controller: crashReports,
-                      onClose: widget.session.closeCrashReports,
-                    ),
-                  ),
-                  _CrashPaneResizeHandle(controller: crashReports),
-                ],
-              ),
-            );
-          },
+        Positioned.fill(
+          child: Visibility(
+            visible: session.isHomeOpen,
+            maintainState: true,
+            maintainAnimation: true,
+            child: DeviceHomeFeatureView(
+              session: session,
+              homeController: session.homeController,
+              onShowSnackBar: _showSnackBar,
+            ),
+          ),
         ),
-        ListenableBuilder(
-          listenable: files,
-          builder: (context, _) {
-            return AnimatedSection(
-              visible: widget.session.isFilesOpen,
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: files.paneWidth,
-                    child: FileManagerFeatureView(
-                      controller: files,
-                      onClose: widget.session.closeFiles,
-                    ),
-                  ),
-                  _FilePaneResizeHandle(controller: files),
-                ],
-              ),
-            );
-          },
-        ),
-        Expanded(child: logPane),
       ],
+    );
+  }
+
+  Widget _buildWorkspace(
+    BuildContext context,
+    DeviceSessionController session,
+  ) {
+    final logController = session.logSessionManager.selectedTab;
+    final mirror = session.mirrorController;
+    final crashReports = session.crashReportController;
+    final files = session.fileManagerController;
+
+    // Open features split the full width proportionally to their pane widths,
+    // so no empty space remains; the dividers still resize them by ratio.
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        logController,
+        mirror,
+        crashReports,
+        files,
+      ]),
+      builder: (context, _) => Row(
+        children: [
+          if (session.isLogsOpen && logController != null) ...[
+            Expanded(
+              flex: logController.paneWidth.round(),
+              child: LogFeatureView(
+                logManager: session.logSessionManager,
+                session: session,
+                appMemoryBytesListenable: widget.appMemoryBytesListenable,
+                onClose: session.closeLogs,
+              ),
+            ),
+            _LogPaneResizeHandle(controller: logController),
+          ],
+          if (session.isMirrorOpen) ...[
+            Expanded(
+              flex: mirror.paneWidth.round(),
+              child: MirrorFeatureView(
+                controller: mirror,
+                onClose: session.closeMirror,
+              ),
+            ),
+            _MirrorPaneResizeHandle(mirror: mirror),
+          ],
+          if (session.isCrashReportsOpen) ...[
+            Expanded(
+              flex: crashReports.paneWidth.round(),
+              child: CrashReportFeatureView(
+                controller: crashReports,
+                onClose: session.closeCrashReports,
+              ),
+            ),
+            _CrashPaneResizeHandle(controller: crashReports),
+          ],
+          if (session.isFilesOpen) ...[
+            Expanded(
+              flex: files.paneWidth.round(),
+              child: FileManagerFeatureView(
+                controller: files,
+                onClose: session.closeFiles,
+              ),
+            ),
+            _FilePaneResizeHandle(controller: files),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -526,6 +548,38 @@ class _MirrorPaneResizeHandle extends StatelessWidget {
         behavior: HitTestBehavior.translucent,
         onHorizontalDragUpdate: (details) =>
             mirror.setPaneWidth(mirror.paneWidth + details.delta.dx),
+        child: Container(
+          width: 8,
+          height: double.infinity,
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.8),
+          child: Center(
+            child: Container(
+              width: 2,
+              height: 24,
+              color: theme.colorScheme.outline.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Thin draggable divider that resizes the log-viewer pane horizontally.
+class _LogPaneResizeHandle extends StatelessWidget {
+  const _LogPaneResizeHandle({required this.controller});
+
+  final LogController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: (details) =>
+            controller.setPaneWidth(controller.paneWidth + details.delta.dx),
         child: Container(
           width: 8,
           height: double.infinity,

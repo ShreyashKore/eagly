@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:eagly/features/logs/services/log_parsers/logcat_parser.dart';
 
 import '../../data/device.dart';
+import '../../features/device_home/data/installed_app_info.dart';
 import '../../features/logs/data/models/log_entry.dart';
 import '../../features/wireless_connection/data/wireless_debug_models.dart';
 import '../../utils/utils.dart';
@@ -634,5 +635,112 @@ class AdbTool extends ToolProcessRunner {
     }
 
     return properties;
+  }
+
+  Future<String?> readProcFile(String deviceId, String path) async {
+    try {
+      final result = await runText([
+        '-s',
+        deviceId,
+        'shell',
+        'cat',
+        path,
+      ]);
+      if (!result.isSuccess) return null;
+      return result.stdout;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<InstalledAppInfo>> listRecentlyInstalledApps(
+    String deviceId,
+  ) async {
+    try {
+      final pkgsResult = await runText([
+        '-s',
+        deviceId,
+        'shell',
+        'pm',
+        'list',
+        'packages',
+        '-3',
+      ]);
+      final thirdParty = <String>{};
+      if (pkgsResult.isSuccess) {
+        for (final line in pkgsResult.stdout.split('\n')) {
+          final trimmed = line.trim();
+          if (trimmed.startsWith('package:')) {
+            thirdParty.add(trimmed.substring('package:'.length));
+          }
+        }
+      }
+
+      final dumpsysResult = await runText([
+        '-s',
+        deviceId,
+        'shell',
+        'dumpsys',
+        'package',
+        'packages',
+      ]);
+      if (!dumpsysResult.isSuccess) return [];
+
+      final apps = <InstalledAppInfo>[];
+      final lines = dumpsysResult.stdout.split('\n');
+      String? currentPackage;
+      DateTime? currentLastUpdate;
+
+      for (final rawLine in lines) {
+        final line = rawLine.trim();
+
+        final pkgMatch = RegExp(r'^Package\s*\[([^\]]+)\]').firstMatch(line);
+        if (pkgMatch != null) {
+          if (currentPackage != null &&
+              thirdParty.contains(currentPackage) &&
+              currentLastUpdate != null) {
+            apps.add(InstalledAppInfo(
+              packageName: currentPackage,
+              installTime: currentLastUpdate,
+            ));
+          }
+          currentPackage = pkgMatch.group(1)!;
+          currentLastUpdate = null;
+          continue;
+        }
+
+        if (currentPackage != null) {
+          final timeMatch = RegExp(
+            r'lastUpdateTime=(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})',
+          ).firstMatch(line);
+          if (timeMatch != null) {
+            currentLastUpdate = DateTime.tryParse(timeMatch.group(1)!);
+          }
+        }
+      }
+
+      if (currentPackage != null &&
+          thirdParty.contains(currentPackage) &&
+          currentLastUpdate != null) {
+        apps.add(InstalledAppInfo(
+          packageName: currentPackage,
+          installTime: currentLastUpdate,
+        ));
+      }
+
+      apps.sort((a, b) {
+        final ta = a.installTime;
+        final tb = b.installTime;
+        if (ta == null && tb == null) return 0;
+        if (ta == null) return 1;
+        if (tb == null) return -1;
+        return tb.compareTo(ta);
+      });
+
+      return apps.take(5).toList();
+    } catch (error) {
+      logError('Failed to list recently installed apps', error);
+      return [];
+    }
   }
 }

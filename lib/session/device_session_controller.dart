@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/device.dart';
 import '../features/crash_reports/crash_report_controller.dart';
+import '../features/device_home/device_home_controller.dart';
 import '../features/file_manager/file_manager_controller.dart';
 import '../features/logs/log_session_manager.dart';
 import '../features/mirror/mirror_controller.dart';
@@ -88,7 +89,10 @@ class DeviceSessionController extends ChangeNotifier {
   MirrorController? _mirrorController;
   CrashReportController? _crashReportController;
   FileManagerController? _fileManagerController;
+  DeviceHomeController? _homeController;
 
+  bool _homeOpen = true;
+  bool _logsOpen = false;
   bool _mirrorOpen = false;
   bool _crashReportsOpen = false;
   bool _filesOpen = false;
@@ -102,7 +106,21 @@ class DeviceSessionController extends ChangeNotifier {
   bool get isMirrorOpen => _mirrorOpen;
   bool get isCrashReportsOpen => _crashReportsOpen;
   bool get isFilesOpen => _filesOpen;
+  bool get isLogsOpen => _logsOpen;
+  bool get isHomeOpen => _homeOpen;
   bool get isActivated => _activated;
+
+  /// Closing a pane must never leave nothing selected — fall back to Home
+  /// when it would otherwise be the last one standing.
+  void _ensureSelection() {
+    if (!_homeOpen &&
+        !_logsOpen &&
+        !_mirrorOpen &&
+        !_crashReportsOpen &&
+        !_filesOpen) {
+      _homeOpen = true;
+    }
+  }
 
   /// Whether this device can be screen-mirrored right now.
   bool get canMirror => _device is AndroidDevice && _device.isConnected;
@@ -128,6 +146,48 @@ class DeviceSessionController extends ChangeNotifier {
   FileManagerController get fileManagerController =>
       _fileManagerController ??= FileManagerController(this);
 
+  DeviceHomeController get homeController =>
+      _homeController ??= DeviceHomeController(this);
+
+  void openHome() {
+    if (_homeOpen) return;
+    _homeOpen = true;
+    _notify();
+  }
+
+  void closeHome() {
+    if (!_homeOpen) return;
+    _homeOpen = false;
+    _ensureSelection();
+    _notify();
+  }
+
+  void toggleHome() => _homeOpen ? closeHome() : openHome();
+
+  /// Home and the feature workspace are two mutually-exclusive *views* over
+  /// state that both stay alive underneath. Opening a feature pane switches
+  /// the view to the workspace and marks the pane open, but never touches the
+  /// open/closed flags of the other panes — so returning to Home and back
+  /// restores whatever combination of panes was showing before.
+  void openLogs() {
+    final viewChanged = _homeOpen || !_logsOpen;
+    _logsOpen = true;
+    _homeOpen = false;
+    if (viewChanged) _notify();
+  }
+
+  void closeLogs() {
+    if (!_logsOpen) return;
+    _logsOpen = false;
+    _ensureSelection();
+    _notify();
+  }
+
+  /// While Home is showing, tapping a pane's rail item always reveals the
+  /// workspace (opening the pane if it wasn't already); it only closes the
+  /// pane when the workspace is already the active view.
+  void toggleLogs() => _logsOpen && !_homeOpen ? closeLogs() : openLogs();
+
   /// Updates the live device snapshot from the repository. Feature controllers
   /// listen to this controller and react to connectivity transitions.
   void updateDevice(Device next) {
@@ -146,10 +206,10 @@ class DeviceSessionController extends ChangeNotifier {
   }
 
   void openMirror() {
-    if (!_mirrorOpen) {
-      _mirrorOpen = true;
-      _notify();
-    }
+    final viewChanged = _homeOpen || !_mirrorOpen;
+    _mirrorOpen = true;
+    _homeOpen = false;
+    if (viewChanged) _notify();
     if (canMirror) {
       mirrorController.show();
     }
@@ -158,16 +218,18 @@ class DeviceSessionController extends ChangeNotifier {
   void closeMirror() {
     if (!_mirrorOpen) return;
     _mirrorOpen = false;
+    _ensureSelection();
     _notify();
   }
 
-  void toggleMirror() => _mirrorOpen ? closeMirror() : openMirror();
+  void toggleMirror() =>
+      _mirrorOpen && !_homeOpen ? closeMirror() : openMirror();
 
   void openCrashReports() {
-    if (!_crashReportsOpen) {
-      _crashReportsOpen = true;
-      _notify();
-    }
+    final viewChanged = _homeOpen || !_crashReportsOpen;
+    _crashReportsOpen = true;
+    _homeOpen = false;
+    if (viewChanged) _notify();
     if (canReadCrashReports) {
       unawaited(crashReportController.ensureLoaded());
     }
@@ -176,27 +238,30 @@ class DeviceSessionController extends ChangeNotifier {
   void closeCrashReports() {
     if (!_crashReportsOpen) return;
     _crashReportsOpen = false;
+    _ensureSelection();
     _notify();
   }
 
-  void toggleCrashReports() =>
-      _crashReportsOpen ? closeCrashReports() : openCrashReports();
+  void toggleCrashReports() => _crashReportsOpen && !_homeOpen
+      ? closeCrashReports()
+      : openCrashReports();
 
   void openFiles() {
-    if (!_filesOpen) {
-      _filesOpen = true;
-      _notify();
-    }
+    final viewChanged = _homeOpen || !_filesOpen;
+    _filesOpen = true;
+    _homeOpen = false;
+    if (viewChanged) _notify();
     unawaited(fileManagerController.ensureLoaded());
   }
 
   void closeFiles() {
     if (!_filesOpen) return;
     _filesOpen = false;
+    _ensureSelection();
     _notify();
   }
 
-  void toggleFiles() => _filesOpen ? closeFiles() : openFiles();
+  void toggleFiles() => _filesOpen && !_homeOpen ? closeFiles() : openFiles();
 
   // ── App install (device-level) ──────────────────────────────────────────
   bool _isInstallingApp = false;
@@ -397,6 +462,7 @@ class DeviceSessionController extends ChangeNotifier {
     _mirrorController?.dispose();
     _crashReportController?.dispose();
     _fileManagerController?.dispose();
+    _homeController?.dispose();
     unawaited(service.dispose());
     super.dispose();
   }
