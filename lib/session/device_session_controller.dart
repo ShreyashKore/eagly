@@ -110,6 +110,18 @@ class DeviceSessionController extends ChangeNotifier {
   bool get isHomeOpen => _homeOpen;
   bool get isActivated => _activated;
 
+  /// Closing a pane must never leave nothing selected — fall back to Home
+  /// when it would otherwise be the last one standing.
+  void _ensureSelection() {
+    if (!_homeOpen &&
+        !_logsOpen &&
+        !_mirrorOpen &&
+        !_crashReportsOpen &&
+        !_filesOpen) {
+      _homeOpen = true;
+    }
+  }
+
   /// Whether this device can be screen-mirrored right now.
   bool get canMirror => _device is AndroidDevice && _device.isConnected;
 
@@ -146,6 +158,7 @@ class DeviceSessionController extends ChangeNotifier {
   void closeHome() {
     if (!_homeOpen) return;
     _homeOpen = false;
+    _ensureSelection();
     _notify();
   }
 
@@ -166,6 +179,7 @@ class DeviceSessionController extends ChangeNotifier {
   void closeLogs() {
     if (!_logsOpen) return;
     _logsOpen = false;
+    _ensureSelection();
     _notify();
   }
 
@@ -204,6 +218,7 @@ class DeviceSessionController extends ChangeNotifier {
   void closeMirror() {
     if (!_mirrorOpen) return;
     _mirrorOpen = false;
+    _ensureSelection();
     _notify();
   }
 
@@ -223,6 +238,7 @@ class DeviceSessionController extends ChangeNotifier {
   void closeCrashReports() {
     if (!_crashReportsOpen) return;
     _crashReportsOpen = false;
+    _ensureSelection();
     _notify();
   }
 
@@ -241,6 +257,7 @@ class DeviceSessionController extends ChangeNotifier {
   void closeFiles() {
     if (!_filesOpen) return;
     _filesOpen = false;
+    _ensureSelection();
     _notify();
   }
 
