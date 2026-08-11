@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import '../../services/eagly_info_service.dart';
 import '../../session/device_session_controller.dart';
 
-/// Far-left vertical rail listing the features available for a device.
-/// Home is open by default; opening any feature closes Home. From there each
-/// feature pane toggles on/off independently. Install opens a file picker.
-/// Settings and the app version are pinned to the bottom.
+/// Far-left vertical rail listing the features available for a device. The
+/// rail is split into two sections: Home (pinned at the top, its own
+/// mutually-exclusive view) and the other destinations below a divider, each
+/// of which toggles on/off independently and stacks side by side. Selecting
+/// Home swaps the visible view but never closes the other panes underneath —
+/// selecting any of them again restores the previous layout. Install opens a
+/// file picker. Settings and the app version are pinned to the bottom.
 class FeatureRail extends StatelessWidget {
   const FeatureRail({
     super.key,
@@ -36,21 +39,31 @@ class FeatureRail extends StatelessWidget {
           ),
           child: Column(
             children: [
+              const SizedBox(height: 8),
+              _RailButton(
+                icon: Icons.home_outlined,
+                label: 'Home',
+                isActive: session.isHomeOpen,
+                tooltip: session.isHomeOpen
+                    ? 'Hide device home'
+                    : 'Show device home',
+                onTap: session.toggleHome,
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: theme.colorScheme.outlineVariant,
+                ),
+              ),
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
                     spacing: 8,
                     children: [
                       const SizedBox(height: 8),
-                      _RailButton(
-                        icon: Icons.home_outlined,
-                        label: 'Home',
-                        isActive: session.isHomeOpen,
-                        tooltip: session.isHomeOpen
-                            ? 'Hide device home'
-                            : 'Show device home',
-                        onTap: session.toggleHome,
-                      ),
                       _RailButton(
                         icon: Icons.article_outlined,
                         label: 'Logs',

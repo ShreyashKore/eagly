@@ -15,7 +15,6 @@ import '../../data/device.dart';
 import '../../session/device_session_controller.dart';
 import '../../utils/log_feedback.dart';
 import '../../features/logs/log_controller.dart';
-import '../../presentation/components/animation_utils.dart';
 import 'feature_rail.dart';
 
 /// The screen shown for the selected device tab: the feature rail on the far
@@ -115,110 +114,106 @@ class _DeviceScreenState extends State<DeviceScreen> {
   }
 
   Widget _buildContent(BuildContext context) {
-    final device = widget.session.device;
-    final guidance = _guidanceForDevice(device);
+    final session = widget.session;
+    final guidance = _guidanceForDevice(session.device);
     if (guidance != null) {
       return guidance;
     }
 
-    final homePane = DeviceHomeFeatureView(
-      session: widget.session,
-      homeController: widget.session.homeController,
-      onShowSnackBar: _showSnackBar,
-    );
-
-    final logController = widget.session.logSessionManager.selectedTab;
-    final mirror = widget.session.mirrorController;
-    final crashReports = widget.session.crashReportController;
-    final files = widget.session.fileManagerController;
-    return widget.session.isHomeOpen ? homePane :
-     Row(
+    // Home and the feature workspace are mutually-exclusive views, but both
+    // stay mounted (via Visibility, not a conditional build) so neither one's
+    // widget-level state (scroll position, in-progress input, …) is lost when
+    // the user switches away and back.
+    return Stack(
       children: [
-        if (logController != null)
-          ListenableBuilder(
-            listenable: logController,
-            builder: (context, _) {
-              return AnimatedSection(
-                visible: widget.session.isLogsOpen,
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: logController.paneWidth,
-                      child: LogFeatureView(
-                        logManager: widget.session.logSessionManager,
-                        session: widget.session,
-                        appMemoryBytesListenable:
-                            widget.appMemoryBytesListenable,
-                        onClose: widget.session.closeLogs,
-                      ),
-                    ),
-                    _LogPaneResizeHandle(controller: logController),
-                  ],
-                ),
-              );
-            },
+        Positioned.fill(
+          child: Visibility(
+            visible: !session.isHomeOpen,
+            maintainState: true,
+            maintainAnimation: true,
+            child: _buildWorkspace(context, session),
           ),
-        ListenableBuilder(
-          listenable: mirror,
-          builder: (context, _) {
-            return AnimatedSection(
-              visible: widget.session.isMirrorOpen,
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: mirror.paneWidth,
-                    child: MirrorFeatureView(
-                      controller: mirror,
-                      onClose: widget.session.closeMirror,
-                    ),
-                  ),
-                  _MirrorPaneResizeHandle(mirror: mirror),
-                ],
-              ),
-            );
-          },
         ),
-        ListenableBuilder(
-          listenable: crashReports,
-          builder: (context, _) {
-            return AnimatedSection(
-              visible: widget.session.isCrashReportsOpen,
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: crashReports.paneWidth,
-                    child: CrashReportFeatureView(
-                      controller: crashReports,
-                      onClose: widget.session.closeCrashReports,
-                    ),
-                  ),
-                  _CrashPaneResizeHandle(controller: crashReports),
-                ],
-              ),
-            );
-          },
-        ),
-        ListenableBuilder(
-          listenable: files,
-          builder: (context, _) {
-            return AnimatedSection(
-              visible: widget.session.isFilesOpen,
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: files.paneWidth,
-                    child: FileManagerFeatureView(
-                      controller: files,
-                      onClose: widget.session.closeFiles,
-                    ),
-                  ),
-                  _FilePaneResizeHandle(controller: files),
-                ],
-              ),
-            );
-          },
+        Positioned.fill(
+          child: Visibility(
+            visible: session.isHomeOpen,
+            maintainState: true,
+            maintainAnimation: true,
+            child: DeviceHomeFeatureView(
+              session: session,
+              homeController: session.homeController,
+              onShowSnackBar: _showSnackBar,
+            ),
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildWorkspace(
+    BuildContext context,
+    DeviceSessionController session,
+  ) {
+    final logController = session.logSessionManager.selectedTab;
+    final mirror = session.mirrorController;
+    final crashReports = session.crashReportController;
+    final files = session.fileManagerController;
+
+    // Open features split the full width proportionally to their pane widths,
+    // so no empty space remains; the dividers still resize them by ratio.
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        logController,
+        mirror,
+        crashReports,
+        files,
+      ]),
+      builder: (context, _) => Row(
+        children: [
+          if (session.isLogsOpen && logController != null) ...[
+            Expanded(
+              flex: logController.paneWidth.round(),
+              child: LogFeatureView(
+                logManager: session.logSessionManager,
+                session: session,
+                appMemoryBytesListenable: widget.appMemoryBytesListenable,
+                onClose: session.closeLogs,
+              ),
+            ),
+            _LogPaneResizeHandle(controller: logController),
+          ],
+          if (session.isMirrorOpen) ...[
+            Expanded(
+              flex: mirror.paneWidth.round(),
+              child: MirrorFeatureView(
+                controller: mirror,
+                onClose: session.closeMirror,
+              ),
+            ),
+            _MirrorPaneResizeHandle(mirror: mirror),
+          ],
+          if (session.isCrashReportsOpen) ...[
+            Expanded(
+              flex: crashReports.paneWidth.round(),
+              child: CrashReportFeatureView(
+                controller: crashReports,
+                onClose: session.closeCrashReports,
+              ),
+            ),
+            _CrashPaneResizeHandle(controller: crashReports),
+          ],
+          if (session.isFilesOpen) ...[
+            Expanded(
+              flex: files.paneWidth.round(),
+              child: FileManagerFeatureView(
+                controller: files,
+                onClose: session.closeFiles,
+              ),
+            ),
+            _FilePaneResizeHandle(controller: files),
+          ],
+        ],
+      ),
     );
   }
 }

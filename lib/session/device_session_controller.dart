@@ -151,18 +151,16 @@ class DeviceSessionController extends ChangeNotifier {
 
   void toggleHome() => _homeOpen ? closeHome() : openHome();
 
-  /// Closes the Home pane when any feature pane is opened, so Home does not
-  /// remain lit after the user switches to a feature.
-  void _ensureHomeClosed() {
-    if (_homeOpen) closeHome();
-  }
-
+  /// Home and the feature workspace are two mutually-exclusive *views* over
+  /// state that both stay alive underneath. Opening a feature pane switches
+  /// the view to the workspace and marks the pane open, but never touches the
+  /// open/closed flags of the other panes — so returning to Home and back
+  /// restores whatever combination of panes was showing before.
   void openLogs() {
-    if (!_logsOpen) {
-      _logsOpen = true;
-      _ensureHomeClosed();
-      _notify();
-    }
+    final viewChanged = _homeOpen || !_logsOpen;
+    _logsOpen = true;
+    _homeOpen = false;
+    if (viewChanged) _notify();
   }
 
   void closeLogs() {
@@ -171,7 +169,10 @@ class DeviceSessionController extends ChangeNotifier {
     _notify();
   }
 
-  void toggleLogs() => _logsOpen ? closeLogs() : openLogs();
+  /// While Home is showing, tapping a pane's rail item always reveals the
+  /// workspace (opening the pane if it wasn't already); it only closes the
+  /// pane when the workspace is already the active view.
+  void toggleLogs() => _logsOpen && !_homeOpen ? closeLogs() : openLogs();
 
   /// Updates the live device snapshot from the repository. Feature controllers
   /// listen to this controller and react to connectivity transitions.
@@ -191,11 +192,10 @@ class DeviceSessionController extends ChangeNotifier {
   }
 
   void openMirror() {
-    if (!_mirrorOpen) {
-      _mirrorOpen = true;
-      _ensureHomeClosed();
-      _notify();
-    }
+    final viewChanged = _homeOpen || !_mirrorOpen;
+    _mirrorOpen = true;
+    _homeOpen = false;
+    if (viewChanged) _notify();
     if (canMirror) {
       mirrorController.show();
     }
@@ -207,14 +207,14 @@ class DeviceSessionController extends ChangeNotifier {
     _notify();
   }
 
-  void toggleMirror() => _mirrorOpen ? closeMirror() : openMirror();
+  void toggleMirror() =>
+      _mirrorOpen && !_homeOpen ? closeMirror() : openMirror();
 
   void openCrashReports() {
-    if (!_crashReportsOpen) {
-      _crashReportsOpen = true;
-      _ensureHomeClosed();
-      _notify();
-    }
+    final viewChanged = _homeOpen || !_crashReportsOpen;
+    _crashReportsOpen = true;
+    _homeOpen = false;
+    if (viewChanged) _notify();
     if (canReadCrashReports) {
       unawaited(crashReportController.ensureLoaded());
     }
@@ -226,15 +226,15 @@ class DeviceSessionController extends ChangeNotifier {
     _notify();
   }
 
-  void toggleCrashReports() =>
-      _crashReportsOpen ? closeCrashReports() : openCrashReports();
+  void toggleCrashReports() => _crashReportsOpen && !_homeOpen
+      ? closeCrashReports()
+      : openCrashReports();
 
   void openFiles() {
-    if (!_filesOpen) {
-      _filesOpen = true;
-      _ensureHomeClosed();
-      _notify();
-    }
+    final viewChanged = _homeOpen || !_filesOpen;
+    _filesOpen = true;
+    _homeOpen = false;
+    if (viewChanged) _notify();
     unawaited(fileManagerController.ensureLoaded());
   }
 
@@ -244,7 +244,7 @@ class DeviceSessionController extends ChangeNotifier {
     _notify();
   }
 
-  void toggleFiles() => _filesOpen ? closeFiles() : openFiles();
+  void toggleFiles() => _filesOpen && !_homeOpen ? closeFiles() : openFiles();
 
   // ── App install (device-level) ──────────────────────────────────────────
   bool _isInstallingApp = false;
