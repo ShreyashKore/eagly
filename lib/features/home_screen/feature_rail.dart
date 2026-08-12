@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../services/eagly_info_service.dart';
 import '../../session/device_session_controller.dart';
+import 'components/rail_button.dart';
+import 'components/rail_footer.dart';
 
 /// Far-left vertical rail listing the features available for a device. The
 /// rail is split into two sections: Home (pinned at the top, its own
@@ -44,7 +45,7 @@ class FeatureRail extends StatelessWidget {
                 child: Column(
                   children: [
                     const SizedBox(height: 8),
-                    _RailButton(
+                    RailButton(
                       icon: Icons.home_outlined,
                       label: 'Home',
                       isActive: session.isHomeOpen,
@@ -72,7 +73,7 @@ class FeatureRail extends StatelessWidget {
                             child: Column(
                               spacing: 4,
                               children: [
-                                _RailButton(
+                                RailButton(
                                   icon: Icons.article_outlined,
                                   label: 'Logs',
                                   isActive: session.isLogsOpen,
@@ -81,7 +82,7 @@ class FeatureRail extends StatelessWidget {
                                       : 'View device logs',
                                   onTap: session.toggleLogs,
                                 ),
-                                _RailButton(
+                                RailButton(
                                   icon: Icons.mobile_screen_share,
                                   label: 'Mirror',
                                   isActive: session.isMirrorOpen,
@@ -100,7 +101,7 @@ class FeatureRail extends StatelessWidget {
                                       : null,
                                 ),
                                 if (session.canReadCrashReports)
-                                  _RailButton(
+                                  RailButton(
                                     icon: Icons.bug_report_outlined,
                                     label: 'Crashes',
                                     isActive: session.isCrashReportsOpen,
@@ -109,7 +110,7 @@ class FeatureRail extends StatelessWidget {
                                         : 'Read crash reports',
                                     onTap: session.toggleCrashReports,
                                   ),
-                                _RailButton(
+                                RailButton(
                                   icon: Icons.folder_outlined,
                                   label: 'Files',
                                   isActive: session.isFilesOpen,
@@ -129,7 +130,7 @@ class FeatureRail extends StatelessWidget {
                                       ? session.toggleFiles
                                       : null,
                                 ),
-                                _RailButton(
+                                RailButton(
                                   icon: Icons.apps_outlined,
                                   label: 'Apps',
                                   isActive: session.isAppsOpen,
@@ -149,7 +150,7 @@ class FeatureRail extends StatelessWidget {
                                       ? session.toggleApps
                                       : null,
                                 ),
-                                _RailButton(
+                                RailButton(
                                   icon: session.isInstallingApp
                                       ? Icons.hourglass_top_rounded
                                       : Icons.system_update_outlined,
@@ -191,112 +192,18 @@ class FeatureRail extends StatelessWidget {
                   ],
                 ),
               ),
-              _RailButton(
+              RailButton(
                 icon: Icons.settings_rounded,
                 label: 'Settings',
                 isActive: false,
                 tooltip: 'Settings',
                 onTap: onOpenSettings,
               ),
-              const _RailFooter(),
+              const RailFooter(),
             ],
           ),
         );
       },
-    );
-  }
-}
-
-/// Bottom-pinned separator and the app version, shown unobtrusively.
-class _RailFooter extends StatelessWidget {
-  const _RailFooter();
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Divider(
-          height: 1,
-          thickness: 1,
-          indent: 16,
-          endIndent: 16,
-          color: colorScheme.outlineVariant,
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'v${EaglyInfoService.appVersion}',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 10,
-            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-          ),
-        ),
-        const SizedBox(height: 10),
-      ],
-    );
-  }
-}
-
-class _RailButton extends StatelessWidget {
-  const _RailButton({
-    required this.icon,
-    required this.label,
-    required this.isActive,
-    required this.tooltip,
-    required this.onTap,
-    this.enabled = true,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  final String tooltip;
-  final VoidCallback? onTap;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final foreground = !enabled
-        ? colorScheme.onSurface.withValues(alpha: 0.38)
-        : isActive
-        ? colorScheme.primary
-        : colorScheme.onSurfaceVariant;
-
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: isActive
-            ? colorScheme.primaryContainer.withValues(alpha: 1)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        clipBehavior: Clip.antiAlias,
-        animationDuration: const Duration(milliseconds: 250),
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          mouseCursor: SystemMouseCursors.click,
-          splashColor: colorScheme.primary.withValues(alpha: 0.24),
-          highlightColor: colorScheme.primary.withValues(alpha: 0.08),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-            child: SizedBox(
-              width: double.infinity,
-              child: Column(
-                children: [
-                  Icon(icon, size: 22, color: foreground),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    style: TextStyle(fontSize: 11, color: foreground),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

@@ -6,7 +6,10 @@ import 'package:gap/gap.dart';
 
 import '../../../session/device_session_controller.dart';
 import '../../../presentation/components/device_presentation.dart';
+import 'connection_dot.dart';
 import 'context_menu_helper.dart';
+import 'entrance_reveal.dart';
+import 'workspace_label.dart';
 
 class DeviceTab extends StatefulWidget {
   const DeviceTab({
@@ -130,9 +133,9 @@ class _DeviceTabState extends State<DeviceTab> with TickerProviderStateMixin {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (isWorkspace)
-                              _WorkspaceLabel(theme: theme)
+                              WorkspaceLabel(theme: theme)
                             else ...[
-                              _ConnectionDot(connected: device.isConnected),
+                              ConnectionDot(connected: device.isConnected),
                               const Gap(6),
                               DeviceSelectionLabel(
                                 device: device,
@@ -188,39 +191,8 @@ class _DeviceTabState extends State<DeviceTab> with TickerProviderStateMixin {
           ),
         );
 
-        return _EntranceReveal(animation: _enter, child: tab);
+        return EntranceReveal(animation: _enter, child: tab);
       },
-    );
-  }
-}
-
-/// Snappy "pop in" reveal: the tab expands horizontally from its leading edge
-/// while fading and scaling up, so a newly connected device slides into place.
-class _EntranceReveal extends StatelessWidget {
-  const _EntranceReveal({required this.animation, required this.child});
-
-  final Animation<double> animation;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final eased = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutCubic,
-    );
-    return SizeTransition(
-      axis: Axis.horizontal,
-      axisAlignment: -1,
-      sizeFactor: eased,
-      child: FadeTransition(
-        opacity: eased,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.82, end: 1).animate(
-            CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
-          ),
-          child: child,
-        ),
-      ),
     );
   }
 }
@@ -279,49 +251,4 @@ class _HighlightWavePainter extends CustomPainter {
   @override
   bool shouldRepaint(_HighlightWavePainter old) =>
       old.progress != progress || old.color != color;
-}
-
-/// Leading content for the synthetic "Imported Logs" workspace tab: a file
-/// icon and label instead of a device's connection dot + platform label.
-class _WorkspaceLabel extends StatelessWidget {
-  const _WorkspaceLabel({required this.theme});
-
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.description_outlined,
-          size: 16,
-          color: theme.colorScheme.primary,
-        ),
-        const Gap(6),
-        Text('Imported Logs', style: theme.textTheme.bodyMedium),
-      ],
-    );
-  }
-}
-
-class _ConnectionDot extends StatelessWidget {
-  const _ConnectionDot({required this.connected});
-
-  final bool connected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: connected
-            ? Colors.green
-            : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-      ),
-    );
-  }
 }

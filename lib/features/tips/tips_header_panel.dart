@@ -3,6 +3,10 @@ import 'package:gap/gap.dart';
 
 import '../../presentation/components/eagly_dialog.dart';
 import '../../presentation/theme/app_theme.dart';
+import 'components/action_hint.dart';
+import 'components/confirm_disable_tips.dart';
+import 'components/pill_icon_button.dart';
+import 'components/tips_menu_button.dart';
 import 'tip.dart';
 import 'tips_controller.dart';
 
@@ -102,12 +106,12 @@ class _TipsHeaderPanelState extends State<TipsHeaderPanel> {
                       ),
                     ),
                     const Gap(6),
-                    _PillIconButton(
+                    PillIconButton(
                       icon: Icons.close_rounded,
                       tooltip: 'Hide tip',
                       onTap: widget.controller.dismissForSession,
                     ),
-                    _TipsMenuButton(controller: widget.controller),
+                    TipsMenuButton(controller: widget.controller),
                   ],
                 ),
               ),
@@ -120,98 +124,6 @@ class _TipsHeaderPanelState extends State<TipsHeaderPanel> {
 
   Future<void> _openDetail(BuildContext context, Tip tip) {
     return showTipDetailDialog(context, tip, widget.controller);
-  }
-}
-
-/// The three-dot options menu for the tips panel.
-class _TipsMenuButton extends StatelessWidget {
-  const _TipsMenuButton({required this.controller});
-
-  final TipsController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<_TipsMenuAction>(
-      tooltip: 'Tip options',
-      position: PopupMenuPosition.under,
-      padding: EdgeInsets.zero,
-      iconSize: 16,
-      splashRadius: 16,
-      constraints: const BoxConstraints(minWidth: 200),
-      icon: Icon(
-        Icons.more_vert_rounded,
-        size: 16,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
-      itemBuilder: (context) => const [
-        PopupMenuItem(
-          value: _TipsMenuAction.another,
-          child: _MenuRow(Icons.refresh_rounded, 'Show another tip'),
-        ),
-        PopupMenuDivider(),
-        PopupMenuItem(
-          value: _TipsMenuAction.disable,
-          child: _MenuRow(Icons.visibility_off_outlined, 'Turn off tips…'),
-        ),
-      ],
-      onSelected: (action) async {
-        switch (action) {
-          case _TipsMenuAction.another:
-            controller.showNextTip();
-          case _TipsMenuAction.disable:
-            final confirmed = await _confirmDisableTips(context);
-            if (confirmed) controller.disablePermanently();
-        }
-      },
-    );
-  }
-}
-
-enum _TipsMenuAction { another, disable }
-
-/// A small, muted tappable icon sized to sit inside the pill without dominating.
-class _PillIconButton extends StatelessWidget {
-  const _PillIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkResponse(
-        onTap: onTap,
-        radius: 16,
-        mouseCursor: SystemMouseCursors.click,
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: Icon(
-            icon,
-            size: 16,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MenuRow extends StatelessWidget {
-  const _MenuRow(this.icon, this.label);
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [Icon(icon, size: 16), const SizedBox(width: 10), Text(label)],
-    );
   }
 }
 
@@ -246,14 +158,14 @@ Future<void> showTipDetailDialog(
                 ),
                 if (current.actionHint != null) ...[
                   const Gap(16),
-                  _ActionHint(text: current.actionHint!),
+                  ActionHint(text: current.actionHint!),
                 ],
                 const Gap(24),
                 Row(
                   children: [
                     TextButton.icon(
                       onPressed: () async {
-                        final confirmed = await _confirmDisableTips(context);
+                        final confirmed = await confirmDisableTips(context);
                         if (!confirmed || !context.mounted) return;
                         controller.disablePermanently();
                         Navigator.of(context).pop();
@@ -303,68 +215,4 @@ Future<void> showTipDetailDialog(
       );
     },
   );
-}
-
-/// The emphasized "how to get there" line shown inside the detail dialog.
-class _ActionHint extends StatelessWidget {
-  const _ActionHint({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final eagly = context.eaglyTheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: eagly.inlineNoticeBackground,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.arrow_forward_rounded,
-            size: 16,
-            color: eagly.inlineNoticeForeground,
-          ),
-          const Gap(10),
-          Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: eagly.inlineNoticeForeground,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Confirmation guard before tips are turned off for good. Returns true only
-/// when the user explicitly confirms.
-Future<bool> _confirmDisableTips(BuildContext context) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Turn off tips?'),
-      content: const Text(
-        "You won't see feature tips in the header anymore. "
-        'You can turn them back on any time from Settings.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Turn off'),
-        ),
-      ],
-    ),
-  );
-  return confirmed ?? false;
 }

@@ -1,12 +1,18 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../data/device.dart';
 import 'data/wireless_debug_models.dart';
 import '../../session/device_session_manager.dart';
 import '../../presentation/components/eagly_dialog.dart';
+import 'components/discovered_wireless_target.dart';
+import 'components/wireless_discovery_card.dart';
+import 'components/wireless_feedback_banner.dart';
+import 'components/wireless_manual_section.dart';
+import 'components/wireless_placeholder_card.dart';
+import 'components/wireless_qr_panel.dart';
+import 'components/wireless_selected_device_panel.dart';
 import 'wireless_connection_controller.dart';
 
 class WirelessConnectionDialog extends StatefulWidget {
@@ -48,7 +54,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
 
   DeviceSessionManager get manager => widget.manager;
 
-  List<_DiscoveredWirelessTarget> get _discoveredTargets {
+  List<DiscoveredWirelessTarget> get _discoveredTargets {
     final groupedServices = <String, List<WirelessDebugService>>{};
     for (final service in wirelessController.wirelessServices) {
       groupedServices.putIfAbsent(service.host, () => []).add(service);
@@ -66,7 +72,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
               .sortedBy<num>((service) => service.port)
               .toList(growable: false);
 
-          return _DiscoveredWirelessTarget(
+          return DiscoveredWirelessTarget(
             host: entry.key,
             pairingService: pairingService,
             connectServices: connectServices,
@@ -77,7 +83,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     return targets.sortedBy<String>((target) => target.host);
   }
 
-  _DiscoveredWirelessTarget? get _selectedDiscoveryTarget {
+  DiscoveredWirelessTarget? get _selectedDiscoveryTarget {
     if (_selectedDiscoveryHost != null) {
       return _discoveredTargets.firstWhereOrNull(
         (target) => target.host == _selectedDiscoveryHost,
@@ -273,7 +279,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     });
   }
 
-  void _selectDiscoveredTarget(_DiscoveredWirelessTarget target) {
+  void _selectDiscoveredTarget(DiscoveredWirelessTarget target) {
     setState(() {
       _selectedDiscoveryHost = target.host;
       _fallbackConnectHost = null;
@@ -286,7 +292,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     });
   }
 
-  Device? _connectedDeviceForTarget(_DiscoveredWirelessTarget target) {
+  Device? _connectedDeviceForTarget(DiscoveredWirelessTarget target) {
     return manager.devices.firstWhereOrNull(
       (device) =>
           device.status == 'device' &&
@@ -321,7 +327,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
           ? 'No nearby wireless ADB devices were discovered. You can try discovery again or switch to manual entry.'
           : 'Start by discovering nearby wireless ADB devices advertised through mDNS.';
 
-      return _WirelessPlaceholderCard(
+      return WirelessPlaceholderCard(
         icon: wirelessController.hasAttemptedWirelessDiscovery
             ? Icons.wifi_find
             : Icons.travel_explore,
@@ -384,7 +390,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
           runSpacing: 10,
           children: [
             for (final target in _discoveredTargets)
-              _WirelessDiscoveryCard(
+              WirelessDiscoveryCard(
                 target: target,
                 selected: selectedTarget?.host == target.host,
                 onTap: () => _selectDiscoveredTarget(target),
@@ -393,7 +399,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
         ),
         const Gap(18),
         if (selectedTarget != null)
-          _WirelessSelectedDevicePanel(
+          WirelessSelectedDevicePanel(
             target: selectedTarget,
             connectedDevice: _connectedDeviceForTarget(selectedTarget),
             pairingCodeController: _pairingCodeController,
@@ -438,7 +444,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
         ),
         const Gap(18),
         Center(
-          child: _WirelessQrPanel(
+          child: WirelessQrPanel(
             payload: session?.payload,
             waiting: waiting,
             busy: wirelessController.isWirelessBusy,
@@ -467,7 +473,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
           ),
         ),
         const Gap(16),
-        _WirelessManualSection(
+        WirelessManualSection(
           title: _manualConnectAddresses.isNotEmpty
               ? 'Pair and connect'
               : 'Pair with code',
@@ -544,7 +550,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
         ),
         if (_showManualConnectSection) ...[
           const Gap(4),
-          _WirelessManualSection(
+          WirelessManualSection(
             title: connectedDevice != null
                 ? 'Use connected device'
                 : 'Connect and start logcat',
@@ -668,7 +674,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                 ],
               ),
               const Gap(14),
-              _WirelessFeedbackBanner(
+              WirelessFeedbackBanner(
                 message: wirelessController.wirelessMessage,
                 error: wirelessController.wirelessError,
               ),
@@ -695,561 +701,3 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
 }
 
 enum _WirelessDialogSection { nearby, qr, manual }
-
-class _DiscoveredWirelessTarget {
-  const _DiscoveredWirelessTarget({
-    required this.host,
-    this.pairingService,
-    this.connectServices = const [],
-  });
-
-  final String host;
-  final WirelessDebugService? pairingService;
-  final List<WirelessDebugService> connectServices;
-
-  String get title =>
-      pairingService?.name ?? connectServices.firstOrNull?.name ?? host;
-  String? get pairingAddress => pairingService?.address;
-  String? get primaryConnectAddress => connectServices.firstOrNull?.address;
-  List<String> get connectAddresses =>
-      connectServices.map((service) => service.address).toList(growable: false);
-  bool get canPair => pairingService != null;
-  bool get canConnect => connectServices.isNotEmpty;
-
-  String get connectSummary {
-    if (connectServices.isEmpty) return 'No connect ports discovered';
-    if (connectServices.length == 1) {
-      return 'Connect ${connectServices.single.address}';
-    }
-    return '${connectServices.length} connect ports';
-  }
-}
-
-class _WirelessFeedbackBanner extends StatelessWidget {
-  const _WirelessFeedbackBanner({this.message, this.error});
-
-  final String? message;
-  final String? error;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final text = error ?? message;
-    if (text == null || text.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final isError = error != null;
-    final background = isError
-        ? theme.colorScheme.errorContainer
-        : theme.colorScheme.surfaceContainerHighest;
-    final foreground = isError
-        ? theme.colorScheme.onErrorContainer
-        : theme.colorScheme.onSurface;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            isError ? Icons.error_outline : Icons.info_outline,
-            color: foreground,
-            size: 18,
-          ),
-          const Gap(10),
-          Expanded(
-            child: Text(
-              text,
-              style: theme.textTheme.bodyMedium?.copyWith(color: foreground),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WirelessPlaceholderCard extends StatelessWidget {
-  const _WirelessPlaceholderCard({
-    required this.icon,
-    required this.title,
-    required this.description,
-    this.footer,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-  final Widget? footer;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 28, color: theme.colorScheme.primary),
-          const Gap(12),
-          Text(title, style: theme.textTheme.titleMedium),
-          const Gap(8),
-          Text(
-            description,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          if (footer != null) ...[const Gap(16), footer!],
-        ],
-      ),
-    );
-  }
-}
-
-class _WirelessQrPanel extends StatelessWidget {
-  const _WirelessQrPanel({
-    required this.payload,
-    required this.waiting,
-    required this.busy,
-    required this.onGenerate,
-    required this.onCancel,
-  });
-
-  final String? payload;
-  final bool waiting;
-  final bool busy;
-  final VoidCallback onGenerate;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    if (payload == null) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Generate a one-time pairing code',
-              style: theme.textTheme.titleMedium,
-            ),
-            const Gap(8),
-            Text(
-              'A QR code will appear here for your device to scan. Pairing and '
-              'connection continue automatically once it is scanned.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const Gap(18),
-            FilledButton.icon(
-              onPressed: busy ? null : onGenerate,
-              icon: const Icon(Icons.qr_code_2),
-              label: const Text('Generate QR code'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          payload == null
-              ? const SizedBox.square(
-                  dimension: 220,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: QrImageView(
-                    data: payload!,
-                    version: QrVersions.auto,
-                    size: 220,
-                    backgroundColor: Colors.white,
-                  ),
-                ),
-          const Gap(18),
-          if (waiting) ...[
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox.square(
-                  dimension: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const Gap(10),
-                Text(
-                  'Waiting for the device to scan…',
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ],
-            ),
-            const Gap(16),
-            OutlinedButton.icon(
-              onPressed: onCancel,
-              icon: const Icon(Icons.close),
-              label: const Text('Cancel'),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _WirelessDiscoveryCard extends StatelessWidget {
-  const _WirelessDiscoveryCard({
-    required this.target,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final _DiscoveredWirelessTarget target;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return SizedBox(
-      width: 320,
-      child: Material(
-        color: selected
-            ? theme.colorScheme.primaryContainer
-            : theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: selected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.outlineVariant,
-                width: selected ? 1.5 : 1,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.phone_android,
-                      color: selected
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const Gap(8),
-                    Expanded(
-                      child: Text(
-                        target.host,
-                        style: theme.textTheme.titleSmall,
-                      ),
-                    ),
-                    if (selected)
-                      Icon(
-                        Icons.check_circle,
-                        color: theme.colorScheme.primary,
-                      ),
-                  ],
-                ),
-                const Gap(8),
-                Text(
-                  target.title,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const Gap(8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    if (target.pairingAddress != null)
-                      Chip(
-                        avatar: const Icon(Icons.password, size: 16),
-                        label: Text(target.pairingAddress!),
-                      ),
-                    if (target.canConnect)
-                      Chip(
-                        avatar: const Icon(Icons.link, size: 16),
-                        label: Text(target.connectSummary),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _WirelessSelectedDevicePanel extends StatelessWidget {
-  const _WirelessSelectedDevicePanel({
-    required this.target,
-    required this.connectedDevice,
-    required this.pairingCodeController,
-    required this.pairingBusy,
-    required this.connectingBusy,
-    required this.actionsDisabled,
-    required this.showConnectAction,
-    required this.onPair,
-    required this.onConnect,
-    required this.onUseManualEntry,
-  });
-
-  final _DiscoveredWirelessTarget target;
-  final Device? connectedDevice;
-  final TextEditingController pairingCodeController;
-  final bool pairingBusy;
-  final bool connectingBusy;
-  final bool actionsDisabled;
-  final bool showConnectAction;
-  final VoidCallback? onPair;
-  final VoidCallback? onConnect;
-  final VoidCallback onUseManualEntry;
-
-  bool get _alreadyConnected => connectedDevice != null;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Selected device', style: theme.textTheme.titleMedium),
-          const Gap(8),
-          Text(target.host, style: theme.textTheme.bodyLarge),
-          if (_alreadyConnected) ...[
-            const Gap(6),
-            Text(
-              'Already connected as ${connectedDevice!.id}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-          const Gap(12),
-          if (target.pairingAddress != null)
-            _WirelessDetailRow(
-              icon: Icons.password,
-              label: 'Pairing address',
-              value: target.pairingAddress!,
-            ),
-          if (target.connectAddresses.isNotEmpty)
-            _WirelessDetailRow(
-              icon: Icons.link,
-              label: target.connectAddresses.length == 1
-                  ? 'Connect address'
-                  : 'Connect ports',
-              value: target.connectAddresses.join(', '),
-            ),
-          if (target.canPair && !_alreadyConnected) ...[
-            const Gap(14),
-            TextField(
-              controller: pairingCodeController,
-              enabled: !actionsDisabled,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Pairing code',
-                hintText: 'Enter the code shown on the device',
-                prefixIcon: Icon(Icons.password_outlined),
-              ),
-              onSubmitted: (_) {
-                if (!actionsDisabled && onPair != null) {
-                  onPair!();
-                }
-              },
-            ),
-          ],
-          const Gap(16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              if (target.canPair && !_alreadyConnected)
-                FilledButton.icon(
-                  onPressed: actionsDisabled ? null : onPair,
-                  icon: pairingBusy
-                      ? const SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.verified_user_outlined),
-                  label: Text(target.canConnect ? 'Pair and connect' : 'Pair'),
-                ),
-              if ((!target.canPair && target.canConnect) ||
-                  showConnectAction ||
-                  _alreadyConnected)
-                FilledButton.tonalIcon(
-                  onPressed: actionsDisabled || !target.canConnect
-                      ? null
-                      : onConnect,
-                  icon: connectingBusy
-                      ? const SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.link),
-                  label: Text(
-                    _alreadyConnected ? 'Use connected device' : 'Connect',
-                  ),
-                ),
-              TextButton.icon(
-                onPressed: onUseManualEntry,
-                icon: const Icon(Icons.tune),
-                label: const Text('Manual entry'),
-              ),
-            ],
-          ),
-          if (showConnectAction && !_alreadyConnected) ...[
-            const Gap(12),
-            Text(
-              'Automatic connect did not complete, so you can retry connect explicitly for this device.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ] else if (!target.canConnect) ...[
-            const Gap(12),
-            Text(
-              'A connect endpoint was not discovered for this device yet. If needed, switch to manual entry after pairing.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _WirelessManualSection extends StatelessWidget {
-  const _WirelessManualSection({
-    required this.title,
-    required this.description,
-    required this.child,
-  });
-
-  final String title;
-  final String description;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: theme.textTheme.titleMedium),
-          const Gap(6),
-          Text(
-            description,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const Gap(14),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _WirelessDetailRow extends StatelessWidget {
-  const _WirelessDetailRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: theme.colorScheme.primary),
-          const Gap(8),
-          Text(
-            '$label: ',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
-        ],
-      ),
-    );
-  }
-}
