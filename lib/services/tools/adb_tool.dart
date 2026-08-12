@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:eagly/features/logs/services/log_parsers/logcat_parser.dart';
 
 import '../../data/device.dart';
+import '../../features/apps/data/app_info.dart';
 import '../../features/device_home/data/installed_app_info.dart';
 import '../../features/logs/data/models/log_entry.dart';
 import '../../features/wireless_connection/data/wireless_debug_models.dart';
@@ -657,90 +658,350 @@ class AdbTool extends ToolProcessRunner {
     String deviceId,
   ) async {
     try {
-      final pkgsResult = await runText([
-        '-s',
-        deviceId,
-        'shell',
-        'pm',
-        'list',
-        'packages',
-        '-3',
-      ]);
-      final thirdParty = <String>{};
-      if (pkgsResult.isSuccess) {
-        for (final line in pkgsResult.stdout.split('\n')) {
-          final trimmed = line.trim();
-          if (trimmed.startsWith('package:')) {
-            thirdParty.add(trimmed.substring('package:'.length));
-          }
-        }
-      }
+      final apps = await _dumpInstalledApps(deviceId);
+      final thirdParty =
+          apps
+              .where((app) => !app.isSystemApp && app.installTime != null)
+              .toList()
+            ..sort((a, b) => b.installTime!.compareTo(a.installTime!));
 
-      final dumpsysResult = await runText([
-        '-s',
-        deviceId,
-        'shell',
-        'dumpsys',
-        'package',
-        'packages',
-      ]);
-      if (!dumpsysResult.isSuccess) return [];
-
-      final apps = <InstalledAppInfo>[];
-      final lines = dumpsysResult.stdout.split('\n');
-      String? currentPackage;
-      DateTime? currentLastUpdate;
-
-      for (final rawLine in lines) {
-        final line = rawLine.trim();
-
-        final pkgMatch = RegExp(r'^Package\s*\[([^\]]+)\]').firstMatch(line);
-        if (pkgMatch != null) {
-          if (currentPackage != null &&
-              thirdParty.contains(currentPackage) &&
-              currentLastUpdate != null) {
-            apps.add(InstalledAppInfo(
-              packageName: currentPackage,
-              installTime: currentLastUpdate,
-            ));
-          }
-          currentPackage = pkgMatch.group(1)!;
-          currentLastUpdate = null;
-          continue;
-        }
-
-        if (currentPackage != null) {
-          final timeMatch = RegExp(
-            r'lastUpdateTime=(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})',
-          ).firstMatch(line);
-          if (timeMatch != null) {
-            currentLastUpdate = DateTime.tryParse(timeMatch.group(1)!);
-          }
-        }
-      }
-
-      if (currentPackage != null &&
-          thirdParty.contains(currentPackage) &&
-          currentLastUpdate != null) {
-        apps.add(InstalledAppInfo(
-          packageName: currentPackage,
-          installTime: currentLastUpdate,
-        ));
-      }
-
-      apps.sort((a, b) {
-        final ta = a.installTime;
-        final tb = b.installTime;
-        if (ta == null && tb == null) return 0;
-        if (ta == null) return 1;
-        if (tb == null) return -1;
-        return tb.compareTo(ta);
-      });
-
-      return apps.take(5).toList();
+      return thirdParty
+          .take(5)
+          .map(
+            (app) => InstalledAppInfo(
+              packageName: app.packageName,
+              installTime: app.installTime,
+            ),
+          )
+          .toList();
     } catch (error) {
       logError('Failed to list recently installed apps', error);
       return [];
     }
+  }
+
+  /// Full app inventory for the Apps feature — every installed package with
+  /// version, system/enabled flags, and on-device APK path, alphabetized.
+  /// System apps are excluded by default; pass [includeSystemApps] to see
+  /// them too (there can be hundreds on a stock device).
+  Future<List<AppInfo>> listApps(
+    String deviceId, {
+    bool includeSystemApps = false,
+  }) async {
+    try {
+      final apps = await _dumpInstalledApps(deviceId);
+      final filtered = includeSystemApps
+          ? apps
+          : apps.where((app) => !app.isSystemApp).toList();
+      filtered.sort(
+        (a, b) =>
+            a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()),
+      );
+      return filtered;
+    } catch (error) {
+      logError('Failed to list apps for $deviceId', error);
+      return [];
+    }
+  }
+
+  Future<DeviceCommandResult> uninstallApp(
+    String deviceId,
+    String packageName,
+  ) async {
+    try {
+      final result = await runText(['-s', deviceId, 'uninstall', packageName]);
+      final output = result.combinedOutput;
+      final failed =
+          !result.isSuccess || output.toLowerCase().contains('failure');
+      if (failed) {
+        final details = describeCommandFailure(
+          'Failed to uninstall $packageName.',
+          result,
+        );
+        logError('Uninstall failed for $packageName on $deviceId', details);
+        return DeviceCommandResult.failure(error: details);
+      }
+
+      logSuccess('Uninstalled $packageName from $deviceId');
+      return DeviceCommandResult.success(message: 'Uninstalled $packageName.');
+    } catch (error) {
+      logError('Exception while uninstalling $packageName on $deviceId', error);
+      return DeviceCommandResult.failure(
+        error: 'Failed to uninstall $packageName: ${describeError(error)}',
+      );
+    }
+  }
+
+  /// Launches [packageName]'s launcher activity via the well-known `monkey`
+  /// single-event trick (`-p <pkg> -c android.intent.category.LAUNCHER 1`) —
+  /// works without first resolving the app's actual launch component.
+  Future<DeviceCommandResult> launchApp(
+    String deviceId,
+    String packageName,
+  ) async {
+    try {
+      final result = await runText([
+        '-s',
+        deviceId,
+        'shell',
+        'monkey',
+        '-p',
+        packageName,
+        '-c',
+        'android.intent.category.LAUNCHER',
+        '1',
+      ]);
+      final output = result.combinedOutput.toLowerCase();
+      final failed =
+          !result.isSuccess ||
+          output.contains('no activities found') ||
+          output.contains('aborting');
+      if (failed) {
+        final details = describeCommandFailure(
+          'Failed to open $packageName.',
+          result,
+        );
+        logError('Launch failed for $packageName on $deviceId', details);
+        return DeviceCommandResult.failure(error: details);
+      }
+
+      return DeviceCommandResult.success(message: 'Opened $packageName.');
+    } catch (error) {
+      logError('Exception while launching $packageName on $deviceId', error);
+      return DeviceCommandResult.failure(
+        error: 'Failed to open $packageName: ${describeError(error)}',
+      );
+    }
+  }
+
+  Future<DeviceCommandResult> forceStopApp(
+    String deviceId,
+    String packageName,
+  ) async {
+    try {
+      await runText(['-s', deviceId, 'shell', 'am', 'force-stop', packageName]);
+      return DeviceCommandResult.success(
+        message: 'Force-stopped $packageName.',
+      );
+    } catch (error) {
+      logError(
+        'Exception while force-stopping $packageName on $deviceId',
+        error,
+      );
+      return DeviceCommandResult.failure(
+        error: 'Failed to force-stop $packageName: ${describeError(error)}',
+      );
+    }
+  }
+
+  /// Wipes [packageName]'s data and cache via `pm clear` — irreversible, the
+  /// caller must confirm with the user first.
+  Future<DeviceCommandResult> clearAppData(
+    String deviceId,
+    String packageName,
+  ) async {
+    try {
+      final result = await runText([
+        '-s',
+        deviceId,
+        'shell',
+        'pm',
+        'clear',
+        packageName,
+      ]);
+      final output = result.combinedOutput;
+      final failed =
+          !result.isSuccess || !output.toLowerCase().contains('success');
+      if (failed) {
+        final details = describeCommandFailure(
+          'Failed to clear data for $packageName.',
+          result,
+        );
+        logError('Clear data failed for $packageName on $deviceId', details);
+        return DeviceCommandResult.failure(error: details);
+      }
+
+      return DeviceCommandResult.success(
+        message: 'Cleared data for $packageName.',
+      );
+    } catch (error) {
+      logError(
+        'Exception while clearing data for $packageName on $deviceId',
+        error,
+      );
+      return DeviceCommandResult.failure(
+        error: 'Failed to clear data for $packageName: ${describeError(error)}',
+      );
+    }
+  }
+
+  /// Opens the OS "App info" settings screen for [packageName].
+  Future<void> openAppInfoSettings(String deviceId, String packageName) async {
+    await runText([
+      '-s',
+      deviceId,
+      'shell',
+      'am',
+      'start',
+      '-a',
+      'android.settings.APPLICATION_DETAILS_SETTINGS',
+      '-d',
+      'package:$packageName',
+    ]);
+  }
+
+  /// Resolves the on-device path to [packageName]'s base APK (preferred over
+  /// any split APKs) via `pm path`, for icon extraction.
+  Future<String?> getApkPath(String deviceId, String packageName) async {
+    try {
+      final result = await runText([
+        '-s',
+        deviceId,
+        'shell',
+        'pm',
+        'path',
+        packageName,
+      ]);
+      if (!result.isSuccess) return null;
+
+      String? firstPath;
+      for (final rawLine in result.stdout.split('\n')) {
+        final line = rawLine.trim();
+        if (!line.startsWith('package:')) continue;
+        final path = line.substring('package:'.length).trim();
+        firstPath ??= path;
+        if (path.endsWith('base.apk')) return path;
+      }
+      return firstPath;
+    } catch (error) {
+      logError(
+        'Failed to resolve APK path for $packageName on $deviceId',
+        error,
+      );
+      return null;
+    }
+  }
+
+  /// Parses `dumpsys package packages` into one [AppInfo] per package block —
+  /// the shared source for [listApps] (full inventory) and
+  /// [listRecentlyInstalledApps] (top-5 third-party by install time).
+  Future<List<AppInfo>> _dumpInstalledApps(String deviceId) async {
+    final pkgsResult = await runText([
+      '-s',
+      deviceId,
+      'shell',
+      'pm',
+      'list',
+      'packages',
+      '-3',
+    ]);
+    final thirdParty = <String>{};
+    if (pkgsResult.isSuccess) {
+      for (final line in pkgsResult.stdout.split('\n')) {
+        final trimmed = line.trim();
+        if (trimmed.startsWith('package:')) {
+          thirdParty.add(trimmed.substring('package:'.length));
+        }
+      }
+    }
+
+    final dumpsysResult = await runText([
+      '-s',
+      deviceId,
+      'shell',
+      'dumpsys',
+      'package',
+      'packages',
+    ]);
+    if (!dumpsysResult.isSuccess) return [];
+
+    final apps = <AppInfo>[];
+    String? currentPackage;
+    String? versionName;
+    String? versionCode;
+    DateTime? firstInstall;
+    DateTime? lastUpdate;
+    String? codePath;
+    var sawSystemFlag = false;
+    var sawEnabledLine = false;
+    var sawEnabledFalse = false;
+
+    void flush() {
+      final packageName = currentPackage;
+      if (packageName == null) return;
+      apps.add(
+        AppInfo(
+          packageName: packageName,
+          versionName: versionName,
+          versionCode: versionCode,
+          isSystemApp: sawSystemFlag || !thirdParty.contains(packageName),
+          isEnabled: sawEnabledLine ? !sawEnabledFalse : true,
+          apkPath: codePath,
+          installTime: firstInstall,
+          updateTime: lastUpdate,
+        ),
+      );
+    }
+
+    for (final rawLine in dumpsysResult.stdout.split('\n')) {
+      final line = rawLine.trim();
+
+      final pkgMatch = RegExp(r'^Package\s*\[([^\]]+)\]').firstMatch(line);
+      if (pkgMatch != null) {
+        flush();
+        currentPackage = pkgMatch.group(1)!;
+        versionName = null;
+        versionCode = null;
+        firstInstall = null;
+        lastUpdate = null;
+        codePath = null;
+        sawSystemFlag = false;
+        sawEnabledLine = false;
+        sawEnabledFalse = false;
+        continue;
+      }
+      if (currentPackage == null) continue;
+
+      final versionNameMatch = RegExp(r'versionName=(\S+)').firstMatch(line);
+      if (versionNameMatch != null) versionName = versionNameMatch.group(1);
+
+      final versionCodeMatch = RegExp(r'versionCode=(\d+)').firstMatch(line);
+      if (versionCodeMatch != null) versionCode = versionCodeMatch.group(1);
+
+      final firstInstallMatch = RegExp(
+        r'firstInstallTime=(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})',
+      ).firstMatch(line);
+      if (firstInstallMatch != null) {
+        firstInstall = DateTime.tryParse(firstInstallMatch.group(1)!);
+      }
+
+      final lastUpdateMatch = RegExp(
+        r'lastUpdateTime=(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})',
+      ).firstMatch(line);
+      if (lastUpdateMatch != null) {
+        lastUpdate = DateTime.tryParse(lastUpdateMatch.group(1)!);
+      }
+
+      final codePathMatch = RegExp(r'^codePath=(.+)$').firstMatch(line);
+      if (codePathMatch != null) codePath = codePathMatch.group(1)!.trim();
+
+      if (line.startsWith('flags=') || line.startsWith('pkgFlags=')) {
+        if (line.contains('SYSTEM')) sawSystemFlag = true;
+      }
+
+      if (!sawEnabledLine) {
+        final enabledMatch = RegExp(r'\benabled=(\d+)').firstMatch(line);
+        if (enabledMatch != null) {
+          sawEnabledLine = true;
+          final value = int.tryParse(enabledMatch.group(1)!) ?? 0;
+          // COMPONENT_ENABLED_STATE_DISABLED = 2,
+          // COMPONENT_ENABLED_STATE_DISABLED_USER = 3.
+          sawEnabledFalse = value == 2 || value == 3;
+        }
+      }
+    }
+    flush();
+
+    return apps;
   }
 }

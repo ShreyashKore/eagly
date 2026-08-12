@@ -130,6 +130,26 @@ class FeatureRail extends StatelessWidget {
                                       : null,
                                 ),
                                 _RailButton(
+                                  icon: Icons.apps_outlined,
+                                  label: 'Apps',
+                                  isActive: session.isAppsOpen,
+                                  enabled:
+                                      session.canManageApps ||
+                                      session.isAppsOpen,
+                                  tooltip:
+                                      session.canManageApps ||
+                                          session.isAppsOpen
+                                      ? (session.isAppsOpen
+                                            ? 'Hide apps'
+                                            : 'Manage installed apps')
+                                      : 'Connect the device to manage apps',
+                                  onTap:
+                                      session.canManageApps ||
+                                          session.isAppsOpen
+                                      ? session.toggleApps
+                                      : null,
+                                ),
+                                _RailButton(
                                   icon: session.isInstallingApp
                                       ? Icons.hourglass_top_rounded
                                       : Icons.system_update_outlined,

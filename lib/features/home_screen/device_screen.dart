@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../apps/apps_controller.dart';
+import '../apps/apps_feature_view.dart';
 import '../crash_reports/crash_report_controller.dart';
 import '../crash_reports/crash_report_feature_view.dart';
 import '../device_home/device_home_feature_view.dart';
@@ -158,6 +160,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
     final mirror = session.mirrorController;
     final crashReports = session.crashReportController;
     final files = session.fileManagerController;
+    final apps = session.appsController;
 
     // Open features split the full width proportionally to their pane widths,
     // so no empty space remains; the dividers still resize them by ratio.
@@ -167,6 +170,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
         mirror,
         crashReports,
         files,
+        apps,
       ]),
       builder: (context, _) => Row(
         children: [
@@ -211,6 +215,16 @@ class _DeviceScreenState extends State<DeviceScreen> {
               ),
             ),
             _FilePaneResizeHandle(controller: files),
+          ],
+          if (session.isAppsOpen) ...[
+            Expanded(
+              flex: apps.paneWidth.round(),
+              child: AppsFeatureView(
+                controller: apps,
+                onClose: session.closeApps,
+              ),
+            ),
+            _AppsPaneResizeHandle(controller: apps),
           ],
         ],
       ),
@@ -506,6 +520,38 @@ class _FilePaneResizeHandle extends StatelessWidget {
   const _FilePaneResizeHandle({required this.controller});
 
   final FileManagerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: (details) =>
+            controller.setPaneWidth(controller.paneWidth + details.delta.dx),
+        child: Container(
+          width: 8,
+          height: double.infinity,
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.8),
+          child: Center(
+            child: Container(
+              width: 2,
+              height: 24,
+              color: theme.colorScheme.outline.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Thin draggable divider that resizes the apps pane horizontally.
+class _AppsPaneResizeHandle extends StatelessWidget {
+  const _AppsPaneResizeHandle({required this.controller});
+
+  final AppsController controller;
 
   @override
   Widget build(BuildContext context) {
