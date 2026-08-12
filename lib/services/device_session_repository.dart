@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../data/device.dart';
+import '../features/apps/data/app_info.dart';
 import '../features/device_home/data/device_performance_stats.dart';
 import '../features/device_home/data/installed_app_info.dart';
 import '../features/logs/data/models/log_entry.dart';
@@ -11,6 +12,7 @@ import '../features/app_log/app_logger.dart';
 import '../features/flutter_scrcpy/flutter_scrcpy.dart';
 import '../utils/tools_path.dart';
 import 'tools/adb_tool.dart';
+import 'tools/android_apk_icon_extractor.dart';
 import 'tools/idevice_crash_report_tool.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
@@ -276,6 +278,14 @@ class DeviceSessionRepository {
     _pidCacheRefreshTimer?.cancel();
     _pidCacheRefreshTimer = null;
     _pidCacheConsumers = 0;
+    final iconTempDir = _iconTempDir;
+    if (iconTempDir != null) {
+      try {
+        if (await iconTempDir.exists()) {
+          await iconTempDir.delete(recursive: true);
+        }
+      } catch (_) {}
+    }
   }
 
   Future<DeviceCommandResult> installApp({required String filePath}) {
@@ -296,6 +306,116 @@ class DeviceSessionRepository {
       AndroidDevice() => _adbTool.listRecentlyInstalledApps(_deviceId),
       IosDevice() => _ideviceInstallerTool.listInstalledApps(_deviceId),
     };
+  }
+
+  // ── Apps feature (device-wide app management) ───────────────────────────
+
+  /// Full app inventory for the Apps feature. [includeSystemApps] is
+  /// Android-only (iOS's installer never exposes system apps to begin with).
+  Future<List<AppInfo>> listApps({bool includeSystemApps = false}) {
+    return switch (device) {
+      AndroidDevice() => _adbTool.listApps(
+        _deviceId,
+        includeSystemApps: includeSystemApps,
+      ),
+      IosDevice() => _ideviceInstallerTool.listAllApps(_deviceId),
+    };
+  }
+
+  Future<DeviceCommandResult> uninstallApp(String packageName) {
+    return switch (device) {
+      AndroidDevice() => _adbTool.uninstallApp(_deviceId, packageName),
+      IosDevice() => _ideviceInstallerTool.uninstallApp(
+        deviceId: _deviceId,
+        bundleId: packageName,
+      ),
+    };
+  }
+
+  /// Launches [packageName]'s launcher activity. Android only — throws
+  /// [UnsupportedError] for iOS (no bundled tool can launch an arbitrary
+  /// app without a mounted developer disk image).
+  Future<DeviceCommandResult> launchApp(String packageName) {
+    if (device is! AndroidDevice) {
+      throw UnsupportedError(
+        'Opening apps is currently supported for Android devices only.',
+      );
+    }
+    return _adbTool.launchApp(_deviceId, packageName);
+  }
+
+  /// Force-stops [packageName]. Android only.
+  Future<DeviceCommandResult> forceStopApp(String packageName) {
+    if (device is! AndroidDevice) {
+      throw UnsupportedError(
+        'Force-stopping apps is currently supported for Android devices only.',
+      );
+    }
+    return _adbTool.forceStopApp(_deviceId, packageName);
+  }
+
+  /// Wipes [packageName]'s data and cache. Android only, irreversible — the
+  /// caller must confirm with the user first.
+  Future<DeviceCommandResult> clearAppData(String packageName) {
+    if (device is! AndroidDevice) {
+      throw UnsupportedError(
+        'Clearing app data is currently supported for Android devices only.',
+      );
+    }
+    return _adbTool.clearAppData(_deviceId, packageName);
+  }
+
+  /// Opens the OS "App info" settings screen for [packageName]. Android only.
+  Future<void> openAppInfoSettings(String packageName) {
+    if (device is! AndroidDevice) {
+      throw UnsupportedError(
+        'Opening app info is currently supported for Android devices only.',
+      );
+    }
+    return _adbTool.openAppInfoSettings(_deviceId, packageName);
+  }
+
+  /// Best-effort launcher icon for [packageName]: pulls its APK to a scratch
+  /// temp directory, extracts the icon via [ApkIconExtractor], then deletes
+  /// the pulled APK. Returns null on iOS (no icon extraction available) or
+  /// when extraction fails for any reason — never throws.
+  Future<Uint8List?> fetchAppIcon(String packageName) async {
+    if (device is! AndroidDevice) return null;
+    File? localApk;
+    try {
+      final apkPath = await _adbTool.getApkPath(_deviceId, packageName);
+      if (apkPath == null) return null;
+
+      final tempDir = await _ensureIconTempDir();
+      localApk = File('${tempDir.path}/$packageName.apk');
+      await _adbTool.pullFile(_deviceId, apkPath, localApk.path);
+      if (!await localApk.exists()) return null;
+
+      final bytes = await localApk.readAsBytes();
+      return ApkIconExtractor.extractIconBytes(bytes);
+    } catch (error) {
+      _sessionLogger.error(
+        'Failed to fetch app icon for $packageName',
+        detail: error.toString(),
+      );
+      return null;
+    } finally {
+      if (localApk != null) {
+        try {
+          if (await localApk.exists()) await localApk.delete();
+        } catch (_) {}
+      }
+    }
+  }
+
+  Directory? _iconTempDir;
+
+  Future<Directory> _ensureIconTempDir() async {
+    final existing = _iconTempDir;
+    if (existing != null) return existing;
+    final dir = await Directory.systemTemp.createTemp('eagly-app-icons-');
+    _iconTempDir = dir;
+    return dir;
   }
 
   /// Pulls (and parses) crash reports from the bound iOS device. Reports are

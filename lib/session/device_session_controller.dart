@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../data/device.dart';
+import '../features/apps/apps_controller.dart';
 import '../features/crash_reports/crash_report_controller.dart';
 import '../features/device_home/device_home_controller.dart';
 import '../features/file_manager/file_manager_controller.dart';
@@ -90,12 +91,14 @@ class DeviceSessionController extends ChangeNotifier {
   CrashReportController? _crashReportController;
   FileManagerController? _fileManagerController;
   DeviceHomeController? _homeController;
+  AppsController? _appsController;
 
   bool _homeOpen = true;
   bool _logsOpen = false;
   bool _mirrorOpen = false;
   bool _crashReportsOpen = false;
   bool _filesOpen = false;
+  bool _appsOpen = false;
   bool _activated = false;
   bool _disposed = false;
 
@@ -106,6 +109,7 @@ class DeviceSessionController extends ChangeNotifier {
   bool get isMirrorOpen => _mirrorOpen;
   bool get isCrashReportsOpen => _crashReportsOpen;
   bool get isFilesOpen => _filesOpen;
+  bool get isAppsOpen => _appsOpen;
   bool get isLogsOpen => _logsOpen;
   bool get isHomeOpen => _homeOpen;
   bool get isActivated => _activated;
@@ -117,7 +121,8 @@ class DeviceSessionController extends ChangeNotifier {
         !_logsOpen &&
         !_mirrorOpen &&
         !_crashReportsOpen &&
-        !_filesOpen) {
+        !_filesOpen &&
+        !_appsOpen) {
       _homeOpen = true;
     }
   }
@@ -131,6 +136,10 @@ class DeviceSessionController extends ChangeNotifier {
   /// Whether the file manager can browse this device right now (both
   /// platforms, when connected).
   bool get canManageFiles => _device.isConnected;
+
+  /// Whether the Apps feature can list/manage apps right now (both
+  /// platforms, when connected).
+  bool get canManageApps => _device.isConnected;
 
   LogSessionManager get logSessionManager =>
       _logSessionManager ??= isImportedWorkspace
@@ -148,6 +157,8 @@ class DeviceSessionController extends ChangeNotifier {
 
   DeviceHomeController get homeController =>
       _homeController ??= DeviceHomeController(this);
+
+  AppsController get appsController => _appsController ??= AppsController(this);
 
   void openHome() {
     if (_homeOpen) return;
@@ -262,6 +273,23 @@ class DeviceSessionController extends ChangeNotifier {
   }
 
   void toggleFiles() => _filesOpen && !_homeOpen ? closeFiles() : openFiles();
+
+  void openApps() {
+    final viewChanged = _homeOpen || !_appsOpen;
+    _appsOpen = true;
+    _homeOpen = false;
+    if (viewChanged) _notify();
+    unawaited(appsController.ensureLoaded());
+  }
+
+  void closeApps() {
+    if (!_appsOpen) return;
+    _appsOpen = false;
+    _ensureSelection();
+    _notify();
+  }
+
+  void toggleApps() => _appsOpen && !_homeOpen ? closeApps() : openApps();
 
   // ── App install (device-level) ──────────────────────────────────────────
   bool _isInstallingApp = false;
@@ -463,6 +491,7 @@ class DeviceSessionController extends ChangeNotifier {
     _crashReportController?.dispose();
     _fileManagerController?.dispose();
     _homeController?.dispose();
+    _appsController?.dispose();
     unawaited(service.dispose());
     super.dispose();
   }

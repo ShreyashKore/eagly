@@ -298,6 +298,14 @@ class LogController extends FeatureController {
     LogFilterViewMode.classic => classicFilter,
   };
 
+  /// Sets the package/process filter to [packageName] and applies it
+  /// immediately, regardless of which filter bar is active — used by the
+  /// Apps feature's "View logs" action to jump straight to one app's lines.
+  void applyPackageFilter(String packageName) {
+    classicFilter.setFieldFromInput(LogFilterField.packageName, packageName);
+    classicFilter.applyNow();
+  }
+
   void focusFilterInputs() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_disposed) return;

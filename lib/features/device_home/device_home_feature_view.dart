@@ -698,6 +698,14 @@ class _FeatureShortcutsState extends State<_FeatureShortcuts> {
                 isActive: s.isFilesOpen,
                 onTap: s.toggleFiles,
               ),
+            if (s.canManageApps)
+              _ShortcutCard(
+                icon: Icons.apps_outlined,
+                label: 'Apps',
+                sublabel: 'Manage installed apps',
+                isActive: s.isAppsOpen,
+                onTap: s.toggleApps,
+              ),
           ],
         ),
       ],

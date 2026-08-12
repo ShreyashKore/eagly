@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:eagly/data/device.dart';
+import 'package:eagly/features/apps/data/app_info.dart';
 import 'package:eagly/features/logs/data/models/log_column.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
@@ -135,6 +137,67 @@ class FakeSessionService extends DeviceSessionRepository {
         }
       },
     );
+  }
+
+  // ── Apps feature ──────────────────────────────────────────────────────────
+  List<AppInfo> appsToReturn = const [];
+  final List<String> uninstallRequests = [];
+  DeviceCommandResult uninstallResult = DeviceCommandResult.success(
+    message: 'Uninstalled.',
+  );
+  final List<String> launchRequests = [];
+  DeviceCommandResult launchResult = DeviceCommandResult.success(
+    message: 'Opened.',
+  );
+  final List<String> forceStopRequests = [];
+  DeviceCommandResult forceStopResult = DeviceCommandResult.success(
+    message: 'Force-stopped.',
+  );
+  final List<String> clearDataRequests = [];
+  DeviceCommandResult clearDataResult = DeviceCommandResult.success(
+    message: 'Cleared.',
+  );
+  final List<String> appInfoRequests = [];
+  final List<String> iconFetchRequests = [];
+  Uint8List? iconToReturn;
+
+  @override
+  Future<List<AppInfo>> listApps({bool includeSystemApps = false}) async =>
+      appsToReturn;
+
+  @override
+  Future<DeviceCommandResult> uninstallApp(String packageName) async {
+    uninstallRequests.add(packageName);
+    return uninstallResult;
+  }
+
+  @override
+  Future<DeviceCommandResult> launchApp(String packageName) async {
+    launchRequests.add(packageName);
+    return launchResult;
+  }
+
+  @override
+  Future<DeviceCommandResult> forceStopApp(String packageName) async {
+    forceStopRequests.add(packageName);
+    return forceStopResult;
+  }
+
+  @override
+  Future<DeviceCommandResult> clearAppData(String packageName) async {
+    clearDataRequests.add(packageName);
+    return clearDataResult;
+  }
+
+  @override
+  Future<void> openAppInfoSettings(String packageName) async {
+    appInfoRequests.add(packageName);
+  }
+
+  @override
+  Future<Uint8List?> fetchAppIcon(String packageName) async {
+    iconFetchRequests.add(packageName);
+    return iconToReturn;
   }
 
   @override
