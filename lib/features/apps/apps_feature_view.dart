@@ -1,3 +1,4 @@
+import 'package:eagly/presentation/components/feature_view.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
@@ -11,15 +12,14 @@ import 'data/app_info.dart';
 /// (Android) a system-apps toggle, and drives the per-app context menu
 /// actions. Owns the confirmation dialogs and snackbars for destructive
 /// actions. [onClose] hides the pane (handled by the device screen).
-class AppsFeatureView extends StatefulWidget {
+class AppsFeatureView extends FeatureView {
   const AppsFeatureView({
     super.key,
     required this.controller,
-    required this.onClose,
+    required super.onClose,
   });
 
   final AppsController controller;
-  final VoidCallback onClose;
 
   @override
   State<AppsFeatureView> createState() => _AppsFeatureViewState();
@@ -128,7 +128,7 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Header(controller: controller, onClose: widget.onClose),
+              _Header(controller: controller, onClose: widget.onClose!),
               _Toolbar(
                 controller: controller,
                 searchController: _searchController,

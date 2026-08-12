@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../presentation/components/centered_state_message.dart';
+import '../../presentation/components/feature_view.dart';
 import 'components/crash_report_detail.dart';
 import 'components/crash_report_list.dart';
 import 'crash_report_controller.dart';
@@ -8,75 +9,43 @@ import 'crash_report_controller.dart';
 /// Crash-report feature pane (iOS). Lists crash reports pulled off the device
 /// and shows the selected report's body. [onClose] hides the pane (handled by
 /// the device screen).
-class CrashReportFeatureView extends StatelessWidget {
+class CrashReportFeatureView extends FeatureView {
   const CrashReportFeatureView({
     super.key,
     required this.controller,
-    required this.onClose,
-  });
+    required VoidCallback onClose,
+  }) : super(onClose: onClose);
 
   final CrashReportController controller;
-  final VoidCallback onClose;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) {
-        return Container(
-          color: theme.colorScheme.surfaceContainer,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _Header(controller: controller, onClose: onClose),
-              Expanded(child: _Body(controller: controller)),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  State<CrashReportFeatureView> createState() => _CrashReportFeatureViewState();
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.controller, required this.onClose});
-
-  final CrashReportController controller;
-  final VoidCallback onClose;
+class _CrashReportFeatureViewState
+    extends FeatureViewState<CrashReportFeatureView> {
+  CrashReportController get controller => widget.controller;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final hasSelection = controller.selectedReport != null;
+  Listenable get listenable => controller;
 
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        border: Border(
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-      ),
-      child: Row(
-        children: [
-          if (hasSelection)
-            IconButton(
-              tooltip: 'Back to list',
-              onPressed: controller.clearSelection,
-              icon: const Icon(Icons.arrow_back),
-            ),
-          Expanded(
-            child: Text(
-              hasSelection
-                  ? controller.selectedReport!.processName
-                  : 'Crash reports',
-              style: theme.textTheme.titleSmall,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+  @override
+  Widget buildContent(BuildContext context) {
+    final selected = controller.selectedReport;
+
+    return FeaturePane(
+      header: FeatureViewHeader(
+        title: selected?.processName ?? 'Crash reports',
+        closeTooltip: 'Close crash reports pane',
+        onClose: widget.onClose,
+        leading: selected == null
+            ? null
+            : IconButton(
+                tooltip: 'Back to list',
+                onPressed: controller.clearSelection,
+                icon: const Icon(Icons.arrow_back),
+              ),
+        actions: [
           IconButton(
             tooltip: 'Refresh',
             onPressed: controller.isLoading ? null : controller.refresh,
@@ -88,13 +57,9 @@ class _Header extends StatelessWidget {
                   )
                 : const Icon(Icons.refresh),
           ),
-          IconButton(
-            tooltip: 'Close crash reports pane',
-            onPressed: onClose,
-            icon: const Icon(Icons.close),
-          ),
         ],
       ),
+      body: _Body(controller: controller),
     );
   }
 }

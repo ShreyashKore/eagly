@@ -45,7 +45,7 @@ discovery                        services/devices_repository.dart (DevicesReposi
 app coordinator                  session/device_session_manager.dart — one DeviceSessionController per device, tab order, selection
 per-device session               session/device_session_controller.dart — owns the live Device + feature controllers (lazy)
 per-feature controllers          session/feature_controller.dart (base) → LogController, MirrorController, CrashReportController, FileManagerController
-views                            features/<feature>/..._feature_view.dart
+views                            features/<feature>/..._feature_view.dart — extend presentation/components/feature_view.dart (FeatureView)
 ```
 
 **Connectivity flow (important):** `DevicesRepository` produces `Device`s with a

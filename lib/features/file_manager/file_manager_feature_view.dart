@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../presentation/components/centered_state_message.dart';
+import '../../presentation/components/feature_view.dart';
 import 'components/file_breadcrumb_bar.dart';
 import 'components/file_context_menu.dart';
 import 'components/file_grid_view.dart';
@@ -13,28 +14,29 @@ import 'file_manager_controller.dart';
 /// list/grid view (with empty/error/loading states), a busy overlay for
 /// transfers, and a status bar. Owns the dialogs and snackbars for the file
 /// actions. [onClose] hides the pane (handled by the device screen).
-class FileManagerFeatureView extends StatefulWidget {
+class FileManagerFeatureView extends FeatureView {
   const FileManagerFeatureView({
     super.key,
     required this.controller,
-    required this.onClose,
-  });
+    required VoidCallback onClose,
+  }) : super(onClose: onClose);
 
   final FileManagerController controller;
-  final VoidCallback onClose;
 
   @override
   State<FileManagerFeatureView> createState() => _FileManagerFeatureViewState();
 }
 
-class _FileManagerFeatureViewState extends State<FileManagerFeatureView> {
+class _FileManagerFeatureViewState
+    extends FeatureViewState<FileManagerFeatureView> {
   FileManagerController get controller => widget.controller;
 
+  @override
+  Listenable get listenable => controller;
+
   void _showSnackBar(String? message) {
-    if (message == null || !mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(content: Text(message)));
+    if (message == null) return;
+    showSnackBar(message);
   }
 
   late final FileManagerActions _actions = FileManagerActions(
@@ -155,38 +157,30 @@ class _FileManagerFeatureViewState extends State<FileManagerFeatureView> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      color: theme.colorScheme.surfaceContainer,
-      child: ListenableBuilder(
-        listenable: controller,
-        builder: (context, _) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              FileManagerToolbar(
-                controller: controller,
-                onUpload: _handleUpload,
-                onNewFolder: _handleNewFolder,
-                onDownloadSelected: _handleDownload,
-                onDeleteSelected: _handleDelete,
-                onClose: widget.onClose,
-              ),
-              FileBreadcrumbBar(controller: controller),
-              Expanded(
-                child: Stack(
-                  children: [
-                    Positioned.fill(child: _buildBody(context)),
-                    if (controller.isBusy) _buildBusyOverlay(context),
-                  ],
-                ),
-              ),
-              _buildStatusBar(context),
-            ],
-          );
-        },
+  Widget buildContent(BuildContext context) {
+    return FeaturePane(
+      header: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FileManagerToolbar(
+            controller: controller,
+            onUpload: _handleUpload,
+            onNewFolder: _handleNewFolder,
+            onDownloadSelected: _handleDownload,
+            onDeleteSelected: _handleDelete,
+            onClose: widget.onClose,
+          ),
+          FileBreadcrumbBar(controller: controller),
+        ],
       ),
+      body: Stack(
+        children: [
+          Positioned.fill(child: _buildBody(context)),
+          if (controller.isBusy) _buildBusyOverlay(context),
+        ],
+      ),
+      statusBar: _buildStatusBar(context),
     );
   }
 
@@ -284,31 +278,27 @@ class _FileManagerFeatureViewState extends State<FileManagerFeatureView> {
   Widget _buildStatusBar(BuildContext context) {
     final theme = Theme.of(context);
     final selected = controller.selectedEntry;
-    return Container(
-      width: double.infinity,
-      color: theme.colorScheme.surfaceContainerHighest,
+    return FeatureStatusBar(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Row(
-        children: [
-          Text(
-            '${controller.directoryCount} folders · ${controller.fileCount} files',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+      children: [
+        Text(
+          '${controller.directoryCount} folders · ${controller.fileCount} files',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
-          const Spacer(),
-          if (selected != null)
-            Flexible(
-              child: Text(
-                selected.name,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+        ),
+        const Spacer(),
+        if (selected != null)
+          Flexible(
+            child: Text(
+              selected.name,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }

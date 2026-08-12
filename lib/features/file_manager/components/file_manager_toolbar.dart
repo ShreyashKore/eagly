@@ -22,7 +22,7 @@ class FileManagerToolbar extends StatelessWidget {
   final VoidCallback onNewFolder;
   final VoidCallback onDownloadSelected;
   final VoidCallback onDeleteSelected;
-  final VoidCallback onClose;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {

@@ -12,6 +12,7 @@ import '../../session/device_session_controller.dart';
 import '../../presentation/theme/app_theme.dart';
 import '../../presentation/components/app_log_overlay.dart';
 import '../../presentation/components/centered_state_message.dart';
+import '../../presentation/components/feature_view.dart';
 import '../../presentation/components/text_search_bar.dart';
 import 'presentation/components/log_viewer.dart';
 import '../../utils/log_entry_utils.dart';
@@ -27,56 +28,52 @@ import 'log_session_manager.dart';
 /// The Logs feature pane for a single device: toolbar (with log-tab strip),
 /// filter area, the log viewer (with empty/search/scroll overlays), and a
 /// status bar. Supports multiple live and imported log tabs.
-class LogFeatureView extends StatefulWidget {
+class LogFeatureView extends FeatureView {
   const LogFeatureView({
     super.key,
     required this.logManager,
     required this.session,
     required this.appMemoryBytesListenable,
-    required this.onClose,
-  });
+    required VoidCallback onClose,
+  }) : super(onClose: onClose);
 
   final LogSessionManager logManager;
   final DeviceSessionController session;
   final ValueListenable<int> appMemoryBytesListenable;
-  final VoidCallback onClose;
 
   @override
   State<LogFeatureView> createState() => _LogFeatureViewState();
 }
 
-class _LogFeatureViewState extends State<LogFeatureView> {
+class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
   LogSessionManager get logManager => widget.logManager;
   DeviceSessionController get session => widget.session;
 
-  void _showSnackBar(String message) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(content: Text(message)));
-  }
+  @override
+  Listenable get listenable => logManager;
 
   Future<void> _handleExportLogs(LogController controller) async {
     final result = await controller.exportLogs();
     if (!mounted || result.cancelled) return;
-    _showSnackBar(formatExportLogsMessage(result));
+    showSnackBar(formatExportLogsMessage(result));
   }
 
   Future<void> _handleImportLog() async {
     final result = await logManager.importLog();
     if (!mounted || result.cancelled) return;
     if (result.isSuccess) {
-      _showSnackBar(
+      showSnackBar(
         'Imported ${result.fileName} (${result.logs!.length} entries).',
       );
     } else if (result.error != null) {
-      _showSnackBar(result.error!);
+      showSnackBar(result.error!);
     }
   }
 
   Future<void> _handleCopyAllLogs(LogController controller) async {
     final copiedCount = await controller.copyAllLogs();
     if (!mounted || copiedCount == 0) return;
-    _showSnackBar(
+    showSnackBar(
       copiedCount == 1 ? 'Copied 1 log.' : 'Copied $copiedCount logs.',
     );
   }
@@ -104,7 +101,7 @@ class _LogFeatureViewState extends State<LogFeatureView> {
       LogViewerCopyAction.copyMessage => 'message',
       LogViewerCopyAction.copyTimestampAndMessage => 'time + message',
     };
-    _showSnackBar(
+    showSnackBar(
       copiedCount == 1
           ? 'Copied $copiedLabel for 1 row.'
           : 'Copied $copiedLabel for $copiedCount rows.',
@@ -112,22 +109,17 @@ class _LogFeatureViewState extends State<LogFeatureView> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: logManager,
-      builder: (context, _) {
-        final controller = logManager.selectedTab;
-        if (controller == null) return const SizedBox.shrink();
+  Widget buildContent(BuildContext context) {
+    final controller = logManager.selectedTab;
+    if (controller == null) return const SizedBox.shrink();
 
-        return AnimatedBuilder(
-          animation: Listenable.merge([
-            controller,
-            session,
-            widget.appMemoryBytesListenable,
-          ]),
-          builder: (context, _) => _buildContent(context, controller),
-        );
-      },
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        controller,
+        session,
+        widget.appMemoryBytesListenable,
+      ]),
+      builder: (context, _) => _buildContent(context, controller),
     );
   }
 
@@ -436,96 +428,91 @@ class _LogFeatureViewState extends State<LogFeatureView> {
   Widget _buildStatusBar(BuildContext context, LogController controller) {
     final theme = context.eaglyTheme;
 
-    return Container(
-      width: double.infinity,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        children: [
-          Text('Logs: ${controller.logCount}', style: theme.statusBarStyle),
+    return FeatureStatusBar(
+      children: [
+        Text('Logs: ${controller.logCount}', style: theme.statusBarStyle),
+        const Gap(16),
+        Text(
+          'Filtered: ${controller.filteredLogs.length}',
+          style: theme.statusBarStyle,
+        ),
+        if (controller.rowSelectionMode || controller.hasSelectedRows) ...[
           const Gap(16),
           Text(
-            'Filtered: ${controller.filteredLogs.length}',
+            'Selected: ${controller.selectedRowCount}',
             style: theme.statusBarStyle,
           ),
-          if (controller.rowSelectionMode || controller.hasSelectedRows) ...[
-            const Gap(16),
-            Text(
-              'Selected: ${controller.selectedRowCount}',
-              style: theme.statusBarStyle,
-            ),
-          ],
-          const Spacer(),
+        ],
+        const Spacer(),
+        Text(
+          'App mem: ${formatBytes(widget.appMemoryBytesListenable.value)}',
+          style: theme.statusBarStyle,
+        ),
+        const Gap(16),
+        Text(
+          'Logs mem: ${formatBytes(controller.totalLogsMemoryBytes)}',
+          style: theme.statusBarStyle,
+        ),
+        const Gap(8),
+        _buildLogLinesEditor(context, controller),
+        const Gap(8),
+        SizedBox(
+          height: 18,
+          child: VerticalDivider(
+            width: 2,
+            thickness: 2,
+            radius: BorderRadius.circular(2),
+          ),
+        ),
+        const Gap(8),
+        if (controller.isImported)
           Text(
-            'App mem: ${formatBytes(widget.appMemoryBytesListenable.value)}',
-            style: theme.statusBarStyle,
-          ),
-          const Gap(16),
-          Text(
-            'Logs mem: ${formatBytes(controller.totalLogsMemoryBytes)}',
-            style: theme.statusBarStyle,
-          ),
-          const Gap(8),
-          _buildLogLinesEditor(context, controller),
-          const Gap(8),
-          SizedBox(
-            height: 18,
-            child: VerticalDivider(
-              width: 2,
-              thickness: 2,
-              radius: BorderRadius.circular(2),
+            'Imported',
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.statusBarStyle.color,
+              fontWeight: FontWeight.bold,
             ),
-          ),
-          const Gap(8),
-          if (controller.isImported)
-            Text(
-              'Imported',
-              style: TextStyle(
-                fontSize: 12,
-                color: theme.statusBarStyle.color,
-                fontWeight: FontWeight.bold,
-              ),
-            )
-          else
-            Builder(
-              builder: (context) {
-                final (label, color) = _liveStatusLabel(theme, controller);
-                return Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                  ),
-                );
-              },
-            ),
-          ListenableBuilder(
-            listenable: AppLogger.global.entriesListenable,
-            builder: (context, _) {
-              final hasWorkspaceErrors = AppLogger.global.hasEntries(
-                sessionTag: controller.appLogSessionTag,
-                errorsOnly: true,
-              );
-              if (!hasWorkspaceErrors) {
-                return const SizedBox.shrink();
-              }
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Gap(8),
-                  AppLogTriggerButton(
-                    sessionTag: controller.appLogSessionTag,
-                    title: 'App Logs • ${session.device.displayName}',
-                    tooltip: 'Show app errors for this device',
-                    iconSize: 16,
-                  ),
-                ],
+          )
+        else
+          Builder(
+            builder: (context) {
+              final (label, color) = _liveStatusLabel(theme, controller);
+              return Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                ),
               );
             },
           ),
-        ],
-      ),
+        ListenableBuilder(
+          listenable: AppLogger.global.entriesListenable,
+          builder: (context, _) {
+            final hasWorkspaceErrors = AppLogger.global.hasEntries(
+              sessionTag: controller.appLogSessionTag,
+              errorsOnly: true,
+            );
+            if (!hasWorkspaceErrors) {
+              return const SizedBox.shrink();
+            }
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Gap(8),
+                AppLogTriggerButton(
+                  sessionTag: controller.appLogSessionTag,
+                  title: 'App Logs • ${session.device.displayName}',
+                  tooltip: 'Show app errors for this device',
+                  iconSize: 16,
+                ),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 

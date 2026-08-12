@@ -5,62 +5,60 @@ import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 
 import '../../data/device.dart';
+import '../../presentation/components/feature_view.dart';
 import '../../session/device_session_controller.dart';
 import '../../utils/utils.dart';
 import 'device_home_controller.dart';
 
-class DeviceHomeFeatureView extends StatelessWidget {
+class DeviceHomeFeatureView extends FeatureView {
   const DeviceHomeFeatureView({
     super.key,
     required this.session,
     required this.homeController,
-    required this.onShowSnackBar,
   });
 
   final DeviceSessionController session;
   final DeviceHomeController homeController;
-  final void Function(String) onShowSnackBar;
 
   @override
-  Widget build(BuildContext context) {
+  State<DeviceHomeFeatureView> createState() => _DeviceHomeFeatureViewState();
+}
+
+class _DeviceHomeFeatureViewState
+    extends FeatureViewState<DeviceHomeFeatureView> {
+  @override
+  Listenable get listenable => widget.homeController;
+
+  @override
+  Widget buildContent(BuildContext context) {
     final theme = Theme.of(context);
+    final session = widget.session;
 
     if (!session.isConnected) {
       return _DisconnectedView(device: session.device, theme: theme);
     }
 
-    return ListenableBuilder(
-      listenable: homeController,
-      builder: (context, _) {
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child:  _DeviceInfoCard(
-                      session: session,
-                      onShowSnackBar: onShowSnackBar,
-                    ),
-                  ),
-                  const Gap(20),
-                  _AppInstallCard(
-                    session: session,
-                    homeController: homeController,
-                    onShowSnackBar: onShowSnackBar,
-                  ),
-                ],
+              Expanded(child: _DeviceInfoCard(session: session)),
+              const Gap(20),
+              _AppInstallCard(
+                session: session,
+                homeController: widget.homeController,
               ),
-              const Gap(20),
-              _PerformanceSection(homeController: homeController),
-              const Gap(20),
-              _FeatureShortcuts(session: session),
             ],
           ),
-        );
-      },
+          const Gap(20),
+          _PerformanceSection(homeController: widget.homeController),
+          const Gap(20),
+          _FeatureShortcuts(session: session),
+        ],
+      ),
     );
   }
 }
@@ -103,20 +101,15 @@ class _DisconnectedView extends StatelessWidget {
 }
 
 class _DeviceInfoCard extends StatefulWidget {
-  const _DeviceInfoCard({
-    required this.session,
-    required this.onShowSnackBar,
-  });
+  const _DeviceInfoCard({required this.session});
 
   final DeviceSessionController session;
-  final void Function(String) onShowSnackBar;
 
   @override
   State<_DeviceInfoCard> createState() => _DeviceInfoCardState();
 }
 
 class _DeviceInfoCardState extends State<_DeviceInfoCard> {
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -153,26 +146,25 @@ class _DeviceInfoCardState extends State<_DeviceInfoCard> {
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
-                          if (device is AndroidDevice && device.isWireless)
-                            ...[
-                              const Gap(6),
-                              Icon(
-                                Icons.wifi,
-                                size: 14,
-                                color: theme.colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.6),
-                              ),
-                            ],
-                          if (device is AndroidDevice && !device.isWireless)
-                            ...[
-                              const Gap(6),
-                              Icon(
-                                Icons.usb,
-                                size: 14,
-                                color: theme.colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.6),
-                              ),
-                            ],
+                          if (device is AndroidDevice && device.isWireless) ...[
+                            const Gap(6),
+                            Icon(
+                              Icons.wifi,
+                              size: 14,
+                              color: theme.colorScheme.onSurfaceVariant
+                                  .withValues(alpha: 0.6),
+                            ),
+                          ],
+                          if (device is AndroidDevice &&
+                              !device.isWireless) ...[
+                            const Gap(6),
+                            Icon(
+                              Icons.usb,
+                              size: 14,
+                              color: theme.colorScheme.onSurfaceVariant
+                                  .withValues(alpha: 0.6),
+                            ),
+                          ],
                         ],
                       ),
                     ],
@@ -240,7 +232,10 @@ class _DeviceInfoCardState extends State<_DeviceInfoCard> {
             borderRadius: BorderRadius.circular(6),
             onTap: () {
               Clipboard.setData(ClipboardData(text: id));
-              widget.onShowSnackBar('Copied $idLabel to clipboard.');
+              FeatureView.showSnackBar(
+                context,
+                'Copied $idLabel to clipboard.',
+              );
             },
             child: Padding(
               padding: const EdgeInsets.all(4),
@@ -470,9 +465,7 @@ class _ProgressBar extends StatelessWidget {
             height: 8,
             child: Stack(
               children: [
-                Container(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                ),
+                Container(color: theme.colorScheme.surfaceContainerHighest),
                 FractionallySizedBox(
                   widthFactor: value.clamp(0, 1),
                   child: Container(
@@ -492,15 +485,10 @@ class _ProgressBar extends StatelessWidget {
 }
 
 class _AppInstallCard extends StatelessWidget {
-  const _AppInstallCard({
-    required this.session,
-    required this.homeController,
-    required this.onShowSnackBar,
-  });
+  const _AppInstallCard({required this.session, required this.homeController});
 
   final DeviceSessionController session;
   final DeviceHomeController homeController;
-  final void Function(String) onShowSnackBar;
 
   Future<void> _handleInstall(BuildContext context) async {
     final result = await session.installAppFromPicker();
@@ -508,7 +496,7 @@ class _AppInstallCard extends StatelessWidget {
     final message = result.isSuccess
         ? result.message ?? 'Installed ${result.fileName}.'
         : result.error ?? 'Installation failed.';
-    onShowSnackBar(message);
+    FeatureView.showSnackBar(context, message);
     if (result.isSuccess) {
       unawaited(homeController.refreshRecentApps());
     }
@@ -542,19 +530,18 @@ class _AppInstallCard extends StatelessWidget {
             Column(
               children: [
                 FilledButton.icon(
-                  onPressed:
-                      session.isInstallingApp || !session.isConnected
-                          ? null
-                          : () => _handleInstall(context),
+                  onPressed: session.isInstallingApp || !session.isConnected
+                      ? null
+                      : () => _handleInstall(context),
                   icon: session.isInstallingApp
                       ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
                       : const Icon(Icons.system_update_outlined, size: 18),
                   label: Text(
                     session.isInstallingApp
@@ -735,10 +722,9 @@ class _ShortcutCard extends StatelessWidget {
     return SizedBox(
       width: 180,
       child: Material(
-        color:
-            isActive
-                ? theme.colorScheme.primaryContainer
-                : theme.colorScheme.surfaceContainerHighest,
+        color: isActive
+            ? theme.colorScheme.primaryContainer
+            : theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
@@ -751,10 +737,9 @@ class _ShortcutCard extends StatelessWidget {
                 Icon(
                   icon,
                   size: 22,
-                  color:
-                      isActive
-                          ? theme.colorScheme.onPrimaryContainer
-                          : theme.colorScheme.onSurfaceVariant,
+                  color: isActive
+                      ? theme.colorScheme.onPrimaryContainer
+                      : theme.colorScheme.onSurfaceVariant,
                 ),
                 const Gap(8),
                 Text(

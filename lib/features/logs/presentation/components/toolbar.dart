@@ -23,7 +23,7 @@ class Toolbar extends StatelessWidget {
   final VoidCallback? onImportLog;
   final VoidCallback? onExport;
   final VoidCallback? onCopyAll;
-  final VoidCallback onClose;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {

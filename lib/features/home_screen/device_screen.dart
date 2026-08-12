@@ -144,7 +144,6 @@ class _DeviceScreenState extends State<DeviceScreen> {
             child: DeviceHomeFeatureView(
               session: session,
               homeController: session.homeController,
-              onShowSnackBar: _showSnackBar,
             ),
           ),
         ),
