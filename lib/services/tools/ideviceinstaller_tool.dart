@@ -32,12 +32,18 @@ class IdeviceInstallerTool extends ToolProcessRunner {
         message: output.isEmpty ? 'Installed app on $deviceId.' : output,
       );
     } on ProcessException catch (error) {
-      logError('ProcessException while installing app on iOS device $deviceId', error);
+      logError(
+        'ProcessException while installing app on iOS device $deviceId',
+        error,
+      );
       return DeviceCommandResult.failure(
         error: 'Failed to install app on $deviceId: ${describeError(error)}',
       );
     } catch (error) {
-      logError('Unexpected error while installing app on iOS device $deviceId', error);
+      logError(
+        'Unexpected error while installing app on iOS device $deviceId',
+        error,
+      );
       return DeviceCommandResult.failure(
         error: 'Failed to install app on $deviceId: ${describeError(error)}',
       );
@@ -92,10 +98,12 @@ class IdeviceInstallerTool extends ToolProcessRunner {
   /// Full user-app inventory (uncapped, with version) for the Apps feature.
   /// `ideviceinstaller -l` only ever lists user-installed apps — there's no
   /// concept of "system apps" exposed here — so everything returned is
-  /// uninstallable.
+  /// uninstallable. `-o xml` is required: the plain (default) `-l` output is
+  /// a terse CSV table (`id, "version", "name"`), not the plist this parser
+  /// expects — without it every app is silently dropped.
   Future<List<AppInfo>> listAllApps(String deviceId) async {
     try {
-      final result = await runText(['-u', deviceId, '-l']);
+      final result = await runText(['-u', deviceId, '-l', '-o', 'xml']);
       if (!result.isSuccess) return [];
 
       final apps = _parseInstalledAppsDetailed(result.stdout);
@@ -110,24 +118,20 @@ class IdeviceInstallerTool extends ToolProcessRunner {
     }
   }
 
-  /// Slices the plist-ish `-l` output on each `CFBundleIdentifier` key —
-  /// which appears once per app — rather than trying to match balanced
-  /// `<dict>` tags (plist dicts can nest, e.g. for entitlements, which a
-  /// naive non-greedy `<dict>…</dict>` regex would mis-pair). Robust to key
-  /// ordering within a block since each field is looked up independently.
+  /// Splits the plist array into each app's top-level `<dict>…</dict>` block,
+  /// tracking nesting depth (real per-app plists commonly nest further dicts
+  /// — entitlements, environment variables, group containers, …) so a block
+  /// boundary is only drawn where depth returns to zero. Fields are then
+  /// looked up independently within each block, so declaration order doesn't
+  /// matter — real device dumps do *not* guarantee `CFBundleIdentifier`
+  /// appears before `CFBundleDisplayName`/`CFBundleShortVersionString`, which
+  /// an earlier identifier-anchored-slice approach got wrong (it attributed
+  /// fields declared before the identifier to the *previous* app).
   List<AppInfo> _parseInstalledAppsDetailed(String xml) {
     final apps = <AppInfo>[];
-    final markers = RegExp(
-      r'<key>CFBundleIdentifier</key>\s*<string>([^<]+)</string>',
-    ).allMatches(xml).toList();
-
-    for (var i = 0; i < markers.length; i++) {
-      final bundleId = markers[i].group(1)!.trim();
-      if (bundleId.isEmpty) continue;
-      final blockEnd = i + 1 < markers.length
-          ? markers[i + 1].start
-          : xml.length;
-      final block = xml.substring(markers[i].end, blockEnd);
+    for (final block in _splitTopLevelDicts(xml)) {
+      final bundleId = _extractKeyedString(block, 'CFBundleIdentifier');
+      if (bundleId == null) continue;
 
       apps.add(
         AppInfo(
@@ -142,58 +146,80 @@ class IdeviceInstallerTool extends ToolProcessRunner {
     return apps;
   }
 
-  String? _extractKeyedString(String block, String key) {
-    final match = RegExp(
-      '<key>$key</key>\\s*<string>([^<]*)</string>',
-    ).firstMatch(block);
-    final value = match?.group(1)?.trim();
-    return (value == null || value.isEmpty) ? null : value;
+  List<String> _splitTopLevelDicts(String xml) {
+    final blocks = <String>[];
+    var depth = 0;
+    var blockStart = -1;
+
+    for (final match in RegExp(r'<dict\s*/>|<dict>|</dict>').allMatches(xml)) {
+      final tag = match.group(0)!;
+      if (tag.startsWith('<dict') && tag.endsWith('/>')) {
+        continue; // self-closing empty dict — no depth change
+      }
+
+      if (tag == '<dict>') {
+        if (depth == 0) blockStart = match.end;
+        depth++;
+      } else {
+        depth--;
+        if (depth == 0 && blockStart >= 0) {
+          blocks.add(xml.substring(blockStart, match.start));
+          blockStart = -1;
+        }
+      }
+    }
+    return blocks;
   }
 
+  /// Looks up [key]'s string value directly inside [block] (a top-level
+  /// app dict from [_splitTopLevelDicts]) — but only at *that* dict's own
+  /// depth, not inside any dict nested within it (entitlements, group
+  /// containers, embedded extensions, …), which could otherwise declare a
+  /// same-named key earlier in the text and win a naive first-match search.
+  String? _extractKeyedString(String block, String key) {
+    final tagPattern = RegExp(
+      r'<dict\s*/>|<dict>|</dict>|<key>([^<]*)</key>\s*<string>([^<]*)</string>',
+    );
+    var depth = 0;
+    for (final match in tagPattern.allMatches(block)) {
+      final tag = match.group(0)!;
+      if (tag.startsWith('<dict') && tag.endsWith('/>')) continue;
+      if (tag == '<dict>') {
+        depth++;
+        continue;
+      }
+      if (tag == '</dict>') {
+        depth--;
+        continue;
+      }
+      if (depth == 0 && match.group(1) == key) {
+        final value = match.group(2)?.trim();
+        return (value == null || value.isEmpty) ? null : value;
+      }
+    }
+    return null;
+  }
+
+  /// Backs the device-home "recently installed" card — same underlying data
+  /// as [listAllApps], just capped and mapped to the lighter model that
+  /// feature already uses.
   Future<List<InstalledAppInfo>> listInstalledApps(String deviceId) async {
     try {
-      final result = await runText(['-u', deviceId, '-l']);
+      final result = await runText(['-u', deviceId, '-l', '-o', 'xml']);
       if (!result.isSuccess) return [];
 
-      final apps = <InstalledAppInfo>[];
-      final xml = result.stdout;
-      final dictPattern = RegExp(
-        r'<dict>\s*'
-        r'<key>CFBundleIdentifier</key>\s*<string>([^<]+)</string>'
-        r'(?:\s*<key>(?:[^<]+)</key>\s*<string>[^<]*</string>)*?'
-        r'\s*<key>CFBundleDisplayName</key>\s*<string>([^<]*)</string>',
-        multiLine: true,
-      );
-
-      for (final match in dictPattern.allMatches(xml)) {
-        final bundleId = match.group(1) ?? '';
-        final displayName =
-            (match.group(2)?.isNotEmpty ?? false) ? match.group(2)! : null;
-        if (bundleId.isNotEmpty) {
-          apps.add(InstalledAppInfo(
-            packageName: bundleId,
-            appName: displayName,
-          ));
-        }
-      }
-
-      if (apps.isEmpty) {
-        final simplePattern = RegExp(
-          r'<key>CFBundleIdentifier</key>\s*<string>([^<]+)</string>',
-        );
-        for (final match in simplePattern.allMatches(xml)) {
-          final bundleId = match.group(1) ?? '';
-          if (bundleId.isNotEmpty) {
-            apps.add(InstalledAppInfo(packageName: bundleId));
-          }
-        }
-      }
-
-      return apps.take(5).toList();
+      return _parseInstalledAppsDetailed(result.stdout)
+          .take(5)
+          .map(
+            (app) => InstalledAppInfo(
+              packageName: app.packageName,
+              appName: app.appName,
+            ),
+          )
+          .toList();
     } catch (error) {
       logError('Failed to list installed iOS apps', error);
       return [];
     }
   }
 }
-
