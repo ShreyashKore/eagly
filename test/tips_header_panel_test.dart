@@ -17,6 +17,11 @@ const _tips = [
   ),
 ];
 
+const _twoTips = [
+  Tip(id: 'a', icon: Icons.abc, title: 'First tip', detail: 'detail a'),
+  Tip(id: 'b', icon: Icons.abc, title: 'Second tip', detail: 'detail b'),
+];
+
 Widget _host(TipsController controller) {
   // The header only reserves room for tips on a reasonably wide window, so the
   // pump surface must exceed the panel's minimum-width threshold.
@@ -92,6 +97,52 @@ void main() {
     );
     expect(find.text('Right-click a column header'), findsOneWidget);
     expect(find.text('Got it'), findsOneWidget);
+  });
+
+  testWidgets('detail dialog chevrons browse the tip pool in place', (
+    tester,
+  ) async {
+    useWideWindow(tester);
+    final controller = TipsController(tips: _twoTips);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(_host(controller));
+    await tester.tap(find.text('First tip'));
+    await tester.pumpAndSettle();
+
+    // The dialog opens on the same tip the pill displayed.
+    expect(find.text('detail a'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Next tip'));
+    await tester.pumpAndSettle();
+    expect(find.text('detail b'), findsOneWidget);
+
+    // Wraps around, and backwards too.
+    await tester.tap(find.byTooltip('Next tip'));
+    await tester.pumpAndSettle();
+    expect(find.text('detail a'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Previous tip'));
+    await tester.pumpAndSettle();
+    expect(find.text('detail b'), findsOneWidget);
+
+    // Browsing in the dialog also moves the pill behind it.
+    expect(controller.currentTip?.id, 'b');
+  });
+
+  testWidgets('detail dialog hides chevrons when there is only one tip', (
+    tester,
+  ) async {
+    useWideWindow(tester);
+    final controller = TipsController(tips: _tips);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(_host(controller));
+    await tester.tap(find.text('Hide columns you don\'t use'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Previous tip'), findsNothing);
+    expect(find.byTooltip('Next tip'), findsNothing);
   });
 
   testWidgets('three-dot menu can turn tips off behind a confirmation', (

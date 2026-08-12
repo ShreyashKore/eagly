@@ -215,8 +215,10 @@ class _MenuRow extends StatelessWidget {
   }
 }
 
-/// Opens the fuller explanation for [tip]. Offers a low-key way to turn tips off
-/// from within, so a user reading the detail can opt out without hunting.
+/// Opens the fuller explanation for [tip]. The ‹ › chevrons browse the rest of
+/// the pool in place — the dialog follows the controller, so it updates live
+/// as the user cycles. Offers a low-key way to turn tips off from within, so a
+/// user reading the detail can opt out without hunting.
 Future<void> showTipDetailDialog(
   BuildContext context,
   Tip tip,
@@ -225,48 +227,79 @@ Future<void> showTipDetailDialog(
   return showEaglyDialog<void>(
     context: context,
     builder: (context) {
-      final theme = Theme.of(context);
-      return EaglyDialog(
-        title: tip.title,
-        icon: tip.icon,
-        width: 460,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              tip.detail,
-              style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
-            ),
-            if (tip.actionHint != null) ...[
-              const Gap(16),
-              _ActionHint(text: tip.actionHint!),
-            ],
-            const Gap(24),
-            Row(
+      return ListenableBuilder(
+        listenable: controller,
+        builder: (context, _) {
+          final current = controller.currentTip ?? tip;
+          final theme = Theme.of(context);
+          return EaglyDialog(
+            title: current.title,
+            icon: current.icon,
+            width: 460,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextButton.icon(
-                  onPressed: () async {
-                    final confirmed = await _confirmDisableTips(context);
-                    if (!confirmed || !context.mounted) return;
-                    controller.disablePermanently();
-                    Navigator.of(context).pop();
-                  },
-                  icon: const Icon(Icons.visibility_off_outlined, size: 16),
-                  label: const Text('Turn off tips'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: theme.colorScheme.onSurfaceVariant,
-                  ),
+                Text(
+                  current.detail,
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
                 ),
-                const Spacer(),
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Got it'),
+                if (current.actionHint != null) ...[
+                  const Gap(16),
+                  _ActionHint(text: current.actionHint!),
+                ],
+                const Gap(24),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: () async {
+                        final confirmed = await _confirmDisableTips(context);
+                        if (!confirmed || !context.mounted) return;
+                        controller.disablePermanently();
+                        Navigator.of(context).pop();
+                      },
+                      icon: const Icon(Icons.visibility_off_outlined, size: 16),
+                      label: const Text('Turn off tips'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (controller.hasMultipleTips) ...[
+                      IconButton(
+                        tooltip: 'Previous tip',
+                        onPressed: controller.showPreviousTip,
+                        icon: const Icon(Icons.chevron_left_rounded),
+                        iconSize: 20,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Next tip',
+                        onPressed: controller.showNextTip,
+                        icon: const Icon(Icons.chevron_right_rounded),
+                        iconSize: 20,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                      ),
+                      const Gap(8),
+                    ],
+                    FilledButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Got it'),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+          );
+        },
       );
     },
   );

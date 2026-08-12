@@ -60,6 +60,35 @@ void main() {
     expect(second, isNot(first));
   });
 
+  test('showPreviousTip cycles backwards and wraps around', () {
+    final controller = TipsController(tips: _tips);
+    addTearDown(controller.dispose);
+
+    expect(controller.currentTip?.id, 'a');
+    // Wraps to the end of the pool.
+    controller.showPreviousTip();
+    expect(controller.currentTip?.id, 'c');
+    controller.showPreviousTip();
+    expect(controller.currentTip?.id, 'b');
+    // ...and back forwards again.
+    controller.showNextTip();
+    expect(controller.currentTip?.id, 'c');
+  });
+
+  test('navigation is inert and hidden with fewer than two tips', () {
+    final single = TipsController(tips: [_tips.first]);
+    addTearDown(single.dispose);
+
+    expect(single.hasMultipleTips, isFalse);
+    single.showNextTip();
+    single.showPreviousTip();
+    expect(single.currentTip?.id, 'a');
+
+    final multi = TipsController(tips: _tips);
+    addTearDown(multi.dispose);
+    expect(multi.hasMultipleTips, isTrue);
+  });
+
   test('disablePermanently persists and hides for good', () {
     final controller = TipsController(tips: _tips);
     addTearDown(controller.dispose);

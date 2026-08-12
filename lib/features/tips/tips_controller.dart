@@ -58,11 +58,23 @@ class TipsController extends ChangeNotifier {
   /// Whether tips are enabled at all (the persisted preference).
   bool get enabled => _enabled;
 
+  /// Whether there is more than one tip to browse — the panel hides its
+  /// previous/next navigation when there is nothing to cycle through.
+  bool get hasMultipleTips => _tips.length > 1;
+
   /// Cycles to the next tip in the pool without persisting — used by the
   /// "Show another tip" affordance so a curious user can browse in place.
   void showNextTip() {
     if (_tips.length < 2) return;
     _index = (_index + 1) % _tips.length;
+    notifyListeners();
+  }
+
+  /// Cycles to the previous tip in the pool without persisting — the
+  /// counterpart to [showNextTip] for browsing backwards.
+  void showPreviousTip() {
+    if (_tips.length < 2) return;
+    _index = (_index - 1 + _tips.length) % _tips.length;
     notifyListeners();
   }
 
