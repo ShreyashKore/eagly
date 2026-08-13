@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:sentry_flutter/sentry_flutter.dart';
+
 import '../../data/device.dart';
+import '../../services/app_breadcrumbs.dart';
 import '../../services/device_session_repository.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/utils.dart';
@@ -116,6 +119,11 @@ class MirrorController extends FeatureController {
 
     screenMirrorState = ScreenMirrorState.starting;
     screenMirrorError = null;
+    AppBreadcrumbs.action(
+      'Starting screen mirror for ${device.displayName}',
+      category: 'mirror',
+      data: {'quality': mirrorQuality.name},
+    );
     _notify();
 
     try {
@@ -130,12 +138,22 @@ class MirrorController extends FeatureController {
       _session = mirror;
       _sessionStartedAt = DateTime.now();
       screenMirrorState = ScreenMirrorState.running;
+      AppBreadcrumbs.action(
+        'Screen mirror running for ${device.displayName}',
+        category: 'mirror',
+      );
       _notify();
       unawaited(_watchExit(mirror));
       unawaited(_watchStream(mirror));
     } on ScrcpyMirrorException catch (error) {
       screenMirrorState = ScreenMirrorState.error;
       screenMirrorError = error.message;
+      AppBreadcrumbs.action(
+        'Screen mirror failed for ${device.displayName}',
+        category: 'mirror',
+        level: SentryLevel.error,
+        data: {'error': error.message},
+      );
       _notify();
     } on UnsupportedError catch (error) {
       screenMirrorState = ScreenMirrorState.unsupported;
@@ -144,6 +162,12 @@ class MirrorController extends FeatureController {
     } catch (error) {
       screenMirrorState = ScreenMirrorState.error;
       screenMirrorError = describeError(error);
+      AppBreadcrumbs.action(
+        'Screen mirror failed for ${device.displayName}',
+        category: 'mirror',
+        level: SentryLevel.error,
+        data: {'error': describeError(error)},
+      );
       _notify();
     }
   }
@@ -154,6 +178,10 @@ class MirrorController extends FeatureController {
 
     if (mirror != null) {
       await mirror.stop();
+      AppBreadcrumbs.action(
+        'Stopped screen mirror for ${device.displayName}',
+        category: 'mirror',
+      );
     }
 
     if (_disposed) return;

@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:sentry_flutter/sentry_flutter.dart';
+
 import 'data/crash_report.dart';
 import '../../data/device.dart';
+import '../../services/app_breadcrumbs.dart';
 import '../../services/tools/idevice_crash_report_tool.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/utils.dart';
@@ -73,6 +76,10 @@ class CrashReportController extends FeatureController {
       await _deleteDir(_outputDir);
       _outputDir = result.outputDir;
       reports = result.reports;
+      AppBreadcrumbs.action(
+        'Pulled ${reports.length} crash report(s) from ${device.displayName}',
+        category: 'crash_reports',
+      );
 
       // Keep a valid selection across refreshes when possible.
       final previousPath = selectedReport?.filePath;
@@ -94,11 +101,23 @@ class CrashReportController extends FeatureController {
       if (_disposed) return;
       loadState = CrashReportLoadState.error;
       error = err.message;
+      AppBreadcrumbs.action(
+        'Crash report pull failed for ${device.displayName}',
+        category: 'crash_reports',
+        level: SentryLevel.error,
+        data: {'error': err.message},
+      );
       _notify();
     } catch (err) {
       if (_disposed) return;
       loadState = CrashReportLoadState.error;
       error = describeError(err);
+      AppBreadcrumbs.action(
+        'Crash report pull failed for ${device.displayName}',
+        category: 'crash_reports',
+        level: SentryLevel.error,
+        data: {'error': describeError(err)},
+      );
       _notify();
     }
   }

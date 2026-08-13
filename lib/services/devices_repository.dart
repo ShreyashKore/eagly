@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../data/device.dart';
 import '../data/ios_device_info.dart';
 import '../features/wireless_connection/data/wireless_debug_models.dart';
 import '../features/app_log/app_logger.dart';
+import 'app_breadcrumbs.dart';
 import '../utils/apple_device_mapping.dart';
 import 'tools/adb_tool.dart';
 import 'tools/idevice_id_tool.dart';
@@ -206,6 +208,10 @@ class DevicesRepository extends ChangeNotifier {
     final iosSupportChanged = _iosSupportUnavailable != iosSupportUnavailable;
     if (!devicesChanged && !iosSupportChanged) {
       return;
+    }
+
+    if (devicesChanged) {
+      _breadcrumbConnectionDiff(previous: _devices, next: nextDevices);
     }
 
     _devices = nextDevices;
@@ -412,6 +418,33 @@ class DevicesRepository extends ChangeNotifier {
       if (_disposed) return;
       unawaited(refreshDevices());
     });
+  }
+
+  /// Diffs the previous and next device lists and emits a breadcrumb per
+  /// device that newly appeared, connected, or disconnected — the raw signal
+  /// behind most "why did the stream drop" journeys.
+  void _breadcrumbConnectionDiff({
+    required List<Device> previous,
+    required List<Device> next,
+  }) {
+    final previousById = {for (final device in previous) device.id: device};
+    for (final device in next) {
+      final before = previousById[device.id];
+      if (before == null) {
+        AppBreadcrumbs.action(
+          '${device.displayName} appeared (${device.isConnected ? 'connected' : 'disconnected'})',
+          category: 'device.connection',
+          data: {'deviceId': device.id, 'platform': device.platform.name},
+        );
+      } else if (before.isConnected != device.isConnected) {
+        AppBreadcrumbs.action(
+          '${device.displayName} ${device.isConnected ? 'connected' : 'disconnected'}',
+          category: 'device.connection',
+          level: device.isConnected ? SentryLevel.info : SentryLevel.warning,
+          data: {'deviceId': device.id, 'platform': device.platform.name},
+        );
+      }
+    }
   }
 
   void _notify() {

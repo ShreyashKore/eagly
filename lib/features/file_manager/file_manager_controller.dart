@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:sentry_flutter/sentry_flutter.dart';
+
+import '../../services/app_breadcrumbs.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/utils.dart';
 import 'data/device_file_entry.dart';
@@ -106,6 +109,13 @@ class FileManagerController extends FeatureController {
   }
 
   Future<void> navigateTo(String path, {bool recordHistory = true}) async {
+    if (path != currentPath) {
+      AppBreadcrumbs.navigation(
+        from: currentPath,
+        to: path,
+        category: 'files.navigate',
+      );
+    }
     if (recordHistory && path != currentPath) {
       _backStack.add(currentPath);
     }
@@ -120,6 +130,11 @@ class FileManagerController extends FeatureController {
   Future<void> navigateBack() async {
     if (_backStack.isEmpty) return;
     final previous = _backStack.removeLast();
+    AppBreadcrumbs.navigation(
+      from: currentPath,
+      to: previous,
+      category: 'files.navigate',
+    );
     await _load(previous);
   }
 
@@ -282,6 +297,12 @@ class FileManagerController extends FeatureController {
       busyLabel = null;
       _notify();
     }
+    AppBreadcrumbs.action(
+      'Copied ${copied.length} dropped file(s) to $directory',
+      category: 'files.transfer',
+      level: errors.isEmpty ? SentryLevel.info : SentryLevel.warning,
+      data: {'copied': copied.length, 'errors': errors.length},
+    );
     return FileDropCopyResult(
       directory: directory,
       copied: copied,
@@ -368,14 +389,32 @@ class FileManagerController extends FeatureController {
     _busy = true;
     busyLabel = label;
     error = null;
+    AppBreadcrumbs.action(
+      label,
+      category: 'files.transfer',
+      data: {'deviceId': device.id, 'path': currentPath},
+    );
     _notify();
     try {
       final message = await action();
       return _disposed ? null : message;
     } on DeviceFileException catch (err) {
+      AppBreadcrumbs.action(
+        'File op failed: $label',
+        category: 'files.transfer',
+        level: SentryLevel.error,
+        data: {'error': err.message},
+      );
       return err.message;
     } catch (err) {
-      return describeError(err);
+      final message = describeError(err);
+      AppBreadcrumbs.action(
+        'File op failed: $label',
+        category: 'files.transfer',
+        level: SentryLevel.error,
+        data: {'error': message},
+      );
+      return message;
     } finally {
       _busy = false;
       busyLabel = null;

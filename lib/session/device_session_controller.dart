@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../data/device.dart';
 import '../features/apps/apps_controller.dart';
@@ -9,6 +10,7 @@ import '../features/device_home/device_home_controller.dart';
 import '../features/file_manager/file_manager_controller.dart';
 import '../features/logs/log_session_manager.dart';
 import '../features/mirror/mirror_controller.dart';
+import '../services/app_breadcrumbs.dart';
 import '../services/app_install_service.dart';
 import '../services/device_session_repository.dart';
 import '../utils/utils.dart';
@@ -163,6 +165,7 @@ class DeviceSessionController extends ChangeNotifier {
   void openHome() {
     if (_homeOpen) return;
     _homeOpen = true;
+    _navigate('Home');
     _notify();
   }
 
@@ -184,7 +187,10 @@ class DeviceSessionController extends ChangeNotifier {
     final viewChanged = _homeOpen || !_logsOpen;
     _logsOpen = true;
     _homeOpen = false;
-    if (viewChanged) _notify();
+    if (viewChanged) {
+      _navigate('Logs');
+      _notify();
+    }
   }
 
   void closeLogs() {
@@ -212,6 +218,11 @@ class DeviceSessionController extends ChangeNotifier {
   void activate() {
     if (_disposed || _activated) return;
     _activated = true;
+    AppBreadcrumbs.action(
+      'Opened device tab for ${device.displayName}',
+      category: 'navigation.device_tab',
+      data: {'platform': platform.name, 'deviceId': id},
+    );
     logSessionManager.activateFirst();
     _notify();
   }
@@ -220,7 +231,10 @@ class DeviceSessionController extends ChangeNotifier {
     final viewChanged = _homeOpen || !_mirrorOpen;
     _mirrorOpen = true;
     _homeOpen = false;
-    if (viewChanged) _notify();
+    if (viewChanged) {
+      _navigate('Mirror');
+      _notify();
+    }
     if (canMirror) {
       mirrorController.show();
     }
@@ -240,7 +254,10 @@ class DeviceSessionController extends ChangeNotifier {
     final viewChanged = _homeOpen || !_crashReportsOpen;
     _crashReportsOpen = true;
     _homeOpen = false;
-    if (viewChanged) _notify();
+    if (viewChanged) {
+      _navigate('Crash Reports');
+      _notify();
+    }
     if (canReadCrashReports) {
       unawaited(crashReportController.ensureLoaded());
     }
@@ -261,7 +278,10 @@ class DeviceSessionController extends ChangeNotifier {
     final viewChanged = _homeOpen || !_filesOpen;
     _filesOpen = true;
     _homeOpen = false;
-    if (viewChanged) _notify();
+    if (viewChanged) {
+      _navigate('Files');
+      _notify();
+    }
     unawaited(fileManagerController.ensureLoaded());
   }
 
@@ -278,7 +298,10 @@ class DeviceSessionController extends ChangeNotifier {
     final viewChanged = _homeOpen || !_appsOpen;
     _appsOpen = true;
     _homeOpen = false;
-    if (viewChanged) _notify();
+    if (viewChanged) {
+      _navigate('Apps');
+      _notify();
+    }
     unawaited(appsController.ensureLoaded());
   }
 
@@ -370,6 +393,11 @@ class DeviceSessionController extends ChangeNotifier {
 
     _isInstallingApp = true;
     _installingAppName = fileName;
+    AppBreadcrumbs.action(
+      'Installing $fileName on ${device.displayName}',
+      category: 'install',
+      data: {'file': fileName, 'deviceId': id},
+    );
     _notify();
 
     try {
@@ -379,6 +407,12 @@ class DeviceSessionController extends ChangeNotifier {
         return AppInstallResult.cancelled();
       }
       if (!result.isSuccess) {
+        AppBreadcrumbs.action(
+          'Install failed for $fileName',
+          category: 'install',
+          level: SentryLevel.error,
+          data: {'file': fileName, 'error': result.error ?? 'unknown'},
+        );
         return AppInstallResult.failure(
           fileName: fileName,
           device: device,
@@ -387,6 +421,10 @@ class DeviceSessionController extends ChangeNotifier {
         );
       }
 
+      AppBreadcrumbs.action(
+        'Installed $fileName on ${device.displayName}',
+        category: 'install',
+      );
       return AppInstallResult.success(
         fileName: fileName,
         device: device,
@@ -444,6 +482,15 @@ class DeviceSessionController extends ChangeNotifier {
       }
     }
 
+    AppBreadcrumbs.action(
+      'Files dropped on ${device.displayName}',
+      category: 'drag_drop',
+      data: {
+        'toInstall': toInstall.length,
+        'toCopy': toCopy.length,
+        'rejected': errors.length,
+      },
+    );
     _isHandlingDrop = true;
     _notify();
     final installed = <String>[];
@@ -481,6 +528,16 @@ class DeviceSessionController extends ChangeNotifier {
 
   void _notify() {
     if (!_disposed) notifyListeners();
+  }
+
+  /// Records a pane switch within this device's workspace as a Sentry
+  /// navigation breadcrumb.
+  void _navigate(String pane) {
+    AppBreadcrumbs.navigation(
+      from: device.displayName,
+      to: '$pane (${device.displayName})',
+      category: 'navigation.pane',
+    );
   }
 
   @override

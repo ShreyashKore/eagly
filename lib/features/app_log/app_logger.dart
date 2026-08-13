@@ -2,6 +2,8 @@ import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 
+import '../../services/app_breadcrumbs.dart';
+
 /// Severity level of an [AppLogEntry].
 enum AppLogLevel { debug, info, success, warning, error }
 
@@ -228,6 +230,15 @@ class _AppLogStore extends ChangeNotifier {
       // ignore: avoid_print
       print(entry.toExportString());
     }
+    // Every AppLogger call (tool commands, connect/disconnect, mirror
+    // errors, ...) doubles as a Sentry breadcrumb for free.
+    AppBreadcrumbs.log(
+      level: entry.level.name,
+      source: entry.source,
+      message: entry.message,
+      detail: entry.detail,
+      sessionTag: entry.sessionTag,
+    );
     notifyListeners();
   }
 
@@ -236,4 +247,3 @@ class _AppLogStore extends ChangeNotifier {
     notifyListeners();
   }
 }
-

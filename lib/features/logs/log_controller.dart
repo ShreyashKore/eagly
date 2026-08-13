@@ -5,8 +5,10 @@ import 'package:collection/collection.dart';
 import 'package:eagly/features/logs/data/models/recent_fliter_values.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../data/device.dart';
+import '../../services/app_breadcrumbs.dart';
 import 'data/models/log_entry.dart';
 import 'data/models/log_filters.dart';
 import 'data/models/log_level.dart';
@@ -927,6 +929,11 @@ class LogController extends FeatureController {
 
   Future<void> startLogcat() async {
     if (!isConnected) return;
+    AppBreadcrumbs.action(
+      'Started live logging for ${device.displayName}',
+      category: 'logs.stream',
+      data: {'deviceId': device.id},
+    );
 
     await _stopLogcatInternal(resetState: false);
     if (_disposed) return;
@@ -1109,6 +1116,16 @@ class LogController extends FeatureController {
   /// either schedules automatic recovery or surfaces the warning banner.
   Future<void> _onLiveStreamLost({String? reason, bool stalled = false}) async {
     if (_disposed || logcatState == LogcatState.stopped) return;
+    AppBreadcrumbs.action(
+      'Live log stream lost for ${device.displayName}',
+      category: 'logs.stream',
+      level: SentryLevel.warning,
+      data: {
+        if (reason != null) 'reason': reason,
+        'stalled': stalled,
+        'attempt': _recoveryAttempts,
+      },
+    );
 
     _flushTimer?.cancel();
     _flushTimer = null;
@@ -1155,6 +1172,12 @@ class LogController extends FeatureController {
     _recovering = true;
     _recoveryAttempts++;
     _interruptionMessage = null;
+    AppBreadcrumbs.action(
+      'Scheduling log recovery (attempt $_recoveryAttempts) for '
+      '${device.displayName}',
+      category: 'logs.stream',
+      data: {'reconnect': reconnect, 'attempt': _recoveryAttempts},
+    );
     _notify();
 
     _recoveryTimer?.cancel();
@@ -1205,6 +1228,10 @@ class LogController extends FeatureController {
     if (!_liveStreamInterrupted && !_recovering && _recoveryAttempts == 0) {
       return;
     }
+    AppBreadcrumbs.action(
+      'Live log stream recovered for ${device.displayName}',
+      category: 'logs.stream',
+    );
     final wasInterrupted = _liveStreamInterrupted;
     _liveStreamInterrupted = false;
     _recovering = false;
@@ -1227,6 +1254,12 @@ class LogController extends FeatureController {
     _recovering = false;
     _liveStreamInterrupted = true;
     _interruptionMessage = message;
+    AppBreadcrumbs.action(
+      'Log recovery gave up for ${device.displayName}',
+      category: 'logs.stream',
+      level: SentryLevel.error,
+      data: {'message': message},
+    );
     _recoveryTimer?.cancel();
     _recoveryTimer = null;
     _watchdogTimer?.cancel();

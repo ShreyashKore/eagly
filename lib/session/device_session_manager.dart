@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../constants/app_constants.dart';
 import '../data/device.dart';
 import '../features/logs/services/log_file_service.dart';
+import '../services/app_breadcrumbs.dart';
 import '../services/devices_repository.dart';
 import '../services/device_session_repository.dart';
 import 'device_session_controller.dart';
@@ -104,6 +106,11 @@ class DeviceSessionManager extends ChangeNotifier {
 
   void select(String id) {
     if (!_sessions.containsKey(id)) return;
+    AppBreadcrumbs.navigation(
+      from: _selectedId ?? 'home',
+      to: _sessions[id]!.device.displayName,
+      category: 'navigation.device_tab',
+    );
     _autoSelectedOnce = true;
     _selectAndActivate(id);
     notifyListeners();
@@ -112,6 +119,11 @@ class DeviceSessionManager extends ChangeNotifier {
   void goHome() {
     _autoSelectedOnce = true;
     if (_selectedId == null) return;
+    AppBreadcrumbs.navigation(
+      from: _sessions[_selectedId]?.device.displayName ?? _selectedId!,
+      to: 'home',
+      category: 'navigation.device_tab',
+    );
     _selectedId = null;
     notifyListeners();
   }
@@ -125,6 +137,10 @@ class DeviceSessionManager extends ChangeNotifier {
   void close(String id) {
     final controller = _sessions[id];
     if (controller == null || controller.isConnected) return;
+    AppBreadcrumbs.action(
+      'Closed tab for ${controller.device.displayName}',
+      category: 'navigation.device_tab',
+    );
     _sessions.remove(id);
     _order.remove(id);
     _dismissed.add(id);
@@ -151,8 +167,23 @@ class DeviceSessionManager extends ChangeNotifier {
   /// Returns the [LogImportResult] (may be cancelled or fail).
   Future<LogImportResult> importLog({String? path}) async {
     final result = await LogFileService.importLogs(path: path);
-    if (_disposed || !result.isSuccess) return result;
+    if (_disposed || !result.isSuccess) {
+      if (!_disposed && !result.cancelled) {
+        AppBreadcrumbs.action(
+          'Log import failed',
+          category: 'logs.import',
+          level: SentryLevel.warning,
+          data: {'error': result.error ?? 'unknown'},
+        );
+      }
+      return result;
+    }
 
+    AppBreadcrumbs.action(
+      'Imported log file ${result.fileName}',
+      category: 'logs.import',
+      data: {'entries': result.logs!.length},
+    );
     final workspace = _ensureImportedWorkspace();
     workspace.logSessionManager.addImportedEntries(
       result.logs!,
