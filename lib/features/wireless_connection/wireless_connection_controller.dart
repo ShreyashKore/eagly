@@ -360,7 +360,7 @@ class WirelessConnectionController extends ChangeNotifier {
           _waitingForQrScan = false;
           _qrSession = null;
           _notify();
-          return pairWirelessDevice(
+          return await pairWirelessDevice(
             address: pairingService.address,
             pairingCode: session.password,
           );

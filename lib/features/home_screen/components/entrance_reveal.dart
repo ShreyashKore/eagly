@@ -20,7 +20,7 @@ class EntranceReveal extends StatelessWidget {
     );
     return SizeTransition(
       axis: Axis.horizontal,
-      axisAlignment: -1,
+      alignment: Alignment.centerLeft,
       sizeFactor: eased,
       child: FadeTransition(
         opacity: eased,
