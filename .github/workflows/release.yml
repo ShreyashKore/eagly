@@ -47,7 +47,7 @@ jobs:
       - name: Read Flutter version from .fvmrc
         id: fvm
         shell: bash
-        run: echo "FLUTTER_VERSION=$(cat .fvmrc | python3 -c 'import sys,json;print(json.load(sys.stdin)[\"flutter\"])')" >> "$GITHUB_OUTPUT"
+        run: echo "FLUTTER_VERSION=$(jq -r '.flutter' .fvmrc)" >> "$GITHUB_OUTPUT"
 
       - uses: subosito/flutter-action@v2
         with:
