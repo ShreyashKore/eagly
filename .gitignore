@@ -63,3 +63,5 @@ windows/certificates/*.cer
 windows/certificates/*.crt
 
 sentry.properties
+# Widget Preview related
+.widget_preview/

@@ -20,6 +20,10 @@ final RegExp _logcatSectionSeparatorRegex = RegExp(
   caseSensitive: false,
 );
 
+final RegExp _logcatLineRegex = RegExp(
+  r'^(\d\d-\d\d\s+\d\d:\d\d:\d\d\.\d+)\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+):\s+(.*)',
+);
+
 LogEntry? _parseFromLogcat(String line) {
   final separatorMatch = _logcatSectionSeparatorRegex.firstMatch(line);
   if (separatorMatch != null) {
@@ -41,11 +45,7 @@ LogEntry? _parseFromLogcat(String line) {
     );
   }
 
-  final regex = RegExp(
-    r'^(\d\d-\d\d\s+\d\d:\d\d:\d\d\.\d+)\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+):\s+(.*)',
-  );
-
-  final match = regex.firstMatch(line);
+  final match = _logcatLineRegex.firstMatch(line);
   if (match == null) return null;
 
   return LogEntry(
