@@ -163,17 +163,26 @@ Future<void> showTipDetailDialog(
                 const Gap(24),
                 Row(
                   children: [
-                    TextButton.icon(
-                      onPressed: () async {
-                        final confirmed = await confirmDisableTips(context);
-                        if (!confirmed || !context.mounted) return;
-                        controller.disablePermanently();
-                        Navigator.of(context).pop();
-                      },
-                      icon: const Icon(Icons.visibility_off_outlined, size: 16),
-                      label: const Text('Turn off tips'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: theme.colorScheme.onSurfaceVariant,
+                    Flexible(
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          final confirmed = await confirmDisableTips(context);
+                          if (!confirmed || !context.mounted) return;
+                          controller.disablePermanently();
+                          Navigator.of(context).pop();
+                        },
+                        icon: const Icon(
+                          Icons.visibility_off_outlined,
+                          size: 16,
+                        ),
+                        label: const Text(
+                          'Turn off tips',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                     const Spacer(),

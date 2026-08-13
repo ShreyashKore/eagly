@@ -640,13 +640,7 @@ class AdbTool extends ToolProcessRunner {
 
   Future<String?> readProcFile(String deviceId, String path) async {
     try {
-      final result = await runText([
-        '-s',
-        deviceId,
-        'shell',
-        'cat',
-        path,
-      ]);
+      final result = await runText(['-s', deviceId, 'shell', 'cat', path]);
       if (!result.isSuccess) return null;
       return result.stdout;
     } catch (_) {
@@ -779,7 +773,22 @@ class AdbTool extends ToolProcessRunner {
     String packageName,
   ) async {
     try {
-      await runText(['-s', deviceId, 'shell', 'am', 'force-stop', packageName]);
+      final result = await runText([
+        '-s',
+        deviceId,
+        'shell',
+        'am',
+        'force-stop',
+        packageName,
+      ]);
+      if (!result.isSuccess) {
+        final details = describeCommandFailure(
+          'Failed to force-stop $packageName.',
+          result,
+        );
+        logError('Force-stop failed for $packageName on $deviceId', details);
+        return DeviceCommandResult.failure(error: details);
+      }
       return DeviceCommandResult.success(
         message: 'Force-stopped $packageName.',
       );
@@ -896,7 +905,8 @@ class AdbTool extends ToolProcessRunner {
       '-3',
     ]);
     final thirdParty = <String>{};
-    if (pkgsResult.isSuccess) {
+    final thirdPartyEnumerated = pkgsResult.isSuccess;
+    if (thirdPartyEnumerated) {
       for (final line in pkgsResult.stdout.split('\n')) {
         final trimmed = line.trim();
         if (trimmed.startsWith('package:')) {
@@ -934,7 +944,9 @@ class AdbTool extends ToolProcessRunner {
           packageName: packageName,
           versionName: versionName,
           versionCode: versionCode,
-          isSystemApp: sawSystemFlag || !thirdParty.contains(packageName),
+          isSystemApp: thirdPartyEnumerated
+              ? (sawSystemFlag || !thirdParty.contains(packageName))
+              : sawSystemFlag,
           isEnabled: sawEnabledLine ? !sawEnabledFalse : true,
           apkPath: codePath,
           installTime: firstInstall,

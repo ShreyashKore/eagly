@@ -196,6 +196,7 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
       itemBuilder: (context, index) {
         final app = apps[index];
         return AppTile(
+          key: ValueKey(app.packageName),
           controller: controller,
           app: app,
           onTap: controller.canLaunchApps ? () => _handleLaunch(app) : null,

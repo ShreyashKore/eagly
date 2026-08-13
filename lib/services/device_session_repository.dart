@@ -387,7 +387,8 @@ class DeviceSessionRepository {
       if (apkPath == null) return null;
 
       final tempDir = await _ensureIconTempDir();
-      localApk = File('${tempDir.path}/$packageName.apk');
+      final safePackageName = packageName.replaceAll(RegExp(r'[\\/]'), '_');
+      localApk = File('${tempDir.path}/$safePackageName.apk');
       await _adbTool.pullFile(_deviceId, apkPath, localApk.path);
       if (!await localApk.exists()) return null;
 
@@ -409,13 +410,14 @@ class DeviceSessionRepository {
   }
 
   Directory? _iconTempDir;
+  Future<Directory>? _iconTempDirCreation;
 
-  Future<Directory> _ensureIconTempDir() async {
+  Future<Directory> _ensureIconTempDir() {
     final existing = _iconTempDir;
-    if (existing != null) return existing;
-    final dir = await Directory.systemTemp.createTemp('eagly-app-icons-');
-    _iconTempDir = dir;
-    return dir;
+    if (existing != null) return Future.value(existing);
+    return _iconTempDirCreation ??= Directory.systemTemp
+        .createTemp('eagly-app-icons-')
+        .then((dir) => _iconTempDir = dir);
   }
 
   /// Pulls (and parses) crash reports from the bound iOS device. Reports are

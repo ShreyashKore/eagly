@@ -43,6 +43,15 @@ class _AppTileState extends State<AppTile> {
   }
 
   @override
+  void didUpdateWidget(covariant AppTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.app.packageName != oldWidget.app.packageName &&
+        widget.controller.device is AndroidDevice) {
+      widget.controller.ensureIconLoaded(widget.app.packageName);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final app = widget.app;
@@ -140,12 +149,16 @@ class _AppIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final iconBytes = bytes;
     if (iconBytes == null) return _FallbackIcon(app: app);
+    final decodeSize = (_iconSize * MediaQuery.devicePixelRatioOf(context))
+        .round();
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Image.memory(
         iconBytes,
         width: _iconSize,
         height: _iconSize,
+        cacheWidth: decodeSize,
+        cacheHeight: decodeSize,
         fit: BoxFit.cover,
         gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) => _FallbackIcon(app: app),

@@ -428,6 +428,12 @@ class _ArscType {
   final int id;
   final int density;
   final Uint8List _bytes;
+  // Offset of the per-entry index/offset array (ResTable_type's `entries`
+  // member for sparse/offset16, or the plain uint32 offset array), which
+  // sits right after the chunk header (including the embedded
+  // ResTable_config) — distinct from [_entriesStart], the offset of the
+  // ResTable_entry *payload* data that those indices point into.
+  final int _offsetsStart;
   final int _entriesStart;
   final int _entryCount;
   final bool _sparse;
@@ -440,6 +446,7 @@ class _ArscType {
   static _ArscType? parse(Uint8List bytes, int chunkStart) {
     if (chunkStart + 20 > bytes.length) return null;
     final data = ByteData.sublistView(bytes);
+    final headerSize = data.getUint16(chunkStart + 2, Endian.little);
     final id = data.getUint8(chunkStart + 8);
     final flags = data.getUint8(chunkStart + 9);
     final entryCount = data.getUint32(chunkStart + 12, Endian.little);
@@ -458,6 +465,7 @@ class _ArscType {
       id,
       density,
       bytes,
+      chunkStart + headerSize,
       chunkStart + entriesStartRel,
       entryCount,
       (flags & 0x01) != 0, // FLAG_SPARSE
@@ -469,6 +477,7 @@ class _ArscType {
     this.id,
     this.density,
     this._bytes,
+    this._offsetsStart,
     this._entriesStart,
     this._entryCount,
     this._sparse,
@@ -482,7 +491,7 @@ class _ArscType {
     if (_sparse) {
       // ResTable_sparseTypeEntry: uint16 idx, uint16 offset (offset*4 = real).
       for (var i = 0; i < _entryCount; i++) {
-        final pos = _entriesStart + i * 4;
+        final pos = _offsetsStart + i * 4;
         if (pos + 4 > _bytes.length) break;
         final idx = data.getUint16(pos, Endian.little);
         if (idx == entryId) {
@@ -492,14 +501,14 @@ class _ArscType {
       }
     } else if (_offset16) {
       if (entryId < 0 || entryId >= _entryCount) return null;
-      final pos = _entriesStart + entryId * 2;
+      final pos = _offsetsStart + entryId * 2;
       if (pos + 2 > _bytes.length) return null;
       final off16 = data.getUint16(pos, Endian.little);
       if (off16 == _noEntry16) return null;
       entryOffset = off16 * 4;
     } else {
       if (entryId < 0 || entryId >= _entryCount) return null;
-      final pos = _entriesStart + entryId * 4;
+      final pos = _offsetsStart + entryId * 4;
       if (pos + 4 > _bytes.length) return null;
       final off = data.getUint32(pos, Endian.little);
       if (off == _noEntry32) return null;

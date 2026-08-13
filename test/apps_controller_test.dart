@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/apps/apps_controller.dart';
 import 'package:eagly/features/apps/data/app_info.dart';
@@ -136,6 +138,71 @@ void main() {
     expect(controller.canLaunchApps, isFalse);
     expect(controller.canManageAppState, isFalse);
     expect(controller.canShowSystemApps, isFalse);
+  });
+
+  test(
+    'forceStop calls through to the repository with the package name',
+    () async {
+      final controller = createController();
+      const app = AppInfo(packageName: 'com.example.a', appName: 'Alpha');
+
+      final message = await controller.forceStop(app);
+
+      expect(service.forceStopRequests, ['com.example.a']);
+      expect(message, 'Force-stopped.');
+    },
+  );
+
+  test(
+    'clearData calls through to the repository with the package name',
+    () async {
+      final controller = createController();
+      const app = AppInfo(packageName: 'com.example.a', appName: 'Alpha');
+
+      final message = await controller.clearData(app);
+
+      expect(service.clearDataRequests, ['com.example.a']);
+      expect(message, 'Cleared.');
+    },
+  );
+
+  test(
+    'openAppInfo calls through to the repository with the package name',
+    () async {
+      final controller = createController();
+      const app = AppInfo(packageName: 'com.example.a', appName: 'Alpha');
+
+      await controller.openAppInfo(app);
+
+      expect(service.appInfoRequests, ['com.example.a']);
+    },
+  );
+
+  test('ensureIconLoaded caches the icon and fetches only once', () async {
+    final controller = createController();
+    service.iconToReturn = Uint8List.fromList([1, 2, 3]);
+
+    controller.ensureIconLoaded('com.example.a');
+    await Future<void>.delayed(Duration.zero);
+    controller.ensureIconLoaded('com.example.a');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(service.iconFetchRequests, ['com.example.a']);
+    expect(controller.iconFor('com.example.a'), [1, 2, 3]);
+  });
+
+  test('setShowSystemApps forwards the filter to the repository', () async {
+    final controller = createController();
+    service.appsToReturn = const [
+      AppInfo(packageName: 'com.example.a', appName: 'Alpha'),
+    ];
+    await controller.refresh();
+
+    controller.setShowSystemApps(true);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.showSystemApps, isTrue);
+    expect(service.listAppsIncludeSystemAppsRequests, [false, true]);
   });
 
   test('viewLogs opens a live log tab pre-filtered to the package', () {

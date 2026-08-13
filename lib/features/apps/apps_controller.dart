@@ -39,6 +39,7 @@ class AppsController extends FeatureController {
 
   bool _disposed = false;
   bool _loadedOnce = false;
+  bool _reloadRequested = false;
 
   bool get isLoading => loadState == AppLoadState.loading;
   bool get isBusy => _busy;
@@ -112,6 +113,11 @@ class AppsController extends FeatureController {
       loadState = AppLoadState.error;
       error = describeError(err);
       _notify();
+    } finally {
+      if (!_disposed && _reloadRequested) {
+        _reloadRequested = false;
+        unawaited(refresh());
+      }
     }
   }
 
@@ -121,11 +127,19 @@ class AppsController extends FeatureController {
     _notify();
   }
 
+  /// Toggling while a load is already in flight can't just fire a second
+  /// [refresh] (it would be dropped by the `isLoading` guard above) — so it's
+  /// queued and re-run with the latest [_showSystemApps] once the in-flight
+  /// load finishes.
   void setShowSystemApps(bool value) {
     if (_showSystemApps == value) return;
     _showSystemApps = value;
     _notify();
-    unawaited(refresh());
+    if (isLoading) {
+      _reloadRequested = true;
+    } else {
+      unawaited(refresh());
+    }
   }
 
   void setPaneWidth(double width) {
@@ -253,7 +267,7 @@ class AppsController extends FeatureController {
       if (!_disposed) _iconCache[packageName] = null;
     } finally {
       _activeIconFetches--;
-      if (_iconQueue.isNotEmpty) {
+      if (!_disposed && _iconQueue.isNotEmpty) {
         final next = _iconQueue.removeAt(0);
         unawaited(_fetchIcon(next));
       }

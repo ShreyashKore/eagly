@@ -159,11 +159,14 @@ class FakeSessionService extends DeviceSessionRepository {
   );
   final List<String> appInfoRequests = [];
   final List<String> iconFetchRequests = [];
+  final List<bool> listAppsIncludeSystemAppsRequests = [];
   Uint8List? iconToReturn;
 
   @override
-  Future<List<AppInfo>> listApps({bool includeSystemApps = false}) async =>
-      appsToReturn;
+  Future<List<AppInfo>> listApps({bool includeSystemApps = false}) async {
+    listAppsIncludeSystemAppsRequests.add(includeSystemApps);
+    return appsToReturn;
+  }
 
   @override
   Future<DeviceCommandResult> uninstallApp(String packageName) async {

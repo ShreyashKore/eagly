@@ -417,6 +417,15 @@ class InlineFilterTextController extends TextEditingController {
       return TextSpan(text: textValue, style: baseStyle);
     }
 
+    // Token pills paint an opaque background as part of the text run itself,
+    // which is drawn *after* (and so on top of) RenderEditable's own
+    // selection-highlight background. Left alone, that hides the native
+    // selection color wherever a pill sits. We work around it by pre-slicing
+    // any pill text that overlaps the current selection and swapping in the
+    // selection color for that slice, so selecting through a pill still
+    // reads as selected.
+    final selectionColor = _effectiveSelectionColor(context);
+
     final children = <InlineSpan>[];
     var cursor = 0;
     for (final token in tokens) {
@@ -437,25 +446,30 @@ class InlineFilterTextController extends TextEditingController {
         final backgroundColor = theme.colorScheme.primaryContainer.withValues(
           alpha: 0.9,
         );
+        final keyStyle = baseStyle.copyWith(
+          backgroundColor: backgroundColor,
+          color: theme.colorScheme.onPrimaryContainer,
+          fontWeight: FontWeight.w700,
+        );
+        final valueStyle = baseStyle.copyWith(
+          backgroundColor: backgroundColor,
+          color: theme.colorScheme.onPrimaryContainer,
+          fontWeight: FontWeight.w500,
+        );
         children.add(
           TextSpan(
-            style: baseStyle.copyWith(backgroundColor: backgroundColor),
             children: [
-              TextSpan(
+              ..._selectionAwareSpans(
                 text: keyText,
-                style: baseStyle.copyWith(
-                  backgroundColor: backgroundColor,
-                  color: theme.colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.w700,
-                ),
+                start: token.start,
+                style: keyStyle,
+                selectionColor: selectionColor,
               ),
-              TextSpan(
+              ..._selectionAwareSpans(
                 text: valueText,
-                style: baseStyle.copyWith(
-                  backgroundColor: backgroundColor,
-                  color: theme.colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.w500,
-                ),
+                start: token.start + colonIndex + 1,
+                style: valueStyle,
+                selectionColor: selectionColor,
               ),
             ],
           ),
@@ -473,6 +487,51 @@ class InlineFilterTextController extends TextEditingController {
     }
 
     return TextSpan(style: baseStyle, children: children);
+  }
+
+  /// Splits [text] (which starts at absolute offset [start] within the field)
+  /// around the current selection, if any, so the sub-range that's actually
+  /// selected can be painted with [selectionColor] instead of [style]'s own
+  /// background.
+  List<TextSpan> _selectionAwareSpans({
+    required String text,
+    required int start,
+    required TextStyle style,
+    required Color? selectionColor,
+  }) {
+    final end = start + text.length;
+    final sel = selection;
+    if (selectionColor == null ||
+        !sel.isValid ||
+        sel.isCollapsed ||
+        sel.end <= start ||
+        sel.start >= end) {
+      return [TextSpan(text: text, style: style)];
+    }
+
+    final selStart = sel.start.clamp(start, end);
+    final selEnd = sel.end.clamp(start, end);
+    final spans = <TextSpan>[];
+    if (selStart > start) {
+      spans.add(
+        TextSpan(text: text.substring(0, selStart - start), style: style),
+      );
+    }
+    spans.add(
+      TextSpan(
+        text: text.substring(selStart - start, selEnd - start),
+        style: style.copyWith(backgroundColor: selectionColor),
+      ),
+    );
+    if (selEnd < end) {
+      spans.add(TextSpan(text: text.substring(selEnd - start), style: style));
+    }
+    return spans;
+  }
+
+  Color? _effectiveSelectionColor(BuildContext context) {
+    return TextSelectionTheme.of(context).selectionColor ??
+        Theme.of(context).colorScheme.primary.withValues(alpha: 0.40);
   }
 }
 
