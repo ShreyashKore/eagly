@@ -79,7 +79,7 @@ class PreferencesService {
   static set filterViewMode(LogFilterViewMode v) =>
       _prefs.setString(_keyFilterViewMode, v.name);
 
-  static int get logLinesLimit => _prefs.getInt(_keyLogLinesLimit) ?? 50000;
+  static int get logLinesLimit => _prefs.getInt(_keyLogLinesLimit) ?? 500000;
   static set logLinesLimit(int v) => _prefs.setInt(_keyLogLinesLimit, v);
 
   static ThemeMode get themeMode =>
@@ -178,7 +178,8 @@ class PreferencesService {
     _defaultZoomLevel,
   );
 
-  static double get zoomLevel => _prefs.getDouble(_keyZoomLevel) ?? _defaultZoomLevel;
+  static double get zoomLevel =>
+      _prefs.getDouble(_keyZoomLevel) ?? _defaultZoomLevel;
   static set zoomLevel(double v) {
     final clamped = v.clamp(_zoomMin, _zoomMax);
     final current = zoomLevel;

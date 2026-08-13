@@ -281,7 +281,7 @@ void main() {
     final submitted = log.submitLogLinesLimit(999);
 
     expect(submitted, isFalse);
-    expect(log.logLinesLimit, 50000);
+    expect(log.logLinesLimit, 500000);
     expect(log.editingLogLinesLimit, isFalse);
   });
 

@@ -25,7 +25,12 @@ bool matchesLogFilters(
     return false;
   }
 
-  if (!_matchesAllTerms(log.lowercaseSearchable, appliedFilters.rawTerms)) {
+  // Only force the cached lowercase concatenation when there's actually a
+  // raw-term filter to test against — building it for every entry regardless
+  // (even with no raw filter active) doubled per-entry text memory for no
+  // reason.
+  if (appliedFilters.rawTerms.isNotEmpty &&
+      !_matchesAllTerms(log.lowercaseSearchable, appliedFilters.rawTerms)) {
     return false;
   }
 

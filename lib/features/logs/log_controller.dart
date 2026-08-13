@@ -162,7 +162,6 @@ class LogController extends FeatureController {
   LogTabSettings _settings;
 
   List<LogEntry>? _cachedFilteredLogs;
-  int _lastLogsLength = 0;
   String _lastAppliedFilterSignature = '';
   LogLevel _lastLogLevel = LogLevel.verbose;
 
@@ -701,19 +700,40 @@ class LogController extends FeatureController {
   List<LogEntry> get filteredLogs {
     final appliedFilterSignature = _appliedFilterSignature;
     if (_cachedFilteredLogs != null &&
-        _lastLogsLength == _logsBuffer.size &&
         _lastAppliedFilterSignature == appliedFilterSignature &&
         _lastLogLevel == selectedLogLevel) {
       return _cachedFilteredLogs!;
     }
 
-    _lastLogsLength = _logsBuffer.size;
     _lastAppliedFilterSignature = appliedFilterSignature;
     _lastLogLevel = selectedLogLevel;
 
     _cachedFilteredLogs = _logsBuffer.search(_matchesLogFilters);
 
     return _cachedFilteredLogs!;
+  }
+
+  /// Incrementally updates [_cachedFilteredLogs] after an append (and any
+  /// eviction it triggered) instead of invalidating it, so a live-tail flush
+  /// doesn't force a full rescan of the whole buffer. No-ops when the cache
+  /// is already stale (filter/level changed since it was built) or unbuilt —
+  /// the next [filteredLogs] access rebuilds it from scratch in that case.
+  void _reconcileFilteredCache(LogEntry? added, List<LogEntry> evicted) {
+    final cached = _cachedFilteredLogs;
+    if (cached == null) return;
+    if (_lastAppliedFilterSignature != _appliedFilterSignature ||
+        _lastLogLevel != selectedLogLevel) {
+      return;
+    }
+
+    if (evicted.isNotEmpty) {
+      final evictedIds = evicted.map((entry) => entry.id).toSet();
+      cached.removeWhere((entry) => evictedIds.contains(entry.id));
+    }
+
+    if (added != null && _matchesLogFilters(added)) {
+      cached.add(added);
+    }
   }
 
   List<int> get searchMatchIndices {
@@ -902,7 +922,8 @@ class LogController extends FeatureController {
       clearSelectedRows(notify: false);
     }
 
-    _invalidateFilteredLogs();
+    _reconcileFilteredCache(entry, evictedLogs);
+    _invalidateSearchMatches();
     _notify();
 
     if (autoScroll && scrollController.hasClients) {
@@ -1014,6 +1035,7 @@ class LogController extends FeatureController {
     var didEvictStoredLogs = false;
     for (final logEntry in pendingLogs) {
       final evictedLogs = _logsBuffer.append(logEntry);
+      _reconcileFilteredCache(logEntry, evictedLogs);
       if (evictedLogs.isEmpty) continue;
       didEvictStoredLogs = true;
       evictedMemoryBytes += estimateLogsBytes(evictedLogs);
@@ -1028,7 +1050,7 @@ class LogController extends FeatureController {
       clearSelectedRows(notify: false);
     }
 
-    _invalidateFilteredLogs();
+    _invalidateSearchMatches();
     _notify();
 
     if (autoScroll && scrollController.hasClients) {

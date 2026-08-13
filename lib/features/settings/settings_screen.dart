@@ -244,11 +244,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           minHeight: 32,
                         ),
                         onPressed: () {
-                          final next =
-                              (PreferencesService.zoomLevel - 0.05).clamp(
-                                0.7,
-                                1.8,
-                              );
+                          final next = (PreferencesService.zoomLevel - 0.05)
+                              .clamp(0.7, 1.8);
                           setState(() => _zoomLevel = next);
                           PreferencesService.zoomLevel = next;
                         },
@@ -274,11 +271,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           minHeight: 32,
                         ),
                         onPressed: () {
-                          final next =
-                              (PreferencesService.zoomLevel + 0.05).clamp(
-                                0.7,
-                                1.8,
-                              );
+                          final next = (PreferencesService.zoomLevel + 0.05)
+                              .clamp(0.7, 1.8);
                           setState(() => _zoomLevel = next);
                           PreferencesService.zoomLevel = next;
                         },
@@ -388,7 +382,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: TextField(
                       controller: _logLinesController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(hintText: '50000'),
+                      decoration: const InputDecoration(hintText: '500000'),
                       onSubmitted: (_) => _saveLogLinesLimit(),
                     ),
                   ),
