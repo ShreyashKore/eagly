@@ -93,3 +93,7 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   timing constants are exposed as `@visibleForTesting static` fields (e.g.
   `LogController.recoveryBackoff`) — set in `setUp`, reset in `tearDown`.
 - Commit/push only when asked; branch off `main` first.
+- Never discard uncommitted working-tree changes you didn't just make (`git checkout --`,
+  `git restore`, `stash drop`, etc.) — even if they look stray or unrelated to the current
+  task. Treat any pre-existing uncommitted edit as the user's in-progress work; ask before
+  touching it. (Incident: `README.md` edits were wiped twice this way and nearly lost.)

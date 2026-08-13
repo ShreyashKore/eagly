@@ -14,7 +14,53 @@ mirror and control the screen, browse files, read iOS crashes, and install apps.
 and `libimobiledevice` come bundled, the whole app is **under 50 MB**, and it stays
 light on memory.
 
-**Jump to:** [Why Eagly?](#why-eagly) · [Features](#features) · [Screenshots](#screenshots) · [Download](#download) · [Usage](#usage) · [Build from Source](#building-from-source)
+**Jump to:** [Download](#download) · [Why Eagly?](#why-eagly) · [Features](#features) · [Screenshots](#screenshots) · [Usage](#usage) · [Build from Source](#building-from-source)
+
+---
+
+## Download
+
+<table>
+<tr valign="top">
+<td align="center" width="33%" valign="top">
+<a href="https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-windows-setup.exe">
+<img src="https://img.icons8.com/color/144/windows-10.png" width="96" alt="Windows"><br>
+<b>Windows</b>
+</a>
+<br><br>
+<a href="https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-windows-setup.exe"><b>⬇ Download .exe</b></a>
+<br>
+<sub>or the <a href="https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-windows.msix">.msix</a> package</sub>
+<br><br>
+<sub>⚠️ For iOS device support, also install<br><a href="https://www.apple.com/itunes/">iTunes</a> or <a href="https://apps.microsoft.com/detail/9np83lwlpz9k">Apple Devices</a></sub>
+</td>
+<td align="center" width="33%" valign="top">
+<a href="https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-macos.dmg">
+<img src="https://img.icons8.com/color/144/mac-os.png" width="96" alt="macOS"><br>
+<b>macOS</b>
+</a>
+<br><br>
+<a href="https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-macos.dmg"><b>⬇ Download .dmg</b></a>
+</td>
+<td align="center" width="33%" valign="top">
+<a href="https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-linux.deb">
+<img src="https://img.icons8.com/color/144/linux.png" width="96" alt="Linux"><br>
+<b>Linux</b>
+</a>
+<br><br>
+<a href="https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-linux.deb"><b>⬇ Download .deb</b></a>
+<br>
+<sub>Debian / Ubuntu based distros</sub>
+</td>
+</tr>
+</table>
+
+For all versions and changelogs, see the [Releases](https://github.com/ShreyashKore/eagly/releases) page.
+
+Every build is **under 50 MB** and runs with a low memory footprint. Eagly bundles all
+required Android and iOS communication tools, including `adb` and `libimobiledevice`, so
+there's nothing else to install. **On Windows, iTunes must be installed for iOS device
+support.**
 
 ---
 
@@ -93,25 +139,6 @@ A friendly landing screen and full light / dark theme support.
 
 ![Getting started](docs/screenshots/getting_started_screen.png)
 ![Settings & themes](docs/screenshots/settings_screen.png)
-
----
-
-## Download
-
-Grab the latest release for your platform:
-
-| Platform | Download |
-|-----------|-----------|
-| 🪟 Windows | [.exe installer](https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-windows-setup.exe) · [.msix](https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-windows.msix) |
-| 🐧 Linux | [.deb package](https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-linux.deb) |
-| 🍎 macOS | [.dmg](https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-macos.dmg) |
-
-For all versions and changelogs, see the [Releases](https://github.com/ShreyashKore/eagly/releases) page.
-
-Every build is **under 50 MB** and runs with a low memory footprint. Eagly bundles all
-required Android and iOS communication tools, including `adb` and `libimobiledevice`, so
-there's nothing else to install. **On Windows, iTunes must be installed for iOS device
-support.**
 
 ---
 
