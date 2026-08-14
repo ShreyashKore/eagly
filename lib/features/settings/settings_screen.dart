@@ -382,7 +382,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: TextField(
                       controller: _logLinesController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(hintText: '500000'),
+                      decoration: InputDecoration(
+                        hintText: '${PreferencesService.defaultLogLinesLimit}',
+                      ),
                       onSubmitted: (_) => _saveLogLinesLimit(),
                     ),
                   ),

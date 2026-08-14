@@ -57,6 +57,9 @@ class PreferencesService {
   /// Maximum number of recently opened log files retained for quick re-open.
   static const _maxRecentLogFiles = 10;
 
+  /// Default value for [logLinesLimit] when no preference has been saved.
+  static const defaultLogLinesLimit = 100000;
+
   // --- Home page preferences ---
 
   static bool get wrapText => _prefs.getBool(_keyWrapText) ?? false;
@@ -79,7 +82,8 @@ class PreferencesService {
   static set filterViewMode(LogFilterViewMode v) =>
       _prefs.setString(_keyFilterViewMode, v.name);
 
-  static int get logLinesLimit => _prefs.getInt(_keyLogLinesLimit) ?? 500000;
+  static int get logLinesLimit =>
+      _prefs.getInt(_keyLogLinesLimit) ?? defaultLogLinesLimit;
   static set logLinesLimit(int v) => _prefs.setInt(_keyLogLinesLimit, v);
 
   static ThemeMode get themeMode =>
