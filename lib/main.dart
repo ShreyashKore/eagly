@@ -5,6 +5,7 @@ import 'package:eagly/services/eagly_info_service.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/features/home_screen/home_page.dart';
+import 'package:eagly/services/sentry_event_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -31,6 +32,9 @@ void main() async {
     // Configure Session Replay
     options.replay.sessionSampleRate = 0.1;
     options.replay.onErrorSampleRate = 1.0;
+    // Filter non-critical or noisy Flutter errors (e.g. RenderFlex overflow)
+    // to preserve Sentry dashboard hygiene and event quota.
+    options.beforeSend = SentryEventFilter.beforeSend;
   }, appRunner: () => runApp(SentryWidget(child: const MyApp())));
 }
 
