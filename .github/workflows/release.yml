@@ -87,16 +87,15 @@ jobs:
         shell: bash
         run: dart pub global activate fastforge
 
+      # The LIBIMOBILEDEVICE_*_ARCHIVE/_DIR env overrides are local-only escape
+      # hatches for staging a custom bundle (see docs/CONTRIBUTING.md). Releases
+      # intentionally build against the upstream bundle pinned in
+      # download_platform_tools.sh, so the version is reviewable in git rather
+      # than silently swappable from repo settings — same as SCRCPY_*.
       - name: Prepare bundled mobile tools
         shell: bash
         env:
           PLATFORM: ${{ matrix.platform }}
-          LIBIMOBILEDEVICE_MACOS_ARCHIVE: ${{ vars.LIBIMOBILEDEVICE_MACOS_ARCHIVE }}
-          LIBIMOBILEDEVICE_LINUX_ARCHIVE: ${{ vars.LIBIMOBILEDEVICE_LINUX_ARCHIVE }}
-          LIBIMOBILEDEVICE_WINDOWS_ARCHIVE: ${{ vars.LIBIMOBILEDEVICE_WINDOWS_ARCHIVE }}
-          LIBIMOBILEDEVICE_MACOS_DIR: ${{ vars.LIBIMOBILEDEVICE_MACOS_DIR }}
-          LIBIMOBILEDEVICE_LINUX_DIR: ${{ vars.LIBIMOBILEDEVICE_LINUX_DIR }}
-          LIBIMOBILEDEVICE_WINDOWS_DIR: ${{ vars.LIBIMOBILEDEVICE_WINDOWS_DIR }}
         run: bash scripts/download_platform_tools.sh "$PLATFORM"
 
       - name: Install dependencies
