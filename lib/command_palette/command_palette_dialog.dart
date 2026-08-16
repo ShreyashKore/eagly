@@ -50,6 +50,10 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
   List<GlobalKey> _itemKeys = const [];
   int _selectedIndex = 0;
 
+  /// True once there's a query — results are then a flat, relevance-ranked
+  /// list rather than grouped under category headers.
+  bool _isSearching = false;
+
   @override
   void initState() {
     super.initState();
@@ -76,9 +80,21 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
   }
 
   void _applyFilter(String query, {bool resetSelection = true}) {
-    _filtered = _all
-        .where((item) => item.matches(query.trim()))
-        .toList(growable: false);
+    final trimmed = query.trim();
+    _isSearching = trimmed.isNotEmpty;
+
+    if (!_isSearching) {
+      _filtered = List.of(_all);
+    } else {
+      final scored = <(CommandPaletteItem, int)>[];
+      for (final item in _all) {
+        final score = item.matchScore(trimmed);
+        if (score != null) scored.add((item, score));
+      }
+      scored.sort((a, b) => b.$2.compareTo(a.$2));
+      _filtered = [for (final entry in scored) entry.$1];
+    }
+
     _itemKeys = List.generate(_filtered.length, (_) => GlobalKey());
     if (resetSelection || _selectedIndex >= _filtered.length) {
       _selectedIndex = 0;
@@ -217,7 +233,7 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
       itemCount: _filtered.length,
       itemBuilder: (context, index) {
         final item = _filtered[index];
-        final showHeader = item.category != lastCategory;
+        final showHeader = !_isSearching && item.category != lastCategory;
         lastCategory = item.category;
         final tile = _CommandTile(
           key: _itemKeys[index],

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../app_menu/app_menu_controller.dart';
@@ -5,6 +7,8 @@ import '../app_menu/shortcuts.dart';
 import '../constants/app_constants.dart';
 import '../data/device.dart';
 import '../features/logs/data/models/log_level.dart';
+import '../features/utilities/data/utility_catalog.dart';
+import '../features/utilities/utility_runner.dart';
 import '../session/device_session_manager.dart';
 import 'command_palette_item.dart';
 import 'shortcut_label.dart';
@@ -15,11 +19,19 @@ import 'shortcut_label.dart';
 /// actions (via the [onOpenSettings]-style callbacks, which mirror the
 /// [Intent]s `home_page.dart` wires up), the active log's capture/search/
 /// filter/view commands (via [menuController], the same source the desktop
-/// menu bar reads), and navigation across the *currently selected* device's
-/// feature panes plus other connected devices (via [manager]). Called fresh
-/// whenever [manager]/[menuController] change, so the result stays contextual
-/// to whatever device is selected while the palette is open.
+/// menu bar reads), navigation across the *currently selected* device's
+/// feature panes plus other connected devices (via [manager]), and that
+/// device's Utilities catalog. Called fresh whenever [manager]/
+/// [menuController] change, so the result stays contextual to whatever
+/// device is selected while the palette is open.
+///
+/// [context] is only used to drive the Utilities params/confirmation dialogs
+/// when a utility is run from here — pass a context that outlives the
+/// palette dialog itself (e.g. the host screen's own `State.context`), not
+/// one scoped to the palette, since selecting an item closes the palette
+/// before [CommandPaletteItem.run] fires.
 List<CommandPaletteItem> buildCommandPaletteItems({
+  required BuildContext context,
   required DeviceSessionManager manager,
   required AppMenuController menuController,
   required VoidCallback onOpenSettings,
@@ -31,6 +43,7 @@ List<CommandPaletteItem> buildCommandPaletteItems({
   required VoidCallback onImportLog,
   required VoidCallback onZoomIn,
   required VoidCallback onZoomOut,
+  required void Function(String message) onShowSnackBar,
 }) {
   final s = menuController.state;
   final session = manager.selected;
@@ -118,6 +131,38 @@ List<CommandPaletteItem> buildCommandPaletteItems({
           run: session.toggleUtilities,
         ),
       );
+
+      // Every utility this device's platform supports, straight from the
+      // same catalog the Utilities pane reads — adding a command there
+      // surfaces it here for free. Running one opens the pane (so its
+      // params/confirmation dialog and result panel are visible) and goes
+      // through the same runner the pane's own tiles use.
+      for (final group in utilityCatalog) {
+        for (final command in group.commands) {
+          if (!command.supports(session.device)) continue;
+          items.add(
+            CommandPaletteItem(
+              id: 'utility.${group.id}.${command.id}',
+              label: command.label,
+              category: 'Utilities',
+              icon: command.icon,
+              subtitle: command.previewFor(session.device),
+              keywords: [group.title],
+              run: () {
+                session.openUtilities();
+                unawaited(
+                  runUtilityCommand(
+                    context,
+                    controller: session.utilitiesController,
+                    command: command,
+                    showSnackBar: onShowSnackBar,
+                  ),
+                );
+              },
+            ),
+          );
+        }
+      }
     }
   }
 

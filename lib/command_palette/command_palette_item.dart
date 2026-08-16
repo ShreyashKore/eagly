@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import 'fuzzy_match.dart';
+
 /// One entry in the global command palette: something the user can search for
 /// and run.
 ///
@@ -39,12 +41,29 @@ class CommandPaletteItem {
 
   final VoidCallback run;
 
-  bool matches(String query) {
-    if (query.isEmpty) return true;
-    final q = query.toLowerCase();
-    return label.toLowerCase().contains(q) ||
-        category.toLowerCase().contains(q) ||
-        (subtitle?.toLowerCase().contains(q) ?? false) ||
-        keywords.any((keyword) => keyword.toLowerCase().contains(q));
+  /// Fuzzy-matches [query] against this item, trying [label] first (weighted
+  /// highest), then [keywords]/[subtitle], then [category] — so a query that
+  /// hits the label always outranks one that only hits a keyword. Returns
+  /// `null` when [query] doesn't fuzzy-match anything, or `0` for an empty
+  /// query (every item matches, unranked).
+  int? matchScore(String query) {
+    if (query.isEmpty) return 0;
+
+    int? best;
+    void consider(String? text, int weight) {
+      if (text == null || text.isEmpty) return;
+      final score = fuzzyScore(query, text);
+      if (score == null) return;
+      final weighted = score * weight;
+      if (best == null || weighted > best!) best = weighted;
+    }
+
+    consider(label, 4);
+    for (final keyword in keywords) {
+      consider(keyword, 2);
+    }
+    consider(subtitle, 2);
+    consider(category, 1);
+    return best;
   }
 }

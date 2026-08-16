@@ -85,6 +85,72 @@ void main() {
     expect(find.text('Reload Devices'), findsNothing);
   });
 
+  testWidgets('fuzzy-matches non-contiguous characters in order', (
+    tester,
+  ) async {
+    await pumpPalette(
+      tester,
+      itemsBuilder: () => [
+        CommandPaletteItem(
+          id: 'a',
+          label: 'Reload Devices',
+          category: 'App',
+          icon: Icons.refresh,
+          run: () {},
+        ),
+        CommandPaletteItem(
+          id: 'b',
+          label: 'Clear Logs',
+          category: 'Capture',
+          icon: Icons.clear,
+          run: () {},
+        ),
+      ],
+    );
+
+    await tester.enterText(find.byType(TextField), 'rlddv');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reload Devices'), findsOneWidget);
+    expect(find.text('Clear Logs'), findsNothing);
+  });
+
+  testWidgets('ranks a label match above a category-only match', (
+    tester,
+  ) async {
+    await pumpPalette(
+      tester,
+      itemsBuilder: () => [
+        // Only matches "app" via its category, not its label.
+        CommandPaletteItem(
+          id: 'a',
+          label: 'Clear Logs',
+          category: 'App',
+          icon: Icons.clear,
+          run: () {},
+        ),
+        // Matches "app" directly on its label — should outrank the above.
+        CommandPaletteItem(
+          id: 'b',
+          label: 'Apps',
+          category: 'Navigate',
+          icon: Icons.apps,
+          run: () {},
+        ),
+      ],
+    );
+
+    await tester.enterText(find.byType(TextField), 'app');
+    await tester.pumpAndSettle();
+
+    final labels = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((t) => t.data)
+        .whereType<String>()
+        .toList();
+    expect(labels.indexOf('Apps'), lessThan(labels.indexOf('Clear Logs')));
+  });
+
   testWidgets('shows a message when nothing matches', (tester) async {
     await pumpPalette(
       tester,

@@ -165,6 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       listenable: Listenable.merge([_manager, _menuController]),
       itemsBuilder: () => buildCommandPaletteItems(
+        context: context,
         manager: _manager,
         menuController: _menuController,
         onOpenSettings: () => unawaited(_openSettings()),
@@ -176,6 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onImportLog: () => unawaited(_handleImportLog()),
         onZoomIn: () => _changeZoomLevel(0.05),
         onZoomOut: () => _changeZoomLevel(-0.05),
+        onShowSnackBar: _showSnackBar,
       ),
     );
   }

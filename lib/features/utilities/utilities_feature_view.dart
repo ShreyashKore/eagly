@@ -5,10 +5,10 @@ import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/feature_view.dart';
 import '../../presentation/theme/app_theme.dart';
 import 'components/utility_output_panel.dart';
-import 'components/utility_params_dialog.dart';
 import 'components/utility_tile.dart';
 import 'data/utility_command.dart';
 import 'utilities_controller.dart';
+import 'utility_runner.dart';
 
 /// Utilities pane: the device-command catalog as a searchable, grouped list.
 ///
@@ -45,57 +45,12 @@ class _UtilitiesFeatureViewState
     super.dispose();
   }
 
-  Future<void> _handleTap(UtilityCommand command) async {
-    var values = command.defaultValues;
-
-    if (command.needsInput) {
-      final collected = await showUtilityParamsDialog(
-        context,
-        command: command,
-      );
-      if (collected == null || !mounted) return;
-      values = collected;
-    }
-
-    final confirmation = command.confirmation;
-    if (confirmation != null) {
-      final confirmed = await _confirm(command, confirmation);
-      if (!confirmed || !mounted) return;
-    }
-
-    final result = await controller.run(command, values: values);
-    if (result == null || !mounted) return;
-
-    if (!result.isSuccess) {
-      showSnackBar(result.failure ?? '${command.label} failed.');
-    } else if (!command.expectsOutput) {
-      showSnackBar(command.successMessage ?? '${command.label} done.');
-    }
-  }
-
-  Future<bool> _confirm(UtilityCommand command, String message) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${command.label}?'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(command.label),
-          ),
-        ],
-      ),
-    );
-    return confirmed ?? false;
-  }
+  Future<void> _handleTap(UtilityCommand command) => runUtilityCommand(
+    context,
+    controller: controller,
+    command: command,
+    showSnackBar: showSnackBar,
+  );
 
   @override
   Widget buildContent(BuildContext context) {
