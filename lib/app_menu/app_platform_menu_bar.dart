@@ -195,6 +195,15 @@ class AppPlatformMenuBar extends StatelessWidget {
           PlatformMenuItemGroup(
             members: [
               _item(
+                'Command Palette…',
+                const OpenCommandPaletteIntent(),
+                shortcut: kCommandPaletteShortcut,
+              ),
+            ],
+          ),
+          PlatformMenuItemGroup(
+            members: [
+              _item(
                 _checked(s.wrapText, 'Wrap Text'),
                 const ToggleWrapTextIntent(),
                 enabled: s.canInteractWithLog,
@@ -208,16 +217,16 @@ class AppPlatformMenuBar extends StatelessWidget {
           ),
           PlatformMenuItemGroup(
             members: [
-               _item(
-                 'Zoom In',
-                 const IncreaseFontIntent(),
-                 shortcut: kIncreaseFontShortcut,
-               ),
-               _item(
-                 'Zoom Out',
-                 const DecreaseFontIntent(),
-                 shortcut: kDecreaseFontShortcut,
-               ),
+              _item(
+                'Zoom In',
+                const IncreaseFontIntent(),
+                shortcut: kIncreaseFontShortcut,
+              ),
+              _item(
+                'Zoom Out',
+                const DecreaseFontIntent(),
+                shortcut: kDecreaseFontShortcut,
+              ),
             ],
           ),
         ],

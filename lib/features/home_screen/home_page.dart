@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../../constants/app_constants.dart';
 import '../logs/log_controller.dart';
 import '../../app_menu/intents.dart';
+import '../../command_palette/command_palette_dialog.dart';
+import '../../command_palette/command_palette_items.dart';
 import '../../services/eagly_info_service.dart';
 import '../../services/preferences_service.dart';
 import '../../session/device_session_manager.dart';
@@ -158,6 +160,26 @@ class _HomeScreenState extends State<HomeScreen> {
     if (result.error != null) _showSnackBar(result.error!);
   }
 
+  Future<void> _openCommandPalette() async {
+    await showCommandPalette(
+      context: context,
+      listenable: Listenable.merge([_manager, _menuController]),
+      itemsBuilder: () => buildCommandPaletteItems(
+        manager: _manager,
+        menuController: _menuController,
+        onOpenSettings: () => unawaited(_openSettings()),
+        onShowAbout: _showAboutApp,
+        onQuit: () => exit(0),
+        onInstallApp: () => unawaited(_handleInstallApp()),
+        onExportLogs: () => unawaited(_handleExportLogs()),
+        onShowWireless: () => unawaited(_showWirelessDialog()),
+        onImportLog: () => unawaited(_handleImportLog()),
+        onZoomIn: () => _changeZoomLevel(0.05),
+        onZoomOut: () => _changeZoomLevel(-0.05),
+      ),
+    );
+  }
+
   /// The single place that maps each command [Intent] to its behavior. Both the
   /// macOS menu (via `onSelectedIntent`) and the keyboard [appShortcuts] route
   /// through this map. Log commands delegate to [AppMenuController]; window/UI
@@ -187,6 +209,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       ExportLogsIntent: on<ExportLogsIntent>(
         (_) => unawaited(_handleExportLogs()),
+      ),
+      OpenCommandPaletteIntent: on<OpenCommandPaletteIntent>(
+        (_) => unawaited(_openCommandPalette()),
       ),
       // Capture
       StartLogcatIntent: on<StartLogcatIntent>(
@@ -225,7 +250,9 @@ class _HomeScreenState extends State<HomeScreen> {
         (_) => _menuController.toggleAutoScroll(),
       ),
       IncreaseFontIntent: on<IncreaseFontIntent>((_) => _changeZoomLevel(0.05)),
-      DecreaseFontIntent: on<DecreaseFontIntent>((_) => _changeZoomLevel(-0.05)),
+      DecreaseFontIntent: on<DecreaseFontIntent>(
+        (_) => _changeZoomLevel(-0.05),
+      ),
     };
   }
 

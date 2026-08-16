@@ -33,6 +33,10 @@ class ExportLogsIntent extends Intent {
   const ExportLogsIntent();
 }
 
+class OpenCommandPaletteIntent extends Intent {
+  const OpenCommandPaletteIntent();
+}
+
 // ── Capture ──────────────────────────────────────────────────────────────────
 class StartLogcatIntent extends Intent {
   const StartLogcatIntent();
