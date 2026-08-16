@@ -8,16 +8,19 @@ import '../features/device_home/data/device_info.dart';
 import '../features/device_home/data/device_performance_stats.dart';
 import '../features/device_home/data/installed_app_info.dart';
 import '../features/logs/data/models/log_entry.dart';
+import '../features/utilities/data/utility_command.dart';
 import '../features/wireless_connection/data/wireless_debug_models.dart';
 import '../features/app_log/app_logger.dart';
 import '../features/flutter_scrcpy/flutter_scrcpy.dart';
 import '../utils/tools_path.dart';
 import 'tools/adb_tool.dart';
+import 'tools/device_tool_runner.dart';
 import 'tools/android_apk_icon_extractor.dart';
 import 'tools/idevice_crash_report_tool.dart';
 import 'tools/idevice_info_tool.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
+import 'tools/tool_process_runner.dart';
 
 /// Per-device facade over the platform tools (adb / libimobiledevice / scrcpy).
 ///
@@ -499,6 +502,53 @@ class DeviceSessionRepository {
       devicePath: devicePath,
       process: process,
     );
+  }
+
+  // ── Utilities feature (generic tool invocations) ────────────────────────
+
+  /// Lazily-created runners for the utility tools, keyed by tool. `adb` reuses
+  /// the session's [AdbTool] so utility commands go through the same server
+  /// startup handling as everything else.
+  final Map<UtilityTool, ToolProcessRunner> _utilityRunners = {};
+
+  ToolProcessRunner _utilityRunner(UtilityTool tool) {
+    if (tool == UtilityTool.adb) return _adbTool;
+    return _utilityRunners[tool] ??= DeviceToolRunner(
+      executableName: tool.executable,
+    );
+  }
+
+  /// Runs one [invocation] against the bound device, prepending the tool's
+  /// device selector (`adb -s <serial>` / `idevicefoo -u <udid>`). Never
+  /// throws: a failure to even start the tool comes back as a non-zero
+  /// [ToolCommandResult] carrying the error text.
+  Future<ToolCommandResult> runUtility(
+    UtilityInvocation invocation, {
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    final runner = _utilityRunner(invocation.tool);
+    final arguments = [
+      invocation.tool.deviceFlag,
+      _deviceId,
+      ...invocation.arguments,
+    ];
+    _sessionLogger.info('Running utility: ${invocation.displayCommand}');
+    try {
+      if (invocation.tool == UtilityTool.adb) {
+        await _adbTool.ensureServerRunning();
+      }
+      return await runner.runTextWithTimeout(arguments, timeout: timeout);
+    } catch (error) {
+      _sessionLogger.error(
+        'Utility failed: ${invocation.displayCommand}',
+        detail: error.toString(),
+      );
+      return ToolCommandResult(
+        exitCode: -1,
+        stdout: '',
+        stderr: error.toString(),
+      );
+    }
   }
 
   /// Refresh the PID to package name mapping.

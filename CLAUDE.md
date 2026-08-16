@@ -2,8 +2,8 @@
 
 Eagly — a cross-platform **desktop** (macOS/Windows/Linux) log viewer for Android & iOS
 devices. Streams `adb logcat` and `idevicesyslog`, plus screen mirror, file manager,
-crash reports, app install, and wireless ADB. Flutter app; Dart package name and repo
-dir are both **`eagly`**, so imports are `package:eagly/...`.
+crash reports, app install, device utilities, and wireless ADB. Flutter app; Dart package
+name and repo dir are both **`eagly`**, so imports are `package:eagly/...`.
 
 ## Commands
 
@@ -19,7 +19,10 @@ fvm dart format <files>         # format before finishing; CI-style 80-col wrapp
 
 Bundled CLI tools (`adb`, `libimobiledevice`, `scrcpy-server`) live under
 `platform-tools/<os>/` and are resolved at runtime by `lib/utils/tools_path.dart`. They
-are **not** on PATH — never assume a system `adb`.
+are **not** on PATH — never assume a system `adb`. The whole libimobiledevice suite ships,
+not just the tools with a dedicated wrapper: `idevicediagnostics`, `idevicescreenshot`,
+`idevicedate`, `idevicename`, `idevicepair`, `idevicesetlocation`, `idevicebackup2`, … —
+reach for one before concluding an Android feature has no iOS counterpart.
 
 Dev scripts (`scripts/`):
 
@@ -44,7 +47,7 @@ tools (process wrappers)         services/tools/*  — AdbTool, IdeviceSyslogToo
 discovery                        services/devices_repository.dart (DevicesRepository) — adb/idevice polling + track-devices
 app coordinator                  session/device_session_manager.dart — one DeviceSessionController per device, tab order, selection
 per-device session               session/device_session_controller.dart — owns the live Device + feature controllers (lazy)
-per-feature controllers          session/feature_controller.dart (base) → LogController, MirrorController, CrashReportController, FileManagerController
+per-feature controllers          session/feature_controller.dart (base) → LogController, MirrorController, CrashReportController, FileManagerController, UtilitiesController
 views                            features/<feature>/..._feature_view.dart — extend presentation/components/feature_view.dart (FeatureView)
 ```
 
@@ -77,6 +80,18 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `AppInstallService.inferSupportedPlatform`) go to `installAppFromPath()`; everything else
   is copied onto the device via `FileManagerController.copyExternalFiles()`. Installs run
   one-at-a-time behind a per-device guard.
+- **Utilities feature:** a declarative catalog (`features/utilities/data/utility_catalog.dart`)
+  of curated `adb` / `adb shell` commands with a libimobiledevice equivalent where one
+  exists. Each `UtilityCommand` owns its label, params, confirmation text and a
+  **per-platform builder** returning a `UtilityInvocation` (tool + args) or `null` when
+  that platform has no equivalent — that null is the *only* platform switch in the
+  feature, so `UtilitiesController` and the view never mention a command or a platform.
+  Invocations run through `DeviceSessionRepository.runUtility()`, which prepends the
+  tool's device selector (`adb -s` / `idevice* -u`) and runs it via
+  `ToolProcessRunner.runTextWithTimeout` (killable, unlike `Process.run`). Adding a
+  command = one entry in the catalog. `adb shell` scripts are sent as a single argument
+  and evaluated by the *device's* `sh` (no host shell); quote user input with
+  `shellQuote()`.
 - **Imported logs workspace:** opening a log file with no device hosts it in a single
   synthetic `DeviceSessionController` (`isImportedWorkspace`, id `__imported-logs__`); each
   file becomes a sub-tab. It appears as a tab but is excluded from the landing-screen

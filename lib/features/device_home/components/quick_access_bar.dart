@@ -59,6 +59,14 @@ class QuickAccessBar extends StatelessWidget {
         isActive: s.isAppsOpen,
         onTap: s.canManageApps ? s.toggleApps : null,
       ),
+      if (s.canRunUtilities)
+        _ShortcutTile(
+          icon: Icons.handyman_outlined,
+          label: 'Utilities',
+          sublabel: 'Run device commands',
+          isActive: s.isUtilitiesOpen,
+          onTap: s.toggleUtilities,
+        ),
     ];
 
     return Row(

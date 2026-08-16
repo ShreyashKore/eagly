@@ -87,16 +87,14 @@ class FeatureRail extends StatelessWidget {
                                   label: 'Mirror',
                                   isActive: session.isMirrorOpen,
                                   enabled:
-                                      session.canMirror ||
-                                      session.isMirrorOpen,
+                                      session.canMirror || session.isMirrorOpen,
                                   tooltip: session.canMirror
                                       ? (session.isMirrorOpen
                                             ? 'Hide mirror'
                                             : 'Open mirror')
                                       : 'Screen mirror supports connected Android devices',
                                   onTap:
-                                      session.canMirror ||
-                                          session.isMirrorOpen
+                                      session.canMirror || session.isMirrorOpen
                                       ? session.toggleMirror
                                       : null,
                                 ),
@@ -150,6 +148,16 @@ class FeatureRail extends StatelessWidget {
                                       ? session.toggleApps
                                       : null,
                                 ),
+                                if (session.canRunUtilities)
+                                  RailButton(
+                                    icon: Icons.handyman_outlined,
+                                    label: 'Utilities',
+                                    isActive: session.isUtilitiesOpen,
+                                    tooltip: session.isUtilitiesOpen
+                                        ? 'Hide utilities'
+                                        : 'Run device commands',
+                                    onTap: session.toggleUtilities,
+                                  ),
                                 RailButton(
                                   icon: session.isInstallingApp
                                       ? Icons.hourglass_top_rounded

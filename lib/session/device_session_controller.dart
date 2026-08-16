@@ -10,6 +10,7 @@ import '../features/device_home/device_home_controller.dart';
 import '../features/file_manager/file_manager_controller.dart';
 import '../features/logs/log_session_manager.dart';
 import '../features/mirror/mirror_controller.dart';
+import '../features/utilities/utilities_controller.dart';
 import '../services/app_breadcrumbs.dart';
 import '../services/app_install_service.dart';
 import '../services/device_session_repository.dart';
@@ -94,6 +95,7 @@ class DeviceSessionController extends ChangeNotifier {
   FileManagerController? _fileManagerController;
   DeviceHomeController? _homeController;
   AppsController? _appsController;
+  UtilitiesController? _utilitiesController;
 
   bool _homeOpen = true;
   bool _logsOpen = false;
@@ -101,6 +103,7 @@ class DeviceSessionController extends ChangeNotifier {
   bool _crashReportsOpen = false;
   bool _filesOpen = false;
   bool _appsOpen = false;
+  bool _utilitiesOpen = false;
   bool _activated = false;
   bool _disposed = false;
 
@@ -112,6 +115,7 @@ class DeviceSessionController extends ChangeNotifier {
   bool get isCrashReportsOpen => _crashReportsOpen;
   bool get isFilesOpen => _filesOpen;
   bool get isAppsOpen => _appsOpen;
+  bool get isUtilitiesOpen => _utilitiesOpen;
   bool get isLogsOpen => _logsOpen;
   bool get isHomeOpen => _homeOpen;
   bool get isActivated => _activated;
@@ -124,7 +128,8 @@ class DeviceSessionController extends ChangeNotifier {
         !_mirrorOpen &&
         !_crashReportsOpen &&
         !_filesOpen &&
-        !_appsOpen) {
+        !_appsOpen &&
+        !_utilitiesOpen) {
       _homeOpen = true;
     }
   }
@@ -142,6 +147,11 @@ class DeviceSessionController extends ChangeNotifier {
   /// Whether the Apps feature can list/manage apps right now (both
   /// platforms, when connected).
   bool get canManageApps => _device.isConnected;
+
+  /// Whether the Utilities feature has anything to offer this device. The
+  /// pane itself stays usable while disconnected (commands are just disabled),
+  /// so this only excludes the device-less imported-logs workspace.
+  bool get canRunUtilities => !isImportedWorkspace;
 
   LogSessionManager get logSessionManager =>
       _logSessionManager ??= isImportedWorkspace
@@ -161,6 +171,9 @@ class DeviceSessionController extends ChangeNotifier {
       _homeController ??= DeviceHomeController(this);
 
   AppsController get appsController => _appsController ??= AppsController(this);
+
+  UtilitiesController get utilitiesController =>
+      _utilitiesController ??= UtilitiesController(this);
 
   void openHome() {
     if (_homeOpen) return;
@@ -313,6 +326,26 @@ class DeviceSessionController extends ChangeNotifier {
   }
 
   void toggleApps() => _appsOpen && !_homeOpen ? closeApps() : openApps();
+
+  void openUtilities() {
+    final viewChanged = _homeOpen || !_utilitiesOpen;
+    _utilitiesOpen = true;
+    _homeOpen = false;
+    if (viewChanged) {
+      _navigate('Utilities');
+      _notify();
+    }
+  }
+
+  void closeUtilities() {
+    if (!_utilitiesOpen) return;
+    _utilitiesOpen = false;
+    _ensureSelection();
+    _notify();
+  }
+
+  void toggleUtilities() =>
+      _utilitiesOpen && !_homeOpen ? closeUtilities() : openUtilities();
 
   // ── App install (device-level) ──────────────────────────────────────────
   bool _isInstallingApp = false;
@@ -549,6 +582,7 @@ class DeviceSessionController extends ChangeNotifier {
     _fileManagerController?.dispose();
     _homeController?.dispose();
     _appsController?.dispose();
+    _utilitiesController?.dispose();
     unawaited(service.dispose());
     super.dispose();
   }

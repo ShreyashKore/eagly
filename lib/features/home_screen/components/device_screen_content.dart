@@ -9,13 +9,14 @@ import '../../device_home/device_home_feature_view.dart';
 import '../../file_manager/file_manager_feature_view.dart';
 import '../../logs/log_feature_view.dart';
 import '../../mirror/mirror_feature_view.dart';
+import '../../utilities/utilities_feature_view.dart';
 import 'android_unauthorized_guidance.dart';
 import 'ios_guidance.dart';
 import 'pane_resize_handle.dart';
 
 /// The content area of the device screen: guidance when the device needs user
 /// action, otherwise Home or the feature workspace (Logs always; Mirror,
-/// Crash Reports, Files and Apps alongside when open).
+/// Crash Reports, Files, Apps and Utilities alongside when open).
 class DeviceScreenContent extends StatelessWidget {
   const DeviceScreenContent({
     super.key,
@@ -79,6 +80,7 @@ class _Workspace extends StatelessWidget {
     final crashReports = session.crashReportController;
     final files = session.fileManagerController;
     final apps = session.appsController;
+    final utilities = session.utilitiesController;
 
     // Open features split the full width proportionally to their pane widths,
     // so no empty space remains; the dividers still resize them by ratio.
@@ -89,6 +91,7 @@ class _Workspace extends StatelessWidget {
         crashReports,
         files,
         apps,
+        utilities,
       ]),
       builder: (context, _) => Row(
         children: [
@@ -157,6 +160,19 @@ class _Workspace extends StatelessWidget {
             PaneResizeHandle(
               paneWidth: () => apps.paneWidth,
               onResize: apps.setPaneWidth,
+            ),
+          ],
+          if (session.isUtilitiesOpen) ...[
+            Expanded(
+              flex: utilities.paneWidth.round(),
+              child: UtilitiesFeatureView(
+                controller: utilities,
+                onClose: session.closeUtilities,
+              ),
+            ),
+            PaneResizeHandle(
+              paneWidth: () => utilities.paneWidth,
+              onResize: utilities.setPaneWidth,
             ),
           ],
         ],

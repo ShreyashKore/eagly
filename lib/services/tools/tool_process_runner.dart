@@ -75,10 +75,48 @@ abstract class ToolProcessRunner {
     );
     return ToolCommandResult(
       exitCode: result.exitCode,
-      stdout: Utf8Decoder(allowMalformed: true)
-          .convert(result.stdout as List<int>),
-      stderr: Utf8Decoder(allowMalformed: true)
-          .convert(result.stderr as List<int>),
+      stdout: Utf8Decoder(
+        allowMalformed: true,
+      ).convert(result.stdout as List<int>),
+      stderr: Utf8Decoder(
+        allowMalformed: true,
+      ).convert(result.stderr as List<int>),
+    );
+  }
+
+  /// Like [runText], but kills the process and returns exit code `-1` when it
+  /// runs longer than [timeout]. `Process.run` cannot be interrupted, so this
+  /// starts the process instead and collects its output itself — use it for
+  /// commands whose runtime is not bounded by the tool (arbitrary `adb shell`
+  /// lines, libimobiledevice calls against a locked device, …).
+  Future<ToolCommandResult> runTextWithTimeout(
+    List<String> arguments, {
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    final process = await startProcess(arguments);
+    const decoder = Utf8Decoder(allowMalformed: true);
+    final stdoutFuture = process.stdout.transform(decoder).join();
+    final stderrFuture = process.stderr.transform(decoder).join();
+
+    var timedOut = false;
+    final exitCode = await process.exitCode.timeout(
+      timeout,
+      onTimeout: () {
+        timedOut = true;
+        process.kill(ProcessSignal.sigkill);
+        return -1;
+      },
+    );
+
+    final stdout = await stdoutFuture;
+    final stderr = await stderrFuture;
+    return ToolCommandResult(
+      exitCode: exitCode,
+      stdout: stdout,
+      stderr: timedOut
+          ? '${stderr.trimRight()}\n'
+                'Timed out after ${timeout.inSeconds}s and was terminated.'
+          : stderr,
     );
   }
 

@@ -9,12 +9,14 @@ import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/features/logs/data/models/log_tab_settings.dart';
 import 'package:eagly/features/logs/presentation/models/log_view_mode.dart';
+import 'package:eagly/features/utilities/data/utility_command.dart';
 import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
 import 'package:eagly/features/flutter_scrcpy/flutter_scrcpy.dart';
 import 'package:eagly/services/device_session_repository.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/services/tools/idevice_id_tool.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
+import 'package:eagly/services/tools/tool_process_runner.dart';
 
 LogTabSettings testSettings({
   int logLinesLimit = 50000,
@@ -212,6 +214,28 @@ class FakeSessionService extends DeviceSessionRepository {
   Future<DeviceInfo> fetchDeviceInfo() async {
     fetchDeviceInfoCount++;
     return deviceInfoToReturn;
+  }
+
+  // ── Utilities feature ─────────────────────────────────────────────────────
+  final List<UtilityInvocation> utilityRequests = [];
+  ToolCommandResult utilityResult = const ToolCommandResult(
+    exitCode: 0,
+    stdout: 'ok',
+    stderr: '',
+  );
+
+  /// Thrown by [runUtility] when set, to exercise the controller's error path.
+  Object? utilityError;
+
+  @override
+  Future<ToolCommandResult> runUtility(
+    UtilityInvocation invocation, {
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    utilityRequests.add(invocation);
+    final error = utilityError;
+    if (error != null) throw error;
+    return utilityResult;
   }
 
   @override
