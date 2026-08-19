@@ -60,6 +60,29 @@ void main() {
     expect(warnings(), hasLength(2));
   });
 
+  test('a missing bundled binary warns once with staging guidance', () async {
+    // No executablePath and nothing to resolve in the test runner's directory,
+    // so the runner falls back to the bare name and the launch fails.
+    final missing = IdeviceIdTool();
+
+    expect(await missing.getDeviceIds(), isEmpty);
+    expect(await missing.getDeviceIds(), isEmpty);
+    expect(await missing.getDeviceIds(), isEmpty);
+
+    expect(warnings(), hasLength(1));
+    expect(errors(), isEmpty);
+    expect(warnings().single.detail, contains('download_platform_tools.sh'));
+  });
+
+  test('a staged binary that cannot launch is reported as an error', () async {
+    final broken = IdeviceIdTool(executablePath: '/nonexistent/dir/idevice_id');
+
+    expect(await broken.getDeviceIds(), isEmpty);
+
+    expect(errors(), hasLength(1));
+    expect(warnings(), isEmpty);
+  });
+
   test('an unexpected failure is still logged as an error every time', () {
     final failure = const ToolCommandResult(
       exitCode: 1,

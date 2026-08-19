@@ -4,14 +4,18 @@ set -eu
 TOOLS_SRC_DIR="${1:?source directory is required}"
 TOOLS_DST_DIR="${2:?destination directory is required}"
 
+# A build with no staged tools produces an app that cannot talk to any device:
+# adb may still resolve off the developer's PATH (masking the problem on
+# Android), but the idevice_* tools are not normally installed, so iOS support
+# silently disappears. Fail the build rather than shipping that bundle.
 if [ ! -d "$TOOLS_SRC_DIR" ]; then
-  echo "warning: Bundled mobile tools directory not found at $TOOLS_SRC_DIR. Run scripts/download_platform_tools.sh first."
-  exit 0
+  echo "error: Bundled mobile tools directory not found at $TOOLS_SRC_DIR. Run scripts/download_platform_tools.sh macos (or scripts/setup.sh) first." >&2
+  exit 1
 fi
 
 if [ -z "$(find "$TOOLS_SRC_DIR" -maxdepth 1 -type f -print -quit 2>/dev/null)" ]; then
-  echo "warning: No bundled mobile tools were found in $TOOLS_SRC_DIR."
-  exit 0
+  echo "error: No bundled mobile tools were found in $TOOLS_SRC_DIR. Run scripts/download_platform_tools.sh macos (or scripts/setup.sh) first." >&2
+  exit 1
 fi
 
 mkdir -p "$TOOLS_DST_DIR"

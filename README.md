@@ -41,6 +41,8 @@ light on memory.
 </a>
 <br><br>
 <a href="https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-macos.dmg"><b>⬇ Download .dmg</b></a>
+<br><br>
+<sub>⚠️ Apple Silicon (M1–M4) and your<br>iPhone isn't showing up? Update to<br><b>1.2.2 or newer</b> — no Rosetta needed</sub>
 </td>
 <td align="center" width="33%" valign="top">
 <a href="https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-linux.deb">
@@ -156,6 +158,14 @@ A friendly landing screen and full light / dark theme support.
 1. Connect your iPhone or iPad via USB.
 2. When prompted on the device, tap **Trust This Computer** and enter your passcode.
 3. Launch Eagly — your device should appear automatically.
+
+> **Apple Silicon Mac (M1 / M2 / M3 / M4) and your iPhone never appears? Update Eagly.**
+> Builds **before 1.2.2** bundled Intel-only (x86_64) iOS tools, so on Apple Silicon they
+> needed **Rosetta** — without it, iPhones and iPads simply never showed up, with no error.
+> **1.2.2 fixes this:** the bundled `libimobiledevice` tools are now universal
+> (arm64 + x86_64) and run natively, so **Rosetta is no longer required**.
+> Grab the [latest release](https://github.com/ShreyashKore/eagly/releases/latest) and
+> reconnect your device. (Your current version is shown under **Settings → About → Version**.)
 
 ### iOS — Windows
 

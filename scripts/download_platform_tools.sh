@@ -19,7 +19,6 @@ SCRCPY_MACOS_ARCH="${SCRCPY_MACOS_ARCH:-$(uname -m | sed 's/arm64/aarch64/')}"
 SCRCPY_LINUX_URL="https://github.com/Genymobile/scrcpy/releases/download/v${SCRCPY_VERSION}/scrcpy-linux-x86_64-v${SCRCPY_VERSION}.tar.gz"
 SCRCPY_MACOS_URL="https://github.com/Genymobile/scrcpy/releases/download/v${SCRCPY_VERSION}/scrcpy-macos-${SCRCPY_MACOS_ARCH}-v${SCRCPY_VERSION}.tar.gz"
 SCRCPY_WINDOWS_URL="https://github.com/Genymobile/scrcpy/releases/download/v${SCRCPY_VERSION}/scrcpy-win64-v${SCRCPY_VERSION}.zip"
-MACOS_OPENSSL_URL="https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1w/openssl-1.1.1w.tar.gz"
 # The bundled libimobiledevice (imobiledevice-net runtimes/ubuntu.16.04-x64) is
 # linked against OpenSSL 1.0 (libssl.so.1.0.0 / libcrypto.so.1.0.0), a soname no
 # modern distro ships. We stage the matching libs from Ubuntu 16.04's official
@@ -27,10 +26,48 @@ MACOS_OPENSSL_URL="https://github.com/openssl/openssl/releases/download/OpenSSL_
 # depend only on glibc, so they stay portable across distros. See
 # stage_linux_openssl_runtime.
 LINUX_OPENSSL_DEB_URL="http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.0.0_1.0.2g-1ubuntu4.20_amd64.deb"
-MACOS_HOMEBREW_LIBZIP_BOTTLE_URL="https://ghcr.io/v2/homebrew/core/libzip/blobs/sha256:5b808617db89e546465d756a8d8e0ee7068806e7dc58ae06952eea528ebdce8f"
-MACOS_HOMEBREW_LIBUSB_BOTTLE_URL="https://ghcr.io/v2/homebrew/core/libusb/blobs/sha256:1387aea9bbed3a1e57884b5b43166fc83cfdae415e5f3803a8259ff77a4ba613"
-MACOS_HOMEBREW_XZ_BOTTLE_URL="https://ghcr.io/v2/homebrew/core/xz/blobs/sha256:fcd2df6962b5b94ef14232d02df71ee0b329482c2d8478942e07287f016ebe73"
-MACOS_HOMEBREW_ZSTD_BOTTLE_URL="https://ghcr.io/v2/homebrew/core/zstd/blobs/sha256:8b8656acd6f30bcbbb9a033ae840afea299c9f0852f71b7540492b0fe7a36742"
+
+# macOS libimobiledevice toolchain: sourced from public Homebrew bottles (both
+# arm64 and x86_64/Intel tags) instead of the x86_64-only imobiledevice-net
+# package, so the bundled idevice_* tools run natively on Apple Silicon instead
+# of requiring Rosetta. See stage_macos_libimobiledevice_universal.
+MACOS_LIBIMOBILEDEVICE_FORMULAE="libimobiledevice ideviceinstaller libplist libimobiledevice-glue libusbmuxd openssl libzip xz zstd"
+MACOS_LIBIMOBILEDEVICE_TOOLS="idevice_id idevicesyslog ideviceinfo idevicecrashreport ideviceinstaller"
+
+macos_homebrew_repo() {
+  case "$1" in
+    openssl) printf '%s' 'homebrew/core/openssl/3' ;;
+    *) printf 'homebrew/core/%s' "$1" ;;
+  esac
+}
+
+# GHCR blob URLs for each formula's arm64_sonoma (Apple Silicon) and sonoma
+# (Intel) bottles. The sha256 embedded in each URL is itself the content
+# digest (OCI blobs are content-addressed), so these pins are self-verifying.
+macos_homebrew_bottle_url() {
+  local formula="$1" arch="$2"
+  case "$formula:$arch" in
+    libimobiledevice:arm64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libimobiledevice/blobs/sha256:ac0a39864d542e1b5d248efe7ee1bbb5dc58a2739dd248ec987dc7b794ef9fd9' ;;
+    libimobiledevice:x86_64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libimobiledevice/blobs/sha256:aa40670dbbdadabc7f035fe2ea17da68a1dab8937a4f1c0429c0a7fd58c108f5' ;;
+    ideviceinstaller:arm64) printf '%s' 'https://ghcr.io/v2/homebrew/core/ideviceinstaller/blobs/sha256:b0b1ee1e1e2b51f9f26bdc5734850a520caf8d492dd6ba1f3ad89d230a379142' ;;
+    ideviceinstaller:x86_64) printf '%s' 'https://ghcr.io/v2/homebrew/core/ideviceinstaller/blobs/sha256:b499a23005d13e350b43f4e72fe58c2ce52656d998c8dc5f8477a7ab28a4d05d' ;;
+    libplist:arm64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libplist/blobs/sha256:06036e6de87c0a8bfc917d72f2af3f63ea6eb557391035782ca8bddb5506c342' ;;
+    libplist:x86_64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libplist/blobs/sha256:1ee2a67e37b9aa465a9ce313101ab32cd3bc4959c6613c6cf844d01ce078adc3' ;;
+    libimobiledevice-glue:arm64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libimobiledevice-glue/blobs/sha256:8839511835adac2934787a8a575c3dd6e02186d60db24ddb9c9aeed8a8069883' ;;
+    libimobiledevice-glue:x86_64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libimobiledevice-glue/blobs/sha256:0b08285aeb078331e4240420422e5330d91aba640b21c0d1f06c470deb6b9eb6' ;;
+    libusbmuxd:arm64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libusbmuxd/blobs/sha256:b3dfe62a2e25c35da59e32db101d490974d93a1a6ed30755bb4380a7d947a63e' ;;
+    libusbmuxd:x86_64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libusbmuxd/blobs/sha256:f20787b876fc3b9c8412d92ac2adaeb3dc2526155d327b0118534bb06c208079' ;;
+    openssl:arm64) printf '%s' 'https://ghcr.io/v2/homebrew/core/openssl/3/blobs/sha256:79774ba3c854f0a9f94d939c628414c9b3dd2ff5eeb1dc61743199c979dd3490' ;;
+    openssl:x86_64) printf '%s' 'https://ghcr.io/v2/homebrew/core/openssl/3/blobs/sha256:f641a0a3028a7ba2ab247767a6961226ba8c1777dac6e986e6fc62ec09e4a62a' ;;
+    libzip:arm64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libzip/blobs/sha256:41df5da85bc172a781efd6f32c46708f7a88f9b1faa82577cec64992f5254f5b' ;;
+    libzip:x86_64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libzip/blobs/sha256:5b808617db89e546465d756a8d8e0ee7068806e7dc58ae06952eea528ebdce8f' ;;
+    xz:arm64) printf '%s' 'https://ghcr.io/v2/homebrew/core/xz/blobs/sha256:0a6e40dbeea3358a1277f347ef9b892070096a79a81cda90edfedbfe721c4ba3' ;;
+    xz:x86_64) printf '%s' 'https://ghcr.io/v2/homebrew/core/xz/blobs/sha256:fcd2df6962b5b94ef14232d02df71ee0b329482c2d8478942e07287f016ebe73' ;;
+    zstd:arm64) printf '%s' 'https://ghcr.io/v2/homebrew/core/zstd/blobs/sha256:35b5150b27512a94ebaee7b4399aaa8adf42d247e6968319e4aeac3c05365281' ;;
+    zstd:x86_64) printf '%s' 'https://ghcr.io/v2/homebrew/core/zstd/blobs/sha256:8b8656acd6f30bcbbb9a033ae840afea299c9f0852f71b7540492b0fe7a36742' ;;
+    *) return 1 ;;
+  esac
+}
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -108,37 +145,6 @@ download_public_ghcr_blob() {
     "$blob_url"
 }
 
-stage_macos_runtime_formula_libs() {
-  local target_dir="$1"
-  local formula_name="$2"
-  local bottle_url="$3"
-  local expected_file="$4"
-  local archive_path="$TMP_DIR/${formula_name}.bottle.tar.gz"
-  local extracted_dir="$TMP_DIR/${formula_name}.bottle"
-
-  if bundle_contains_file "$target_dir" "$expected_file"; then
-    return
-  fi
-
-  echo "Downloading macOS runtime dylibs for $formula_name..."
-  download_public_ghcr_blob "homebrew/core/$formula_name" "$bottle_url" "$archive_path"
-
-  rm -rf "$extracted_dir"
-  mkdir -p "$extracted_dir"
-  tar -xzf "$archive_path" -C "$extracted_dir"
-
-  copy_matching_contents_flat "$extracted_dir" "$target_dir" '*/lib/*.dylib'
-}
-
-stage_macos_runtime_dependencies() {
-  local target_dir="$1"
-
-  stage_macos_runtime_formula_libs "$target_dir" xz "$MACOS_HOMEBREW_XZ_BOTTLE_URL" 'liblzma.5.dylib'
-  stage_macos_runtime_formula_libs "$target_dir" zstd "$MACOS_HOMEBREW_ZSTD_BOTTLE_URL" 'libzstd.1.dylib'
-  stage_macos_runtime_formula_libs "$target_dir" libzip "$MACOS_HOMEBREW_LIBZIP_BOTTLE_URL" 'libzip.5.dylib'
-  stage_macos_runtime_formula_libs "$target_dir" libusb "$MACOS_HOMEBREW_LIBUSB_BOTTLE_URL" 'libusb-1.0.0.dylib'
-}
-
 extract_archive_flat() {
   local archive_path="$1"
   local target_dir="$2"
@@ -183,7 +189,7 @@ extract_archive_flat() {
 default_bundle_url() {
   local platform="$1"
   case "$platform" in
-    macos|linux|windows) printf '%s' "$LIBIMOBILEDEVICE_PACKAGE_URL" ;;
+    linux|windows) printf '%s' "$LIBIMOBILEDEVICE_PACKAGE_URL" ;;
     *) return 1 ;;
   esac
 }
@@ -191,7 +197,6 @@ default_bundle_url() {
 default_bundle_subdir() {
   local platform="$1"
   case "$platform" in
-    macos) printf '%s' 'runtimes/osx-x64/native' ;;
     linux) printf '%s' 'runtimes/ubuntu.16.04-x64/native' ;;
     windows) printf '%s' 'runtimes/win-x64/native' ;;
     *) return 1 ;;
@@ -204,29 +209,87 @@ bundle_contains_file() {
   [ -f "$target_dir/$file_name" ]
 }
 
-build_macos_openssl_runtime() {
+# Downloads and extracts one Homebrew formula's bottle for one macOS arch,
+# then flattens the specific idevice_* tools we ship (bin/) and every
+# top-level lib/*.dylib (excluding nested dirs like openssl's ossl-modules/,
+# which we don't need) into a per-arch staging dir.
+stage_macos_libimobiledevice_arch() {
   local target_dir="$1"
-  local archive_path="$TMP_DIR/openssl-1.1.1w.tar.gz"
-  local source_dir="$TMP_DIR/openssl-1.1.1w"
+  local arch="$2"
+  local formula
 
-  if bundle_contains_file "$target_dir" 'libssl.1.1.dylib' && bundle_contains_file "$target_dir" 'libcrypto.1.1.dylib'; then
+  for formula in $MACOS_LIBIMOBILEDEVICE_FORMULAE; do
+    local repo archive_path extracted_dir
+    repo="$(macos_homebrew_repo "$formula")"
+    archive_path="$TMP_DIR/macos-$arch-$formula.tar.gz"
+    extracted_dir="$TMP_DIR/macos-$arch-$formula"
+
+    echo "Downloading macOS ($arch) Homebrew bottle for $formula..."
+    download_public_ghcr_blob "$repo" "$(macos_homebrew_bottle_url "$formula" "$arch")" "$archive_path"
+
+    rm -rf "$extracted_dir"
+    mkdir -p "$extracted_dir"
+    tar -xzf "$archive_path" -C "$extracted_dir"
+
+    local tool
+    for tool in $MACOS_LIBIMOBILEDEVICE_TOOLS; do
+      copy_matching_contents_flat "$extracted_dir" "$target_dir" "*/bin/$tool"
+    done
+
+    find "$extracted_dir" \( -type f -o -type l \) -path '*/lib/*.dylib' -not -path '*/lib/*/*' |
+      while IFS= read -r source_path; do
+        cp -f "$source_path" "$target_dir/$(basename "$source_path")"
+      done
+  done
+}
+
+# Stages idevice_id/idevicesyslog/ideviceinfo/idevicecrashreport/ideviceinstaller
+# plus their full dylib dependency closure for macOS as universal (arm64 +
+# x86_64) binaries, built by lipo-combining matching Homebrew bottles for each
+# arch. This replaces the x86_64-only imobiledevice-net package for macOS so
+# Apple Silicon Macs don't need Rosetta to run the bundled iOS tools, while
+# still supporting Intel Macs natively too.
+stage_macos_libimobiledevice_universal() {
+  local target_dir="$1"
+  local arm64_dir="$TMP_DIR/macos-universal-arm64"
+  local x86_64_dir="$TMP_DIR/macos-universal-x86_64"
+  local issues_file="$TMP_DIR/macos-universal-issues.txt"
+
+  if bundle_contains_file "$target_dir" 'idevice_id' && bundle_contains_file "$target_dir" 'libimobiledevice-1.0.dylib'; then
     return
   fi
 
-  echo "Building OpenSSL 1.1 runtime for macOS..."
-  curl -L --fail -o "$archive_path" "$MACOS_OPENSSL_URL"
+  rm -rf "$arm64_dir" "$x86_64_dir"
+  mkdir -p "$arm64_dir" "$x86_64_dir"
+  : > "$issues_file"
 
-  rm -rf "$source_dir"
-  tar -xzf "$archive_path" -C "$TMP_DIR"
+  echo "Staging libimobiledevice toolchain for macOS (arm64 + x86_64, from Homebrew bottles)..."
+  stage_macos_libimobiledevice_arch "$arm64_dir" arm64
+  stage_macos_libimobiledevice_arch "$x86_64_dir" x86_64
 
-  (
-    cd "$source_dir"
-    env CFLAGS='-arch x86_64' CXXFLAGS='-arch x86_64' LDFLAGS='-arch x86_64' ./Configure darwin64-x86_64-cc shared no-tests >/dev/null
-    make build_libs >/dev/null
-  )
+  find "$arm64_dir" -maxdepth 1 -type f | while IFS= read -r arm64_path; do
+    local name
+    name="$(basename "$arm64_path")"
+    if [ ! -f "$x86_64_dir/$name" ]; then
+      echo "$name: staged for arm64 but missing for x86_64" >> "$issues_file"
+      continue
+    fi
+    lipo -create "$arm64_path" "$x86_64_dir/$name" -output "$target_dir/$name"
+  done
 
-  cp -f "$source_dir/libssl.1.1.dylib" "$target_dir/libssl.1.1.dylib"
-  cp -f "$source_dir/libcrypto.1.1.dylib" "$target_dir/libcrypto.1.1.dylib"
+  find "$x86_64_dir" -maxdepth 1 -type f | while IFS= read -r x86_64_path; do
+    local name
+    name="$(basename "$x86_64_path")"
+    if [ ! -f "$arm64_dir/$name" ]; then
+      echo "$name: staged for x86_64 but missing for arm64" >> "$issues_file"
+    fi
+  done
+
+  if [ -s "$issues_file" ]; then
+    echo "error: macOS libimobiledevice arch bundles diverged between arm64 and x86_64:" >&2
+    cat "$issues_file" >&2
+    exit 1
+  fi
 }
 
 stage_linux_openssl_runtime() {
@@ -339,7 +402,7 @@ verify_macos_bundle_linkage() {
     local unresolved_paths
     unresolved_paths="$(
       otool -L "$target_path" | tail -n +2 | awk '{print $1}' |
-        grep -E '^(/usr/local/opt/|/opt/homebrew/|@@HOMEBREW_PREFIX@@/opt/)' || true
+        grep -E '^(/usr/local/opt/|/opt/homebrew/|@@HOMEBREW_PREFIX@@/opt/|@@HOMEBREW_CELLAR@@/)' || true
     )"
 
     if [ -n "$unresolved_paths" ]; then
@@ -361,8 +424,6 @@ verify_macos_bundle_linkage() {
 prepare_macos_bundle_runtime() {
   local target_dir="$1"
 
-  build_macos_openssl_runtime "$target_dir"
-  stage_macos_runtime_dependencies "$target_dir"
   rewrite_macos_bundle_load_paths "$target_dir"
   verify_macos_bundle_linkage "$target_dir"
 }
@@ -569,7 +630,18 @@ prepare_platform_bundle() {
       ;;
   esac
 
-  stage_optional_bundle "$(platform_bundle_spec "$platform")" "$target_dir" "$platform"
+  if [ "$platform" = "macos" ] && [ -z "$(platform_bundle_spec "$platform")" ]; then
+    # No override configured: source the idevice_* toolchain from Homebrew
+    # bottles as universal (arm64 + x86_64) binaries. This step needs lipo/
+    # install_name_tool, so it only runs on an actual macOS host.
+    if is_macos_host; then
+      stage_macos_libimobiledevice_universal "$target_dir"
+    else
+      echo "Skipping macOS libimobiledevice staging on non-macOS host ($(current_host_platform)); this step requires lipo/install_name_tool from Xcode Command Line Tools. Provide LIBIMOBILEDEVICE_MACOS_ARCHIVE/_DIR to stage a pre-built bundle instead."
+    fi
+  else
+    stage_optional_bundle "$(platform_bundle_spec "$platform")" "$target_dir" "$platform"
+  fi
   stage_scrcpy_bundle "$(scrcpy_bundle_spec "$platform")" "$target_dir" "$platform"
   if [ "$platform" = "windows" ]; then
     # Build-time FFmpeg headers + import libs for the native scrcpy decoder.
@@ -588,12 +660,8 @@ prepare_platform_bundle() {
     # GITHUB_ENV in CI.
     FFMPEG_VERSION="$FFMPEG_VERSION" bash "$SCRIPT_DIR/build_linux_ffmpeg.sh"
   fi
-  if [ "$platform" = "macos" ]; then
-    if is_macos_host; then
-      prepare_macos_bundle_runtime "$target_dir"
-    else
-      echo "Skipping macOS runtime build on non-macOS host ($(current_host_platform)); this step requires a macOS machine with Xcode/Clang."
-    fi
+  if [ "$platform" = "macos" ] && is_macos_host; then
+    prepare_macos_bundle_runtime "$target_dir"
   fi
   mark_binaries_executable "$target_dir"
   verify_expected_tools "$target_dir" "$platform"

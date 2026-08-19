@@ -19,6 +19,11 @@ class IdeviceIdTool extends ToolProcessRunner {
   // way in, and stay quiet until a later success clears it.
   bool _usbmuxdUnavailable = false;
 
+  // Same reasoning as [_usbmuxdUnavailable], for the case where the binary
+  // itself never got staged into the bundle: the process cannot even launch, so
+  // every poll would otherwise raise an identical ProcessException.
+  bool _launchFailed = false;
+
   /// Whether the last poll failed because usbmuxd (the muxd socket these tools
   /// connect to) was unreachable. On Windows that service ships with Apple
   /// Mobile Device Support; the UI uses this to guide the user to install it.
@@ -29,12 +34,36 @@ class IdeviceIdTool extends ToolProcessRunner {
       final result = await runText(['-l']);
       return parseDeviceIds(result);
     } on ProcessException catch (error) {
-      logError('ProcessException while listing iOS device ids', error);
+      _reportLaunchFailure(error);
       return const [];
     } catch (error) {
       logError('Unexpected error while listing iOS device ids', error);
       return const [];
     }
+  }
+
+  /// `idevice_id` could not be launched at all. The usual cause is that the
+  /// bundled binary was never staged, in which case [ToolProcessRunner] fell
+  /// back to the bare executable name and the OS PATH lookup found nothing —
+  /// distinct from a staged binary that fails to exec (bad arch, missing dylib).
+  void _reportLaunchFailure(ProcessException error) {
+    // Latch + log only on the transition into the failed state.
+    if (_launchFailed) return;
+    _launchFailed = true;
+
+    if (executable == executableName) {
+      logWarning(
+        'iOS device detection is unavailable: $executableName is not bundled.',
+        'The bundled libimobiledevice tools are missing from this build and '
+            '$executableName is not on PATH either, so iOS devices cannot be '
+            'detected. Stage them with '
+            '"scripts/download_platform_tools.sh ${Platform.operatingSystem}" '
+            '(or scripts/setup.sh) and rebuild.',
+      );
+      return;
+    }
+
+    logError('Failed to launch $executable', error);
   }
 
   @visibleForTesting
@@ -45,6 +74,7 @@ class IdeviceIdTool extends ToolProcessRunner {
     }
 
     _usbmuxdUnavailable = false;
+    _launchFailed = false;
     return result.stdout
         .trim()
         .split('\n')
