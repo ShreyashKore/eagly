@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../data/device.dart';
@@ -67,6 +67,10 @@ class MirrorController extends FeatureController {
   ScrcpyMirrorSession? _session;
   ScreenRecordingSession? _recordingSession;
   bool _disposed = false;
+
+  /// Whether device→desktop clipboard changes are mirrored automatically.
+  bool clipboardSyncEnabled = true;
+  StreamSubscription<String>? _clipboardSub;
 
   /// Number of consecutive automatic restarts (e.g. from rotation desyncs).
   /// Reset once a stream has survived longer than [_restartCooldown]; caps a
@@ -145,6 +149,7 @@ class MirrorController extends FeatureController {
       _notify();
       unawaited(_watchExit(mirror));
       unawaited(_watchStream(mirror));
+      _watchClipboard(mirror);
     } on ScrcpyMirrorException catch (error) {
       screenMirrorState = ScreenMirrorState.error;
       screenMirrorError = error.message;
@@ -175,6 +180,8 @@ class MirrorController extends FeatureController {
   Future<void> stop({bool notify = true}) async {
     final mirror = _session;
     _session = null;
+    await _clipboardSub?.cancel();
+    _clipboardSub = null;
 
     if (mirror != null) {
       await mirror.stop();
@@ -258,6 +265,40 @@ class MirrorController extends FeatureController {
   /// the control channel is unavailable.
   void handleKey(ScrcpyKey key) {
     _session?.control?.key(key);
+  }
+
+  /// Listens for device clipboard changes and mirrors them to the desktop
+  /// clipboard, while [clipboardSyncEnabled] is on.
+  void _watchClipboard(ScrcpyMirrorSession mirror) {
+    final control = mirror.control;
+    if (control == null) return;
+    _clipboardSub = control.onDeviceClipboardChanged.listen((text) {
+      if (!clipboardSyncEnabled || text.isEmpty) return;
+      unawaited(Clipboard.setData(ClipboardData(text: text)));
+    });
+  }
+
+  /// Toggles automatic device→desktop clipboard mirroring.
+  void setClipboardSyncEnabled(bool enabled) {
+    if (enabled == clipboardSyncEnabled) return;
+    clipboardSyncEnabled = enabled;
+    _notify();
+  }
+
+  /// Whether pasting from the desktop clipboard is currently possible.
+  bool get canPasteToDevice =>
+      isScreenMirrorRunning && _session?.control != null;
+
+  /// Sends the desktop clipboard's text to the mirrored device and pastes it
+  /// into the focused field. No-op when there's no live control channel or
+  /// the clipboard has no text.
+  Future<void> pasteFromClipboard() async {
+    final control = _session?.control;
+    if (control == null) return;
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text;
+    if (text == null || text.isEmpty) return;
+    control.setClipboard(text, paste: true);
   }
 
   /// Switches the encoder quality preset. Restarts the live stream so the new
