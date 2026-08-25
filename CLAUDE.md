@@ -47,7 +47,7 @@ tools (process wrappers)         services/tools/*  — AdbTool, IdeviceSyslogToo
 discovery                        services/devices_repository.dart (DevicesRepository) — adb/idevice polling + track-devices
 app coordinator                  session/device_session_manager.dart — one DeviceSessionController per device, tab order, selection
 per-device session               session/device_session_controller.dart — owns the live Device + feature controllers (lazy)
-per-feature controllers          session/feature_controller.dart (base) → LogController, MirrorController, CrashReportController, FileManagerController, UtilitiesController
+per-feature controllers          session/feature_controller.dart (base) → LogController, MirrorController, CrashReportController, FileManagerController, UtilitiesController, TerminalController
 views                            features/<feature>/..._feature_view.dart — extend presentation/components/feature_view.dart (FeatureView)
 ```
 
@@ -92,6 +92,20 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   command = one entry in the catalog. `adb shell` scripts are sent as a single argument
   and evaluated by the *device's* `sh` (no host shell); quote user input with
   `shellQuote()`.
+- **Terminal feature:** free-form `adb` / libimobiledevice command entry, multi-tab like
+  Logs (`TerminalSessionManager`; first tab permanent). Each `TerminalController` owns a
+  scrollback, a history and a *target device*, and the point of the feature is that the
+  device selector is implicit: `features/terminal/data/terminal_tools.dart` holds the table
+  of dispatchable CLIs (executable, `deviceFlag`, the flags that already select a device,
+  and the host-side subcommands that take none), and `TerminalTool.argumentsFor()` prepends
+  `-s <serial>` / `-u <udid>` unless the line already targets something. A line naming no
+  known tool becomes `adb shell <line>` on Android (one argument, evaluated by the
+  *device's* `sh`); iOS has no shell so the user is pointed at `tools`. `@<device> <cmd>`
+  aims one line elsewhere, `use <device>` pins the whole tab. Built-ins (`help`, `clear`,
+  `devices`, `use`, `tools`, `history`) never start a process. Processes run through
+  `DeviceSessionRepository.startTerminalProcess()`, which owns startup/merging/teardown
+  only — no timeout (`adb logcat` may stream forever), stdin is writable, and cancellation
+  is the caller's job. Adding a dispatchable binary = one entry in `terminalTools`.
 - **Imported logs workspace:** opening a log file with no device hosts it in a single
   synthetic `DeviceSessionController` (`isImportedWorkspace`, id `__imported-logs__`); each
   file becomes a sub-tab. It appears as a tab but is excluded from the landing-screen

@@ -120,6 +120,31 @@ List<CommandPaletteItem> buildCommandPaletteItems({
         ),
       );
     }
+    if (session.canUseTerminal) {
+      items.add(
+        CommandPaletteItem(
+          id: 'nav.terminal',
+          label: 'Terminal',
+          category: 'Navigate',
+          icon: Icons.terminal_outlined,
+          subtitle: deviceName,
+          run: session.toggleTerminal,
+        ),
+      );
+      items.add(
+        CommandPaletteItem(
+          id: 'terminal.new-tab',
+          label: 'New Terminal Tab',
+          category: 'Navigate',
+          icon: Icons.add_box_outlined,
+          subtitle: deviceName,
+          run: () {
+            session.openTerminal();
+            session.terminalSessionManager.addTab();
+          },
+        ),
+      );
+    }
     if (session.canRunUtilities) {
       items.add(
         CommandPaletteItem(

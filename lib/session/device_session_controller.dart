@@ -10,6 +10,7 @@ import '../features/device_home/device_home_controller.dart';
 import '../features/file_manager/file_manager_controller.dart';
 import '../features/logs/log_session_manager.dart';
 import '../features/mirror/mirror_controller.dart';
+import '../features/terminal/terminal_session_manager.dart';
 import '../features/utilities/utilities_controller.dart';
 import '../services/app_breadcrumbs.dart';
 import '../services/app_install_service.dart';
@@ -96,6 +97,7 @@ class DeviceSessionController extends ChangeNotifier {
   DeviceHomeController? _homeController;
   AppsController? _appsController;
   UtilitiesController? _utilitiesController;
+  TerminalSessionManager? _terminalSessionManager;
 
   bool _homeOpen = true;
   bool _logsOpen = false;
@@ -104,6 +106,7 @@ class DeviceSessionController extends ChangeNotifier {
   bool _filesOpen = false;
   bool _appsOpen = false;
   bool _utilitiesOpen = false;
+  bool _terminalOpen = false;
   bool _activated = false;
   bool _disposed = false;
 
@@ -116,6 +119,7 @@ class DeviceSessionController extends ChangeNotifier {
   bool get isFilesOpen => _filesOpen;
   bool get isAppsOpen => _appsOpen;
   bool get isUtilitiesOpen => _utilitiesOpen;
+  bool get isTerminalOpen => _terminalOpen;
   bool get isLogsOpen => _logsOpen;
   bool get isHomeOpen => _homeOpen;
   bool get isActivated => _activated;
@@ -129,7 +133,8 @@ class DeviceSessionController extends ChangeNotifier {
         !_crashReportsOpen &&
         !_filesOpen &&
         !_appsOpen &&
-        !_utilitiesOpen) {
+        !_utilitiesOpen &&
+        !_terminalOpen) {
       _homeOpen = true;
     }
   }
@@ -153,6 +158,11 @@ class DeviceSessionController extends ChangeNotifier {
   /// so this only excludes the device-less imported-logs workspace.
   bool get canRunUtilities => !isImportedWorkspace;
 
+  /// Whether the Terminal feature has a device to send commands to. Like
+  /// Utilities the pane stays usable while disconnected, so this only excludes
+  /// the device-less imported-logs workspace.
+  bool get canUseTerminal => !isImportedWorkspace;
+
   LogSessionManager get logSessionManager =>
       _logSessionManager ??= isImportedWorkspace
       ? LogSessionManager.importsOnly(session: this)
@@ -174,6 +184,9 @@ class DeviceSessionController extends ChangeNotifier {
 
   UtilitiesController get utilitiesController =>
       _utilitiesController ??= UtilitiesController(this);
+
+  TerminalSessionManager get terminalSessionManager =>
+      _terminalSessionManager ??= TerminalSessionManager(session: this);
 
   void openHome() {
     if (_homeOpen) return;
@@ -346,6 +359,26 @@ class DeviceSessionController extends ChangeNotifier {
 
   void toggleUtilities() =>
       _utilitiesOpen && !_homeOpen ? closeUtilities() : openUtilities();
+
+  void openTerminal() {
+    final viewChanged = _homeOpen || !_terminalOpen;
+    _terminalOpen = true;
+    _homeOpen = false;
+    if (viewChanged) {
+      _navigate('Terminal');
+      _notify();
+    }
+  }
+
+  void closeTerminal() {
+    if (!_terminalOpen) return;
+    _terminalOpen = false;
+    _ensureSelection();
+    _notify();
+  }
+
+  void toggleTerminal() =>
+      _terminalOpen && !_homeOpen ? closeTerminal() : openTerminal();
 
   // ── App install (device-level) ──────────────────────────────────────────
   bool _isInstallingApp = false;
@@ -583,6 +616,7 @@ class DeviceSessionController extends ChangeNotifier {
     _homeController?.dispose();
     _appsController?.dispose();
     _utilitiesController?.dispose();
+    _terminalSessionManager?.dispose();
     unawaited(service.dispose());
     super.dispose();
   }

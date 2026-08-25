@@ -9,6 +9,9 @@ import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/features/logs/data/models/log_tab_settings.dart';
 import 'package:eagly/features/logs/presentation/models/log_view_mode.dart';
+import 'package:eagly/features/terminal/data/terminal_line.dart';
+import 'package:eagly/features/terminal/data/terminal_process.dart';
+import 'package:eagly/features/terminal/data/terminal_tools.dart';
 import 'package:eagly/features/utilities/data/utility_command.dart';
 import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
 import 'package:eagly/features/flutter_scrcpy/flutter_scrcpy.dart';
@@ -238,11 +241,65 @@ class FakeSessionService extends DeviceSessionRepository {
     return utilityResult;
   }
 
+  // ── Terminal feature ──────────────────────────────────────────────────────
+  final List<TerminalInvocation> terminalRequests = [];
+  final List<FakeTerminalProcess> terminalProcesses = [];
+
+  /// Thrown by [startTerminalProcess] when set, to exercise the "tool won't
+  /// even start" path.
+  Object? terminalStartError;
+
+  @override
+  Future<TerminalProcessSession> startTerminalProcess(
+    TerminalInvocation invocation,
+  ) async {
+    terminalRequests.add(invocation);
+    final error = terminalStartError;
+    if (error != null) throw error;
+    final process = FakeTerminalProcess();
+    terminalProcesses.add(process);
+    return process.session;
+  }
+
   @override
   Future<void> dispose() async {
     await _activeStream?.close();
     _activeStream = null;
+    for (final process in terminalProcesses) {
+      await process.finish(0);
+    }
     await super.dispose();
+  }
+}
+
+/// A terminal process the test drives by hand: emit output, then [finish] it.
+class FakeTerminalProcess {
+  final StreamController<TerminalOutputChunk> _output =
+      StreamController<TerminalOutputChunk>();
+  final Completer<int> _exitCode = Completer<int>();
+
+  final List<String> stdinLines = [];
+  bool killed = false;
+
+  late final TerminalProcessSession session = TerminalProcessSession(
+    output: _output.stream,
+    exitCode: _exitCode.future,
+    onKill: () async {
+      killed = true;
+      await finish(-15);
+    },
+    onInput: stdinLines.add,
+  );
+
+  void emit(String text, {bool isError = false}) {
+    if (!_output.isClosed) {
+      _output.add(TerminalOutputChunk(text, isError: isError));
+    }
+  }
+
+  Future<void> finish(int exitCode) async {
+    if (!_output.isClosed) await _output.close();
+    if (!_exitCode.isCompleted) _exitCode.complete(exitCode);
   }
 }
 

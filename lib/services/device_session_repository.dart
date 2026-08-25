@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -8,6 +9,9 @@ import '../features/device_home/data/device_info.dart';
 import '../features/device_home/data/device_performance_stats.dart';
 import '../features/device_home/data/installed_app_info.dart';
 import '../features/logs/data/models/log_entry.dart';
+import '../features/terminal/data/terminal_line.dart';
+import '../features/terminal/data/terminal_process.dart';
+import '../features/terminal/data/terminal_tools.dart';
 import '../features/utilities/data/utility_command.dart';
 import '../features/wireless_connection/data/wireless_debug_models.dart';
 import '../features/app_log/app_logger.dart';
@@ -506,17 +510,19 @@ class DeviceSessionRepository {
 
   // ── Utilities feature (generic tool invocations) ────────────────────────
 
-  /// Lazily-created runners for the utility tools, keyed by tool. `adb` reuses
-  /// the session's [AdbTool] so utility commands go through the same server
-  /// startup handling as everything else.
-  final Map<UtilityTool, ToolProcessRunner> _utilityRunners = {};
+  /// Lazily-created runners for the bundled CLIs, keyed by executable name.
+  /// `adb` reuses the session's [AdbTool] so ad-hoc commands go through the
+  /// same server startup handling as everything else.
+  final Map<String, ToolProcessRunner> _toolRunners = {};
 
-  ToolProcessRunner _utilityRunner(UtilityTool tool) {
-    if (tool == UtilityTool.adb) return _adbTool;
-    return _utilityRunners[tool] ??= DeviceToolRunner(
-      executableName: tool.executable,
+  ToolProcessRunner _toolRunner(String executableName) {
+    if (executableName == _adbExecutableName) return _adbTool;
+    return _toolRunners[executableName] ??= DeviceToolRunner(
+      executableName: executableName,
     );
   }
+
+  static const _adbExecutableName = 'adb';
 
   /// Runs one [invocation] against the bound device, prepending the tool's
   /// device selector (`adb -s <serial>` / `idevicefoo -u <udid>`). Never
@@ -526,7 +532,7 @@ class DeviceSessionRepository {
     UtilityInvocation invocation, {
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    final runner = _utilityRunner(invocation.tool);
+    final runner = _toolRunner(invocation.tool.executable);
     final arguments = [
       invocation.tool.deviceFlag,
       _deviceId,
@@ -549,6 +555,81 @@ class DeviceSessionRepository {
         stderr: error.toString(),
       );
     }
+  }
+
+  // ── Terminal feature (free-form tool invocations) ────────────────────────
+
+  /// Starts [invocation] and hands back a live [TerminalProcessSession].
+  ///
+  /// The argv arrives fully formed — the terminal resolves the device selector
+  /// itself, because a terminal tab may deliberately aim at a device other than
+  /// the one this repository is bound to. Nothing here rewrites the command;
+  /// this only owns process startup, output merging and teardown. Throws when
+  /// the tool cannot be started at all.
+  Future<TerminalProcessSession> startTerminalProcess(
+    TerminalInvocation invocation,
+  ) async {
+    final runner = _toolRunner(invocation.executable);
+    _sessionLogger.info('Terminal: ${invocation.displayCommand}');
+    if (invocation.executable == _adbExecutableName) {
+      await _adbTool.ensureServerRunning();
+    }
+
+    final process = await runner.startProcess(invocation.arguments);
+    final output = StreamController<TerminalOutputChunk>();
+    const decoder = Utf8Decoder(allowMalformed: true);
+
+    var openPipes = 2;
+    void closePipe() {
+      if (--openPipes == 0 && !output.isClosed) unawaited(output.close());
+    }
+
+    StreamSubscription<String> pipe(Stream<List<int>> source, bool isError) {
+      return source
+          .transform(decoder)
+          .transform(const LineSplitter())
+          .listen(
+            (line) {
+              if (!output.isClosed) {
+                output.add(TerminalOutputChunk(line, isError: isError));
+              }
+            },
+            onError: (Object error) {
+              if (!output.isClosed) {
+                output.add(
+                  TerminalOutputChunk(error.toString(), isError: true),
+                );
+              }
+            },
+            onDone: closePipe,
+          );
+    }
+
+    // Both pipes close on their own when the process ends, which closes
+    // [output] — so nothing here cancels them early and drops trailing lines.
+    pipe(process.stdout, false);
+    pipe(process.stderr, true);
+
+    return TerminalProcessSession(
+      output: output.stream,
+      exitCode: process.exitCode,
+      onKill: () async {
+        process.kill(ProcessSignal.sigterm);
+        try {
+          await process.exitCode.timeout(const Duration(seconds: 2));
+        } on TimeoutException {
+          process.kill(ProcessSignal.sigkill);
+        }
+      },
+      onInput: (text) {
+        try {
+          process.stdin.writeln(text);
+        } catch (_) {
+          // The process exited between the check and the write; the caller
+          // finds out from the exit-code line either way.
+        }
+      },
+    );
   }
 
   /// Refresh the PID to package name mapping.

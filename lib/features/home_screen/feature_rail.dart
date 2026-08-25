@@ -158,6 +158,16 @@ class FeatureRail extends StatelessWidget {
                                         : 'Run device commands',
                                     onTap: session.toggleUtilities,
                                   ),
+                                if (session.canUseTerminal)
+                                  RailButton(
+                                    icon: Icons.terminal_outlined,
+                                    label: 'Terminal',
+                                    isActive: session.isTerminalOpen,
+                                    tooltip: session.isTerminalOpen
+                                        ? 'Hide terminal'
+                                        : 'Type adb / idevice commands',
+                                    onTap: session.toggleTerminal,
+                                  ),
                                 RailButton(
                                   icon: session.isInstallingApp
                                       ? Icons.hourglass_top_rounded
