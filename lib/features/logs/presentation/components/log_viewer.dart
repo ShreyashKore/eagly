@@ -14,6 +14,7 @@ import '../../../../services/preferences_service.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../../../utils/log_entry_utils.dart';
 import '../../../../utils/text_search_pattern.dart';
+import 'column_visibility_menu.dart';
 import 'log_row.dart';
 import 'log_viewer_header.dart';
 import '../log_viewer_constants.dart';
@@ -229,6 +230,7 @@ class _LogViewerState extends State<LogViewer> {
     }
     if (!setEquals(widget.hiddenColumns, old.hiddenColumns)) {
       _hiddenColumns = Set.of(widget.hiddenColumns);
+      _largestBuiltMessageWidth = 0;
     }
     if (widget.scrollController != old.scrollController) {
       old.scrollController.removeListener(_handleVerticalScroll);
@@ -636,8 +638,11 @@ class _LogViewerState extends State<LogViewer> {
     _debounceSaveWidths();
   }
 
-  void _showColumnVisibilityMenu(BuildContext context, Offset position) async {
-    final result = await showMenu<LogColumn>(
+  void _showColumnVisibilityMenu(BuildContext context, Offset position) {
+    // A single item holding the whole list: [PopupMenuItem]s close the menu on
+    // tap, so the rows handle their own taps and the menu stays open until it
+    // is dismissed.
+    showMenu<void>(
       context: context,
       position: RelativeRect.fromLTRB(
         position.dx,
@@ -645,56 +650,28 @@ class _LogViewerState extends State<LogViewer> {
         position.dx,
         position.dy,
       ),
-      items: LogColumn.values.where((c) => !c.isExpandable).map((col) {
-        return PopupMenuItem<LogColumn>(
-          value: col,
-          child: StatefulBuilder(
-            builder: (context, setMenuState) {
-              final visible = _isVisible(col);
-              return Row(
-                children: [
-                  Checkbox(
-                    visualDensity: VisualDensity.compact,
-                    value: visible,
-                    onChanged: (_) {
-                      setState(() {
-                        if (visible) {
-                          _hiddenColumns.add(col.name);
-                        } else {
-                          _hiddenColumns.remove(col.name);
-                        }
-                        widget.onHiddenColumnsChanged?.call(
-                          Set.of(_hiddenColumns),
-                        );
-                        setMenuState(() {});
-                        Navigator.of(context).pop();
-                      });
-                    },
-                  ),
-                  Text(
-                    col.labelFor(isIos: widget.isIos),
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(fontSize: 12),
-                  ),
-                ],
-              );
-            },
+      items: [
+        PopupMenuItem<void>(
+          padding: EdgeInsets.zero,
+          child: ColumnVisibilityMenu(
+            columns: LogColumn.values.where((c) => !c.isExpandable).toList(),
+            hiddenColumns: _hiddenColumns,
+            isIos: widget.isIos,
+            onChanged: _applyHiddenColumns,
           ),
-        );
-      }).toList(),
+        ),
+      ],
     );
-    // If user taps on a column name directly (selects it as value), toggle it
-    if (result != null) {
-      setState(() {
-        if (_isVisible(result)) {
-          _hiddenColumns.add(result.name);
-        } else {
-          _hiddenColumns.remove(result.name);
-        }
-      });
-      widget.onHiddenColumnsChanged?.call(Set.of(_hiddenColumns));
-    }
+  }
+
+  void _applyHiddenColumns(Set<String> hidden) {
+    if (!mounted) return;
+    setState(() {
+      _hiddenColumns = Set.of(hidden);
+      // Column widths change the space left for the message column.
+      _largestBuiltMessageWidth = 0;
+    });
+    widget.onHiddenColumnsChanged?.call(Set.of(hidden));
   }
 
   void _registerRowContext(int index, BuildContext context) {
