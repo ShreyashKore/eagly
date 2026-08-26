@@ -56,8 +56,7 @@ class FeatureRail extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Flexible(
-                      child: AnimatedContainer(
-                        duration: Duration(milliseconds: 300),
+                      child: Container(
                         decoration: BoxDecoration(
                           color: session.isHomeOpen
                               ? Colors.transparent

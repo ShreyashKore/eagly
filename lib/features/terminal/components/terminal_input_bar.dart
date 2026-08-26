@@ -123,13 +123,11 @@ class _TerminalInputBarState extends State<TerminalInputBar> {
         ),
       ),
       padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-      child: Row(
-        // Top-aligned so the prompt stays on the editor's first line as it
-        // grows downward.
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 2),
+            padding: const EdgeInsets.only(top: 2, bottom: 8),
             child: _PromptLabel(
               device: target,
               isPinned: controller.isPinnedElsewhere,
@@ -137,54 +135,58 @@ class _TerminalInputBarState extends State<TerminalInputBar> {
               style: mono,
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: _input,
-              focusNode: _focusNode,
-              autofocus: true,
-              minLines: _minLines,
-              maxLines: _maxLines,
-              keyboardType: TextInputType.multiline,
-              textInputAction: TextInputAction.newline,
-              // Enter is claimed by [_onKeyEvent]; this covers the platforms
-              // that report submission as an action instead of a key.
-              onSubmitted: (_) => _submit(),
-              style: mono,
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                hintText: isRunning
-                    ? 'Sending to ${controller.runningCommand} — Ctrl+C to stop'
-                    : target.isConnected
-                    ? 'adb shell …  ·  help\nEnter runs · Shift+Enter adds a line'
-                    : '${target.displayName} is disconnected',
-                hintMaxLines: 2,
-                hintStyle: mono.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(
-                    alpha: 0.7,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _input,
+                  focusNode: _focusNode,
+                  autofocus: true,
+                  minLines: _minLines,
+                  maxLines: _maxLines,
+                  keyboardType: TextInputType.multiline,
+                  textInputAction: TextInputAction.newline,
+                  // Enter is claimed by [_onKeyEvent]; this covers the platforms
+                  // that report submission as an action instead of a key.
+                  onSubmitted: (_) => _submit(),
+                  style: mono,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    hintText: isRunning
+                        ? 'Sending to ${controller.runningCommand} — Ctrl+C to stop'
+                        : target.isConnected
+                        ? 'adb shell …  ·  help\nEnter runs · Shift+Enter adds a line'
+                        : '${target.displayName} is disconnected',
+                    hintMaxLines: 2,
+                    hintStyle: mono.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.7,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
                   ),
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 2),
               ),
-            ),
+              const SizedBox(width: 4),
+              if (isRunning)
+                IconButton(
+                  tooltip: 'Stop (Ctrl+C)',
+                  onPressed: () => unawaited(controller.cancel()),
+                  icon: Icon(
+                    Icons.stop_circle_outlined,
+                    color: eaglyTheme.errorColor,
+                  ),
+                )
+              else
+                IconButton(
+                  tooltip: 'Run (Enter)',
+                  onPressed: _submit,
+                  icon: const Icon(Icons.keyboard_return),
+                ),
+            ],
           ),
-          const SizedBox(width: 4),
-          if (isRunning)
-            IconButton(
-              tooltip: 'Stop (Ctrl+C)',
-              onPressed: () => unawaited(controller.cancel()),
-              icon: Icon(
-                Icons.stop_circle_outlined,
-                color: eaglyTheme.errorColor,
-              ),
-            )
-          else
-            IconButton(
-              tooltip: 'Run (Enter)',
-              onPressed: _submit,
-              icon: const Icon(Icons.keyboard_return),
-            ),
         ],
       ),
     );
@@ -226,14 +228,11 @@ class _PromptLabel extends StatelessWidget {
             Icon(Icons.push_pin_outlined, size: 13, color: color),
             const SizedBox(width: 4),
           ],
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 160),
-            child: Text(
-              device.displayName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: style.copyWith(fontWeight: FontWeight.w600, color: color),
-            ),
+          Text(
+            device.displayName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style.copyWith(fontWeight: FontWeight.w600, color: color),
           ),
           const SizedBox(width: 6),
           Text(
