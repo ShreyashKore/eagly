@@ -17,6 +17,46 @@ class _FakeIdeviceInstallerTool extends IdeviceInstallerTool {
   }
 }
 
+/// Simulates a real `ideviceinstaller` binary of one CLI generation: it
+/// rejects the *other* generation's arguments the way the real tools do
+/// (option parsing fails long before the device is touched).
+class _CliGenerationFake extends IdeviceInstallerTool {
+  _CliGenerationFake({required this.legacyBinary, this.stdout = ''})
+    : super(executablePath: '/usr/bin/true');
+
+  final bool legacyBinary;
+  final String stdout;
+  final calls = <List<String>>[];
+
+  @override
+  Future<ToolCommandResult> runText(List<String> arguments) async {
+    calls.add(arguments);
+    final usesSubcommands = arguments.any(
+      (a) => const {'install', 'uninstall', 'list'}.contains(a),
+    );
+
+    if (legacyBinary && usesSubcommands) {
+      return const ToolCommandResult(
+        exitCode: 1,
+        stdout: '',
+        stderr:
+            'ERROR: No mode/command was supplied.\n'
+            'Usage: ideviceinstaller OPTIONS',
+      );
+    }
+    if (!legacyBinary && !usesSubcommands) {
+      return const ToolCommandResult(
+        exitCode: 1,
+        stdout: '',
+        stderr:
+            'ideviceinstaller: invalid option -- i\n'
+            'Usage: ideviceinstaller OPTIONS',
+      );
+    }
+    return ToolCommandResult(exitCode: 0, stdout: stdout, stderr: '');
+  }
+}
+
 void main() {
   // Reproduces two real-world quirks seen on a real device dump:
   //  - Truecaller's CFBundleDisplayName is declared *before* its
@@ -112,5 +152,62 @@ void main() {
       'com.truesoftware.TrueCallerOther',
       'com.amazon.AmazonIN',
     ]);
+  });
+
+  group('CLI generation', () {
+    test('installs with subcommands on a 1.1.1+ binary', () async {
+      final tool = _CliGenerationFake(legacyBinary: false);
+
+      final result = await tool.installApp(deviceId: 'udid', appPath: '/a.ipa');
+
+      expect(result.isSuccess, isTrue);
+      expect(tool.calls, [
+        ['-u', 'udid', 'install', '/a.ipa'],
+      ]);
+    });
+
+    test(
+      'retries with the legacy flags when subcommands are rejected',
+      () async {
+        final tool = _CliGenerationFake(legacyBinary: true);
+
+        final result = await tool.installApp(
+          deviceId: 'udid',
+          appPath: '/a.ipa',
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(tool.calls, [
+          ['-u', 'udid', 'install', '/a.ipa'],
+          ['-u', 'udid', '-i', '/a.ipa'],
+        ]);
+      },
+    );
+
+    test('remembers the working dialect for later commands', () async {
+      final tool = _CliGenerationFake(legacyBinary: true);
+
+      await tool.installApp(deviceId: 'udid', appPath: '/a.ipa');
+      tool.calls.clear();
+      final result = await tool.uninstallApp(
+        deviceId: 'udid',
+        bundleId: 'com.example.app',
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(tool.calls, [
+        ['-u', 'udid', '-U', 'com.example.app'],
+      ]);
+    });
+
+    test('lists apps as xml on either generation', () async {
+      final modern = _CliGenerationFake(legacyBinary: false, stdout: xml);
+      final legacy = _CliGenerationFake(legacyBinary: true, stdout: xml);
+
+      expect(await modern.listAllApps('udid'), hasLength(2));
+      expect(await legacy.listAllApps('udid'), hasLength(2));
+      expect(modern.calls.single, ['-u', 'udid', 'list', '--xml']);
+      expect(legacy.calls.last, ['-u', 'udid', '-l', '-o', 'xml']);
+    });
   });
 }

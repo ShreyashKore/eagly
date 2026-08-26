@@ -7,7 +7,7 @@ dir are both **`eagly`**, so imports are `package:eagly/...`.
 
 ## Commands
 
-This repo pins Flutter via **fvm** (`.fvmrc` → 3.41.7). Always prefix with `fvm`:
+This repo pins Flutter via **fvm** (`.fvmrc` → 3.47.0). Always prefix with `fvm`:
 
 ```bash
 fvm flutter run -d macos        # run (also: windows / linux)

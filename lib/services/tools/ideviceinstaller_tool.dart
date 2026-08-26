@@ -6,16 +6,80 @@ import '../../features/wireless_connection/data/wireless_debug_models.dart';
 import '../../utils/utils.dart';
 import 'tool_process_runner.dart';
 
+/// Which `ideviceinstaller` command line the binary in front of us speaks.
+///
+/// 1.1.1 (2020) replaced the old one-short-option-per-mode interface with
+/// subcommands, and the bundles are not on the same generation: the macOS
+/// bundle ships the newer CLI while the Linux/Windows ones still ship 1.1.0
+/// — so hardcoding either dialect breaks installs (and silently empties the
+/// app list) on the other platforms.
+enum _InstallerCli {
+  /// 1.1.1+ — `install PATH`, `uninstall BUNDLEID`, `list --xml`.
+  subcommand,
+
+  /// 1.1.0 — `-i ARCHIVE`, `-U BUNDLEID`, `-l -o xml`.
+  legacy,
+}
+
 class IdeviceInstallerTool extends ToolProcessRunner {
   IdeviceInstallerTool({super.executablePath})
     : super(executableName: 'ideviceinstaller');
+
+  /// Markers both generations print when they reject the *other* one's
+  /// arguments (`ideviceinstaller: invalid option -- i`, `ERROR: No
+  /// mode/command was supplied.`, …), always alongside the usage block.
+  static const _usageErrorMarkers = [
+    'invalid option',
+    'unrecognized option',
+    'invalid command',
+    'missing command',
+    'no mode/command was supplied',
+    'usage:',
+  ];
+
+  /// The dialect the binary turned out to understand, learned from the first
+  /// command that wasn't rejected at option parsing.
+  _InstallerCli? _cli;
+
+  /// Runs the arguments [buildArguments] produces for the dialect we believe
+  /// the binary speaks, retrying once with the other dialect when it comes
+  /// back rejected. Argument parsing happens before anything touches the
+  /// device, so the retry is cheap and can't install/uninstall twice.
+  Future<ToolCommandResult> _runForCli(
+    List<String> Function(_InstallerCli cli) buildArguments,
+  ) async {
+    final preferred = _cli ?? _InstallerCli.subcommand;
+    final result = await runText(buildArguments(preferred));
+    if (!_looksLikeUsageError(result)) {
+      _cli = preferred;
+      return result;
+    }
+
+    final fallback = preferred == _InstallerCli.subcommand
+        ? _InstallerCli.legacy
+        : _InstallerCli.subcommand;
+    final retried = await runText(buildArguments(fallback));
+    if (!_looksLikeUsageError(retried)) _cli = fallback;
+    return retried;
+  }
+
+  bool _looksLikeUsageError(ToolCommandResult result) {
+    if (result.isSuccess) return false;
+    final normalized = result.combinedOutput.toLowerCase();
+    return _usageErrorMarkers.any(normalized.contains);
+  }
 
   Future<DeviceCommandResult> installApp({
     required String deviceId,
     required String appPath,
   }) async {
     try {
-      final result = await runText(['-u', deviceId, '-i', appPath]);
+      final result = await _runForCli(
+        (cli) => switch (cli) {
+          _InstallerCli.subcommand => ['-u', deviceId, 'install', appPath],
+          _InstallerCli.legacy => ['-u', deviceId, '-i', appPath],
+        },
+      );
       final output = result.combinedOutput;
       final failed = !result.isSuccess || _looksLikeFailure(output);
 
@@ -60,7 +124,12 @@ class IdeviceInstallerTool extends ToolProcessRunner {
     required String bundleId,
   }) async {
     try {
-      final result = await runText(['-u', deviceId, '-U', bundleId]);
+      final result = await _runForCli(
+        (cli) => switch (cli) {
+          _InstallerCli.subcommand => ['-u', deviceId, 'uninstall', bundleId],
+          _InstallerCli.legacy => ['-u', deviceId, '-U', bundleId],
+        },
+      );
       final output = result.combinedOutput;
       final failed = !result.isSuccess || _looksLikeFailure(output);
 
@@ -95,15 +164,25 @@ class IdeviceInstallerTool extends ToolProcessRunner {
     }
   }
 
-  /// Full user-app inventory (uncapped, with version) for the Apps feature.
-  /// `ideviceinstaller -l` only ever lists user-installed apps — there's no
-  /// concept of "system apps" exposed here — so everything returned is
-  /// uninstallable. `-o xml` is required: the plain (default) `-l` output is
-  /// a terse CSV table (`id, "version", "name"`), not the plist this parser
+  /// Lists user-installed apps as an XML property list. The plist output is
+  /// mandatory: the plain (default) listing is a terse CSV table
+  /// (`id, "version", "name"`), not the plist [_parseInstalledAppsDetailed]
   /// expects — without it every app is silently dropped.
+  Future<ToolCommandResult> _listApps(String deviceId) {
+    return _runForCli(
+      (cli) => switch (cli) {
+        _InstallerCli.subcommand => ['-u', deviceId, 'list', '--xml'],
+        _InstallerCli.legacy => ['-u', deviceId, '-l', '-o', 'xml'],
+      },
+    );
+  }
+
+  /// Full user-app inventory (uncapped, with version) for the Apps feature.
+  /// The installer only ever lists user-installed apps — there's no concept
+  /// of "system apps" exposed here — so everything returned is uninstallable.
   Future<List<AppInfo>> listAllApps(String deviceId) async {
     try {
-      final result = await runText(['-u', deviceId, '-l', '-o', 'xml']);
+      final result = await _listApps(deviceId);
       if (!result.isSuccess) return [];
 
       final apps = _parseInstalledAppsDetailed(result.stdout);
@@ -205,7 +284,7 @@ class IdeviceInstallerTool extends ToolProcessRunner {
   /// feature already uses.
   Future<List<InstalledAppInfo>> listInstalledApps(String deviceId) async {
     try {
-      final result = await runText(['-u', deviceId, '-l', '-o', 'xml']);
+      final result = await _listApps(deviceId);
       if (!result.isSuccess) return [];
 
       return _parseInstalledAppsDetailed(result.stdout)

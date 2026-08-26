@@ -42,10 +42,17 @@ exit 0
     ideviceInstallerPath = await _writeExecutable(
       tempDir,
       'ideviceinstaller',
+      // Mirrors the 1.1.1+ CLI the macOS bundle ships: `install PATH`, with
+      // the pre-1.1.1 `-i` flag rejected at option parsing.
       r'''#!/bin/sh
-if [ "$1" = "-u" ] && [ "$3" = "-i" ]; then
+if [ "$1" = "-u" ] && [ "$3" = "install" ]; then
   echo "Complete"
   exit 0
+fi
+if [ "$1" = "-u" ] && [ "$3" = "-i" ]; then
+  echo "ideviceinstaller: invalid option -- i" >&2
+  echo "Usage: ideviceinstaller OPTIONS" >&2
+  exit 1
 fi
 exit 0
 ''',
