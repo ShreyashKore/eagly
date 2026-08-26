@@ -49,9 +49,11 @@ class RailButton extends StatelessWidget {
                 children: [
                   Icon(icon, size: 22, color: foreground),
                   const SizedBox(height: 2),
-                  Text(
-                    label,
-                    style: TextStyle(fontSize: 11, color: foreground),
+                  FittedBox(
+                    child: Text(
+                      label,
+                      style: TextStyle(fontSize: 11, color: foreground),
+                    ),
                   ),
                 ],
               ),

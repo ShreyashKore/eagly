@@ -26,7 +26,7 @@ class FeatureRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
+    final featuresBgColor = theme.colorScheme.surface.withValues(alpha: 0.5);
     return ListenableBuilder(
       listenable: session,
       builder: (context, _) {
@@ -55,21 +55,24 @@ class FeatureRail extends StatelessWidget {
                       onTap: session.toggleHome,
                     ),
                     const SizedBox(height: 8),
-                    Stack(
-                      children: [
-                        Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surface.withValues(
-                                alpha: 0.5,
-                              ),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
+                    Flexible(
+                      child: AnimatedContainer(
+                        duration: Duration(milliseconds: 300),
+                        decoration: BoxDecoration(
+                          color: session.isHomeOpen
+                              ? Colors.transparent
+                              : featuresBgColor,
+                          border: Border.all(
+                            width: 2,
+                            color: session.isHomeOpen
+                                ? featuresBgColor
+                                : Colors.transparent,
                           ),
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                        SingleChildScrollView(
+                        child: SingleChildScrollView(
                           child: Padding(
-                            padding: const EdgeInsets.all(4),
+                            padding: const EdgeInsets.all(2),
                             child: Column(
                               spacing: 4,
                               children: [
@@ -93,8 +96,7 @@ class FeatureRail extends StatelessWidget {
                                             ? 'Hide mirror'
                                             : 'Open mirror')
                                       : 'Screen mirror supports connected Android devices',
-                                  onTap:
-                                      session.canMirror || session.isMirrorOpen
+                                  onTap: session.canMirror || session.isMirrorOpen
                                       ? session.toggleMirror
                                       : null,
                                 ),
@@ -113,18 +115,15 @@ class FeatureRail extends StatelessWidget {
                                   label: 'Files',
                                   isActive: session.isFilesOpen,
                                   enabled:
-                                      session.canManageFiles ||
-                                      session.isFilesOpen,
+                                      session.canManageFiles || session.isFilesOpen,
                                   tooltip:
-                                      session.canManageFiles ||
-                                          session.isFilesOpen
+                                      session.canManageFiles || session.isFilesOpen
                                       ? (session.isFilesOpen
                                             ? 'Hide files'
                                             : 'Browse device files')
                                       : 'Connect the device to browse files',
                                   onTap:
-                                      session.canManageFiles ||
-                                          session.isFilesOpen
+                                      session.canManageFiles || session.isFilesOpen
                                       ? session.toggleFiles
                                       : null,
                                 ),
@@ -133,18 +132,14 @@ class FeatureRail extends StatelessWidget {
                                   label: 'Apps',
                                   isActive: session.isAppsOpen,
                                   enabled:
-                                      session.canManageApps ||
-                                      session.isAppsOpen,
+                                      session.canManageApps || session.isAppsOpen,
                                   tooltip:
-                                      session.canManageApps ||
-                                          session.isAppsOpen
+                                      session.canManageApps || session.isAppsOpen
                                       ? (session.isAppsOpen
                                             ? 'Hide apps'
                                             : 'Manage installed apps')
                                       : 'Connect the device to manage apps',
-                                  onTap:
-                                      session.canManageApps ||
-                                          session.isAppsOpen
+                                  onTap: session.canManageApps || session.isAppsOpen
                                       ? session.toggleApps
                                       : null,
                                 ),
@@ -192,20 +187,7 @@ class FeatureRail extends StatelessWidget {
                             ),
                           ),
                         ),
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.surface.withValues(
-                                  alpha: session.isHomeOpen ? 0.5 : 0,
-                                ),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
