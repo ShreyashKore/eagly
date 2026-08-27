@@ -91,7 +91,12 @@ jobs:
           # back to javac on PATH — the runner images export it, a container
           # does not, so derive it from the installed JDK.
           echo "JAVA_HOME=$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")" >> "$GITHUB_ENV"
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # Container steps run as root, but the runner's tool cache (mounted at
+          # /__t, where flutter-action puts the SDK) and the workspace are owned
+          # by the runner's uid — git then refuses both with "detected dubious
+          # ownership". The job is ephemeral, so allow every path rather than
+          # chasing each one.
+          git config --global --add safe.directory '*'
 
       - uses: actions/checkout@v4
 
