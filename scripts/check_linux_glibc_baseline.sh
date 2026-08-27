@@ -78,8 +78,10 @@ max_for_prefix() {
   esac
 }
 
+# Compared as hex: reading the raw magic through a command substitution makes
+# bash warn about the null bytes in every non-ELF file it meets.
 is_elf() {
-  [ "$(LC_ALL=C head -c 4 -- "$1" 2>/dev/null)" = $'\177ELF' ]
+  [ "$(od -An -tx1 -N4 -- "$1" 2>/dev/null | tr -d '[:space:]')" = "7f454c46" ]
 }
 
 # Every versioned symbol reference in an ELF, as "PREFIX VERSION" pairs.
