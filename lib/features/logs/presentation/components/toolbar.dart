@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../presentation/components/animation_utils.dart';
+import '../../../../presentation/components/overflow_toolbar.dart';
 import '../../log_controller.dart';
 import '../../log_session_manager.dart';
 import 'log_tab_strip.dart';
@@ -10,6 +11,10 @@ import 'toolbar_icon_button.dart';
 /// Toolbar for the Logs feature: log-tab strip, capture controls
 /// (start/pause/clear), copy/row-selection, search, view toggles, export,
 /// import, and a pane-level close button.
+///
+/// The capture controls, the tab strip and the close button are always
+/// visible; everything in between collapses into an overflow menu — last
+/// action first — as the pane narrows.
 class Toolbar extends StatelessWidget {
   const Toolbar({
     super.key,
@@ -33,12 +38,17 @@ class Toolbar extends StatelessWidget {
     final c = controller;
     const gap = SizedBox(width: 4);
     const div = ToolbarDivider();
-    Widget gapTimes(int n) => SizedBox(width: 4.0 * n);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-      child: Row(
-        children: [
+      child: OverflowToolbar(
+        actionBuilder: (context, action) => ToolbarIconButton(
+          icon: action.icon,
+          tooltip: action.tooltip ?? action.label,
+          isActive: action.isActive,
+          onPressed: action.onPressed,
+        ),
+        leading: [
           // ── Live-only capture controls (hidden for imported logs) ──────
           AnimatedSection(
             visible: !c.isImported,
@@ -75,29 +85,30 @@ class Toolbar extends StatelessWidget {
                 ),
                 gap,
                 div,
-                gapTimes(3),
+                gap,
               ],
             ),
           ),
+        ],
 
-          // ── Log tab strip ─────────────────────────────────────────────
-          LogTabStrip(logManager: logManager, onImportLog: onImportLog),
-          const Spacer(),
-          gap,
-          div,
-          gap,
+        // ── Log tab strip: takes the leftover width and scrolls ─────────
+        flexible: LogTabStrip(logManager: logManager, onImportLog: onImportLog),
+        flexibleMinWidth: 120,
 
+        actions: [
           // ── Copy / row-select ─────────────────────────────────────────
-          ToolbarIconButton(
+          ToolbarAction(
             icon: Icons.copy_all_outlined,
+            label: 'Copy all logs',
             tooltip: c.hasAnyCachedLogs ? 'Copy all logs' : 'No logs to copy',
+            dividerBefore: true,
             onPressed: c.hasAnyCachedLogs ? onCopyAll : null,
           ),
-          gap,
-          ToolbarIconButton(
+          ToolbarAction(
             icon: c.rowSelectionMode
                 ? Icons.checklist_rounded
                 : Icons.checklist_outlined,
+            label: 'Row selection mode',
             tooltip: c.rowSelectionMode
                 ? 'Disable row selection mode'
                 : 'Enable row selection mode',
@@ -107,33 +118,23 @@ class Toolbar extends StatelessWidget {
                 : null,
           ),
 
-          // ── Deselect (appears only when rows are selected) ────────────
-          AnimatedSection(
-            visible: c.hasSelectedRows,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                gap,
-                ToolbarIconButton(
-                  icon: Icons.deselect_outlined,
-                  tooltip: 'Clear selected rows',
-                  onPressed: c.clearSelectedRows,
-                ),
-              ],
+          // ── Deselect (only while rows are selected) ───────────────────
+          if (c.hasSelectedRows)
+            ToolbarAction(
+              icon: Icons.deselect_outlined,
+              label: 'Clear selected rows',
+              onPressed: c.clearSelectedRows,
             ),
-          ),
-
-          gap,
-          div,
-          gap,
 
           // ── Search / wrap / auto-scroll ───────────────────────────────
-          ToolbarIconButton(
+          ToolbarAction(
             icon: Icons.search,
+            label: 'Search in logs',
             tooltip: c.searchBarVisible
                 ? 'Close search'
                 : 'Search in logs (Ctrl+F / Cmd+F)',
             isActive: c.searchBarVisible,
+            dividerBefore: true,
             onPressed: () {
               if (c.searchBarVisible) {
                 c.closeSearchBar();
@@ -142,47 +143,51 @@ class Toolbar extends StatelessWidget {
               }
             },
           ),
-          gap,
-          ToolbarIconButton(
+          ToolbarAction(
             icon: c.wrapText ? Icons.wrap_text : Icons.notes,
+            label: 'Wrap long lines',
             tooltip: c.wrapText ? 'Disable Wrap' : 'Enable Wrap',
             isActive: c.wrapText,
             onPressed: c.toggleWrapText,
           ),
-          gap,
-          ToolbarIconButton(
+          ToolbarAction(
             icon: c.autoScroll ? Icons.vertical_align_bottom : Icons.swipe_down,
+            label: 'Auto-scroll',
             tooltip: c.autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF',
             isActive: c.autoScroll,
             onPressed: c.toggleAutoScroll,
           ),
-          gap,
-          div,
-          gap,
 
           // ── Export / import ───────────────────────────────────────────
-          ToolbarIconButton(
+          ToolbarAction(
             icon: Icons.upload_outlined,
-            tooltip: 'Export logs',
+            label: 'Export logs',
+            dividerBefore: true,
             onPressed: onExport,
           ),
-          gap,
-          ToolbarIconButton(
+          ToolbarAction(
             icon: Icons.download_outlined,
-            tooltip: 'Import log file',
+            label: 'Import log file',
             onPressed: onImportLog,
           ),
-          gap,
-          div,
-          gap,
-          ToolbarIconButton(
-            icon: Icons.close,
-            tooltip: 'Close logs pane',
-            onPressed: onClose,
+        ],
+
+        // ── Close (always visible, with its group divider) ──────────────
+        trailing: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              div,
+              gap,
+              ToolbarIconButton(
+                icon: Icons.close,
+                tooltip: 'Close logs pane',
+                onPressed: onClose,
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 }
-

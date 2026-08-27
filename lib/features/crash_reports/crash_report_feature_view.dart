@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../presentation/components/feature_view.dart';
+import '../../presentation/components/overflow_toolbar.dart';
 import 'components/body.dart';
 import 'crash_report_controller.dart';
 
@@ -44,16 +45,17 @@ class _CrashReportFeatureViewState
                 icon: const Icon(Icons.arrow_back),
               ),
         actions: [
-          IconButton(
-            tooltip: 'Refresh',
+          ToolbarAction(
+            icon: Icons.refresh,
+            label: 'Refresh',
             onPressed: controller.isLoading ? null : controller.refresh,
-            icon: controller.isLoading
+            iconOverride: controller.isLoading
                 ? const SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.refresh),
+                : null,
           ),
         ],
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../presentation/components/feature_view.dart';
+import '../../presentation/components/overflow_toolbar.dart';
 import 'components/mirror_control_strip.dart';
 import 'components/pane_body.dart';
 import 'components/quality_button.dart';
@@ -35,8 +36,11 @@ class _MirrorFeatureViewState extends FeatureViewState<MirrorFeatureView> {
         closeTooltip: 'Close mirror pane',
         onClose: widget.onClose,
         actions: [
-          IconButton(
-            tooltip: controller.isScreenMirrorRunning
+          ToolbarAction(
+            icon: controller.isScreenMirrorRunning
+                ? Icons.stop_circle_outlined
+                : Icons.play_arrow,
+            label: controller.isScreenMirrorRunning
                 ? 'Stop mirror'
                 : 'Start mirror',
             onPressed: controller.canStart || controller.isScreenMirrorRunning
@@ -48,14 +52,9 @@ class _MirrorFeatureViewState extends FeatureViewState<MirrorFeatureView> {
                     }
                   }
                 : null,
-            icon: Icon(
-              controller.isScreenMirrorRunning
-                  ? Icons.stop_circle_outlined
-                  : Icons.play_arrow,
-            ),
           ),
-          QualityButton(controller: controller),
         ],
+        trailing: [QualityButton(controller: controller)],
       ),
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,

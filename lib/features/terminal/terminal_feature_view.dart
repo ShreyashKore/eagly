@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../presentation/components/feature_view.dart';
+import '../../presentation/components/overflow_toolbar.dart';
 import '../../services/preferences_service.dart';
 import 'components/terminal_input_bar.dart';
 import 'components/terminal_output_view.dart';
@@ -60,17 +61,18 @@ class _TerminalFeatureViewState extends FeatureViewState<TerminalFeatureView> {
         onClose: widget.onClose,
         closeTooltip: 'Close terminal pane',
         actions: [
-          IconButton(
-            tooltip: 'Copy output',
+          ToolbarAction(
+            icon: Icons.copy_all_outlined,
+            label: 'Copy output',
             onPressed: controller.lines.isEmpty
                 ? null
                 : () => _copyScrollback(controller),
-            icon: const Icon(Icons.copy_all_outlined),
           ),
-          IconButton(
+          ToolbarAction(
+            icon: Icons.clear_all,
+            label: 'Clear scrollback',
             tooltip: 'Clear scrollback (Ctrl+L)',
             onPressed: controller.lines.isEmpty ? null : controller.clear,
-            icon: const Icon(Icons.clear_all),
           ),
         ],
       ),

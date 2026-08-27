@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../../presentation/components/centered_state_message.dart';
+import '../../presentation/components/overflow_toolbar.dart';
 import 'apps_controller.dart';
 import 'components/app_context_menu.dart';
 import 'components/app_tile.dart';
@@ -255,47 +256,28 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final title = controller.loadState == AppLoadState.ready
         ? 'Apps · ${controller.apps.length}'
         : 'Apps';
 
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        border: Border(
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+    return FeatureViewHeader(
+      title: title,
+      onClose: onClose,
+      closeTooltip: 'Close apps pane',
+      actions: [
+        ToolbarAction(
+          icon: Icons.refresh,
+          label: 'Refresh',
+          onPressed: controller.isLoading ? null : controller.refresh,
+          iconOverride: controller.isLoading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : null,
         ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: theme.textTheme.titleSmall,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: controller.isLoading ? null : controller.refresh,
-            icon: controller.isLoading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh),
-          ),
-          IconButton(
-            tooltip: 'Close apps pane',
-            onPressed: onClose,
-            icon: const Icon(Icons.close),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -317,35 +299,48 @@ class _Toolbar extends StatelessWidget {
           bottom: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: SizedBox(
-              height: context.scaled(34),
-              child: TextField(
-                controller: searchController,
-                onChanged: controller.setSearchText,
-                style: theme.textTheme.bodySmall,
-                decoration: InputDecoration(
-                  isDense: true,
-                  hintText: 'Search apps…',
-                  prefixIcon: const Icon(Icons.search, size: 18),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                ),
+      // The system-apps toggle collapses into the overflow menu (as a checked
+      // entry) before the search field is squeezed below its minimum.
+      child: OverflowToolbar(
+        spacing: 0,
+        flexibleMinWidth: 140,
+        flexible: SizedBox(
+          height: context.scaled(34),
+          child: TextField(
+            controller: searchController,
+            onChanged: controller.setSearchText,
+            style: theme.textTheme.bodySmall,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Search apps…',
+              prefixIcon: const Icon(Icons.search, size: 18),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
             ),
           ),
-          if (controller.canShowSystemApps) ...[
-            const Gap(12),
-            Text('System apps', style: theme.textTheme.bodySmall),
-            Switch(
-              value: controller.showSystemApps,
-              onChanged: controller.setShowSystemApps,
+        ),
+        actions: [
+          if (controller.canShowSystemApps)
+            ToolbarAction(
+              icon: Icons.settings_applications_outlined,
+              label: 'System apps',
+              isActive: controller.showSystemApps,
+              onPressed: () =>
+                  controller.setShowSystemApps(!controller.showSystemApps),
+              barBuilder: (context, action) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Gap(12),
+                  Text(action.label, style: theme.textTheme.bodySmall),
+                  Switch(
+                    value: controller.showSystemApps,
+                    onChanged: controller.setShowSystemApps,
+                  ),
+                ],
+              ),
             ),
-          ],
         ],
       ),
     );

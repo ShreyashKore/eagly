@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/components/overflow_toolbar.dart';
 import '../file_manager_controller.dart';
 import '../../../presentation/theme/app_theme.dart';
 
@@ -7,6 +8,9 @@ import '../../../presentation/theme/app_theme.dart';
 /// view-mode toggle, and the file actions (new folder, upload, download/delete
 /// for the current selection). Action callbacks are owned by the feature view
 /// because they need dialogs / snackbars.
+///
+/// Navigation and the close button are always visible; the actions in between
+/// collapse into an overflow menu (last one first) when the pane is narrow.
 class FileManagerToolbar extends StatelessWidget {
   const FileManagerToolbar({
     super.key,
@@ -41,8 +45,9 @@ class FileManagerToolbar extends StatelessWidget {
           bottom: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
       ),
-      child: Row(
-        children: [
+      child: OverflowToolbar(
+        spacing: 0,
+        leading: [
           IconButton(
             tooltip: 'Back',
             iconSize: 20,
@@ -71,55 +76,48 @@ class FileManagerToolbar extends StatelessWidget {
                   )
                 : const Icon(Icons.refresh),
           ),
-          const Spacer(),
-          IconButton(
-            tooltip: isList ? 'Grid view' : 'List view',
-            iconSize: 20,
+        ],
+        flexible: const SizedBox.shrink(),
+        actions: [
+          ToolbarAction(
+            icon: isList ? Icons.grid_view_rounded : Icons.view_list_rounded,
+            label: isList ? 'Grid view' : 'List view',
             onPressed: controller.toggleViewMode,
-            icon: Icon(
-              isList ? Icons.grid_view_rounded : Icons.view_list_rounded,
-            ),
           ),
-          const SizedBox(width: 4),
-          SizedBox(
-            height: 24,
-            child: VerticalDivider(
-              width: 2,
-              color: theme.colorScheme.outlineVariant,
-            ),
-          ),
-          const SizedBox(width: 4),
           if (controller.supportsCreateDirectory)
-            IconButton(
-              tooltip: 'New folder',
-              iconSize: 20,
+            ToolbarAction(
+              icon: Icons.create_new_folder_outlined,
+              label: 'New folder',
+              dividerBefore: true,
               onPressed: busy ? null : onNewFolder,
-              icon: const Icon(Icons.create_new_folder_outlined),
             ),
-          IconButton(
+          ToolbarAction(
+            icon: Icons.upload_file_outlined,
+            label: 'Upload',
             tooltip: 'Upload to ${controller.currentPath}',
-            iconSize: 20,
+            dividerBefore: !controller.supportsCreateDirectory,
             onPressed: busy ? null : onUpload,
-            icon: const Icon(Icons.upload_file_outlined),
           ),
-          IconButton(
+          ToolbarAction(
+            icon: Icons.download_outlined,
+            label: 'Download',
             tooltip: hasSelection
                 ? 'Download ${controller.selectedEntry!.name}'
                 : 'Select an item to download',
-            iconSize: 20,
             onPressed: hasSelection && !busy ? onDownloadSelected : null,
-            icon: const Icon(Icons.download_outlined),
           ),
           if (controller.supportsDelete)
-            IconButton(
+            ToolbarAction(
+              icon: Icons.delete_outline,
+              label: 'Delete',
               tooltip: hasSelection
                   ? 'Delete ${controller.selectedEntry!.name}'
                   : 'Select an item to delete',
-              iconSize: 20,
               color: hasSelection ? theme.colorScheme.error : null,
               onPressed: hasSelection && !busy ? onDeleteSelected : null,
-              icon: const Icon(Icons.delete_outline),
             ),
+        ],
+        trailing: [
           IconButton(
             tooltip: 'Close files pane',
             iconSize: 20,
