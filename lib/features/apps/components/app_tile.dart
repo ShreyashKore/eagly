@@ -116,12 +116,14 @@ class _AppTileState extends State<AppTile> {
                   ),
                 ),
                 const Gap(6),
-                Text(
-                  app.displayName,
-                  style: theme.textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                Expanded(
+                  child: Text(
+                    app.displayName,
+                    style: theme.textTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),

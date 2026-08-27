@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
@@ -157,6 +158,11 @@ class FeatureViewHeader extends StatelessWidget {
 }
 
 /// Full-width bar shown at the bottom of a feature pane.
+///
+/// Panes are resizable, so the bar scrolls sideways once its readouts no
+/// longer fit — nothing is dropped or truncated. While they do fit the row
+/// behaves normally, so a [Spacer] still pushes the trailing group to the
+/// right edge.
 class FeatureStatusBar extends StatelessWidget {
   const FeatureStatusBar({
     super.key,
@@ -173,7 +179,30 @@ class FeatureStatusBar extends StatelessWidget {
       width: double.infinity,
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       padding: padding,
-      child: Row(children: children),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          return ScrollConfiguration(
+            // A scrollbar would sit on top of a bar this thin; dragging with
+            // the mouse replaces it as the affordance.
+            behavior: ScrollConfiguration.of(context).copyWith(
+              scrollbars: false,
+              dragDevices: PointerDeviceKind.values.toSet(),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                // Stretch to the full width when the content is narrower,
+                // otherwise let the row take its natural width and scroll.
+                constraints: BoxConstraints(
+                  minWidth: width.isFinite ? width : 0,
+                ),
+                child: IntrinsicWidth(child: Row(children: children)),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
