@@ -6,8 +6,10 @@ import 'package:gap/gap.dart';
 
 import '../../data/device.dart';
 import '../../presentation/components/feature_view.dart';
+import '../../presentation/theme/app_theme.dart';
 import '../../session/device_session_controller.dart';
 import '../../utils/utils.dart';
+import 'data/device_info.dart';
 import 'device_home_controller.dart';
 
 class DeviceHomeFeatureView extends FeatureView {
@@ -38,6 +40,8 @@ class _DeviceHomeFeatureViewState
       return _DisconnectedView(device: session.device, theme: theme);
     }
 
+    final deviceInfo = widget.homeController.deviceInfo;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -45,7 +49,12 @@ class _DeviceHomeFeatureViewState
         children: [
           Row(
             children: [
-              Expanded(child: _DeviceInfoCard(session: session)),
+              Expanded(
+                child: _DeviceInfoCard(
+                  session: session,
+                  identity: deviceInfo.identity,
+                ),
+              ),
               const Gap(20),
               _AppInstallCard(
                 session: session,
@@ -54,6 +63,37 @@ class _DeviceHomeFeatureViewState
             ],
           ),
           const Gap(20),
+          if (!deviceInfo.developerState.isEmpty) ...[
+            _ConnectionReadinessCard(
+              device: session.device,
+              developerState: deviceInfo.developerState,
+            ),
+            const Gap(20),
+          ],
+          if (!deviceInfo.battery.isEmpty) ...[
+            _BatteryCard(battery: deviceInfo.battery),
+            const Gap(20),
+          ],
+          if (!deviceInfo.storage.isEmpty) ...[
+            _StorageCard(storage: deviceInfo.storage),
+            const Gap(20),
+          ],
+          if (!deviceInfo.connectivity.isEmpty ||
+              !deviceInfo.cellular.isEmpty) ...[
+            _ConnectivityCellularCard(
+              connectivity: deviceInfo.connectivity,
+              cellular: deviceInfo.cellular,
+            ),
+            const Gap(20),
+          ],
+          if (!deviceInfo.display.isEmpty) ...[
+            _DisplayCard(display: deviceInfo.display),
+            const Gap(20),
+          ],
+          if (!deviceInfo.software.isEmpty) ...[
+            _SoftwareCard(software: deviceInfo.software),
+            const Gap(20),
+          ],
           _PerformanceSection(homeController: widget.homeController),
           const Gap(20),
           _FeatureShortcuts(session: session),
@@ -101,9 +141,10 @@ class _DisconnectedView extends StatelessWidget {
 }
 
 class _DeviceInfoCard extends StatefulWidget {
-  const _DeviceInfoCard({required this.session});
+  const _DeviceInfoCard({required this.session, required this.identity});
 
   final DeviceSessionController session;
+  final DeviceIdentityInfo identity;
 
   @override
   State<_DeviceInfoCard> createState() => _DeviceInfoCardState();
@@ -181,12 +222,30 @@ class _DeviceInfoCardState extends State<_DeviceInfoCard> {
                   ? 'Android'
                   : 'iOS',
             ),
+            if (widget.identity.manufacturer != null)
+              _InfoRow(
+                label: 'Manufacturer',
+                value: widget.identity.manufacturer!,
+              ),
             if (device.brand != null && device.brand!.isNotEmpty)
               _InfoRow(label: 'Brand', value: device.brand!),
             if (device.model != null && device.model!.isNotEmpty)
               _InfoRow(label: 'Model', value: device.model!),
             if (device.name != null && device.name!.isNotEmpty)
               _InfoRow(label: 'Code Name', value: device.name!),
+            if (widget.identity.osVersion != null)
+              _InfoRow(
+                label: 'OS Version',
+                value:
+                    '${widget.identity.osName ?? (device is IosDevice ? 'iOS' : 'Android')} ${widget.identity.osVersion}',
+              ),
+            if (widget.identity.buildVersion != null)
+              _InfoRow(label: 'Build', value: widget.identity.buildVersion!),
+            if (widget.identity.cpuArchitecture != null)
+              _InfoRow(
+                label: 'CPU Architecture',
+                value: widget.identity.cpuArchitecture!,
+              ),
             if (device is AndroidDevice && device.serialNumber != null)
               _InfoRow(label: 'Serial', value: device.serialNumber!),
             _buildIdRow(device, theme),
@@ -313,6 +372,425 @@ class _InfoRow extends StatelessWidget {
             child: SelectableText(value, style: theme.textTheme.bodySmall),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ConnectionReadinessCard extends StatelessWidget {
+  const _ConnectionReadinessCard({
+    required this.device,
+    required this.developerState,
+  });
+
+  final Device device;
+  final DeviceDeveloperStateInfo developerState;
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = <Widget>[
+      if (developerState.debuggingReady != null)
+        _StatusChip(
+          label: device is IosDevice ? 'Debugging' : 'ADB',
+          value: developerState.debuggingReady! ? 'Ready' : 'Not Ready',
+          positive: developerState.debuggingReady,
+        ),
+      if (developerState.pairingState != null)
+        _StatusChip(
+          label: 'Pairing',
+          value: developerState.pairingState!,
+          positive: developerState.pairingState == 'Paired',
+        ),
+      if (developerState.developerModeEnabled != null)
+        _StatusChip(
+          label: 'Developer Mode',
+          value: developerState.developerModeEnabled! ? 'On' : 'Off',
+          positive: developerState.developerModeEnabled,
+        ),
+      if (developerState.adbEnabled != null)
+        _StatusChip(
+          label: 'USB Debugging',
+          value: developerState.adbEnabled! ? 'On' : 'Off',
+          positive: developerState.adbEnabled,
+        ),
+    ];
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Wrap(spacing: 28, runSpacing: 12, children: chips),
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.label, required this.value, this.positive});
+
+  final String label;
+  final String value;
+  final bool? positive;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dotColor = switch (positive) {
+      true => const Color(0xFF4ADE80),
+      false => context.eaglyTheme.warningColor,
+      null => theme.colorScheme.onSurfaceVariant,
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontSize: 11,
+          ),
+        ),
+        const Gap(4),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(
+                color: dotColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            Text(
+              value,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _BatteryCard extends StatelessWidget {
+  const _BatteryCard({required this.battery});
+
+  final DeviceBatteryInfo battery;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final percentage = battery.percentage;
+    final chargingState = battery.chargingState;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  chargingState == BatteryChargingState.charging
+                      ? Icons.battery_charging_full
+                      : Icons.battery_full,
+                  size: 18,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const Gap(8),
+                Text(
+                  'Battery',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (chargingState != null) ...[
+                  const Spacer(),
+                  Text(
+                    _chargingLabel(chargingState),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const Gap(16),
+            if (percentage != null)
+              _ProgressBar(
+                label: 'Level',
+                detail: [
+                  '$percentage%',
+                  if (battery.health != null) _healthLabel(battery.health!),
+                  if (battery.temperatureCelsius != null)
+                    '${battery.temperatureCelsius!.toStringAsFixed(1)}°C',
+                ].join('  •  '),
+                value: percentage / 100,
+                foreground: _batteryColor(percentage),
+              )
+            else ...[
+              if (battery.health != null)
+                _InfoRow(label: 'Health', value: _healthLabel(battery.health!)),
+              if (battery.temperatureCelsius != null)
+                _InfoRow(
+                  label: 'Temperature',
+                  value: '${battery.temperatureCelsius!.toStringAsFixed(1)}°C',
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _chargingLabel(BatteryChargingState state) => switch (state) {
+    BatteryChargingState.charging => 'Charging',
+    BatteryChargingState.discharging => 'On Battery',
+    BatteryChargingState.full => 'Full',
+    BatteryChargingState.notCharging => 'Not Charging',
+  };
+
+  String _healthLabel(BatteryHealth health) => switch (health) {
+    BatteryHealth.good => 'Good',
+    BatteryHealth.overheat => 'Overheat',
+    BatteryHealth.dead => 'Dead',
+    BatteryHealth.overVoltage => 'Over Voltage',
+    BatteryHealth.cold => 'Cold',
+  };
+
+  Color _batteryColor(int pct) {
+    if (pct <= 15) return Colors.redAccent;
+    if (pct <= 30) return Colors.orangeAccent;
+    return const Color(0xFF4ADE80);
+  }
+}
+
+class _StorageCard extends StatelessWidget {
+  const _StorageCard({required this.storage});
+
+  final DeviceStorageInfo storage;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final percent = storage.usagePercent;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Storage',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Gap(16),
+            if (percent != null && storage.totalBytes != null)
+              _ProgressBar(
+                label: 'Used',
+                detail:
+                    '${formatBytes(storage.usedBytes ?? 0)} / '
+                    '${formatBytes(storage.totalBytes!)}',
+                value: percent / 100,
+                foreground: _storageColor(percent),
+              )
+            else ...[
+              if (storage.totalBytes != null)
+                _InfoRow(
+                  label: 'Total',
+                  value: formatBytes(storage.totalBytes!),
+                ),
+              if (storage.usedBytes != null)
+                _InfoRow(label: 'Used', value: formatBytes(storage.usedBytes!)),
+              if (storage.availableBytes != null)
+                _InfoRow(
+                  label: 'Available',
+                  value: formatBytes(storage.availableBytes!),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _storageColor(double pct) {
+    if (pct > 90) return Colors.redAccent;
+    if (pct > 75) return Colors.orangeAccent;
+    return const Color(0xFF4ADE80);
+  }
+}
+
+class _ConnectivityCellularCard extends StatelessWidget {
+  const _ConnectivityCellularCard({
+    required this.connectivity,
+    required this.cellular,
+  });
+
+  final DeviceConnectivityInfo connectivity;
+  final DeviceCellularInfo cellular;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Connectivity',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Gap(12),
+            if (connectivity.usbConnected != null)
+              _InfoRow(
+                label: 'Connection',
+                value: connectivity.usbConnected! ? 'USB' : 'Wireless (Wi-Fi)',
+              ),
+            if (connectivity.wifiEnabled != null)
+              _InfoRow(
+                label: 'Wi-Fi',
+                value: connectivity.wifiEnabled! ? 'On' : 'Off',
+              ),
+            if (connectivity.bluetoothEnabled != null)
+              _InfoRow(
+                label: 'Bluetooth',
+                value: connectivity.bluetoothEnabled! ? 'On' : 'Off',
+              ),
+            if (connectivity.ipAddress != null)
+              _InfoRow(label: 'IP Address', value: connectivity.ipAddress!),
+            if (!cellular.isEmpty) ...[
+              const Gap(8),
+              const Divider(),
+              const Gap(8),
+              Text(
+                'Cellular',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const Gap(8),
+              if (cellular.carrierName != null)
+                _InfoRow(label: 'Carrier', value: cellular.carrierName!),
+              if (cellular.simOperatorName != null)
+                _InfoRow(
+                  label: 'SIM Operator',
+                  value: cellular.simOperatorName!,
+                ),
+              if (cellular.networkType != null)
+                _InfoRow(label: 'Network', value: cellular.networkType!),
+              if (cellular.simState != null)
+                _InfoRow(label: 'SIM State', value: cellular.simState!),
+              if (cellular.mcc != null && cellular.mnc != null)
+                _InfoRow(
+                  label: 'MCC/MNC',
+                  value: '${cellular.mcc}/${cellular.mnc}',
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DisplayCard extends StatelessWidget {
+  const _DisplayCard({required this.display});
+
+  final DeviceDisplayInfo display;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Display',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Gap(12),
+            if (display.widthPx != null && display.heightPx != null)
+              _InfoRow(
+                label: 'Resolution',
+                value: '${display.widthPx} × ${display.heightPx}',
+              ),
+            if (display.densityDpi != null)
+              _InfoRow(label: 'Density', value: '${display.densityDpi} dpi'),
+            if (display.refreshRateHz != null)
+              _InfoRow(
+                label: 'Refresh Rate',
+                value: '${display.refreshRateHz!.toStringAsFixed(0)} Hz',
+              ),
+            if (display.orientation != null)
+              _InfoRow(
+                label: 'Orientation',
+                value: display.orientation == DisplayOrientation.portrait
+                    ? 'Portrait'
+                    : 'Landscape',
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SoftwareCard extends StatelessWidget {
+  const _SoftwareCard({required this.software});
+
+  final DeviceSoftwareInfo software;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Software & Region',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Gap(12),
+            if (software.sdkLevel != null)
+              _InfoRow(label: 'SDK Level', value: 'API ${software.sdkLevel}'),
+            if (software.securityPatch != null)
+              _InfoRow(label: 'Security Patch', value: software.securityPatch!),
+            if (software.locale != null)
+              _InfoRow(label: 'Locale', value: software.locale!),
+            if (software.timeZone != null)
+              _InfoRow(label: 'Time Zone', value: software.timeZone!),
+          ],
+        ),
       ),
     );
   }

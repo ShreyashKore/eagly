@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import '../data/device.dart';
 import '../features/apps/data/app_info.dart';
+import '../features/device_home/data/device_info.dart';
 import '../features/device_home/data/device_performance_stats.dart';
 import '../features/device_home/data/installed_app_info.dart';
 import '../features/logs/data/models/log_entry.dart';
@@ -14,6 +15,7 @@ import '../utils/tools_path.dart';
 import 'tools/adb_tool.dart';
 import 'tools/android_apk_icon_extractor.dart';
 import 'tools/idevice_crash_report_tool.dart';
+import 'tools/idevice_info_tool.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
 
@@ -28,6 +30,7 @@ class DeviceSessionRepository {
   final IdeviceInstallerTool _ideviceInstallerTool;
   final IdeviceSyslogTool _ideviceSyslogTool;
   final IdeviceCrashReportTool _ideviceCrashReportTool;
+  final IdeviceInfoTool _ideviceInfoTool;
   final ScrcpyMirror _scrcpyMirror;
   final AppLogger _logger = AppLogger(source: 'DeviceSessionService');
   final Map<String, String> _pidToPackageCache = {};
@@ -54,10 +57,12 @@ class DeviceSessionRepository {
     String? ideviceInstallerPath,
     String? ideviceSyslogPath,
     String? ideviceCrashReportPath,
+    String? ideviceInfoPath,
     AdbTool? adbTool,
     IdeviceInstallerTool? ideviceInstallerTool,
     IdeviceSyslogTool? ideviceSyslogTool,
     IdeviceCrashReportTool? ideviceCrashReportTool,
+    IdeviceInfoTool? ideviceInfoTool,
     ScrcpyMirror? scrcpyMirror,
   }) : _adbTool = adbTool ?? AdbTool(executablePath: adbPath),
        _ideviceInstallerTool =
@@ -69,6 +74,8 @@ class DeviceSessionRepository {
        _ideviceCrashReportTool =
            ideviceCrashReportTool ??
            IdeviceCrashReportTool(executablePath: ideviceCrashReportPath),
+       _ideviceInfoTool =
+           ideviceInfoTool ?? IdeviceInfoTool(executablePath: ideviceInfoPath),
        _scrcpyMirror =
            scrcpyMirror ??
            ScrcpyMirror(
@@ -204,6 +211,17 @@ class DeviceSessionRepository {
     return switch (device) {
       AndroidDevice() => _fetchAndroidPerformanceStats(),
       IosDevice() => Future.value(const DevicePerformanceStats()),
+    };
+  }
+
+  /// Broader device info (identity, battery, storage, display, connectivity,
+  /// cellular, developer state, software) for the device home screen. See
+  /// [AdbTool.fetchDeviceInfo] / [IdeviceInfoTool.fetchExtendedInfo] for what
+  /// each platform can and can't reliably report.
+  Future<DeviceInfo> fetchDeviceInfo() {
+    return switch (device) {
+      final AndroidDevice d => _adbTool.fetchDeviceInfo(d),
+      final IosDevice d => _ideviceInfoTool.fetchExtendedInfo(d),
     };
   }
 
