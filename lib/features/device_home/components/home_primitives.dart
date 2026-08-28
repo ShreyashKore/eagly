@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
@@ -156,6 +157,50 @@ class _SpecTile extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Keyboard accelerator hint rendered as a small key cap.
+class KeyCap extends StatelessWidget {
+  const KeyCap({super.key, required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w600,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+/// Accelerator label in the host platform's notation, e.g. `⇧⌘R` / `Ctrl+Shift+R`.
+String acceleratorLabel(String key, {bool shift = false}) {
+  if (defaultTargetPlatform == TargetPlatform.macOS) {
+    return '${shift ? '⇧' : ''}⌘$key';
+  }
+  return 'Ctrl+${shift ? 'Shift+' : ''}$key';
+}
+
+/// `HH:mm` in the user's local time — used for "last seen"/install stamps.
+String formatClockTime(DateTime time) {
+  final local = time.toLocal();
+  final hours = local.hour.toString().padLeft(2, '0');
+  final minutes = local.minute.toString().padLeft(2, '0');
+  return '$hours:$minutes';
 }
 
 /// Compact copy-to-clipboard affordance used next to ids and serials.

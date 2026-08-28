@@ -366,13 +366,6 @@ class RecentInstallsCard extends StatelessWidget {
   final List<InstalledAppInfo> apps;
   final bool isLoading;
 
-  String _formatTime(DateTime dt) {
-    final local = dt.toLocal();
-    final h = local.hour.toString().padLeft(2, '0');
-    final m = local.minute.toString().padLeft(2, '0');
-    return '$h:$m';
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -411,7 +404,7 @@ class RecentInstallsCard extends StatelessWidget {
                   ),
                   if (app.installTime != null)
                     Text(
-                      _formatTime(app.installTime!),
+                      formatClockTime(app.installTime!),
                       style: theme.textTheme.labelSmall?.copyWith(
                         fontFamily: 'monospace',
                         fontSize: 10.5,

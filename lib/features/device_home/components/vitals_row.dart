@@ -20,6 +20,7 @@ class VitalsRow extends StatelessWidget {
     required this.stats,
     required this.cpuHistory,
     required this.memoryHistory,
+    this.isStale = false,
   });
 
   final DeviceBatteryInfo battery;
@@ -28,14 +29,23 @@ class VitalsRow extends StatelessWidget {
   final List<double> cpuHistory;
   final List<double> memoryHistory;
 
+  /// Renders the last known values in a muted palette with a "last seen" tag,
+  /// so a frozen reading never looks live.
+  final bool isStale;
+
   @override
   Widget build(BuildContext context) {
     final tiles = <Widget>[
-      if (!battery.isEmpty) _BatteryTile(battery: battery),
-      if (!storage.isEmpty) _StorageTile(storage: storage),
-      if (stats.cpu != null) _CpuTile(cpu: stats.cpu!, history: cpuHistory),
+      if (!battery.isEmpty) _BatteryTile(battery: battery, stale: isStale),
+      if (!storage.isEmpty) _StorageTile(storage: storage, stale: isStale),
+      if (stats.cpu != null)
+        _CpuTile(cpu: stats.cpu!, history: cpuHistory, stale: isStale),
       if (stats.memory != null)
-        _MemoryTile(memory: stats.memory!, history: memoryHistory),
+        _MemoryTile(
+          memory: stats.memory!,
+          history: memoryHistory,
+          stale: isStale,
+        ),
     ];
     if (tiles.isEmpty) return const SizedBox.shrink();
 
@@ -70,6 +80,7 @@ class _VitalTile extends StatelessWidget {
     required this.detail,
     required this.color,
     required this.centerIcon,
+    this.stale = false,
     this.history,
     this.badge,
   });
@@ -80,6 +91,7 @@ class _VitalTile extends StatelessWidget {
   final String detail;
   final Color color;
   final IconData centerIcon;
+  final bool stale;
   final List<double>? history;
   final Widget? badge;
 
@@ -87,6 +99,9 @@ class _VitalTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final history = this.history;
+    final color = stale
+        ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7)
+        : this.color;
 
     return Card(
       child: Padding(
@@ -123,7 +138,19 @@ class _VitalTile extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (badge != null) badge!,
+                          if (stale)
+                            Text(
+                              'LAST SEEN',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                fontSize: 9,
+                                letterSpacing: 0.6,
+                                fontWeight: FontWeight.w700,
+                                color: theme.colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.8),
+                              ),
+                            )
+                          else if (badge != null)
+                            badge!,
                         ],
                       ),
                       const Gap(2),
@@ -164,9 +191,10 @@ class _VitalTile extends StatelessWidget {
 }
 
 class _BatteryTile extends StatelessWidget {
-  const _BatteryTile({required this.battery});
+  const _BatteryTile({required this.battery, required this.stale});
 
   final DeviceBatteryInfo battery;
+  final bool stale;
 
   @override
   Widget build(BuildContext context) {
@@ -193,6 +221,7 @@ class _BatteryTile extends StatelessWidget {
       headline: percentage == null ? '—' : '$percentage%',
       detail: detail.isEmpty ? 'Level unavailable' : detail,
       color: color,
+      stale: stale,
       centerIcon: charging ? Icons.bolt_rounded : Icons.battery_std_outlined,
       badge: charging
           ? Icon(Icons.power_rounded, size: 13, color: color)
@@ -217,9 +246,10 @@ class _BatteryTile extends StatelessWidget {
 }
 
 class _StorageTile extends StatelessWidget {
-  const _StorageTile({required this.storage});
+  const _StorageTile({required this.storage, required this.stale});
 
   final DeviceStorageInfo storage;
+  final bool stale;
 
   @override
   Widget build(BuildContext context) {
@@ -239,16 +269,22 @@ class _StorageTile extends StatelessWidget {
       headline: percent == null ? '—' : '${percent.toStringAsFixed(0)}%',
       detail: detail,
       color: usageColor(context, percent ?? 0),
+      stale: stale,
       centerIcon: Icons.sd_storage_outlined,
     );
   }
 }
 
 class _CpuTile extends StatelessWidget {
-  const _CpuTile({required this.cpu, required this.history});
+  const _CpuTile({
+    required this.cpu,
+    required this.history,
+    required this.stale,
+  });
 
   final CpuStats cpu;
   final List<double> history;
+  final bool stale;
 
   @override
   Widget build(BuildContext context) {
@@ -263,6 +299,7 @@ class _CpuTile extends StatelessWidget {
           '${cpu.loadAverage5m.toStringAsFixed(2)} / '
           '${cpu.loadAverage15m.toStringAsFixed(2)}',
       color: usageColor(context, percent, warn: 50, bad: 80),
+      stale: stale,
       centerIcon: Icons.developer_board,
       history: history,
     );
@@ -270,10 +307,15 @@ class _CpuTile extends StatelessWidget {
 }
 
 class _MemoryTile extends StatelessWidget {
-  const _MemoryTile({required this.memory, required this.history});
+  const _MemoryTile({
+    required this.memory,
+    required this.history,
+    required this.stale,
+  });
 
   final MemoryStats memory;
   final List<double> history;
+  final bool stale;
 
   @override
   Widget build(BuildContext context) {
@@ -287,6 +329,7 @@ class _MemoryTile extends StatelessWidget {
           '${formatBytes(memory.totalKb * 1024)} · '
           '${formatBytes(memory.availableKb * 1024)} available',
       color: usageColor(context, percent, warn: 60, bad: 85),
+      stale: stale,
       centerIcon: Icons.memory_rounded,
       history: history,
     );

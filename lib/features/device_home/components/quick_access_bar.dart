@@ -1,8 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../data/device.dart';
 import '../../../session/device_session_controller.dart';
+import 'home_primitives.dart';
 
 /// The feature launcher strip — every pane the app offers for this device,
 /// kept above the fold so a new user can see what Eagly does at a glance.
@@ -11,53 +12,53 @@ class QuickAccessBar extends StatelessWidget {
 
   final DeviceSessionController session;
 
-  static String _accel(String key) =>
-      defaultTargetPlatform == TargetPlatform.macOS ? '⌘$key' : 'Ctrl+$key';
-
   @override
   Widget build(BuildContext context) {
     final s = session;
+    final isAndroid = s.platform == DevicePlatform.android;
+
+    // Which tiles exist depends on the platform; whether they are *enabled*
+    // depends on the connection — a disconnected device keeps the launcher
+    // in place (greyed) instead of collapsing it to a single button.
     final tiles = <Widget>[
       _ShortcutTile(
         icon: Icons.article_outlined,
         label: 'Logs',
         sublabel: 'Live logcat & syslog',
-        accelerator: _accel('R'),
+        accelerator: acceleratorLabel('R'),
         isActive: s.isLogsOpen,
         onTap: s.toggleLogs,
       ),
-      if (s.canMirror)
+      if (isAndroid)
         _ShortcutTile(
           icon: Icons.mobile_screen_share_outlined,
           label: 'Mirror',
           sublabel: 'Control the screen',
           isActive: s.isMirrorOpen,
-          onTap: s.toggleMirror,
+          onTap: s.canMirror ? s.toggleMirror : null,
         ),
-      if (s.canReadCrashReports)
+      if (!isAndroid)
         _ShortcutTile(
           icon: Icons.bug_report_outlined,
           label: 'Crashes',
           sublabel: 'Crash reports',
           isActive: s.isCrashReportsOpen,
-          onTap: s.toggleCrashReports,
+          onTap: s.canReadCrashReports ? s.toggleCrashReports : null,
         ),
-      if (s.canManageFiles)
-        _ShortcutTile(
-          icon: Icons.folder_open_outlined,
-          label: 'Files',
-          sublabel: 'Browse & transfer',
-          isActive: s.isFilesOpen,
-          onTap: s.toggleFiles,
-        ),
-      if (s.canManageApps)
-        _ShortcutTile(
-          icon: Icons.apps_outlined,
-          label: 'Apps',
-          sublabel: 'Installed packages',
-          isActive: s.isAppsOpen,
-          onTap: s.toggleApps,
-        ),
+      _ShortcutTile(
+        icon: Icons.folder_open_outlined,
+        label: 'Files',
+        sublabel: 'Browse & transfer',
+        isActive: s.isFilesOpen,
+        onTap: s.canManageFiles ? s.toggleFiles : null,
+      ),
+      _ShortcutTile(
+        icon: Icons.apps_outlined,
+        label: 'Apps',
+        sublabel: 'Installed packages',
+        isActive: s.isAppsOpen,
+        onTap: s.canManageApps ? s.toggleApps : null,
+      ),
     ];
 
     return Row(
@@ -85,7 +86,9 @@ class _ShortcutTile extends StatefulWidget {
   final String label;
   final String sublabel;
   final bool isActive;
-  final VoidCallback onTap;
+
+  /// `null` disables the tile — the feature needs a connected device.
+  final VoidCallback? onTap;
   final String? accelerator;
 
   @override
@@ -99,6 +102,7 @@ class _ShortcutTileState extends State<_ShortcutTile> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final active = widget.isActive;
+    final enabled = widget.onTap != null;
     final accent = theme.colorScheme.primary;
     final borderColor = active
         ? accent.withValues(alpha: 0.45)
@@ -106,7 +110,7 @@ class _ShortcutTileState extends State<_ShortcutTile> {
         ? theme.colorScheme.outline
         : theme.colorScheme.outlineVariant;
 
-    return MouseRegion(
+    final tile = MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: AnimatedContainer(
@@ -171,7 +175,7 @@ class _ShortcutTileState extends State<_ShortcutTile> {
                       ],
                     ),
                   ),
-                  if (widget.accelerator != null) ...[
+                  if (widget.accelerator != null && enabled) ...[
                     const Gap(6),
                     KeyCap(label: widget.accelerator!),
                   ],
@@ -182,33 +186,11 @@ class _ShortcutTileState extends State<_ShortcutTile> {
         ),
       ),
     );
-  }
-}
 
-/// Keyboard accelerator hint rendered as a small key cap.
-class KeyCap extends StatelessWidget {
-  const KeyCap({super.key, required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelSmall?.copyWith(
-          fontSize: 9.5,
-          fontWeight: FontWeight.w600,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
+    if (enabled) return tile;
+    return Tooltip(
+      message: 'Reconnect the device to use ${widget.label}',
+      child: Opacity(opacity: 0.45, child: tile),
     );
   }
 }

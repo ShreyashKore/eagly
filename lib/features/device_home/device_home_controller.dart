@@ -33,9 +33,18 @@ class DeviceHomeController extends FeatureController {
   bool _loading = false;
   bool _loadingDeviceInfo = false;
   bool _loadingRecentApps = false;
+  DateTime? _lastUpdatedAt;
 
   DevicePerformanceStats get stats => _stats;
   DeviceInfo get deviceInfo => _deviceInfo;
+
+  /// When the snapshot below was last refreshed off the device — `null` until
+  /// the first successful read.
+  DateTime? get lastUpdatedAt => _lastUpdatedAt;
+
+  /// Whether there is anything worth rendering. Stays `true` after a
+  /// disconnect: the dashboard keeps showing the last known state.
+  bool get hasSnapshot => !_deviceInfo.isEmpty || !_stats.isEmpty;
   bool get isLoading => _loading;
   bool get isLoadingDeviceInfo => _loadingDeviceInfo;
   List<InstalledAppInfo> get recentApps => _recentApps;
@@ -56,15 +65,18 @@ class DeviceHomeController extends FeatureController {
     unawaited(refreshRecentApps());
   }
 
+  /// Stops polling but *keeps* the last snapshot — the home view renders it
+  /// as stale rather than dropping to an empty screen. It is replaced on the
+  /// next successful read after a reconnect.
   @override
   void onDeviceDisconnected() {
     _pollTimer?.cancel();
     _pollTimer = null;
     _deviceInfoPollTimer?.cancel();
     _deviceInfoPollTimer = null;
-    _stats = const DevicePerformanceStats();
-    _deviceInfo = const DeviceInfo();
-    _recentApps = const [];
+    _loading = false;
+    _loadingDeviceInfo = false;
+    _loadingRecentApps = false;
     _notify();
   }
 
@@ -91,6 +103,7 @@ class DeviceHomeController extends FeatureController {
     if (_disposed || !isConnected) return;
     try {
       _deviceInfo = await service.fetchDeviceInfo();
+      _lastUpdatedAt = DateTime.now();
       _loadingDeviceInfo = false;
       _notify();
     } catch (_) {
@@ -103,6 +116,7 @@ class DeviceHomeController extends FeatureController {
     if (_disposed || !isConnected) return;
     try {
       _stats = await service.fetchPerformanceStats();
+      _lastUpdatedAt = DateTime.now();
       _loading = false;
       _notify();
     } catch (_) {
@@ -121,7 +135,6 @@ class DeviceHomeController extends FeatureController {
       _notify();
     } catch (_) {
       _loadingRecentApps = false;
-      _recentApps = const [];
       _notify();
     }
   }

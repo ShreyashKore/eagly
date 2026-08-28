@@ -95,14 +95,37 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('falls back to the disconnected state', (tester) async {
+  testWidgets('keeps the last snapshot visible after a disconnect', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await pumpView(tester);
+    expect(find.text('78%'), findsOneWidget);
+
     session.updateDevice(
       device.copyWith(connectionState: DeviceConnectionState.disconnected),
     );
-    await pumpView(tester);
+    await tester.pump();
 
-    expect(find.text('Device Disconnected'), findsOneWidget);
-    expect(find.text('Install App'), findsNothing);
+    expect(
+      find.textContaining('disconnected', findRichText: true),
+      findsWidgets,
+    );
+    expect(find.text('Reload devices'), findsOneWidget);
+    expect(find.text('Getting reconnected'.toUpperCase()), findsOneWidget);
+    // The battery reading from before the drop is still on screen.
+    expect(find.text('78%'), findsOneWidget);
+    // …but nothing live can be triggered from it.
+    final install = tester.widget<FilledButton>(
+      find.ancestor(
+        of: find.text('Install App'),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    expect(install.onPressed, isNull);
 
     session.dispose();
     await tester.pumpWidget(const SizedBox());

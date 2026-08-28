@@ -3,11 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-import '../../data/device.dart';
 import '../../presentation/components/feature_view.dart';
 import '../../session/device_session_controller.dart';
 import 'components/detail_cards.dart';
 import 'components/device_hero_card.dart';
+import 'components/disconnected_state.dart';
 import 'components/quick_access_bar.dart';
 import 'components/vitals_row.dart';
 import 'device_home_controller.dart';
@@ -92,16 +92,15 @@ class _DeviceHomeFeatureViewState
   @override
   Widget buildContent(BuildContext context) {
     final session = widget.session;
-    if (!session.isConnected) {
-      return _DisconnectedView(device: session.device);
-    }
-
     final controller = widget.homeController;
+    final connected = session.isConnected;
     final info = controller.deviceInfo;
     final device = session.device;
 
     final detailCards = <Widget>[
-      if (!info.developerState.isEmpty)
+      // Readiness describes live reachability, so it is dropped rather than
+      // frozen while the device is away.
+      if (connected && !info.developerState.isEmpty)
         ReadinessCard(device: device, developerState: info.developerState),
       HardwareCard(device: device, identity: info.identity),
       if (!info.connectivity.isEmpty || !info.cellular.isEmpty)
@@ -120,7 +119,8 @@ class _DeviceHomeFeatureViewState
     ];
 
     final loadingFirstSnapshot =
-        controller.isLoadingDeviceInfo && controller.stats.isEmpty;
+        connected && controller.isLoadingDeviceInfo && controller.stats.isEmpty;
+    final showSnapshot = connected || controller.hasSnapshot;
 
     return Scrollbar(
       child: SingleChildScrollView(
@@ -131,6 +131,14 @@ class _DeviceHomeFeatureViewState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (!connected) ...[
+                  DisconnectedBanner(
+                    device: device,
+                    lastUpdatedAt: controller.lastUpdatedAt,
+                    hasSnapshot: controller.hasSnapshot,
+                  ),
+                  const Gap(12),
+                ],
                 DeviceHeroCard(
                   session: session,
                   homeController: controller,
@@ -141,16 +149,22 @@ class _DeviceHomeFeatureViewState
                 const Gap(12),
                 if (loadingFirstSnapshot)
                   const _LoadingStrip()
-                else
+                else if (showSnapshot)
                   VitalsRow(
                     battery: info.battery,
                     storage: info.storage,
                     stats: controller.stats,
                     cpuHistory: _cpuHistory,
                     memoryHistory: _memoryHistory,
+                    isStale: !connected,
                   ),
                 const Gap(12),
-                _CardGrid(children: detailCards),
+                _CardGrid(
+                  children: [
+                    if (!connected) ReconnectHelpCard(device: device),
+                    ...detailCards,
+                  ],
+                ),
               ],
             ),
           ),
@@ -237,43 +251,6 @@ class _LoadingStrip extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _DisconnectedView extends StatelessWidget {
-  const _DisconnectedView({required this.device});
-
-  final Device device;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.usb_off_outlined,
-            size: 48,
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-          ),
-          const Gap(16),
-          Text(
-            'Device Disconnected',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const Gap(4),
-          Text(
-            device.displayName,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -32,6 +32,16 @@ class DeviceIdentityInfo {
   final String? buildVersion;
   final String? serialNumber;
   final String? cpuArchitecture;
+
+  bool get isEmpty =>
+      deviceName == null &&
+      manufacturer == null &&
+      model == null &&
+      osName == null &&
+      osVersion == null &&
+      buildVersion == null &&
+      serialNumber == null &&
+      cpuArchitecture == null;
 }
 
 class DeviceBatteryInfo {
@@ -217,4 +227,14 @@ class DeviceInfo {
   final DeviceCellularInfo cellular;
   final DeviceDeveloperStateInfo developerState;
   final DeviceSoftwareInfo software;
+
+  bool get isEmpty =>
+      identity.isEmpty &&
+      battery.isEmpty &&
+      storage.isEmpty &&
+      display.isEmpty &&
+      connectivity.isEmpty &&
+      cellular.isEmpty &&
+      developerState.isEmpty &&
+      software.isEmpty;
 }

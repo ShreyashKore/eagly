@@ -43,7 +43,7 @@ void main() {
     },
   );
 
-  test('clears device info when the device disconnects', () async {
+  test('keeps the last device info when the device disconnects', () async {
     service.deviceInfoToReturn = const DeviceInfo(
       identity: DeviceIdentityInfo(deviceName: 'Test Pixel'),
     );
@@ -55,7 +55,10 @@ void main() {
       device.copyWith(connectionState: DeviceConnectionState.disconnected),
     );
 
-    expect(controller.deviceInfo.identity.deviceName, isNull);
+    // The home view renders this snapshot as stale rather than going blank.
+    expect(controller.deviceInfo.identity.deviceName, 'Test Pixel');
+    expect(controller.hasSnapshot, isTrue);
+    expect(controller.lastUpdatedAt, isNotNull);
   });
 
   test('re-fetches device info on reconnect', () async {
