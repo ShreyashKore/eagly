@@ -81,6 +81,10 @@ class DeviceHomeController extends FeatureController {
       unawaited(_refreshDeviceInfo());
     });
     unawaited(_refreshDeviceInfo());
+
+    // The device is usually already connected when this controller is first
+    // created, so `onDeviceConnected` never fires for the initial load.
+    unawaited(refreshRecentApps());
   }
 
   Future<void> _refreshDeviceInfo() async {
