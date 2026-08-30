@@ -69,10 +69,7 @@ void main() {
     expect(row.width, 1400 - 32); // full width minus the bar padding
 
     // The Spacer still pushes the trailing group to the right edge.
-    expect(
-      tester.getTopRight(find.text('Stopped')).dx,
-      greaterThan(1000),
-    );
+    expect(tester.getTopRight(find.text('Stopped')).dx, greaterThan(1000));
     final scrollable = tester.widget<Scrollable>(find.byType(Scrollable).first);
     expect(scrollable.controller?.position.maxScrollExtent ?? 0, 0);
   });
@@ -93,7 +90,11 @@ void main() {
     expect(position.maxScrollExtent, greaterThan(0));
 
     // Draggable with a mouse, not just a trackpad.
-    await tester.drag(scrollable, const Offset(-120, 0), kind: PointerDeviceKind.mouse);
+    await tester.drag(
+      scrollable,
+      const Offset(-120, 0),
+      kind: PointerDeviceKind.mouse,
+    );
     await tester.pump();
     expect(position.pixels, greaterThan(0));
   });

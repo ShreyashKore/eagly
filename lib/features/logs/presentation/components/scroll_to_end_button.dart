@@ -19,11 +19,11 @@ class ScrollToEndButton extends StatelessWidget {
         duration: const Duration(milliseconds: 300),
         child: visible
             ? FloatingActionButton(
-              mini: true,
-              onPressed: onPressed,
-              tooltip: 'Scroll to End',
-              child: const Icon(Icons.arrow_downward),
-            )
+                mini: true,
+                onPressed: onPressed,
+                tooltip: 'Scroll to End',
+                child: const Icon(Icons.arrow_downward),
+              )
             : SizedBox.shrink(),
       ),
     );

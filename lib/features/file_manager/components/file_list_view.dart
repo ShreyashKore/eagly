@@ -92,8 +92,9 @@ class FileListView extends StatelessWidget {
     return InkWell(
       onTap: () => controller.setSort(field),
       child: Row(
-        mainAxisAlignment:
-            alignEnd ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: alignEnd
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           Text(
             label,

@@ -56,8 +56,8 @@ class FileTransferPicker {
     final remembered = PreferencesService.lastFileDialogDirectory;
     if (_isUsableDirectory(remembered)) return remembered;
 
-    final home = Platform.environment['HOME'] ??
-        Platform.environment['USERPROFILE'];
+    final home =
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
     if (home == null || home.isEmpty) return null;
     for (final candidate in [
       '$home${Platform.pathSeparator}Downloads',

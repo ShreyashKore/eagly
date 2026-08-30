@@ -73,17 +73,20 @@ void main() {
       expect(device.displayLabel.secondary, 'Samsung Galaxy S21');
     });
 
-    test('displayName appends serial when brand/model is distinct from name', () {
-      final device = Device.android(
-        'RZCW1186VXZ',
-        'device',
-        brand: 'Samsung',
-        model: 'Galaxy S21',
-        name: 'gts3l', // codename — distinct
-      );
+    test(
+      'displayName appends serial when brand/model is distinct from name',
+      () {
+        final device = Device.android(
+          'RZCW1186VXZ',
+          'device',
+          brand: 'Samsung',
+          model: 'Galaxy S21',
+          name: 'gts3l', // codename — distinct
+        );
 
-      expect(device.displayName, 'Samsung Galaxy S21 (RZCW1186VXZ)');
-    });
+        expect(device.displayName, 'Samsung Galaxy S21 (RZCW1186VXZ)');
+      },
+    );
 
     test('displayName skips duplicate when model already contains brand', () {
       final device = Device.android(
@@ -118,17 +121,20 @@ void main() {
       expect(device.isWireless, isTrue);
     });
 
-    test('displayLabel uses brand/model as primary and serial as secondary', () {
-      final device = Device.android(
-        mdnsId,
-        'device',
-        brand: 'Samsung',
-        model: 'Galaxy S21',
-      );
+    test(
+      'displayLabel uses brand/model as primary and serial as secondary',
+      () {
+        final device = Device.android(
+          mdnsId,
+          'device',
+          brand: 'Samsung',
+          model: 'Galaxy S21',
+        );
 
-      expect(device.displayLabel.primary, 'Samsung Galaxy S21');
-      expect(device.displayLabel.secondary, 'RZCW1186VXZ');
-    });
+        expect(device.displayLabel.primary, 'Samsung Galaxy S21');
+        expect(device.displayLabel.secondary, 'RZCW1186VXZ');
+      },
+    );
 
     test('displayLabel shows only extracted serial when undescribed', () {
       final device = Device.android(mdnsId, 'device');
@@ -183,19 +189,22 @@ void main() {
       expect(device.isWireless, isTrue);
     });
 
-    test('displayLabel uses brand/model as primary and bare IP as secondary', () {
-      final device = Device.android(
-        ipId,
-        'device',
-        brand: 'OnePlus',
-        model: 'Nord 3',
-      );
+    test(
+      'displayLabel uses brand/model as primary and bare IP as secondary',
+      () {
+        final device = Device.android(
+          ipId,
+          'device',
+          brand: 'OnePlus',
+          model: 'Nord 3',
+        );
 
-      expect(device.displayLabel.primary, 'OnePlus Nord 3');
-      expect(device.displayLabel.secondary, '192.168.0.118');
-      // Port is ephemeral — must not appear in the label.
-      expect(device.displayLabel.secondary, isNot(contains(':33537')));
-    });
+        expect(device.displayLabel.primary, 'OnePlus Nord 3');
+        expect(device.displayLabel.secondary, '192.168.0.118');
+        // Port is ephemeral — must not appear in the label.
+        expect(device.displayLabel.secondary, isNot(contains(':33537')));
+      },
+    );
 
     test('displayLabel shows bare IP when undescribed', () {
       final device = Device.android(ipId, 'device');

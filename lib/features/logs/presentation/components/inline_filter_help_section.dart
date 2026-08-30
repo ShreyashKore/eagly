@@ -75,8 +75,7 @@ class InlineFilterHelpSection extends StatelessWidget {
             ),
             ActionChip(
               label: const Text('age:1h'),
-              onPressed: () =>
-                  onAppendToken('age:1h', applyImmediately: true),
+              onPressed: () => onAppendToken('age:1h', applyImmediately: true),
             ),
             ActionChip(
               label: const Text('-package:'),

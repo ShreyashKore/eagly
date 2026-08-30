@@ -165,7 +165,10 @@ class _TerminalInputBarState extends State<TerminalInputBar> {
                         alpha: 0.7,
                       ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 2,
+                    ),
                   ),
                 ),
               ),

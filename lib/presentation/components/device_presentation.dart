@@ -25,7 +25,8 @@ class DevicePlatformIconWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = Icon(devicePlatformIcon(device), color: color, size: size);
-    final isWireless = device is AndroidDevice && (device as AndroidDevice).isWireless;
+    final isWireless =
+        device is AndroidDevice && (device as AndroidDevice).isWireless;
     if (!isWireless) return icon;
 
     return SizedBox(

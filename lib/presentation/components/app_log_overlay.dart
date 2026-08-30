@@ -48,8 +48,8 @@ class AppLogTriggerButton extends StatelessWidget {
       builder: (context, _) {
         final logger = AppLogger.global;
         final entries = logger.entriesWhere(sessionTag: sessionTag);
-        final latest = logger.latestEntry(sessionTag: sessionTag) ??
-            logger.latestEntry();
+        final latest =
+            logger.latestEntry(sessionTag: sessionTag) ?? logger.latestEntry();
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         final (icon, color) = _indicatorStyle(latest?.level, colorScheme);
@@ -198,7 +198,9 @@ class _AppLogPanelState extends State<AppLogPanel> {
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHighest,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(10),
+              ),
             ),
             child: Row(
               children: [
@@ -217,7 +219,10 @@ class _AppLogPanelState extends State<AppLogPanel> {
                 ),
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(8),
@@ -343,10 +348,7 @@ class _HeaderButton extends StatelessWidget {
 }
 
 class _LogEntryRow extends StatelessWidget {
-  const _LogEntryRow({
-    required this.entry,
-    required this.showSessionTag,
-  });
+  const _LogEntryRow({required this.entry, required this.showSessionTag});
 
   final AppLogEntry entry;
   final bool showSessionTag;
@@ -437,7 +439,10 @@ class _LogEntryRow extends StatelessWidget {
     AppLogLevel level,
     ColorScheme colorScheme,
   ) => switch (level) {
-    AppLogLevel.debug => (colorScheme.onSurfaceVariant, Icons.bug_report_outlined),
+    AppLogLevel.debug => (
+      colorScheme.onSurfaceVariant,
+      Icons.bug_report_outlined,
+    ),
     AppLogLevel.info => (colorScheme.primary, Icons.info_outline),
     AppLogLevel.success => (Colors.green, Icons.check_circle_outline),
     AppLogLevel.warning => (colorScheme.tertiary, Icons.warning_amber_outlined),
@@ -451,4 +456,3 @@ class _LogEntryRow extends StatelessWidget {
     return '$h:$m:$s';
   }
 }
-

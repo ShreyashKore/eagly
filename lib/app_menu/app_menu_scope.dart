@@ -17,9 +17,7 @@ class AppMenuScope extends InheritedNotifier<AppMenuController> {
   }) : super(notifier: controller);
 
   static AppMenuController? maybeOf(BuildContext context) {
-    return context
-        .dependOnInheritedWidgetOfExactType<AppMenuScope>()
-        ?.notifier;
+    return context.dependOnInheritedWidgetOfExactType<AppMenuScope>()?.notifier;
   }
 
   static AppMenuController of(BuildContext context) {
@@ -29,6 +27,5 @@ class AppMenuScope extends InheritedNotifier<AppMenuController> {
   }
 
   /// Reads just the current snapshot (and subscribes to changes).
-  static AppMenuState stateOf(BuildContext context) =>
-      of(context).state;
+  static AppMenuState stateOf(BuildContext context) => of(context).state;
 }

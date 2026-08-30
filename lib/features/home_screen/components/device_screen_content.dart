@@ -69,7 +69,10 @@ class DeviceScreenContent extends StatelessWidget {
 }
 
 class _Workspace extends StatelessWidget {
-  const _Workspace({required this.session, required this.appMemoryBytesListenable});
+  const _Workspace({
+    required this.session,
+    required this.appMemoryBytesListenable,
+  });
 
   final DeviceSessionController session;
   final ValueListenable<int> appMemoryBytesListenable;
