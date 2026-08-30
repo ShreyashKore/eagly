@@ -91,7 +91,17 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `ToolProcessRunner.runTextWithTimeout` (killable, unlike `Process.run`). Adding a
   command = one entry in the catalog. `adb shell` scripts are sent as a single argument
   and evaluated by the *device's* `sh` (no host shell); quote user input with
-  `shellQuote()`.
+  `shellQuote()`. Two optional fields make a command *app-targeted*:
+  `packageParamKey` names the param that takes a package name, which is what
+  puts the command on the Apps pane's right-click menu (pre-filled with the
+  clicked app — see `features/apps/components/app_utility_menu.dart`), and
+  `systemAppSafe` opts it in for preinstalled packages. It defaults to false,
+  so a new app command is refused on system apps until it says otherwise;
+  only read-only ones opt in. Params whose useful values are known but not
+  exhaustive (permissions, `dumpsys` services, screen sizes) use
+  `UtilityParam.suggestion` with a list from
+  `features/utilities/data/utility_suggestions.dart` — a text field with a
+  dropdown, never a whitelist.
 - **Terminal feature:** free-form `adb` / libimobiledevice command entry, multi-tab like
   Logs (`TerminalSessionManager`; first tab permanent). Each `TerminalController` owns a
   scrollback, a history and a *target device*, and the point of the feature is that the

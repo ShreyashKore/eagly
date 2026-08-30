@@ -50,6 +50,18 @@ class UtilitiesController extends FeatureController {
     (group) => group.commands.any((command) => command.supports(device)),
   );
 
+  /// Looks a command up across the whole catalog (not just the filtered
+  /// [groups]) — the result panel's "Run again" needs it even while the
+  /// search box hides that command.
+  UtilityCommand? commandById(String id) {
+    for (final group in utilityCatalog) {
+      for (final command in group.commands) {
+        if (command.id == id && command.supports(device)) return command;
+      }
+    }
+    return null;
+  }
+
   bool _matches(UtilityCommand command, UtilityGroup group, String query) {
     if (query.isEmpty) return true;
     if (command.label.toLowerCase().contains(query)) return true;

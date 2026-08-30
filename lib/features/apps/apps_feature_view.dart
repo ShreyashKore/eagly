@@ -61,6 +61,7 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
   }
 
   Future<void> _handleClearData(AppInfo app) async {
+    if (_blockSystemApp(app)) return;
     final confirmed = await _confirmDestructive(
       title: 'Clear data for ${app.displayName}?',
       message:
@@ -73,6 +74,7 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
   }
 
   Future<void> _handleUninstall(AppInfo app) async {
+    if (_blockSystemApp(app)) return;
     final confirmed = await _confirmDestructive(
       title: 'Uninstall ${app.displayName}?',
       message: 'This permanently removes the app and its data from the device.',
@@ -80,6 +82,18 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
     );
     if (!confirmed) return;
     _showSnackBar(await controller.uninstall(app));
+  }
+
+  /// Last line of defence for the irreversible actions: the context menu
+  /// already disables them for a system app, so reaching here means something
+  /// else routed one in. Refuse instead of trusting the caller.
+  bool _blockSystemApp(AppInfo app) {
+    if (!app.isSystemApp) return false;
+    _showSnackBar(
+      '${app.displayName} is a system app — that action is not available '
+      'for preinstalled packages.',
+    );
+    return true;
   }
 
   Future<bool> _confirmDestructive({
@@ -208,6 +222,7 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
             controller: controller,
             app: app,
             actions: _actions,
+            showSnackBar: _showSnackBar,
           ),
         );
       },

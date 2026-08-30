@@ -107,6 +107,8 @@ void main() {
     final controller = createController();
     await tester.pumpWidget(host(controller));
 
+    await tester.ensureVisible(find.text('Open URL or deep link'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Open URL or deep link'));
     await tester.pumpAndSettle();
 

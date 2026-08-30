@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../apps_controller.dart';
 import '../data/app_info.dart';
+import 'app_utility_menu.dart';
 
 /// The app actions that need dialogs or snackbars. Owned by the feature view
 /// and invoked from the context menu, so the menu helper stays free of
@@ -32,21 +33,38 @@ enum _AppAction {
   appInfo,
   viewLogs,
   copyPackageName,
+  utilities,
   uninstall,
 }
+
+/// Why the irreversible entries are off for a preinstalled package.
+const _systemAppBlockedReason =
+    'Not available for system apps — wiping or removing a preinstalled '
+    'package can leave the device unusable.';
 
 /// Right-click menu for a single [app], with options gated by what the
 /// platform actually supports (see [AppsController.canLaunchApps] /
 /// [AppsController.canManageAppState]). [position] is the global pointer
 /// location.
+///
+/// **System apps** keep the reversible entries (open, force stop — a system
+/// app just restarts) but the irreversible ones (clear data, uninstall) are
+/// shown disabled with [_systemAppBlockedReason] as their tooltip. They are
+/// disabled rather than hidden so the menu keeps the same shape for every
+/// app and the reason is discoverable. The same rule governs the Utilities
+/// submenu, per command — see [showAppUtilityMenu].
 Future<void> showAppContextMenu(
   BuildContext context,
   Offset position, {
   required AppsController controller,
   required AppInfo app,
   required AppActions actions,
+  required void Function(String message) showSnackBar,
 }) async {
   final theme = Theme.of(context);
+  final isSystem = app.isSystemApp;
+  final hasUtilities = hasAppUtilities(controller.session);
+
   final result = await showMenu<_AppAction>(
     context: context,
     position: _positionFrom(position),
@@ -61,9 +79,15 @@ Future<void> showAppContextMenu(
           value: _AppAction.forceStop,
           child: _MenuRow(Icons.stop_circle_outlined, 'Force Stop'),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: _AppAction.clearData,
-          child: _MenuRow(Icons.delete_sweep_outlined, 'Clear Data…'),
+          enabled: !isSystem,
+          child: _MenuRow(
+            Icons.delete_sweep_outlined,
+            'Clear Data…',
+            blocked: isSystem,
+            blockedReason: _systemAppBlockedReason,
+          ),
         ),
         const PopupMenuItem(
           value: _AppAction.appInfo,
@@ -78,13 +102,27 @@ Future<void> showAppContextMenu(
         value: _AppAction.copyPackageName,
         child: _MenuRow(Icons.badge_outlined, 'Copy Package Name'),
       ),
+      if (hasUtilities) ...[
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: _AppAction.utilities,
+          child: _MenuRow(
+            Icons.handyman_outlined,
+            'Utilities',
+            trailing: Icons.chevron_right,
+          ),
+        ),
+      ],
       const PopupMenuDivider(),
       PopupMenuItem(
         value: _AppAction.uninstall,
+        enabled: !isSystem,
         child: _MenuRow(
           Icons.delete_outline,
           'Uninstall…',
-          color: theme.colorScheme.error,
+          color: isSystem ? null : theme.colorScheme.error,
+          blocked: isSystem,
+          blockedReason: _systemAppBlockedReason,
         ),
       ),
     ],
@@ -104,16 +142,18 @@ Future<void> showAppContextMenu(
       actions.onViewLogs(app);
     case _AppAction.copyPackageName:
       await Clipboard.setData(ClipboardData(text: app.packageName));
-      if (context.mounted) _toast(context, 'Copied package name.');
+      if (context.mounted) showSnackBar('Copied package name.');
+    case _AppAction.utilities:
+      await showAppUtilityMenu(
+        context,
+        position,
+        session: controller.session,
+        app: app,
+        showSnackBar: showSnackBar,
+      );
     case _AppAction.uninstall:
       actions.onUninstall(app);
   }
-}
-
-void _toast(BuildContext context, String message) {
-  final messenger = ScaffoldMessenger.of(context);
-  messenger.hideCurrentSnackBar();
-  messenger.showSnackBar(SnackBar(content: Text(message)));
 }
 
 RelativeRect _positionFrom(Offset globalPosition) => RelativeRect.fromLTRB(
@@ -124,20 +164,54 @@ RelativeRect _positionFrom(Offset globalPosition) => RelativeRect.fromLTRB(
 );
 
 class _MenuRow extends StatelessWidget {
-  const _MenuRow(this.icon, this.label, {this.color});
+  const _MenuRow(
+    this.icon,
+    this.label, {
+    this.color,
+    this.trailing,
+    this.blocked = false,
+    this.blockedReason,
+  });
 
   final IconData icon;
   final String label;
   final Color? color;
+  final IconData? trailing;
+
+  /// Renders the row as unavailable and explains why on hover.
+  final bool blocked;
+  final String? blockedReason;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final theme = Theme.of(context);
+    final foreground = blocked
+        ? theme.colorScheme.onSurface.withValues(alpha: 0.38)
+        : color;
+
+    final row = Row(
       children: [
-        Icon(icon, size: 16, color: color),
+        Icon(icon, size: 16, color: foreground),
         const SizedBox(width: 10),
-        Text(label, style: color == null ? null : TextStyle(color: color)),
+        Expanded(
+          child: Text(
+            label,
+            style: foreground == null ? null : TextStyle(color: foreground),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (blocked)
+          Icon(Icons.lock_outline, size: 14, color: foreground)
+        else if (trailing != null)
+          Icon(trailing, size: 16, color: theme.colorScheme.onSurfaceVariant),
       ],
+    );
+
+    if (!blocked || blockedReason == null) return row;
+    return Tooltip(
+      message: blockedReason!,
+      waitDuration: const Duration(milliseconds: 400),
+      child: row,
     );
   }
 }

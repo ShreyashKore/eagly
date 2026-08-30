@@ -17,6 +17,10 @@ import 'utility_runner.dart';
 /// command or platform. Clicking a tile collects parameters (if any), confirms
 /// (if the command asks for it), runs, and shows the result in the output
 /// panel or, for side-effect-only commands, a snackbar.
+///
+/// Because a click can lead to three different places, every tile carries a
+/// chip saying which (see [UtilityTile]) and the pane keeps a one-line legend
+/// under the search box explaining them.
 class UtilitiesFeatureView extends FeatureView {
   const UtilitiesFeatureView({
     super.key,
@@ -52,9 +56,21 @@ class _UtilitiesFeatureViewState
     showSnackBar: showSnackBar,
   );
 
+  void _clearSearch() {
+    _searchController.clear();
+    controller.setSearchText('');
+  }
+
+  /// The command behind the result panel, when it can be run again right now.
+  UtilityCommand? _rerunnable(UtilityRunResult result) {
+    if (controller.isRunning || !controller.isConnected) return null;
+    return controller.commandById(result.commandId);
+  }
+
   @override
   Widget buildContent(BuildContext context) {
     final result = controller.lastResult;
+    final rerun = result == null ? null : _rerunnable(result);
 
     return FeaturePane(
       header: FeatureViewHeader(
@@ -68,11 +84,17 @@ class _UtilitiesFeatureViewState
           _SearchField(
             controller: _searchController,
             onChanged: controller.setSearchText,
+            onClear: controller.searchText.isEmpty ? null : _clearSearch,
           ),
+          if (controller.hasAnyUtility) const _Legend(),
           if (!controller.isConnected) const _DisconnectedNotice(),
           Expanded(child: _buildBody(context)),
           if (result != null)
-            UtilityOutputPanel(result: result, onClose: controller.clearResult),
+            UtilityOutputPanel(
+              result: result,
+              onClose: controller.clearResult,
+              onRerun: rerun == null ? null : () => _handleTap(rerun),
+            ),
         ],
       ),
     );
@@ -89,22 +111,32 @@ class _UtilitiesFeatureViewState
 
     final groups = controller.groups;
     if (groups.isEmpty) {
-      return const CenteredStateMessage(
+      return CenteredStateMessage(
         icon: Icons.search_off,
         title: 'No matching utilities',
         description: 'Try a different search.',
+        footer: TextButton.icon(
+          onPressed: _clearSearch,
+          icon: const Icon(Icons.close, size: 16),
+          label: const Text('Clear search'),
+        ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(top: 4, bottom: 16),
       itemCount: groups.length,
       itemBuilder: (context, index) {
         final group = groups[index];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _GroupHeader(title: group.title, icon: group.icon),
+            _GroupHeader(
+              title: group.title,
+              icon: group.icon,
+              count: group.commands.length,
+              isFirst: index == 0,
+            ),
             for (final command in group.commands)
               UtilityTile(
                 key: ValueKey(command.id),
@@ -117,6 +149,81 @@ class _UtilitiesFeatureViewState
           ],
         );
       },
+    );
+  }
+}
+
+/// One-line key to the tile chips. Cheap to read, and it is the difference
+/// between "why did that just reboot my phone" and an informed click.
+class _Legend extends StatelessWidget {
+  const _Legend();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final eaglyTheme = context.eaglyTheme;
+    final muted = theme.colorScheme.onSurfaceVariant;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 7, 12, 7),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Wrap(
+        spacing: 14,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          _LegendItem(
+            icon: Icons.play_arrow_rounded,
+            label: 'Runs at once',
+            color: muted,
+          ),
+          _LegendItem(
+            icon: Icons.tune,
+            label: 'Asks for options',
+            color: muted,
+          ),
+          _LegendItem(
+            icon: Icons.warning_amber_rounded,
+            label: 'Asks to confirm',
+            color: eaglyTheme.warningColor,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  const _LegendItem({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: color),
+        const Gap(4),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -157,27 +264,49 @@ class _DisconnectedNotice extends StatelessWidget {
 }
 
 class _GroupHeader extends StatelessWidget {
-  const _GroupHeader({required this.title, required this.icon});
+  const _GroupHeader({
+    required this.title,
+    required this.icon,
+    required this.count,
+    required this.isFirst,
+  });
 
   final String title;
   final IconData icon;
+  final int count;
+  final bool isFirst;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 18, 12, 6),
+      padding: EdgeInsets.fromLTRB(14, isFirst ? 12 : 20, 14, 6),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: theme.colorScheme.onSurfaceVariant),
+          Icon(icon, size: 14, color: muted),
           const Gap(8),
           Text(
             title.toUpperCase(),
             style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: muted,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.6,
+            ),
+          ),
+          const Gap(8),
+          Text(
+            '$count',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: muted.withValues(alpha: 0.7),
+            ),
+          ),
+          const Gap(10),
+          Expanded(
+            child: Divider(
+              height: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
             ),
           ),
         ],
@@ -187,10 +316,15 @@ class _GroupHeader extends StatelessWidget {
 }
 
 class _SearchField extends StatelessWidget {
-  const _SearchField({required this.controller, required this.onChanged});
+  const _SearchField({
+    required this.controller,
+    required this.onChanged,
+    required this.onClear,
+  });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
+  final VoidCallback? onClear;
 
   @override
   Widget build(BuildContext context) {
@@ -214,6 +348,15 @@ class _SearchField extends StatelessWidget {
             isDense: true,
             hintText: 'Search utilities…',
             prefixIcon: const Icon(Icons.search, size: 18),
+            suffixIcon: onClear == null
+                ? null
+                : IconButton(
+                    tooltip: 'Clear search',
+                    iconSize: 15,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onClear,
+                    icon: const Icon(Icons.close),
+                  ),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
           ),

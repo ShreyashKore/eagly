@@ -45,7 +45,11 @@ class UtilityInvocation {
   String get displayCommand => [tool.executable, ...arguments].join(' ');
 }
 
-enum UtilityParamKind { text, choice }
+/// How a parameter is edited. [choice] is a closed dropdown; [suggestion] is
+/// a free-text field with a dropdown of common values attached, for inputs
+/// whose useful values are well known but not exhaustive (permissions,
+/// `dumpsys` services, screen sizes).
+enum UtilityParamKind { text, choice, suggestion }
 
 /// One user-supplied value a utility needs before it can run.
 class UtilityParam {
@@ -57,6 +61,7 @@ class UtilityParam {
     this.options = const [],
     this.defaultValue = '',
     this.isRequired = true,
+    this.helperText,
   });
 
   const UtilityParam.choice({
@@ -64,8 +69,21 @@ class UtilityParam {
     required this.label,
     required this.options,
     required this.defaultValue,
+    this.helperText,
   }) : kind = UtilityParamKind.choice,
        hint = null,
+       isRequired = true;
+
+  /// A text field backed by a list of [options] the user can pick from or
+  /// ignore — anything typed is passed through unchanged.
+  const UtilityParam.suggestion({
+    required this.key,
+    required this.label,
+    required this.options,
+    this.hint,
+    this.defaultValue = '',
+    this.helperText,
+  }) : kind = UtilityParamKind.suggestion,
        isRequired = true;
 
   final String key;
@@ -75,13 +93,19 @@ class UtilityParam {
   final List<UtilityOption> options;
   final String defaultValue;
   final bool isRequired;
+
+  /// Optional one-liner shown under the field in the parameters dialog.
+  final String? helperText;
 }
 
 class UtilityOption {
-  const UtilityOption(this.value, this.label);
+  const UtilityOption(this.value, this.label, {this.description});
 
   final String value;
   final String label;
+
+  /// Optional second line shown under [label] in a suggestion dropdown.
+  final String? description;
 }
 
 /// The collected parameter values, read positionally by a command's builder.
@@ -114,6 +138,8 @@ class UtilityCommand {
     this.confirmation,
     this.expectsOutput = true,
     this.successMessage,
+    this.packageParamKey,
+    this.systemAppSafe = false,
   });
 
   final String id;
@@ -138,6 +164,28 @@ class UtilityCommand {
   final bool expectsOutput;
   final String? successMessage;
 
+  /// The [UtilityParam.key] that takes a package name / bundle id, for
+  /// commands aimed at one app. Non-null is what makes a command reachable
+  /// from the Apps pane's right-click menu (pre-filled with that app), so
+  /// the user never has to type a package name by hand.
+  final String? packageParamKey;
+
+  /// Whether this command may be aimed at a *system* app. Defaults to false:
+  /// mutating a preinstalled package's permissions or state can leave the
+  /// device unusable, so a command has to opt in — read-only ones do.
+  /// Only meaningful together with [packageParamKey].
+  final bool systemAppSafe;
+
+  /// True for commands that target a single app, i.e. that the Apps pane can
+  /// offer on an app's context menu.
+  bool get targetsApp => packageParamKey != null;
+
+  /// Whether this command may be run against [isSystemApp].
+  bool allowsApp({required bool isSystemApp}) => !isSystemApp || systemAppSafe;
+
+  /// True when clicking asks the user to confirm before anything runs.
+  bool get isDestructive => confirmation != null;
+
   bool get needsInput => params.isNotEmpty;
 
   bool supports(Device device) => build(device, const UtilityArgs()) != null;
@@ -146,6 +194,11 @@ class UtilityCommand {
   /// unsupported on [device].
   String? previewFor(Device device) =>
       build(device, const UtilityArgs())?.displayCommand;
+
+  /// The command line as it would run with [values] filled in — used by the
+  /// parameters dialog to show exactly what the Run button will execute.
+  String? previewWith(Device device, Map<String, String> values) =>
+      build(device, UtilityArgs(values))?.displayCommand;
 
   Map<String, String> get defaultValues => {
     for (final param in params) param.key: param.defaultValue,

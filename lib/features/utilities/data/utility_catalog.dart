@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../data/device.dart';
 import 'utility_command.dart';
+import 'utility_suggestions.dart';
 
 /// The Utilities catalog: curated `adb` / `adb shell` commands a developer
 /// actually reaches for, with a libimobiledevice equivalent wherever one
@@ -356,11 +357,12 @@ final _screenGroup = UtilityGroup(
       description: 'Emulates another screen size. Use "reset" to restore.',
       icon: Icons.fit_screen,
       params: const [
-        UtilityParam(
+        UtilityParam.suggestion(
           key: 'size',
           label: 'Size',
           hint: '1080x1920 or reset',
           defaultValue: 'reset',
+          options: screenResolutions,
         ),
       ],
       build: (device, args) =>
@@ -372,11 +374,12 @@ final _screenGroup = UtilityGroup(
       description: 'Emulates another dpi. Use "reset" to restore.',
       icon: Icons.grid_4x4,
       params: const [
-        UtilityParam(
+        UtilityParam.suggestion(
           key: 'density',
           label: 'Density',
           hint: '420 or reset',
           defaultValue: 'reset',
+          options: screenDensities,
         ),
       ],
       build: (device, args) =>
@@ -454,12 +457,20 @@ final _appsGroup = UtilityGroup(
       icon: Icons.lock_open,
       expectsOutput: false,
       successMessage: 'Permission granted.',
+      packageParamKey: 'package',
       params: const [
-        UtilityParam(key: 'package', label: 'Package', hint: 'com.example.app'),
         UtilityParam(
+          key: 'package',
+          label: 'Package',
+          hint: 'com.example.app',
+          helperText: 'Right-click an app in the Apps pane to fill this in.',
+        ),
+        UtilityParam.suggestion(
           key: 'permission',
           label: 'Permission',
           hint: 'android.permission.CAMERA',
+          options: androidRuntimePermissions,
+          helperText: 'Pick a common one, or type any permission name.',
         ),
       ],
       build: (device, args) => _adbShell(
@@ -476,12 +487,20 @@ final _appsGroup = UtilityGroup(
       icon: Icons.lock_outline,
       expectsOutput: false,
       successMessage: 'Permission revoked.',
+      packageParamKey: 'package',
       params: const [
-        UtilityParam(key: 'package', label: 'Package', hint: 'com.example.app'),
         UtilityParam(
+          key: 'package',
+          label: 'Package',
+          hint: 'com.example.app',
+          helperText: 'Right-click an app in the Apps pane to fill this in.',
+        ),
+        UtilityParam.suggestion(
           key: 'permission',
           label: 'Permission',
           hint: 'android.permission.CAMERA',
+          options: androidRuntimePermissions,
+          helperText: 'Pick a common one, or type any permission name.',
         ),
       ],
       build: (device, args) => _adbShell(
@@ -499,8 +518,14 @@ final _appsGroup = UtilityGroup(
       confirmation:
           'Every runtime permission for this package goes back to "ask". The '
           'app is force-stopped in the process.',
+      packageParamKey: 'package',
       params: const [
-        UtilityParam(key: 'package', label: 'Package', hint: 'com.example.app'),
+        UtilityParam(
+          key: 'package',
+          label: 'Package',
+          hint: 'com.example.app',
+          helperText: 'Right-click an app in the Apps pane to fill this in.',
+        ),
       ],
       build: (device, args) => _adbShell(
         device,
@@ -512,8 +537,16 @@ final _appsGroup = UtilityGroup(
       label: 'Package details',
       description: 'Version, install source, permissions and components.',
       icon: Icons.inventory_2_outlined,
+      packageParamKey: 'package',
+      // Read-only, so it is the one app command safe to aim at a system app.
+      systemAppSafe: true,
       params: const [
-        UtilityParam(key: 'package', label: 'Package', hint: 'com.example.app'),
+        UtilityParam(
+          key: 'package',
+          label: 'Package',
+          hint: 'com.example.app',
+          helperText: 'Right-click an app in the Apps pane to fill this in.',
+        ),
       ],
       build: (device, args) =>
           _adbShell(device, 'dumpsys package ${shellQuote(args['package'])}'),
@@ -527,8 +560,14 @@ final _appsGroup = UtilityGroup(
       confirmation:
           'The app will receive thousands of random taps and gestures. Do not '
           'run this against a signed-in production account.',
+      packageParamKey: 'package',
       params: const [
-        UtilityParam(key: 'package', label: 'Package', hint: 'com.example.app'),
+        UtilityParam(
+          key: 'package',
+          label: 'Package',
+          hint: 'com.example.app',
+          helperText: 'Right-click an app in the Apps pane to fill this in.',
+        ),
         UtilityParam(
           key: 'events',
           label: 'Event count',
@@ -567,11 +606,13 @@ final _debugGroup = UtilityGroup(
           'Raw `dumpsys` output for one service (battery, power, wifi…).',
       icon: Icons.data_object,
       params: const [
-        UtilityParam(
+        UtilityParam.suggestion(
           key: 'service',
           label: 'Service',
           hint: 'battery, power, wifi, activity …',
           defaultValue: 'battery',
+          options: dumpsysServices,
+          helperText: 'Run `dumpsys -l` on the device for the full list.',
         ),
       ],
       build: (device, args) =>
