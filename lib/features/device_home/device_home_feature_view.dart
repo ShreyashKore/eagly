@@ -5,6 +5,7 @@ import 'package:gap/gap.dart';
 
 import '../../presentation/components/feature_view.dart';
 import '../../session/device_session_controller.dart';
+import 'components/command_palette_hint.dart';
 import 'components/detail_cards.dart';
 import 'components/device_hero_card.dart';
 import 'components/disconnected_state.dart';
@@ -144,7 +145,12 @@ class _DeviceHomeFeatureViewState
                   homeController: controller,
                   info: info,
                 ),
-                const Gap(12),
+                const Gap(16),
+                _SectionHeading(
+                  label: 'Quick access',
+                  trailing: const CommandPaletteHint(),
+                ),
+                const Gap(8),
                 QuickAccessBar(session: session),
                 const Gap(12),
                 if (loadingFirstSnapshot)
@@ -222,6 +228,39 @@ class _CardGrid extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Small uppercase heading with an optional trailing action, used to give the
+/// launcher strip a home for the command-palette hint.
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({required this.label, this.trailing});
+
+  final String label;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.7,
+              fontSize: 10.5,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        Spacer(),
+        if (trailing != null) trailing!,
+      ],
     );
   }
 }

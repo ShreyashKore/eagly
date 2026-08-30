@@ -84,6 +84,8 @@ class FeatureRail extends StatelessWidget {
                                       : 'View device logs',
                                   onTap: session.toggleLogs,
                                 ),
+                                // To make mirroring discoverable, we show the button even if the device doesn't support it,
+                                // but disable it and show a tooltip explaining why.
                                 RailButton(
                                   icon: Icons.mobile_screen_share,
                                   label: 'Mirror',
