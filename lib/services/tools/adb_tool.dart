@@ -6,6 +6,7 @@ import 'package:eagly/features/logs/services/log_parsers/logcat_parser.dart';
 
 import '../../data/device.dart';
 import '../../features/apps/data/app_info.dart';
+import '../../features/device_home/data/device_info.dart';
 import '../../features/device_home/data/installed_app_info.dart';
 import '../../features/logs/data/models/log_entry.dart';
 import '../../features/wireless_connection/data/wireless_debug_models.dart';
@@ -168,6 +169,261 @@ class AdbTool extends ToolProcessRunner {
       logError('Unexpected error describing Android device $deviceId', error);
       return Device.android(deviceId, 'unavailable');
     }
+  }
+
+  /// Broader device info for the device home screen: battery, storage,
+  /// display, connectivity, cellular, developer state and software details.
+  /// All sub-commands run concurrently over one adb connection; any single
+  /// command failing just leaves its fields null rather than failing the
+  /// whole fetch.
+  Future<DeviceInfo> fetchDeviceInfo(AndroidDevice device) async {
+    final deviceId = device.id;
+    try {
+      final results = await Future.wait([
+        runText(['-s', deviceId, 'shell', 'getprop']),
+        runText(['-s', deviceId, 'shell', 'dumpsys', 'battery']),
+        runText(['-s', deviceId, 'shell', 'df', '/data']),
+        runText(['-s', deviceId, 'shell', 'wm', 'size']),
+        runText(['-s', deviceId, 'shell', 'wm', 'density']),
+        runText(['-s', deviceId, 'shell', 'dumpsys', 'display']),
+        runText([
+          '-s',
+          deviceId,
+          'shell',
+          'settings',
+          'get',
+          'global',
+          'wifi_on',
+        ]),
+        runText([
+          '-s',
+          deviceId,
+          'shell',
+          'settings',
+          'get',
+          'global',
+          'bluetooth_on',
+        ]),
+        runText([
+          '-s',
+          deviceId,
+          'shell',
+          'settings',
+          'get',
+          'global',
+          'development_settings_enabled',
+        ]),
+        runText([
+          '-s',
+          deviceId,
+          'shell',
+          'settings',
+          'get',
+          'global',
+          'adb_enabled',
+        ]),
+        runText([
+          '-s',
+          deviceId,
+          'shell',
+          'ip',
+          '-f',
+          'inet',
+          'addr',
+          'show',
+          'wlan0',
+        ]),
+      ]);
+
+      final properties = _parseAndroidGetPropOutput(results[0].stdout);
+      final mccMnc = _splitMccMnc(properties['gsm.operator.numeric']);
+      final sdkLevel = int.tryParse(properties['ro.build.version.sdk'] ?? '');
+
+      return DeviceInfo(
+        identity: DeviceIdentityInfo(
+          deviceName: device.name ?? device.model,
+          manufacturer: _firstNonEmpty(
+            properties['ro.product.manufacturer'],
+            device.brand,
+          ),
+          model: device.model,
+          osName: 'Android',
+          osVersion: properties['ro.build.version.release'],
+          buildVersion: properties['ro.build.display.id'],
+          serialNumber: device.serialNumber,
+          cpuArchitecture: properties['ro.product.cpu.abi'],
+        ),
+        battery: _parseAndroidBattery(results[1].stdout),
+        storage: _parseAndroidStorage(results[2].stdout),
+        display: _parseAndroidDisplay(
+          sizeOutput: results[3].stdout,
+          densityOutput: results[4].stdout,
+          displayDumpOutput: results[5].stdout,
+        ),
+        connectivity: DeviceConnectivityInfo(
+          usbConnected: !device.isWireless,
+          wifiEnabled: _parseAndroidBoolSetting(results[6].stdout),
+          bluetoothEnabled: _parseAndroidBoolSetting(results[7].stdout),
+          ipAddress: _parseAndroidIpAddress(results[10].stdout),
+        ),
+        cellular: DeviceCellularInfo(
+          carrierName: properties['gsm.operator.alpha'],
+          simOperatorName: properties['gsm.sim.operator.alpha'],
+          networkType: properties['gsm.network.type'],
+          simState: properties['gsm.sim.state'],
+          mcc: mccMnc?.mcc,
+          mnc: mccMnc?.mnc,
+        ),
+        developerState: DeviceDeveloperStateInfo(
+          developerModeEnabled: _parseAndroidBoolSetting(results[8].stdout),
+          adbEnabled: _parseAndroidBoolSetting(results[9].stdout),
+          debuggingReady: device.status == 'device',
+        ),
+        software: DeviceSoftwareInfo(
+          sdkLevel: sdkLevel,
+          securityPatch: properties['ro.build.version.security_patch'],
+          locale: properties['persist.sys.locale'],
+          timeZone: properties['persist.sys.timezone'],
+        ),
+      );
+    } catch (error) {
+      logError('Failed to fetch device info for $deviceId', error);
+      return const DeviceInfo();
+    }
+  }
+
+  Map<String, String> _parseColonSeparated(String output) {
+    final values = <String, String>{};
+    for (final rawLine in output.split('\n')) {
+      final line = rawLine.trim();
+      final separatorIndex = line.indexOf(':');
+      if (separatorIndex <= 0) continue;
+      final key = line.substring(0, separatorIndex).trim();
+      final value = line.substring(separatorIndex + 1).trim();
+      if (key.isEmpty || value.isEmpty) continue;
+      values[key] = value;
+    }
+    return values;
+  }
+
+  /// `dumpsys battery` reports BatteryManager int constants for status/health
+  /// and temperature in tenths of a degree Celsius.
+  DeviceBatteryInfo _parseAndroidBattery(String output) {
+    final values = _parseColonSeparated(output);
+    final level = int.tryParse(values['level'] ?? '');
+    final scale = int.tryParse(values['scale'] ?? '');
+    final percentage = (level != null && scale != null && scale > 0)
+        ? (level / scale * 100).round()
+        : level;
+
+    final chargingState = switch (int.tryParse(values['status'] ?? '')) {
+      2 => BatteryChargingState.charging,
+      3 => BatteryChargingState.discharging,
+      4 => BatteryChargingState.notCharging,
+      5 => BatteryChargingState.full,
+      _ => null,
+    };
+
+    final health = switch (int.tryParse(values['health'] ?? '')) {
+      2 => BatteryHealth.good,
+      3 => BatteryHealth.overheat,
+      4 => BatteryHealth.dead,
+      5 => BatteryHealth.overVoltage,
+      7 => BatteryHealth.cold,
+      _ => null,
+    };
+
+    final temperatureTenths = int.tryParse(values['temperature'] ?? '');
+
+    return DeviceBatteryInfo(
+      percentage: percentage,
+      chargingState: chargingState,
+      health: health,
+      temperatureCelsius: temperatureTenths != null
+          ? temperatureTenths / 10
+          : null,
+    );
+  }
+
+  /// Parses `df /data` — the closest reliable, permission-free proxy for
+  /// overall device storage (the shared userdata partition).
+  DeviceStorageInfo _parseAndroidStorage(String output) {
+    for (final rawLine in output.split('\n')) {
+      final columns = rawLine.trim().split(RegExp(r'\s+'));
+      if (columns.length < 6 || columns.last != '/data') continue;
+      final totalKb = int.tryParse(columns[columns.length - 5]);
+      final usedKb = int.tryParse(columns[columns.length - 4]);
+      final availableKb = int.tryParse(columns[columns.length - 3]);
+      if (totalKb == null) continue;
+      return DeviceStorageInfo(
+        totalBytes: totalKb * 1024,
+        usedBytes: usedKb != null ? usedKb * 1024 : null,
+        availableBytes: availableKb != null ? availableKb * 1024 : null,
+      );
+    }
+    return const DeviceStorageInfo();
+  }
+
+  DeviceDisplayInfo _parseAndroidDisplay({
+    required String sizeOutput,
+    required String densityOutput,
+    required String displayDumpOutput,
+  }) {
+    final sizeMatch =
+        RegExp(r'Override size:\s*(\d+)x(\d+)').firstMatch(sizeOutput) ??
+        RegExp(r'Physical size:\s*(\d+)x(\d+)').firstMatch(sizeOutput);
+    final densityMatch =
+        RegExp(r'Override density:\s*(\d+)').firstMatch(densityOutput) ??
+        RegExp(r'Physical density:\s*(\d+)').firstMatch(densityOutput);
+    final refreshMatch = RegExp(
+      r'refreshRate=([\d.]+)',
+    ).firstMatch(displayDumpOutput);
+    final rotationMatch = RegExp(
+      r'\brotation=(\d)',
+    ).firstMatch(displayDumpOutput);
+
+    DisplayOrientation? orientation;
+    final rotation = rotationMatch != null
+        ? int.tryParse(rotationMatch.group(1)!)
+        : null;
+    if (rotation != null) {
+      orientation = (rotation == 0 || rotation == 2)
+          ? DisplayOrientation.portrait
+          : DisplayOrientation.landscape;
+    }
+
+    return DeviceDisplayInfo(
+      widthPx: sizeMatch != null ? int.tryParse(sizeMatch.group(1)!) : null,
+      heightPx: sizeMatch != null ? int.tryParse(sizeMatch.group(2)!) : null,
+      densityDpi: densityMatch != null
+          ? int.tryParse(densityMatch.group(1)!)
+          : null,
+      refreshRateHz: refreshMatch != null
+          ? double.tryParse(refreshMatch.group(1)!)
+          : null,
+      orientation: orientation,
+    );
+  }
+
+  bool? _parseAndroidBoolSetting(String output) {
+    return switch (output.trim()) {
+      '1' => true,
+      '0' => false,
+      _ => null,
+    };
+  }
+
+  String? _parseAndroidIpAddress(String output) {
+    return RegExp(r'inet (\d+\.\d+\.\d+\.\d+)').firstMatch(output)?.group(1);
+  }
+
+  /// Splits a `gsm.operator.numeric` MCC+MNC string (e.g. `"311480"`) into its
+  /// 3-digit MCC and (2 or 3-digit) MNC parts.
+  ({String mcc, String mnc})? _splitMccMnc(String? numeric) {
+    if (numeric == null) return null;
+    final trimmed = numeric.trim();
+    if (!RegExp(r'^\d{5,6}$').hasMatch(trimmed)) return null;
+    return (mcc: trimmed.substring(0, 3), mnc: trimmed.substring(3));
   }
 
   Future<WirelessServiceDiscoveryResult> discoverMdnsServices() async {

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/apps/data/app_info.dart';
+import 'package:eagly/features/device_home/data/device_info.dart';
 import 'package:eagly/features/logs/data/models/log_column.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
@@ -201,6 +202,16 @@ class FakeSessionService extends DeviceSessionRepository {
   Future<Uint8List?> fetchAppIcon(String packageName) async {
     iconFetchRequests.add(packageName);
     return iconToReturn;
+  }
+
+  // ── Device home feature ──────────────────────────────────────────────────
+  DeviceInfo deviceInfoToReturn = const DeviceInfo();
+  int fetchDeviceInfoCount = 0;
+
+  @override
+  Future<DeviceInfo> fetchDeviceInfo() async {
+    fetchDeviceInfoCount++;
+    return deviceInfoToReturn;
   }
 
   @override
