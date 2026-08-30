@@ -9,14 +9,6 @@ installed_size: 120000
 dependencies:
   - libgtk-3-0
   - liblzma5
-  # The release is built inside an ubuntu:22.04 container, so the bundle needs
-  # glibc 2.35 / libstdc++6 12 (GLIBCXX_3.4.30) at most — declaring it turns an
-  # install on something older into an apt error instead of a "version
-  # `GLIBC_2.38' not found" crash at startup. Keep these in step with
-  # scripts/check_linux_glibc_baseline.sh, which verifies the built package
-  # actually honours them.
-  - libc6 (>= 2.35)
-  - libstdc++6 (>= 12)
   # NOTE: no libavcodec/libavutil here. The scrcpy H.264 decoder links a minimal,
   # glibc-only FFmpeg that is bundled inside the package under lib/ (built by
   # scripts/build_linux_ffmpeg.sh, installed by linux/CMakeLists.txt), so the

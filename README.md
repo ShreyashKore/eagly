@@ -52,7 +52,7 @@ light on memory.
 <br><br>
 <a href="https://github.com/ShreyashKore/eagly/releases/latest/download/eagly-linux.deb"><b>⬇ Download .deb</b></a>
 <br>
-<sub>Debian / Ubuntu based distros<br>Ubuntu 22.04+ / glibc 2.35+</sub>
+<sub>Debian / Ubuntu based distros</sub>
 </td>
 </tr>
 </table>
