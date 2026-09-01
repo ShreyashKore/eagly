@@ -1,7 +1,10 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../logs/data/models/log_level.dart';
+import '../mirror/services/capture_storage.dart';
+import '../../utils/file_reveal.dart';
 import '../logs/presentation/models/log_view_mode.dart';
 import '../../services/eagly_info_service.dart';
 import '../../services/preferences_service.dart';
@@ -32,6 +35,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late double _logFontSize;
   late double _zoomLevel;
   late bool _tipsEnabled;
+  late String _captureDirectory;
+  late bool _captureAskEveryTime;
   late final TextEditingController _logLinesController;
 
   @override
@@ -45,6 +50,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _logFontSize = PreferencesService.logFontSize;
     _zoomLevel = PreferencesService.zoomLevel;
     _tipsEnabled = PreferencesService.tipsEnabled;
+    _captureDirectory = CaptureStorage.resolveDirectory();
+    _captureAskEveryTime = PreferencesService.captureAskEveryTime;
     _logLinesController = TextEditingController(
       text: PreferencesService.logLinesLimit.toString(),
     );
@@ -74,6 +81,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
     PreferencesService.logLinesLimit = parsed;
     _showSnackBar('Max lines updated.');
+  }
+
+  Future<void> _chooseCaptureDirectory() async {
+    final chosen = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Choose a folder for screenshots and recordings',
+      initialDirectory: _captureDirectory,
+    );
+    if (chosen == null || chosen.trim().isEmpty) return;
+    await PreferencesService.setCaptureDirectory(chosen);
+    if (!mounted) return;
+    setState(() => _captureDirectory = CaptureStorage.resolveDirectory());
+    _showSnackBar('Captures will be saved to $chosen.');
+  }
+
+  Future<void> _resetCaptureDirectory() async {
+    await PreferencesService.setCaptureDirectory(null);
+    if (!mounted) return;
+    setState(() => _captureDirectory = CaptureStorage.resolveDirectory());
+    _showSnackBar('Capture folder reset to the default.');
+  }
+
+  Future<void> _openCaptureDirectory() async {
+    await CaptureStorage.ensureDirectory();
+    await openPathExternally(_captureDirectory);
   }
 
   Future<void> _resetHiddenColumns() async {
@@ -394,6 +425,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: const Text('Apply'),
                   ),
                 ],
+              ),
+            ],
+          ),
+          const Gap(16),
+          sectionCard(
+            title: 'Screenshots & recordings',
+            children: [
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Save folder'),
+                subtitle: Tooltip(
+                  message: _captureDirectory,
+                  child: Text(
+                    _captureDirectory,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Open folder',
+                      icon: const Icon(Icons.folder_open_outlined, size: 18),
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
+                      onPressed: _openCaptureDirectory,
+                    ),
+                    TextButton(
+                      onPressed: _chooseCaptureDirectory,
+                      child: const Text('Change…'),
+                    ),
+                    TextButton(
+                      onPressed: PreferencesService.captureDirectory == null
+                          ? null
+                          : _resetCaptureDirectory,
+                      child: const Text('Reset'),
+                    ),
+                  ],
+                ),
+              ),
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: _captureAskEveryTime,
+                title: const Text('Ask where to save each time'),
+                subtitle: const Text(
+                  'Show a save dialog instead of using the folder above',
+                ),
+                onChanged: (value) {
+                  setState(() => _captureAskEveryTime = value);
+                  PreferencesService.captureAskEveryTime = value;
+                },
               ),
             ],
           ),

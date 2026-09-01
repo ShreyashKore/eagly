@@ -50,7 +50,7 @@ Future<void> _configureDesktopWindow() async {
   const windowOptions = WindowOptions(
     titleBarStyle: TitleBarStyle.hidden,
     windowButtonVisibility: true,
-    minimumSize: Size(760, 520),
+    minimumSize: Size(560, 240),
   );
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.show();

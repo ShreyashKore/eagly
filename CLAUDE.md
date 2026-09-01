@@ -75,6 +75,12 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   unauthorized ⇒ disconnected). iOS presence in `idevice_id -l` ⇒ connected.
 - **Multiple log tabs** per device via `LogSessionManager` (first live tab is permanent;
   extra live + imported tabs allowed).
+- **Screen captures:** screenshots and `screenrecord` videos taken from the mirror pane
+  go straight to a capture folder — `CaptureStorage` (`features/mirror/services/`), default
+  `<Pictures>/Eagly`, overridable in Settings — under a timestamped, de-duplicated name.
+  No save dialog unless `PreferencesService.captureAskEveryTime` is on. The confirmation
+  uses `showSavedFileSnackBar`, whose Open / Show-in-folder actions go through
+  `utils/file_reveal.dart` (`open -R` / `explorer /select,` / `xdg-open` on the parent).
 - **App install & drag-and-drop:** `DeviceSessionController.handleDroppedPaths()` routes
   dropped paths — installable bundles (`.apk` on Android / `.ipa` on iOS, classified by
   `AppInstallService.inferSupportedPlatform`) go to `installAppFromPath()`; everything else

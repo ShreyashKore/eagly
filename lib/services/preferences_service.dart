@@ -53,6 +53,8 @@ class PreferencesService {
   static const _keyRecentLogFiles = 'recentLogFiles';
   static const _keyTipsEnabled = 'tipsEnabled';
   static const _keyTipRotationIndex = 'tipRotationIndex';
+  static const _keyCaptureDirectory = 'captureDirectory';
+  static const _keyCaptureAskEveryTime = 'captureAskEveryTime';
 
   /// Maximum number of recently opened log files retained for quick re-open.
   static const _maxRecentLogFiles = 10;
@@ -201,6 +203,29 @@ class PreferencesService {
     hiddenColumns: hiddenColumns,
     columnWidths: columnWidths,
   );
+
+  // --- Screen capture (screenshots / recordings) ---
+  /// Folder screenshots and recordings are written to. `null` means "use the
+  /// platform default" — resolved by `CaptureStorage.resolveDirectory()`, which
+  /// is also what the Settings screen displays.
+  static String? get captureDirectory {
+    final stored = _prefs.getString(_keyCaptureDirectory);
+    return (stored == null || stored.isEmpty) ? null : stored;
+  }
+
+  static Future<bool> setCaptureDirectory(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return _prefs.remove(_keyCaptureDirectory);
+    }
+    return _prefs.setString(_keyCaptureDirectory, value.trim());
+  }
+
+  /// When true a save dialog is shown for every capture instead of writing
+  /// straight into [captureDirectory].
+  static bool get captureAskEveryTime =>
+      _prefs.getBool(_keyCaptureAskEveryTime) ?? false;
+  static set captureAskEveryTime(bool v) =>
+      _prefs.setBool(_keyCaptureAskEveryTime, v);
 
   // --- Column widths (stored as single JSON object) ---
 
