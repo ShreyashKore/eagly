@@ -20,8 +20,12 @@ class CommandPaletteHint extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         mouseCursor: SystemMouseCursors.click,
         onTap: () => Actions.invoke(context, const OpenCommandPaletteIntent()),
-        child: Padding(
+        child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: theme.colorScheme.onSecondaryContainer),
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

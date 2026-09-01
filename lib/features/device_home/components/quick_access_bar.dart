@@ -3,7 +3,6 @@ import 'package:gap/gap.dart';
 
 import '../../../data/device.dart';
 import '../../../session/device_session_controller.dart';
-import 'home_primitives.dart';
 
 /// The feature launcher strip — every pane the app offers for this device,
 /// kept above the fold so a new user can see what Eagly does at a glance.
@@ -37,7 +36,6 @@ class QuickAccessBar extends StatelessWidget {
         icon: Icons.article_outlined,
         label: 'Logs',
         sublabel: 'Live logcat & syslog',
-        accelerator: acceleratorLabel('R'),
         isActive: s.isLogsOpen,
         onTap: s.toggleLogs,
       ),
@@ -146,7 +144,6 @@ class _ShortcutSpec {
     required this.sublabel,
     required this.isActive,
     required this.onTap,
-    this.accelerator,
   });
 
   final IconData icon;
@@ -156,7 +153,6 @@ class _ShortcutSpec {
 
   /// `null` disables the tile — the feature needs a connected device.
   final VoidCallback? onTap;
-  final String? accelerator;
 }
 
 class _ShortcutTile extends StatefulWidget {
@@ -164,7 +160,7 @@ class _ShortcutTile extends StatefulWidget {
 
   final _ShortcutSpec spec;
 
-  /// Drops the sublabel and the accelerator cap, and tightens the padding.
+  /// Drops the sublabel and tightens the padding.
   final bool compact;
 
   @override
@@ -206,6 +202,9 @@ class _ShortcutTileState extends State<_ShortcutTile> {
           borderRadius: BorderRadius.circular(14),
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
+            // Disabled tiles keep the plain arrow — the greyed-out tile and
+            // its tooltip already say why they cannot be clicked.
+            mouseCursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
             onTap: spec.onTap,
             child: Padding(
               padding: compact
@@ -257,10 +256,6 @@ class _ShortcutTileState extends State<_ShortcutTile> {
                       ],
                     ),
                   ),
-                  if (!compact && spec.accelerator != null && enabled) ...[
-                    const Gap(6),
-                    KeyCap(label: spec.accelerator!),
-                  ],
                 ],
               ),
             ),

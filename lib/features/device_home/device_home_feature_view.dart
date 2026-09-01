@@ -146,12 +146,11 @@ class _DeviceHomeFeatureViewState
                   info: info,
                 ),
                 const Gap(16),
-                _SectionHeading(
+                _QuickAccessTray(
                   label: 'Quick access',
                   trailing: const CommandPaletteHint(),
+                  child: QuickAccessBar(session: session),
                 ),
-                const Gap(8),
-                QuickAccessBar(session: session),
                 const Gap(12),
                 if (loadingFirstSnapshot)
                   const _LoadingStrip()
@@ -175,6 +174,49 @@ class _DeviceHomeFeatureViewState
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Holds the launcher strip in a faintly tinted, hairline-bordered tray.
+///
+/// The dashboard is otherwise a stack of equal-weight cards; the tray marks
+/// the one band that is *actions* rather than readings. The tint is a few
+/// percent of the accent over the page, which lifts the tray just above the
+/// background while leaving the tiles (drawn on `surface`) sitting above it —
+/// distinction by depth rather than by colour.
+class _QuickAccessTray extends StatelessWidget {
+  const _QuickAccessTray({
+    required this.label,
+    required this.child,
+    this.trailing,
+  });
+
+  final String label;
+  final Widget child;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(
+          scheme.primary.withValues(alpha: 0.05),
+          scheme.surfaceContainerLowest,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SectionHeading(label: label, trailing: trailing),
+          const Gap(8),
+          child,
+        ],
       ),
     );
   }
@@ -258,7 +300,6 @@ class _SectionHeading extends StatelessWidget {
             ),
           ),
         ),
-        Spacer(),
         if (trailing != null) trailing!,
       ],
     );
