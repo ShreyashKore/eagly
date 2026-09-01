@@ -15,4 +15,12 @@ class AppConstants {
   static const newTabLabel = 'New tab';
   static const newTabTooltip = 'Create a new tab';
   static const fontSizeSnackBarWidth = 120.0;
+
+  /// Floating snack bars stretch to the window width by default, which reads
+  /// badly on a maximised desktop window. [snackBarMaxWidth] caps them (they
+  /// stay centered); [snackBarSideMargin] is the gutter kept on either side
+  /// once the window is narrower than that cap.
+  static const snackBarMaxWidth = 560.0;
+  static const snackBarSideMargin = 24.0;
+  static const snackBarMinWidth = 200.0;
 }

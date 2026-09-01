@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:eagly/constants/app_constants.dart';
 import 'package:eagly/services/eagly_info_service.dart';
@@ -84,4 +85,16 @@ class MyApp extends StatelessWidget {
       },
     );
   }
+}
+
+/// Width for a floating snack bar inside a pane [availableWidth] logical
+/// pixels wide: capped so it never spans a maximised desktop window, and
+/// shrunk to leave a gutter on narrow ones. Snack bars that ask for their own
+/// width (e.g. the zoom-level toast) still win over this default.
+double _snackBarWidth(double availableWidth) {
+  final withGutters = availableWidth - AppConstants.snackBarSideMargin * 2;
+  return math.max(
+    math.min(AppConstants.snackBarMinWidth, availableWidth),
+    math.min(AppConstants.snackBarMaxWidth, withGutters),
+  );
 }
