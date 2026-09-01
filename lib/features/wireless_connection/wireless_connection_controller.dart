@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:collection/collection.dart';
@@ -76,9 +77,11 @@ class WirelessConnectionController extends ChangeNotifier {
     this.isDeviceSelectedInAnotherTab,
     this.selectedDeviceIdProvider,
     this.isRunningProvider,
+    void Function(WirelessPairResult result)? onQrPairingCompleted,
   }) : _devicesRepository = devicesRepository,
        _onDevicesApplied = onDevicesApplied,
-       _onActivateDevice = onActivateDevice;
+       _onActivateDevice = onActivateDevice,
+       _onQrPairingCompleted = onQrPairingCompleted;
 
   final DevicesRepository _devicesRepository;
   final Future<void> Function(List<Device> devices) _onDevicesApplied;
@@ -87,7 +90,10 @@ class WirelessConnectionController extends ChangeNotifier {
   final String? Function()? selectedDeviceIdProvider;
   final bool Function()? isRunningProvider;
 
-  var _discoveringWireless = false;
+  /// Called when a QR code was scanned and the resulting pair (plus automatic
+  /// connect) attempt finished — the scan loop, not the UI, drives that flow.
+  final void Function(WirelessPairResult result)? _onQrPairingCompleted;
+
   var _pairingWireless = false;
   var _connectingWireless = false;
   var _hasAttemptedWirelessDiscovery = false;
@@ -96,22 +102,25 @@ class WirelessConnectionController extends ChangeNotifier {
   String? _wirelessError;
   var _disposed = false;
   WirelessQrPairingSession? _qrSession;
-  var _waitingForQrScan = false;
-  var _qrCancelled = false;
+  var _scanning = false;
+  var _scanGeneration = 0;
 
-  static const Duration _qrScanPollInterval = Duration(milliseconds: 1200);
-  static const Duration _qrScanTimeout = Duration(minutes: 3);
+  /// How often the background scan re-probes mDNS while the pair pane is open.
+  @visibleForTesting
+  static Duration scanInterval = const Duration(milliseconds: 1200);
 
-  bool get isDiscoveringWireless => _discoveringWireless;
   bool get isPairingWireless => _pairingWireless;
   bool get isConnectingWireless => _connectingWireless;
-  bool get isWaitingForQrScan => _waitingForQrScan;
+
+  /// Whether the background mDNS scan is running. It is passive: it never
+  /// blocks pairing, connecting or QR generation.
+  bool get isScanning => _scanning;
+  bool get isWaitingForQrScan =>
+      _qrSession != null && _scanning && !isWirelessBusy;
   WirelessQrPairingSession? get qrSession => _qrSession;
-  bool get isWirelessBusy =>
-      _discoveringWireless ||
-      _pairingWireless ||
-      _connectingWireless ||
-      _waitingForQrScan;
+
+  /// True while an action that must not overlap another one is in flight.
+  bool get isWirelessBusy => _pairingWireless || _connectingWireless;
   bool get hasAttemptedWirelessDiscovery => _hasAttemptedWirelessDiscovery;
   List<WirelessDebugService> get wirelessServices =>
       List.unmodifiable(_wirelessServices);
@@ -131,45 +140,6 @@ class WirelessConnectionController extends ChangeNotifier {
   void _notify() {
     if (!_disposed) {
       notifyListeners();
-    }
-  }
-
-  Future<WirelessServiceDiscoveryResult> discoverWirelessServices() async {
-    if (_pairingWireless || _connectingWireless || _waitingForQrScan) {
-      const error =
-          'Finish the current wireless ADB action before starting another one.';
-      _wirelessError = error;
-      _wirelessMessage = null;
-      _notify();
-      return WirelessServiceDiscoveryResult.failure(error: error);
-    }
-
-    _discoveringWireless = true;
-    _hasAttemptedWirelessDiscovery = true;
-    _wirelessMessage = null;
-    _wirelessError = null;
-    _notify();
-
-    try {
-      final result = await _devicesRepository.discoverMdnsServices();
-      if (_disposed) return result;
-
-      if (result.isSuccess) {
-        _wirelessServices = result.services;
-        _wirelessError = null;
-        _wirelessMessage = result.services.isEmpty
-            ? 'No wireless ADB services found on the local network.'
-            : 'Found ${result.services.length} wireless ADB service${result.services.length == 1 ? '' : 's'}.';
-      } else {
-        _wirelessServices = [];
-        _wirelessMessage = null;
-        _wirelessError = result.error;
-      }
-
-      return result;
-    } finally {
-      _discoveringWireless = false;
-      _notify();
     }
   }
 
@@ -194,7 +164,7 @@ class WirelessConnectionController extends ChangeNotifier {
       _notify();
       return WirelessPairResult.failure(error: error);
     }
-    if (_discoveringWireless || _connectingWireless || _waitingForQrScan) {
+    if (_connectingWireless) {
       const error =
           'Finish the current wireless ADB action before pairing a device.';
       _wirelessError = error;
@@ -291,98 +261,132 @@ class WirelessConnectionController extends ChangeNotifier {
     }
   }
 
-  /// Generates a fresh pairing QR code and waits for an Android device to scan
-  /// it. Once the device starts advertising the matching mDNS pairing service,
-  /// pairing (and automatic connection) proceeds through [pairWirelessDevice].
-  ///
-  /// The returned future completes with the pairing result, or `null` when the
-  /// session is cancelled via [cancelQrPairing] or the controller is disposed.
-  /// [qrSession] is populated synchronously before the first suspension so the
-  /// UI can render the code immediately.
-  Future<WirelessPairResult?> startQrPairing() {
-    if (isWirelessBusy) {
-      const error =
-          'Finish the current wireless ADB action before pairing with a QR code.';
-      _wirelessError = error;
-      _wirelessMessage = null;
-      _notify();
-      return Future.value(WirelessPairResult.failure(error: error));
-    }
+  // ── Pair pane: QR code + background mDNS scan ───────────────────────────
 
-    final session = WirelessQrPairingSession(
+  /// Opens the pairing pane: publishes a QR code and starts the background
+  /// scan that both refreshes the nearby list and watches for the code being
+  /// scanned.
+  ///
+  /// The code is generated locally, so it is on screen from the first frame —
+  /// it never waits on an mDNS probe.
+  void beginPairing() {
+    if (_qrSession == null) {
+      regenerateQrCode();
+    }
+    startScanning();
+  }
+
+  /// Publishes a fresh single-use pairing code. Cheap and synchronous.
+  void regenerateQrCode() {
+    _qrSession = WirelessQrPairingSession(
       serviceName: _generateQrServiceName(),
       password: _generateQrPassword(),
     );
-    _qrSession = session;
-    _waitingForQrScan = true;
-    _qrCancelled = false;
-    _wirelessMessage =
-        'Scan the QR code with your Android device under '
-        'Wireless debugging → Pair device with QR code.';
-    _wirelessError = null;
     _notify();
-
-    return _runQrPairingLoop(session);
   }
 
-  void cancelQrPairing() {
-    if (!_waitingForQrScan) return;
-    _qrCancelled = true;
-    _waitingForQrScan = false;
-    _qrSession = null;
-    _wirelessMessage = null;
-    _wirelessError = null;
+  /// Starts the background mDNS scan. Safe to call when already scanning.
+  void startScanning() {
+    if (_scanning || _disposed) return;
+    _scanning = true;
+    _scanGeneration++;
+    _notify();
+    unawaited(_runScanLoop(_scanGeneration));
+  }
+
+  void stopScanning() {
+    if (!_scanning) return;
+    _scanning = false;
+    _scanGeneration++;
     _notify();
   }
 
   void cancelAllOperations() {
-    cancelQrPairing();
+    stopScanning();
   }
 
-  Future<WirelessPairResult?> _runQrPairingLoop(
-    WirelessQrPairingSession session,
-  ) async {
-    final deadline = DateTime.now().add(_qrScanTimeout);
-    try {
-      while (!_qrCancelled && !_disposed && DateTime.now().isBefore(deadline)) {
-        final discovery = await _devicesRepository.discoverMdnsServices();
-        if (_qrCancelled || _disposed) return null;
+  /// Polls mDNS until stopped. Each pass refreshes [wirelessServices] and, when
+  /// a pairing service matching the published QR session appears, hands off to
+  /// [pairWirelessDevice]. Passes are skipped while another action holds adb.
+  Future<void> _runScanLoop(int generation) async {
+    bool isStale() => _disposed || !_scanning || generation != _scanGeneration;
 
-        final pairingService = discovery.services.firstWhereOrNull(
-          (service) =>
-              service.type == WirelessDebugServiceType.pairing &&
-              service.name == session.serviceName,
+    while (!isStale()) {
+      if (!isWirelessBusy) {
+        final result = await _devicesRepository.discoverMdnsServices(
+          retry: false,
         );
+        if (isStale()) return;
 
-        if (pairingService != null) {
-          // Hand off to the regular pairing flow, which also resolves a
-          // connect endpoint and auto-connects when one is available.
-          _waitingForQrScan = false;
-          _qrSession = null;
-          _notify();
-          return await pairWirelessDevice(
-            address: pairingService.address,
-            pairingCode: session.password,
-          );
+        if (!result.isSuccess) {
+          // adb itself failed; retrying on a timer would only repeat the error.
+          _wirelessError = result.error;
+          _wirelessMessage = null;
+          stopScanning();
+          return;
         }
 
-        await Future<void>.delayed(_qrScanPollInterval);
+        // The scan repeats every second or so; only wake the UI on a change.
+        final changed =
+            !_hasAttemptedWirelessDiscovery ||
+            !_sameServices(_wirelessServices, result.services);
+        _wirelessServices = result.services;
+        _hasAttemptedWirelessDiscovery = true;
+        if (changed) _notify();
+
+        final session = _qrSession;
+        final scannedService = session == null
+            ? null
+            : result.services.firstWhereOrNull(
+                (service) =>
+                    service.type == WirelessDebugServiceType.pairing &&
+                    service.name == session.serviceName,
+              );
+        if (session != null && scannedService != null) {
+          await _completeQrPairing(session, scannedService);
+          if (isStale()) return;
+        }
       }
 
-      if (_qrCancelled || _disposed) return null;
+      await Future<void>.delayed(scanInterval);
+    }
+  }
 
-      const error =
-          'Timed out waiting for the QR code to be scanned. Generate a new code and try again.';
-      _wirelessMessage = null;
-      _wirelessError = error;
-      return WirelessPairResult.failure(error: error);
-    } finally {
-      if (!_disposed && _waitingForQrScan) {
-        _waitingForQrScan = false;
-        _qrSession = null;
-        _notify();
+  bool _sameServices(
+    List<WirelessDebugService> left,
+    List<WirelessDebugService> right,
+  ) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (left[index].name != right[index].name ||
+          left[index].type != right[index].type ||
+          left[index].address != right[index].address) {
+        return false;
       }
     }
+    return true;
+  }
+
+  /// Runs the regular pairing flow with the credentials the device just read
+  /// off the QR code. The code is single-use, so a fresh one is published
+  /// unless pairing carried all the way through to a connected device.
+  Future<void> _completeQrPairing(
+    WirelessQrPairingSession session,
+    WirelessDebugService pairingService,
+  ) async {
+    _qrSession = null;
+    _notify();
+
+    final result = await pairWirelessDevice(
+      address: pairingService.address,
+      pairingCode: session.password,
+    );
+    if (_disposed) return;
+
+    if (!result.autoConnected) {
+      regenerateQrCode();
+    }
+    _onQrPairingCompleted?.call(result);
   }
 
   String _generateQrServiceName() => 'eagly-${_randomAlphaNumeric(10)}';
@@ -428,7 +432,7 @@ class WirelessConnectionController extends ChangeNotifier {
       _notify();
       return DeviceCommandResult.failure(error: error);
     }
-    if (_discoveringWireless || _pairingWireless || _waitingForQrScan) {
+    if (_pairingWireless) {
       const error =
           'Finish the current wireless ADB action before connecting a device.';
       _wirelessError = error;
@@ -745,7 +749,8 @@ class WirelessConnectionController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _qrCancelled = true;
+    _scanning = false;
+    _scanGeneration++;
     super.dispose();
   }
 }

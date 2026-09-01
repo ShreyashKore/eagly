@@ -307,11 +307,17 @@ class FakeAdbTool extends AdbTool {
   FakeAdbTool() : super(executablePath: '/usr/bin/true');
 
   List<Device> androidDevices = const [];
+  WirelessServiceDiscoveryResult discoveryResult =
+      const WirelessServiceDiscoveryResult();
   final StreamController<List<Device>> _watchController =
       StreamController<List<Device>>.broadcast();
 
   @override
   Future<List<Device>> getDevices() async => List.of(androidDevices);
+
+  @override
+  Future<WirelessServiceDiscoveryResult> discoverMdnsServices() async =>
+      discoveryResult;
 
   @override
   Stream<List<Device>> watchDeviceChanges() => _watchController.stream;

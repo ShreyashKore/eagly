@@ -5,12 +5,13 @@ import 'package:gap/gap.dart';
 import '../../data/device.dart';
 import 'data/wireless_debug_models.dart';
 import '../../session/device_session_manager.dart';
+import '../../presentation/components/delayed_reveal.dart';
 import '../../presentation/components/eagly_dialog.dart';
+import '../../presentation/components/hint_note.dart';
 import 'components/discovered_wireless_target.dart';
 import 'components/wireless_discovery_card.dart';
 import 'components/wireless_feedback_banner.dart';
 import 'components/wireless_manual_section.dart';
-import 'components/wireless_placeholder_card.dart';
 import 'components/wireless_qr_panel.dart';
 import 'components/wireless_selected_device_panel.dart';
 import 'wireless_connection_controller.dart';
@@ -45,9 +46,10 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
           session.isActivated &&
           (session.logSessionManager.selectedTab?.isRunning ?? false);
     },
+    onQrPairingCompleted: _handleQrPairingCompleted,
   );
 
-  var _section = _WirelessDialogSection.nearby;
+  var _section = _WirelessDialogSection.pair;
   String? _selectedDiscoveryHost;
   String? _fallbackConnectHost;
   var _showManualConnectSection = false;
@@ -117,27 +119,16 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     _connectAddressController = TextEditingController(
       text: wirelessController.suggestedWirelessConnectAddress ?? '',
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _maybeAutoDiscoverNearby();
-    });
+    wirelessController.beginPairing();
   }
 
   @override
   void dispose() {
+    wirelessController.dispose();
     _pairAddressController.dispose();
     _pairingCodeController.dispose();
     _connectAddressController.dispose();
     super.dispose();
-  }
-
-  Future<void> _handleDiscover() async {
-    final result = await wirelessController.discoverWirelessServices();
-    if (!mounted) return;
-
-    _applySuggestedAddresses(preferFirstDiscoveredTarget: true);
-    if (!result.isSuccess && result.error != null) {
-      widget.onShowSnackBar(result.error!);
-    }
   }
 
   Future<void> _handlePair() async {
@@ -181,41 +172,15 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     _applySuggestedAddresses();
   }
 
-  void _maybeAutoDiscoverNearby() {
-    if (!wirelessController.isWirelessBusy) {
-      _handleDiscover();
-    }
-  }
-
-  void _maybeAutoGenerateQr() {
-    if (wirelessController.qrSession == null &&
-        !wirelessController.isWaitingForQrScan &&
-        !wirelessController.isWirelessBusy) {
-      _handleQrPair();
-    }
-  }
-
-  void _onSectionChanged(_WirelessDialogSection next) {
-    wirelessController.cancelAllOperations();
-    setState(() {
-      _section = next;
-    });
-    if (next == _WirelessDialogSection.nearby) {
-      _maybeAutoDiscoverNearby();
-    } else if (next == _WirelessDialogSection.qr) {
-      _maybeAutoGenerateQr();
-    }
-  }
-
-  Future<void> _handleQrPair() async {
-    final result = await wirelessController.startQrPairing();
-    if (!mounted || result == null) return;
+  /// The scan loop paired a device from a scanned QR code — mirror the outcome
+  /// in the dialog the same way an explicit pair would.
+  void _handleQrPairingCompleted(WirelessPairResult result) {
+    if (!mounted) return;
 
     if (result.error != null) {
       widget.onShowSnackBar(result.error!);
       return;
     }
-
     if (result.message != null) {
       widget.onShowSnackBar(result.message!);
     }
@@ -231,7 +196,27 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
       _section = _WirelessDialogSection.manual;
       _showManualConnectSection = true;
     });
+    wirelessController.stopScanning();
     _applySuggestedAddresses();
+  }
+
+  void _onSectionChanged(_WirelessDialogSection next) {
+    setState(() {
+      _section = next;
+    });
+    if (next == _WirelessDialogSection.pair) {
+      wirelessController.beginPairing();
+    } else {
+      wirelessController.stopScanning();
+    }
+  }
+
+  void _openManualEntry() {
+    setState(() {
+      _section = _WirelessDialogSection.manual;
+      _showManualConnectSection = true;
+    });
+    wirelessController.stopScanning();
   }
 
   Future<void> _handleConnect() async {
@@ -257,10 +242,9 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     return address.isEmpty ? const [] : [address];
   }
 
-  void _applySuggestedAddresses({bool preferFirstDiscoveredTarget = false}) {
+  void _applySuggestedAddresses() {
     final suggestedPairing = wirelessController.suggestedWirelessPairingAddress;
     final suggestedConnect = wirelessController.suggestedWirelessConnectAddress;
-    final firstTarget = _discoveredTargets.firstOrNull;
 
     setState(() {
       if (_pairAddressController.text.trim().isEmpty &&
@@ -274,8 +258,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
 
       _selectedDiscoveryHost ??=
           _hostFromAddress(suggestedPairing) ??
-          _hostFromAddress(suggestedConnect) ??
-          (preferFirstDiscoveredTarget ? firstTarget?.host : null);
+          _hostFromAddress(suggestedConnect);
     });
   }
 
@@ -318,143 +301,139 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     return trimmed.substring(0, separatorIndex);
   }
 
-  Widget _buildNearbyDevicesTab(BuildContext context) {
-    final theme = Theme.of(context);
-    final selectedTarget = _selectedDiscoveryTarget;
+  // ── Pair pane ──────────────────────────────────────────────────────────
 
-    if (_discoveredTargets.isEmpty) {
-      final description = wirelessController.hasAttemptedWirelessDiscovery
-          ? 'No nearby wireless ADB devices were discovered. You can try discovery again or switch to manual entry.'
-          : 'Start by discovering nearby wireless ADB devices advertised through mDNS.';
+  /// QR code on top, always fully visible; the nearby list scrolls under it.
+  ///
+  /// In a window too short to hold the code plus a usable list, the pane falls
+  /// back to scrolling as a whole rather than clipping.
+  Widget _buildPairPane(BuildContext context) {
+    final qrPanel = WirelessQrPanel(
+      payload: wirelessController.qrSession?.payload,
+      waiting: wirelessController.isWaitingForQrScan,
+      pairing:
+          wirelessController.isPairingWireless ||
+          wirelessController.isConnectingWireless,
+      onRegenerate: wirelessController.regenerateQrCode,
+    );
 
-      return WirelessPlaceholderCard(
-        icon: wirelessController.hasAttemptedWirelessDiscovery
-            ? Icons.wifi_find
-            : Icons.travel_explore,
-        title: wirelessController.hasAttemptedWirelessDiscovery
-            ? 'No nearby devices found'
-            : 'Discover nearby devices',
-        description: description,
-        footer: Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            FilledButton.tonalIcon(
-              onPressed: wirelessController.isWirelessBusy
-                  ? null
-                  : _handleDiscover,
-              icon: wirelessController.isDiscoveringWireless
-                  ? SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: theme.colorScheme.primary,
-                      ),
-                    )
-                  : const Icon(Icons.travel_explore),
-              label: Text(
-                wirelessController.hasAttemptedWirelessDiscovery
-                    ? 'Refresh discovery'
-                    : 'Discover devices',
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxHeight < _minHeightForPinnedQr) {
+          return SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [qrPanel, const Gap(16), _buildNearbySection(context)],
             ),
-            OutlinedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _section = _WirelessDialogSection.manual;
-                  _showManualConnectSection = true;
-                });
-              },
-              icon: const Icon(Icons.tune),
-              label: const Text('Manual entry'),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            qrPanel,
+            const Gap(16),
+            Expanded(
+              child: SingleChildScrollView(child: _buildNearbySection(context)),
             ),
           ],
-        ),
-      );
-    }
+        );
+      },
+    );
+  }
+
+  Widget _buildNearbySection(BuildContext context) {
+    final theme = Theme.of(context);
+    final targets = _discoveredTargets;
+    final selectedTarget = _selectedDiscoveryTarget;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Nearby devices', style: theme.textTheme.titleMedium),
-        const Gap(6),
+        Row(
+          children: [
+            Text('Nearby devices', style: theme.textTheme.titleMedium),
+            const Gap(10),
+            if (wirelessController.isScanning)
+              SizedBox.square(
+                dimension: 13,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: _openManualEntry,
+              icon: const Icon(Icons.tune, size: 18),
+              label: const Text('Manual entry'),
+            ),
+          ],
+        ),
+        const Gap(4),
         Text(
-          'Pick a discovered device first. Pairing will continue into connection automatically when a connect port is available.',
+          targets.isEmpty
+              ? 'Devices with wireless debugging turned on show up here '
+                    'automatically.'
+              : 'Already paired with this computer? Pick a device to connect '
+                    'without scanning anything.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
         const Gap(12),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            for (final target in _discoveredTargets)
-              WirelessDiscoveryCard(
-                target: target,
-                selected: selectedTarget?.host == target.host,
-                onTap: () => _selectDiscoveredTarget(target),
-              ),
+        if (targets.isEmpty)
+          DelayedReveal(
+            delay: const Duration(seconds: 10),
+            child: const HintNote(
+              title: 'Nothing found yet',
+              text:
+                  'Turn on Settings → Developer options → Wireless debugging '
+                  'on the device and keep that screen open. Some networks '
+                  'hide devices from each other; in that case use Manual '
+                  'entry with the address the device shows.',
+            ),
+          )
+        else ...[
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final target in targets)
+                WirelessDiscoveryCard(
+                  target: target,
+                  selected: selectedTarget?.host == target.host,
+                  onTap: () => _selectDiscoveredTarget(target),
+                ),
+            ],
+          ),
+          if (selectedTarget != null) ...[
+            const Gap(16),
+            WirelessSelectedDevicePanel(
+              target: selectedTarget,
+              connectedDevice: _connectedDeviceForTarget(selectedTarget),
+              pairingCodeController: _pairingCodeController,
+              pairingBusy: wirelessController.isPairingWireless,
+              connectingBusy: wirelessController.isConnectingWireless,
+              actionsDisabled: wirelessController.isWirelessBusy,
+              showConnectAction:
+                  selectedTarget.canConnect &&
+                  (_fallbackConnectHost == selectedTarget.host ||
+                      !selectedTarget.canPair ||
+                      _connectedDeviceForTarget(selectedTarget) != null),
+              onPair: selectedTarget.pairingService == null
+                  ? null
+                  : _handlePair,
+              onConnect: selectedTarget.canConnect ? _handleConnect : null,
+              onUseManualEntry: _openManualEntry,
+            ),
           ],
-        ),
-        const Gap(18),
-        if (selectedTarget != null)
-          WirelessSelectedDevicePanel(
-            target: selectedTarget,
-            connectedDevice: _connectedDeviceForTarget(selectedTarget),
-            pairingCodeController: _pairingCodeController,
-            pairingBusy: wirelessController.isPairingWireless,
-            connectingBusy: wirelessController.isConnectingWireless,
-            actionsDisabled: wirelessController.isWirelessBusy,
-            showConnectAction:
-                selectedTarget.canConnect &&
-                (_fallbackConnectHost == selectedTarget.host ||
-                    !selectedTarget.canPair ||
-                    _connectedDeviceForTarget(selectedTarget) != null),
-            onPair: selectedTarget.pairingService == null ? null : _handlePair,
-            onConnect: selectedTarget.canConnect ? _handleConnect : null,
-            onUseManualEntry: () {
-              setState(() {
-                _section = _WirelessDialogSection.manual;
-                _showManualConnectSection = true;
-              });
-            },
-          ),
+        ],
       ],
     );
   }
 
-  Widget _buildQrCodeTab(BuildContext context) {
-    final theme = Theme.of(context);
-    final session = wirelessController.qrSession;
-    final waiting = wirelessController.isWaitingForQrScan;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Pair with QR code', style: theme.textTheme.titleMedium),
-        const Gap(6),
-        Text(
-          'On your Android device open Settings → Developer options → Wireless '
-          'debugging → Pair device with QR code, then scan the code below. '
-          'Both devices must be on the same network.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const Gap(18),
-        Center(
-          child: WirelessQrPanel(
-            payload: session?.payload,
-            waiting: waiting,
-            busy: wirelessController.isWirelessBusy,
-            onGenerate: _handleQrPair,
-            onCancel: wirelessController.cancelQrPairing,
-          ),
-        ),
-      ],
-    );
-  }
+  // ── Manual pane ────────────────────────────────────────────────────────
 
   Widget _buildManualEntryTab(BuildContext context) {
     final theme = Theme.of(context);
@@ -602,8 +581,6 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return AnimatedBuilder(
       animation: Listenable.merge([manager, wirelessController]),
       builder: (context, _) {
@@ -611,86 +588,45 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
           title: 'Wireless ADB',
           icon: Icons.wifi_tethering,
           width: 720,
-          height: 560,
+          height: 580,
           contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  SegmentedButton<_WirelessDialogSection>(
-                    segments: const [
-                      ButtonSegment<_WirelessDialogSection>(
-                        value: _WirelessDialogSection.nearby,
-                        icon: Icon(Icons.wifi_find_outlined),
-                        label: Text('Nearby devices'),
-                      ),
-                      ButtonSegment<_WirelessDialogSection>(
-                        value: _WirelessDialogSection.qr,
-                        icon: Icon(Icons.qr_code_2),
-                        label: Text('QR code'),
-                      ),
-                      ButtonSegment<_WirelessDialogSection>(
-                        value: _WirelessDialogSection.manual,
-                        icon: Icon(Icons.tune),
-                        label: Text('Manual entry'),
-                      ),
-                    ],
-                    selected: {_section},
-                    onSelectionChanged: (selection) {
-                      _onSectionChanged(selection.first);
-                    },
+              SegmentedButton<_WirelessDialogSection>(
+                segments: const [
+                  ButtonSegment<_WirelessDialogSection>(
+                    value: _WirelessDialogSection.pair,
+                    icon: Icon(Icons.wifi_tethering),
+                    label: Text('Pair a device'),
                   ),
-                  FilledButton.tonalIcon(
-                    onPressed: wirelessController.isWirelessBusy
-                        ? null
-                        : _handleDiscover,
-                    icon: wirelessController.isDiscoveringWireless
-                        ? SizedBox.square(
-                            dimension: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: theme.colorScheme.primary,
-                            ),
-                          )
-                        : const Icon(Icons.travel_explore),
-                    label: Text(
-                      wirelessController.hasAttemptedWirelessDiscovery
-                          ? 'Refresh discovery'
-                          : 'Discover nearby',
-                    ),
+                  ButtonSegment<_WirelessDialogSection>(
+                    value: _WirelessDialogSection.manual,
+                    icon: Icon(Icons.tune),
+                    label: Text('Manual entry'),
                   ),
-                  if (manager.selected != null)
-                    Text(
-                      'Current device: ${manager.selected!.device.displayName}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
                 ],
+                selected: {_section},
+                onSelectionChanged: (selection) {
+                  _onSectionChanged(selection.first);
+                },
               ),
               const Gap(14),
               WirelessFeedbackBanner(
                 message: wirelessController.wirelessMessage,
                 error: wirelessController.wirelessError,
               ),
-              const Gap(14),
+              if (wirelessController.wirelessMessage != null ||
+                  wirelessController.wirelessError != null)
+                const Gap(14),
               Flexible(
-                child: SingleChildScrollView(
-                  child: switch (_section) {
-                    _WirelessDialogSection.nearby => _buildNearbyDevicesTab(
-                      context,
-                    ),
-                    _WirelessDialogSection.qr => _buildQrCodeTab(context),
-                    _WirelessDialogSection.manual => _buildManualEntryTab(
-                      context,
-                    ),
-                  },
-                ),
+                child: switch (_section) {
+                  _WirelessDialogSection.pair => _buildPairPane(context),
+                  _WirelessDialogSection.manual => SingleChildScrollView(
+                    child: _buildManualEntryTab(context),
+                  ),
+                },
               ),
             ],
           ),
@@ -700,4 +636,8 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   }
 }
 
-enum _WirelessDialogSection { nearby, qr, manual }
+enum _WirelessDialogSection { pair, manual }
+
+/// Below this the QR card plus a usable device list no longer fit, so the pair
+/// pane scrolls as a whole instead of pinning the code.
+const double _minHeightForPinnedQr = 340;

@@ -133,6 +133,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   dividers, private helpers prefixed `_`, `unawaited(...)` for fire-and-forget futures.
 - Theme tokens come from the `EaglyTheme` extension: `context.eaglyTheme.<token>` (status
   colors, `warningColor`, `inlineNotice*`). Don't hardcode colors.
+- Explanations for a user who looks stuck go in a `HintNote`
+  (`presentation/components/hint_note.dart`) wrapped in a `DelayedReveal`
+  (`presentation/components/delayed_reveal.dart`): the note is not built at all until the
+  operation has visibly dragged on, so the common path stays uncluttered.
 - Tests live in `test/` (mirrors feature names). Shared fakes in
   `test/support/session_test_support.dart` (`FakeSessionService`, `FakeAdbTool`, …). Tunable
   timing constants are exposed as `@visibleForTesting static` fields (e.g.

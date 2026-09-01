@@ -149,9 +149,17 @@ class DevicesRepository extends ChangeNotifier {
     }
   }
 
-  Future<WirelessServiceDiscoveryResult> discoverMdnsServices() async {
+  /// Lists the wireless ADB services advertised on the local network.
+  ///
+  /// With [retry] the call keeps polling until something shows up, which suits
+  /// a one-shot "discover now" action. Callers that poll on their own schedule
+  /// (the wireless dialog's background scan) pass `false` for a single probe.
+  Future<WirelessServiceDiscoveryResult> discoverMdnsServices({
+    bool retry = true,
+  }) async {
     WirelessServiceDiscoveryResult result = await _adbTool
         .discoverMdnsServices();
+    if (!retry) return result;
 
     for (int attempt = 0; attempt < _mdnsRetryCountMax; attempt++) {
       if (_disposed) break;
