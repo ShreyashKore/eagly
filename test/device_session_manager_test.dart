@@ -129,6 +129,27 @@ void main() {
     expect(manager!.sessions.single.isConnected, isTrue);
   });
 
+  test('reloading a tab swaps in a fresh session in the same slot', () async {
+    adbTool.androidDevices = [
+      Device('emulator-5554', 'device', platform: DevicePlatform.android),
+      Device('emulator-5556', 'device', platform: DevicePlatform.android),
+    ];
+    manager = buildManager();
+    await sync();
+    manager!.select('emulator-5554');
+    final original = manager!.selected;
+
+    await manager!.reload('emulator-5554');
+
+    expect(manager!.sessions.map((session) => session.id), [
+      'emulator-5554',
+      'emulator-5556',
+    ]);
+    expect(manager!.selectedId, 'emulator-5554');
+    expect(manager!.selected, isNot(same(original)));
+    expect(manager!.selected?.isActivated, isTrue);
+  });
+
   test('does not auto-select when multiple devices are connected', () async {
     adbTool.androidDevices = [
       Device('emulator-5554', 'device', platform: DevicePlatform.android),

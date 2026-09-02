@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../../../data/device.dart';
+import '../../../session/device_session_controller.dart';
 import '../../../session/device_session_manager.dart';
 
 void showHeaderMenu(
@@ -42,28 +45,74 @@ void showHeaderMenu(
   }
 }
 
+/// Right-click menu for a device tab. [onReload] is null for the synthetic
+/// imported-logs workspace (no device to reload), [onClose] is null while the
+/// device is still connected — both are then shown disabled so the actions
+/// stay discoverable.
 void showTabContextMenu(
   BuildContext context,
   Offset globalPosition, {
+  required DeviceSessionController session,
+  required VoidCallback? onReload,
   required VoidCallback? onClose,
 }) async {
-  if (onClose == null) return;
+  final device = session.device;
+  final isWorkspace = session.isImportedWorkspace;
+  final idName = device.platform == DevicePlatform.ios ? 'UDID' : 'serial';
+
   final result = await showMenu<_TabMenuAction>(
     context: context,
     position: _menuPosition(globalPosition),
-    items: const [
+    items: [
+      if (!isWorkspace) ...[
+        PopupMenuItem(
+          value: _TabMenuAction.reload,
+          enabled: onReload != null,
+          child: const _MenuRow(Icons.refresh, 'Reload tab'),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: _TabMenuAction.copyName,
+          child: const _MenuRow(Icons.title_outlined, 'Copy device name'),
+        ),
+        PopupMenuItem(
+          value: _TabMenuAction.copyId,
+          child: _MenuRow(Icons.tag, 'Copy $idName'),
+        ),
+        const PopupMenuDivider(),
+      ],
       PopupMenuItem(
         value: _TabMenuAction.close,
-        child: _MenuRow(Icons.close, 'Close Tab'),
+        enabled: onClose != null,
+        child: const _MenuRow(Icons.close, 'Close tab'),
       ),
     ],
   );
-  if (result == _TabMenuAction.close) onClose();
+
+  if (result == null) return;
+  switch (result) {
+    case _TabMenuAction.reload:
+      onReload?.call();
+    case _TabMenuAction.copyName:
+      await Clipboard.setData(ClipboardData(text: device.displayName));
+      if (context.mounted) _toast(context, 'Copied device name.');
+    case _TabMenuAction.copyId:
+      await Clipboard.setData(ClipboardData(text: device.id));
+      if (context.mounted) _toast(context, 'Copied $idName.');
+    case _TabMenuAction.close:
+      onClose?.call();
+  }
+}
+
+void _toast(BuildContext context, String message) {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(SnackBar(content: Text(message)));
 }
 
 enum _HeaderMenuAction { wireless, refresh, settings }
 
-enum _TabMenuAction { close }
+enum _TabMenuAction { reload, copyName, copyId, close }
 
 class _MenuRow extends StatelessWidget {
   const _MenuRow(this.icon, this.label);

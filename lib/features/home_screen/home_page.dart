@@ -313,6 +313,10 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     return DeviceScreen(
+      // Keyed on the controller instance so reloading a tab (which swaps in a
+      // fresh session) rebuilds the whole pane tree instead of reusing state
+      // wired to the disposed one.
+      key: ObjectKey(session),
       session: session,
       appMemoryBytesListenable: _appMemoryBytes,
       onOpenSettings: _openSettings,

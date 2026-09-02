@@ -75,6 +75,9 @@ class _DeviceTabStripState extends State<DeviceTabStrip> {
                     selected: manager.selectedId == session.id,
                     animateIn: freshIds.contains(session.id),
                     onSelect: () => manager.select(session.id),
+                    onReload: manager.canReload(session.id)
+                        ? () => manager.reload(session.id)
+                        : null,
                     onClose: manager.canClose(session.id)
                         ? () => manager.close(session.id)
                         : null,
