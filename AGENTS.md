@@ -75,6 +75,25 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   unauthorized ⇒ disconnected). iOS presence in `idevice_id -l` ⇒ connected.
 - **Multiple log tabs** per device via `LogSessionManager` (first live tab is permanent;
   extra live + imported tabs allowed).
+- **Mirror input:** touches, keys and clipboard all ride the scrcpy *control*
+  socket (`ScrcpyControl`, opened only when `ScrcpyVideoOptions.control`). Keyboard
+  forwarding is **focus-gated**: `MirrorController.keyboardFocusNode` is handed to
+  `ScrcpyView`, clicking the surface takes focus, and only then do key events go to
+  the device — that focus is also what stops the host beeping at "unhandled" keys,
+  since a forwarded key is reported as `KeyEventResult.handled`.
+  `ScrcpyKeyboardTranslator` decides *how* each key travels: a printable character
+  goes as **INJECT_TEXT** (the desktop keymap already resolved the layout, so a
+  non-QWERTY host types what its keys say), everything else as an **INJECT_KEYCODE**
+  down/up pair carrying an Android `META_*` bitmask. It remembers what it pressed so
+  a key-up is only sent for a key-down it actually sent, and `releaseAll()` unsticks
+  held keys when focus is lost. On macOS ⌘ stands in for the device's Ctrl, but only
+  for `{A, C, V, X, Z}` — every other ⌘ chord is returned as *unhandled* so ⌘Q/⌘W
+  still belong to the app. ⌘/Ctrl+V pushes the *desktop* clipboard with
+  `SET_CLIPBOARD(paste: true)` rather than injecting a keycode; the device would
+  otherwise paste its own clipboard. Server-side payload caps are real and differ
+  (clipboard 262130 bytes, inject-text 300 — longer text is chunked on UTF-8
+  boundaries). Device→desktop clipboard mirroring stays on by default, minus the
+  echo of our own push.
 - **App install & drag-and-drop:** `DeviceSessionController.handleDroppedPaths()` routes
   dropped paths — installable bundles (`.apk` on Android / `.ipa` on iOS, classified by
   `AppInstallService.inferSupportedPlatform`) go to `installAppFromPath()`; everything else

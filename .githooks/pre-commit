@@ -1,0 +1,87 @@
+#!/bin/bash
+# Keeps committed Dart formatted, so `dart format` never shows up as noise in a
+# review diff (and so CI's format gate can't fail on something a commit could
+# have fixed for you).
+#
+# Fully-staged files are formatted and re-staged automatically. A file that is
+# only *partially* staged is reported instead of rewritten: formatting the
+# working copy and re-adding it would sweep the unstaged hunks into the commit.
+#
+# Enabled by `scripts/setup.sh`, or by hand:
+#   git config core.hooksPath .githooks
+# Bypass a single commit with `git commit --no-verify`.
+
+set -uo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT" || exit 1
+
+# Prefer the fvm-pinned SDK so the hook wraps exactly the way CI does.
+if [ -x ".fvm/flutter_sdk/bin/dart" ]; then
+  DART=(".fvm/flutter_sdk/bin/dart")
+elif command -v fvm >/dev/null 2>&1; then
+  DART=(fvm dart)
+elif command -v dart >/dev/null 2>&1; then
+  DART=(dart)
+else
+  echo "pre-commit: no dart on PATH and no .fvm SDK — skipping format check." >&2
+  exit 0
+fi
+
+# NUL-delimited read rather than `mapfile -d`, which macOS's bash 3.2 lacks.
+staged=()
+while IFS= read -r -d '' file; do
+  staged+=("$file")
+done < <(git diff --cached --name-only --diff-filter=ACMR -z -- '*.dart')
+[ ${#staged[@]} -eq 0 ] && exit 0
+
+whole=()
+partial=()
+for file in "${staged[@]}"; do
+  [ -f "$file" ] || continue
+  if [ -n "$(git diff --name-only -- "$file")" ]; then
+    partial+=("$file")
+  else
+    whole+=("$file")
+  fi
+done
+
+status=0
+
+if [ ${#whole[@]} -gt 0 ]; then
+  if ! output="$("${DART[@]}" format "${whole[@]}" 2>&1)"; then
+    echo "pre-commit: dart format failed (syntax error?):" >&2
+    echo "$output" >&2
+    exit 1
+  fi
+  reformatted=()
+  for file in "${whole[@]}"; do
+    if [ -n "$(git diff --name-only -- "$file")" ]; then
+      reformatted+=("$file")
+    fi
+  done
+  if [ ${#reformatted[@]} -gt 0 ]; then
+    git add -- "${reformatted[@]}"
+    echo "pre-commit: formatted and re-staged ${#reformatted[@]} file(s):"
+    printf '  %s\n' "${reformatted[@]}"
+  fi
+fi
+
+# Partially-staged files are checked, never rewritten.
+if [ ${#partial[@]} -gt 0 ]; then
+  for file in "${partial[@]}"; do
+    if ! "${DART[@]}" format --output=none --set-exit-if-changed "$file" \
+      >/dev/null 2>&1; then
+      echo "pre-commit: $file is unformatted and only partially staged." >&2
+      status=1
+    fi
+  done
+fi
+
+if [ "$status" -ne 0 ]; then
+  echo >&2
+  echo "Run 'fvm dart format <file>' and stage the result, or commit with" >&2
+  echo "--no-verify to bypass." >&2
+fi
+
+exit "$status"

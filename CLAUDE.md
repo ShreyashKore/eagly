@@ -14,8 +14,33 @@ fvm flutter run -d macos        # run (also: windows / linux)
 fvm flutter test                # all tests
 fvm flutter test test/log_controller_test.dart
 fvm flutter analyze lib test    # lints (flutter_lints; clean except 1 known deprecation)
-fvm dart format <files>         # format before finishing; CI-style 80-col wrapping
+fvm dart format .               # format the whole project; CI-style 80-col wrapping
+fvm dart format --output=none --set-exit-if-changed .   # what CI gates on
 ```
+
+Formatting is enforced, not advisory: `.githooks/pre-commit` formats staged Dart
+and re-stages it (a *partially* staged file is reported instead of rewritten, so
+the hook can't sweep unstaged hunks into your commit), and CI fails on any
+unformatted file. `scripts/setup.sh` points git at the hooks; in an existing
+clone run `git config core.hooksPath .githooks` once. `--no-verify` bypasses it.
+
+**Verifying the scrcpy wire protocol.** `scrcpy-server` is a *versioned binary
+protocol*, and guessing at it produces bugs that look like device quirks. The
+bundled jar is the spec: unzip it and read the message framing off
+`ControlMessageReader` / `Controller`, then confirm end-to-end on a device.
+
+```bash
+unzip -o platform-tools/macos/scrcpy-server -d /tmp/srv   # classes.dex
+"$ANDROID_HOME"/build-tools/*/dexdump -d /tmp/srv/classes.dex > /tmp/srv/dump.txt
+# `read()`'s packed-switch maps message type → parse method; each parse* method
+# spells out the field widths (readUnsignedByte / readInt / readLong).
+```
+
+This is how the payload caps below were pinned (they are *not* the values older
+scrcpy docs quote), and how the keyboard work was checked: drive a real device
+from a throwaway `dart run` harness against `ScrcpyClient`, then read the result
+back with `adb shell uiautomator dump` rather than trusting that a message
+"looks right".
 
 Bundled CLI tools (`adb`, `libimobiledevice`, `scrcpy-server`) live under
 `platform-tools/<os>/` and are resolved at runtime by `lib/utils/tools_path.dart`. They

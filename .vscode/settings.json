@@ -8,5 +8,10 @@
   },
   "chat.tools.terminal.autoApprove": {
     "flutter": true
+  },
+  "[dart]": {
+    "editor.defaultFormatter": "Dart-Code.dart-code",
+    "editor.formatOnSave": true,
+    "editor.rulers": [80]
   }
 }

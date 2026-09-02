@@ -161,6 +161,18 @@ if [ "$HOST" = "windows" ]; then
   persist_windows_ffmpeg_env
 fi
 
+# ── git hooks ────────────────────────────────────────────────────────────────
+# .githooks/pre-commit formats staged Dart before it lands, so `dart format`
+# never shows up as review noise. Hooks live in the repo, so each clone has to
+# point git at them once.
+if [ -d "$PROJECT_DIR/.git" ] || [ -f "$PROJECT_DIR/.git" ]; then
+  log "Enabling the repo's git hooks..."
+  (cd "$PROJECT_DIR" && git config core.hooksPath .githooks)
+  chmod +x "$PROJECT_DIR"/.githooks/* 2>/dev/null || true
+else
+  warn "Not a git checkout; skipping git hook setup."
+fi
+
 # ── Dart/Flutter packages ────────────────────────────────────────────────────
 log "Fetching Dart/Flutter packages..."
 (cd "$PROJECT_DIR" && $FLUTTER pub get)
@@ -196,3 +208,5 @@ echo
 echo "Validate your checkout with:"
 echo "  $FLUTTER analyze lib test"
 echo "  $FLUTTER test"
+echo "  $DART format --output=none --set-exit-if-changed ."
+
