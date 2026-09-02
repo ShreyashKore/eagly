@@ -93,12 +93,12 @@ enum ScrcpyTouchAction { down, move, up }
 /// Hardware / navigation keys that can be injected into the device.
 enum ScrcpyKey { back, home, appSwitch, power, volumeUp, volumeDown }
 
-/// Encodes and sends scrcpy control messages on the control socket. Incoming
-/// device→client messages (clipboard, etc.) are drained and ignored.
+/// Encodes and sends scrcpy control messages on the control socket, and
+/// parses incoming device→client messages (currently just clipboard sync).
 class ScrcpyControl {
   ScrcpyControl(this._socket) {
     _subscription = _socket.listen(
-      (_) {},
+      _onData,
       onError: (_) {},
       cancelOnError: false,
     );
@@ -107,9 +107,27 @@ class ScrcpyControl {
   final Socket _socket;
   late final StreamSubscription<Uint8List> _subscription;
 
+  final _clipboardController = StreamController<String>.broadcast();
+
+  /// Emits the device clipboard's text whenever it changes on-device (the
+  /// server pushes these unsolicited, `clipboard_autosync` is on by default).
+  Stream<String> get onDeviceClipboardChanged => _clipboardController.stream;
+
+  final List<int> _inBuffer = <int>[];
+
   static const int _typeInjectKeycode = 0;
   static const int _typeInjectTouch = 2;
   static const int _typeBackOrScreenOn = 4;
+  static const int _typeSetClipboard = 9;
+
+  static const int _deviceMsgClipboard = 0;
+  static const int _deviceMsgAckClipboard = 1;
+
+  /// Server truncates SET_CLIPBOARD text longer than this (scrcpy protocol
+  /// constant: `CONTROL_MSG_CLIPBOARD_TEXT_MAX_LENGTH`).
+  static const int _clipboardTextMaxLength = 300000;
+
+  int _clipboardSequence = 0;
 
   /// Android `KeyEvent` keycodes for the injectable [ScrcpyKey]s.
   static const Map<ScrcpyKey, int> _keycodes = {
@@ -195,6 +213,27 @@ class ScrcpyControl {
     _send(msg);
   }
 
+  /// Sets the device clipboard to [text]. When [paste] is true (the default)
+  /// the server also simulates a paste action immediately afterwards.
+  void setClipboard(String text, {bool paste = true}) {
+    final textBytes = Uint8List.fromList(utf8.encode(text));
+    final clipped = textBytes.length > _clipboardTextMaxLength
+        ? textBytes.sublist(0, _clipboardTextMaxLength)
+        : textBytes;
+    final msg = ByteData(14 + clipped.length);
+    var o = 0;
+    msg.setUint8(o, _typeSetClipboard);
+    o += 1;
+    msg.setUint64(o, ++_clipboardSequence);
+    o += 8;
+    msg.setUint8(o, paste ? 1 : 0);
+    o += 1;
+    msg.setUint32(o, clipped.length);
+    o += 4;
+    msg.buffer.asUint8List().setRange(o, o + clipped.length, clipped);
+    _send(msg);
+  }
+
   /// Presses/releases the BACK button (also wakes the screen).
   void backOrScreenOn(ScrcpyTouchAction action) {
     final msg = ByteData(2);
@@ -209,8 +248,44 @@ class ScrcpyControl {
     } catch (_) {}
   }
 
+  void _onData(Uint8List data) {
+    _inBuffer.addAll(data);
+    _drainDeviceMessages();
+  }
+
+  /// Parses complete device→client messages out of [_inBuffer]. Only
+  /// clipboard message types are understood; an unrecognized type means the
+  /// buffer can no longer be reliably framed, so parsing stops there (we
+  /// never send control messages, like UHID_CREATE, that would provoke other
+  /// device message types).
+  void _drainDeviceMessages() {
+    while (_inBuffer.isNotEmpty) {
+      final type = _inBuffer[0];
+      switch (type) {
+        case _deviceMsgClipboard:
+          if (_inBuffer.length < 5) return;
+          final length = ByteData.sublistView(
+            Uint8List.fromList(_inBuffer.sublist(1, 5)),
+          ).getUint32(0);
+          if (_inBuffer.length < 5 + length) return;
+          final textBytes = _inBuffer.sublist(5, 5 + length);
+          _inBuffer.removeRange(0, 5 + length);
+          try {
+            _clipboardController.add(utf8.decode(textBytes));
+          } catch (_) {}
+        case _deviceMsgAckClipboard:
+          if (_inBuffer.length < 9) return;
+          _inBuffer.removeRange(0, 9);
+        default:
+          _inBuffer.clear();
+          return;
+      }
+    }
+  }
+
   Future<void> close() async {
     await _subscription.cancel();
+    await _clipboardController.close();
     try {
       _socket.destroy();
     } catch (_) {}
@@ -377,9 +452,7 @@ class ScrcpyClient {
       );
 
       // 8. Pump packets. First packet is already buffered as [size.firstPacket].
-      unawaited(
-        _pump(reader, controller, firstPacket: size.firstPacket),
-      );
+      unawaited(_pump(reader, controller, firstPacket: size.firstPacket));
 
       var stopped = false;
       Future<void> stop() async {
@@ -545,7 +618,9 @@ class ScrcpyClient {
         // So we surface the desync; the mirror layer restarts for a clean
         // handshake + keyframe.
         if (size == 0 || size > 64 * 1024 * 1024) {
-          throw ScrcpyClientException('Implausible packet size $size (desync).');
+          throw ScrcpyClientException(
+            'Implausible packet size $size (desync).',
+          );
         }
         final data = await reader.readExactly(size);
         if (controller.isClosed) break;
@@ -580,7 +655,9 @@ class ScrcpyClient {
     }
     final port = int.tryParse((result.stdout as String).trim());
     if (port == null) {
-      throw ScrcpyClientException('adb forward returned no port: "${result.stdout}"');
+      throw ScrcpyClientException(
+        'adb forward returned no port: "${result.stdout}"',
+      );
     }
     return port;
   }
@@ -616,7 +693,11 @@ class ScrcpyClient {
 
   static String _cString(Uint8List bytes) {
     final end = bytes.indexOf(0);
-    return String.fromCharCodes(bytes, 0, end == -1 ? bytes.length : end).trim();
+    return String.fromCharCodes(
+      bytes,
+      0,
+      end == -1 ? bytes.length : end,
+    ).trim();
   }
 
   /// Top 3 bits of the 64-bit PTS field are reserved for scrcpy packet flags
@@ -632,7 +713,8 @@ class ScrcpyClient {
     var hasIdr = false;
     var i = 0;
     while (i + 3 < data.length) {
-      final isLong = data[i] == 0 &&
+      final isLong =
+          data[i] == 0 &&
           data[i + 1] == 0 &&
           data[i + 2] == 0 &&
           data[i + 3] == 1;

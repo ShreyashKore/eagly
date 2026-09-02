@@ -92,6 +92,32 @@ class MirrorControlStrip extends StatelessWidget {
             const Gap(8),
             divider(),
             const Gap(8),
+            actionButton(
+              Icons.content_paste,
+              'Paste clipboard to device',
+              () => _paste(context),
+              enabled: controlEnabled,
+            ),
+            IconButton(
+              tooltip: controller.clipboardSyncEnabled
+                  ? 'Device clipboard sync: on'
+                  : 'Device clipboard sync: off',
+              iconSize: 16,
+              color: controller.clipboardSyncEnabled
+                  ? theme.colorScheme.primary
+                  : null,
+              onPressed: () => controller.setClipboardSyncEnabled(
+                !controller.clipboardSyncEnabled,
+              ),
+              icon: Icon(
+                controller.clipboardSyncEnabled
+                    ? Icons.sync
+                    : Icons.sync_disabled,
+              ),
+            ),
+            const Gap(8),
+            divider(),
+            const Gap(8),
             keyButton(Icons.arrow_back, 'Back', ScrcpyKey.back),
             keyButton(Icons.circle_outlined, 'Home', ScrcpyKey.home),
             keyButton(Icons.crop_square, 'Overview', ScrcpyKey.appSwitch),
@@ -188,6 +214,15 @@ class MirrorControlStrip extends StatelessWidget {
       messenger.showSnackBar(
         SnackBar(content: Text('Recording failed: $error')),
       );
+    }
+  }
+
+  Future<void> _paste(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await controller.pasteFromClipboard();
+    } catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text('Paste failed: $error')));
     }
   }
 
