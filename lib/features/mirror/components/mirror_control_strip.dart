@@ -95,9 +95,27 @@ class MirrorControlStrip extends StatelessWidget {
             const Gap(8),
             actionButton(
               Icons.content_paste,
-              'Paste clipboard to device',
+              'Paste clipboard to device '
+              '(${Platform.isMacOS ? '⌘V' : 'Ctrl+V'} in the mirror)',
               () => _paste(context),
               enabled: controlEnabled,
+            ),
+            IconButton(
+              tooltip: controller.isKeyboardForwarding
+                  ? 'Keyboard goes to the device — click the app to stop'
+                  : 'Send keyboard to device (or click the mirror)',
+              iconSize: 16,
+              color: controller.isKeyboardForwarding
+                  ? theme.colorScheme.primary
+                  : null,
+              onPressed: controlEnabled
+                  ? controller.keyboardFocusNode.requestFocus
+                  : null,
+              icon: Icon(
+                controller.isKeyboardForwarding
+                    ? Icons.keyboard
+                    : Icons.keyboard_outlined,
+              ),
             ),
             IconButton(
               tooltip: controller.clipboardSyncEnabled
@@ -223,7 +241,11 @@ class MirrorControlStrip extends StatelessWidget {
   Future<void> _paste(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await controller.pasteFromClipboard();
+      if (!await controller.pasteFromClipboard()) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Nothing to paste — no text copied.')),
+        );
+      }
     } catch (error) {
       messenger.showSnackBar(SnackBar(content: Text('Paste failed: $error')));
     }

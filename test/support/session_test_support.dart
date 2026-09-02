@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:eagly/data/device.dart';
@@ -121,6 +122,10 @@ class FakeSessionService extends DeviceSessionRepository {
     return installResult;
   }
 
+  /// Loopback control channel handed to the next mirror session, so tests can
+  /// assert on the bytes the controller actually writes. Null ⇒ no control.
+  FakeScrcpyControlChannel? mirrorControlChannel;
+
   @override
   Future<ScrcpyMirrorSession> startScreenMirror({
     ScrcpyVideoOptions? options,
@@ -133,7 +138,7 @@ class FakeSessionService extends DeviceSessionRepository {
       deviceName: device.id,
       width: 1080,
       height: 1920,
-      control: null,
+      control: mirrorControlChannel?.control,
       exitCode: exitCode.future,
       streamEnded: Completer<void>().future,
       onStop: () async {
@@ -336,4 +341,47 @@ class FakeIdeviceIdTool extends IdeviceIdTool {
 
 class FakeIdeviceInfoTool extends IdeviceInfoTool {
   FakeIdeviceInfoTool() : super(executablePath: '/usr/bin/true');
+}
+
+/// A [ScrcpyControl] wired to a loopback socket, so a test can read back the
+/// control messages a controller wrote. `ScrcpyControl` speaks to a real
+/// `Socket`, and faking one is more code (and less proof) than connecting two.
+class FakeScrcpyControlChannel {
+  FakeScrcpyControlChannel._(this._server, this._peer, this.control);
+
+  static Future<FakeScrcpyControlChannel> open() async {
+    final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final client = await Socket.connect(server.address, server.port);
+    final peer = await server.first;
+    final channel = FakeScrcpyControlChannel._(
+      server,
+      peer,
+      ScrcpyControl(client),
+    );
+    channel._subscription = peer.listen(channel._received.add);
+    return channel;
+  }
+
+  final ServerSocket _server;
+  final Socket _peer;
+  final ScrcpyControl control;
+
+  final BytesBuilder _received = BytesBuilder();
+  StreamSubscription<Uint8List>? _subscription;
+
+  /// Every control-message byte written so far.
+  Uint8List get bytes => Uint8List.fromList(_received.toBytes());
+
+  /// Waits for the writes in flight to land, then returns everything seen.
+  Future<Uint8List> settle() async {
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    return bytes;
+  }
+
+  Future<void> close() async {
+    await _subscription?.cancel();
+    await control.close();
+    _peer.destroy();
+    await _server.close();
+  }
 }
