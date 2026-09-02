@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import '../../../presentation/theme/app_theme.dart';
 
 class StepList extends StatelessWidget {
   const StepList({super.key, required this.steps});
@@ -18,8 +19,8 @@ class StepList extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 22,
-                height: 22,
+                width: context.scaled(22),
+                height: context.scaled(22),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primaryContainer,

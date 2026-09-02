@@ -163,6 +163,10 @@ class _LogViewerState extends State<LogViewer> {
   double _largestBuiltMessageWidth = 0;
   bool _messageWidthRefreshScheduled = false;
 
+  /// The app zoom, applied as a text scale. Measurements must use it or the
+  /// message column comes out narrower than the text actually rendered.
+  TextScaler _textScaler = TextScaler.noScaling;
+
   // For pinch-to-zoom handling
   double? _scaleBaseFontSize;
   bool _isDraggingRowSelection = false;
@@ -199,6 +203,16 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final textScaler = MediaQuery.textScalerOf(context);
+    if (textScaler == _textScaler) return;
+    _textScaler = textScaler;
+    // Cached message widths were measured at the previous zoom.
+    _largestBuiltMessageWidth = 0;
+  }
+
+  @override
   void didUpdateWidget(LogViewer old) {
     super.didUpdateWidget(old);
     final didSearchTargetChange =
@@ -231,8 +245,7 @@ class _LogViewerState extends State<LogViewer> {
 
   @override
   void dispose() {
-    _flushWidths();
-    _saveWidthsTimer?.cancel();
+    _flushPendingWidths();
     _horizontalScrollController.dispose();
     widget.scrollController.removeListener(_handleVerticalScroll);
     PreferencesService.logFontSizeListenable.removeListener(_onFontSizeChanged);
@@ -425,6 +438,7 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   double _measureTextWidth(String text, TextStyle style) {
+    _messageWidthPainter.textScaler = _textScaler;
     _messageWidthPainter.text = TextSpan(
       text: text.isEmpty ? ' ' : text,
       style: style,
@@ -569,11 +583,23 @@ class _LogViewerState extends State<LogViewer> {
     return math.max(viewportWidth, width);
   }
 
-  void _flushWidths() {
-    if (_saveWidthsTimer?.isActive ?? false) {
-      _saveWidthsTimer!.cancel();
-    }
-    widget.onColumnWidthsChanged?.call(Map.of(_widths));
+  /// Saves a width change still sitting in the debounce timer.
+  ///
+  /// Called from [dispose], where the element tree is locked: notifying the
+  /// controller synchronously would `setState()` ancestors mid-unmount, so the
+  /// callback is deferred to a microtask (runs once the frame is done). Fires
+  /// only when a save is actually pending — an unmount with no pending resize
+  /// must not push (identical) widths back into the controller and trigger a
+  /// pointless rebuild of the whole pane.
+  void _flushPendingWidths() {
+    final timer = _saveWidthsTimer;
+    _saveWidthsTimer = null;
+    if (timer == null || !timer.isActive) return;
+    timer.cancel();
+    final onColumnWidthsChanged = widget.onColumnWidthsChanged;
+    if (onColumnWidthsChanged == null) return;
+    final widths = Map.of(_widths);
+    scheduleMicrotask(() => onColumnWidthsChanged(widths));
   }
 
   void _debounceSaveWidths() {
@@ -1075,7 +1101,7 @@ class _LogViewerState extends State<LogViewer> {
             Positioned(
               top: 0,
               right: 0,
-              height: 29,
+              height: context.scaled(29),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 /// Base class for the per-device feature panes (logs, mirror, crash reports,
 /// file manager, device home) — the view counterpart of `FeatureController`.
 ///
@@ -111,7 +113,7 @@ class FeatureViewHeader extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
-      height: 48,
+      height: context.scaled(48),
       padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,

@@ -71,7 +71,7 @@ class LogStatusBar extends StatelessWidget {
           LogLinesLimitEditor(controller: controller),
           const Gap(8),
           SizedBox(
-            height: 18,
+            height: context.scaled(18),
             child: VerticalDivider(
               width: 2,
               thickness: 2,

@@ -4,6 +4,7 @@ import '../data/device_file_entry.dart';
 import '../file_manager_controller.dart';
 import 'file_context_menu.dart';
 import 'file_entry_visuals.dart';
+import '../../../presentation/theme/app_theme.dart';
 
 /// Detailed table view: a sortable header (Name / Size / Modified /
 /// Permissions) above one row per entry. Single tap selects, double tap opens
@@ -47,7 +48,7 @@ class FileListView extends StatelessWidget {
   Widget _header(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      height: 34,
+      height: context.scaled(34),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHigh,

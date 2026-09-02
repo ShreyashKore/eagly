@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../presentation/theme/app_theme.dart';
 import '../../log_controller.dart';
 import 'log_lines_limit_input.dart';
 
@@ -12,7 +13,7 @@ class LogLinesLimitEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 24,
+      height: context.scaled(24),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: controller.editingLogLinesLimit
           ? null

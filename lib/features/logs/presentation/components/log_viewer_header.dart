@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../presentation/theme/app_theme.dart';
 import '../../data/models/log_column.dart';
 import '../log_viewer_constants.dart';
 
@@ -38,7 +39,7 @@ class LogViewerHeader extends StatelessWidget {
           onShowColumnVisibilityMenu(details.globalPosition),
       child: Container(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        height: 28,
+        height: context.scaled(28),
         child: Row(
           children: [
             SizedBox(

@@ -86,10 +86,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showSnackBar(String message, {double? width}) {
+  void _showSnackBar(String message, {double? width, Duration? duration}) {
     final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(content: Text(message), width: width));
+    // `remove` rather than `hide`: hiding plays the outgoing snack bar's exit
+    // animation first, so repeated messages (holding the zoom shortcut) queue
+    // up behind it instead of replacing it.
+    messenger.removeCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        width: width,
+        duration: duration ?? const Duration(seconds: 4),
+      ),
+    );
   }
 
   void _changeZoomLevel(double delta) {
@@ -99,6 +108,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _showSnackBar(
       'Zoom: ${(applied * 100).toStringAsFixed(0)}%',
       width: AppConstants.fontSizeSnackBarWidth,
+      // Transient feedback for a repeatable shortcut — gone before the next
+      // press feels blocked by it.
+      duration: const Duration(milliseconds: 900),
     );
   }
 

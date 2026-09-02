@@ -9,6 +9,7 @@ import '../../../session/device_session_controller.dart';
 import '../data/device_info.dart';
 import '../device_home_controller.dart';
 import 'home_primitives.dart';
+import '../../../presentation/theme/app_theme.dart';
 
 /// Top-of-screen identity banner: who the device is, whether it is ready to
 /// work with, and the one action most sessions start with (install a build).
@@ -133,8 +134,8 @@ class _PlatformBadge extends StatelessWidget {
     final theme = Theme.of(context);
     final isIos = device is IosDevice;
     return Container(
-      width: 46,
-      height: 46,
+      width: context.scaled(46),
+      height: context.scaled(46),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,

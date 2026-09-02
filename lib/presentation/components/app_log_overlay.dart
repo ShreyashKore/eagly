@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../features/app_log/app_logger.dart';
+import '../theme/app_theme.dart';
 
 Future<void> showAppLogDialog(
   BuildContext context, {
@@ -193,7 +194,7 @@ class _AppLogPanelState extends State<AppLogPanel> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            height: 32,
+            height: context.scaled(32),
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHighest,
