@@ -4,6 +4,7 @@ import 'package:eagly/constants/app_constants.dart';
 import 'package:eagly/services/eagly_info_service.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
+import 'package:eagly/presentation/theme/app_zoom.dart';
 import 'package:eagly/features/home_screen/home_page.dart';
 import 'package:eagly/services/sentry_event_filter.dart';
 import 'package:flutter/material.dart';
@@ -75,26 +76,8 @@ class MyApp extends StatelessWidget {
               themeMode: themeMode,
               home: const HomeScreen(),
               debugShowCheckedModeBanner: false,
-              builder: (context, child) {
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    final childWidth = constraints.maxWidth / zoomLevel;
-                    final childHeight = constraints.maxHeight / zoomLevel;
-                    return OverflowBox(
-                      alignment: Alignment.topLeft,
-                      minWidth: 0,
-                      minHeight: 0,
-                      maxWidth: childWidth,
-                      maxHeight: childHeight,
-                      child: Transform.scale(
-                        scale: zoomLevel,
-                        alignment: Alignment.topLeft,
-                        child: child!,
-                      ),
-                    );
-                  },
-                );
-              },
+              builder: (context, child) =>
+                  AppZoom(zoomLevel: zoomLevel, child: child!),
             );
           },
         );

@@ -219,6 +219,12 @@ class EaglyTheme extends ThemeExtension<EaglyTheme> {
 
 extension AppThemeContext on BuildContext {
   EaglyTheme get eaglyTheme => Theme.of(this).extension<EaglyTheme>()!;
+
+  /// Scales a fixed chrome dimension (a bar height, a divider) by the app
+  /// zoom, which is applied as a text scale — so boxes with a hardcoded size
+  /// keep fitting the text and icons inside them as the user zooms.
+  double scaled(double dimension) =>
+      MediaQuery.textScalerOf(this).scale(dimension);
 }
 
 class AppTheme {
@@ -415,7 +421,13 @@ class AppTheme {
           ),
         ),
       ),
-      iconTheme: IconThemeData(size: 20, color: colorScheme.onSurfaceVariant),
+      // `applyTextScaling` makes icons follow the app zoom (a text scale)
+      // even where a call site passes an explicit `size`.
+      iconTheme: IconThemeData(
+        size: 20,
+        color: colorScheme.onSurfaceVariant,
+        applyTextScaling: true,
+      ),
       iconButtonTheme: IconButtonThemeData(
         style: ButtonStyle(
           mouseCursor: cursorStyle,

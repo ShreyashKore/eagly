@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:collection/collection.dart';
 import 'package:eagly/features/logs/data/models/recent_fliter_values.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
@@ -118,6 +119,9 @@ class LogController extends FeatureController {
   Timer? _inlineSearchDebounce;
   Timer? _watchdogTimer;
   Timer? _recoveryTimer;
+
+  /// Set while a [_notify] is queued for the end of the current frame.
+  bool _notifyScheduled = false;
 
   var logcatState = LogcatState.stopped;
 
@@ -265,10 +269,27 @@ class LogController extends FeatureController {
 
   bool get isIosLogContext => device is IosDevice;
 
+  /// Notifies listeners, deferring to the end of the frame when we are inside
+  /// one.
+  ///
+  /// Views call back into the controller from build-phase code paths (a
+  /// [State.dispose] during `finalizeTree`, a `didUpdateWidget`, a selection
+  /// callback fired from layout). Notifying there `setState()`s a locked or
+  /// mid-build tree, which throws and — worse — loses the rebuild the
+  /// notification was for.
   void _notify() {
-    if (!_disposed) {
+    if (_disposed) return;
+    if (SchedulerBinding.instance.schedulerPhase !=
+        SchedulerPhase.persistentCallbacks) {
       notifyListeners();
+      return;
     }
+    if (_notifyScheduled) return;
+    _notifyScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _notifyScheduled = false;
+      if (!_disposed) notifyListeners();
+    });
   }
 
   void _updateSettings(LogTabSettings settings) {
@@ -585,12 +606,16 @@ class LogController extends FeatureController {
   }
 
   void setHiddenColumns(Set<String> columns) {
+    if (const SetEquality<String>().equals(hiddenColumns, columns)) return;
     _logViewerRevision++;
     _updateSettings(_settings.copyWith(hiddenColumns: Set.of(columns)));
     _invalidateSearchMatches();
   }
 
   void setColumnWidths(Map<String, double> widths) {
+    if (const MapEquality<String, double>().equals(columnWidths, widths)) {
+      return;
+    }
     _updateSettings(_settings.copyWith(columnWidths: Map.of(widths)));
   }
 

@@ -2,6 +2,7 @@ import 'package:eagly/features/home_screen/components/context_menu_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:window_manager/window_manager.dart';
+import '../../presentation/theme/app_theme.dart';
 import '../../session/device_session_manager.dart';
 import '../updates/update_chip.dart';
 import '../tips/tips_controller.dart';
@@ -36,7 +37,7 @@ class AppHeader extends StatelessWidget {
       listenable: manager,
       builder: (context, _) {
         return Container(
-          height: 52,
+          height: context.scaled(52),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest,
             border: Border(

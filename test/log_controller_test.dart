@@ -959,4 +959,36 @@ void main() {
 
     expect(log.selectedRowIndices, {1, 2, 3});
   });
+
+  test('setColumnWidths does not notify when the widths are unchanged', () {
+    final log = createLog();
+    log.setColumnWidths({LogColumn.tag.name: 120});
+
+    var notifications = 0;
+    log.addListener(() => notifications++);
+
+    log.setColumnWidths({LogColumn.tag.name: 120});
+    expect(notifications, 0);
+
+    log.setColumnWidths({LogColumn.tag.name: 140});
+    expect(notifications, 1);
+    expect(log.columnWidths, {LogColumn.tag.name: 140});
+  });
+
+  test('setHiddenColumns does not notify when the columns are unchanged', () {
+    final log = createLog();
+    log.setHiddenColumns({LogColumn.pid.name});
+    final revision = log.logViewerRevision;
+
+    var notifications = 0;
+    log.addListener(() => notifications++);
+
+    log.setHiddenColumns({LogColumn.pid.name});
+    expect(notifications, 0);
+    expect(log.logViewerRevision, revision);
+
+    log.setHiddenColumns({LogColumn.pid.name, LogColumn.tag.name});
+    expect(notifications, 1);
+    expect(log.logViewerRevision, revision + 1);
+  });
 }
