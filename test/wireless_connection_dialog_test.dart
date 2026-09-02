@@ -81,6 +81,11 @@ void main() {
 
   /// Tears the dialog down inside the test body so the background scan's
   /// parked timer is drained before the pending-timer check runs.
+  ///
+  /// The check fires when the body ends — *before* `tearDown` — so disposing in
+  /// `tearDown` alone fails with "pending timers". Order matters: dispose the
+  /// repository first (its retry loops bail out once disposed), then pump past
+  /// the scan interval so the loop's parked delay fires and the loop returns.
   Future<void> closeDialog(WidgetTester tester) async {
     await tester.pumpWidget(const SizedBox.shrink());
     repository.dispose();
@@ -93,7 +98,8 @@ void main() {
   testWidgets('shows the QR code on the first frame', (tester) async {
     await pumpDialog(tester);
 
-    // No pumpAndSettle: the code must be there before any discovery finishes.
+    // No pump at all: the code must render in the very first frame, before any
+    // mDNS probe could possibly have returned.
     expect(find.byType(WirelessQrPanel), findsOneWidget);
     expect(find.byType(QrImageView), findsOneWidget);
     expect(find.text('Nearby devices'), findsOneWidget);
@@ -180,6 +186,7 @@ void main() {
     expect(find.text('Nothing found yet'), findsNothing);
     expect(find.text('Still waiting?'), findsNothing);
 
+    // Explicit pumps, not pumpAndSettle: the scan spinner animates forever.
     await tester.pump(const Duration(seconds: 15));
     await tester.pump(const Duration(milliseconds: 300));
 

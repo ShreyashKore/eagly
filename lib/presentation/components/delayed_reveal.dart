@@ -10,7 +10,10 @@ import 'animation_utils.dart';
 /// users who do not need it, and appears on its own for users who have clearly
 /// been waiting on something. The timer restarts whenever [enabled] flips back
 /// on or [restartKey] changes, so a retried operation gets a fresh grace
-/// period. The child is not built at all until the reveal fires.
+/// period. The child is not built at all until the reveal fires — it is not
+/// merely collapsed, so it stays out of the semantics tree and out of
+/// `find.byType`/`find.text` in widget tests. (`AnimatedSection` alone would
+/// keep it mounted at `heightFactor: 0`, which reads as "visible" to a test.)
 class DelayedReveal extends StatefulWidget {
   const DelayedReveal({
     super.key,

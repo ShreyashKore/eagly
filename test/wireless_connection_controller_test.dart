@@ -105,8 +105,10 @@ void main() {
   );
 
   test('beginPairing publishes a QR code without waiting on discovery', () {
-    // adb never answers, so any discovery in flight stays pending: the code
-    // still has to be on screen immediately.
+    // Regression guard for the original bug: opening the QR pane while a
+    // discovery was in flight left the code ungenerated until that discovery
+    // timed out (~10 s). adb never answers here, so the probe stays pending —
+    // the code still has to be available immediately.
     adbTool.discoveryDelay = const Duration(seconds: 30);
 
     controller = _buildController(

@@ -16,6 +16,12 @@ import 'components/wireless_qr_panel.dart';
 import 'components/wireless_selected_device_panel.dart';
 import 'wireless_connection_controller.dart';
 
+/// Wireless ADB pairing dialog.
+///
+/// Two panes only: "Pair a device" (QR code pinned on top, nearby devices
+/// scrolling beneath) and "Manual entry". The QR code and the nearby list were
+/// separate tabs once; they share a pane because they share a single mDNS scan,
+/// and because the code is what most users actually want to see first.
 class WirelessConnectionDialog extends StatefulWidget {
   const WirelessConnectionDialog({
     super.key,
@@ -119,11 +125,15 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     _connectAddressController = TextEditingController(
       text: wirelessController.suggestedWirelessConnectAddress ?? '',
     );
+    // Synchronous on purpose: the QR code is local computation, so it is on
+    // screen in this very first frame rather than after a post-frame callback.
     wirelessController.beginPairing();
   }
 
   @override
   void dispose() {
+    // Required, not optional: the controller owns an unbounded scan loop that
+    // would otherwise outlive the dialog. (It was never disposed before.)
     wirelessController.dispose();
     _pairAddressController.dispose();
     _pairingCodeController.dispose();
@@ -307,6 +317,10 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   ///
   /// In a window too short to hold the code plus a usable list, the pane falls
   /// back to scrolling as a whole rather than clipping.
+  ///
+  /// The pinned layout depends on this pane getting a bounded height — it comes
+  /// from `EaglyDialog(height:)`. Drop that fixed height and the `Expanded`
+  /// below has nothing to expand into.
   Widget _buildPairPane(BuildContext context) {
     final qrPanel = WirelessQrPanel(
       payload: wirelessController.qrSession?.payload,

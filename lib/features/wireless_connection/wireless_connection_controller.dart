@@ -53,9 +53,14 @@ class WirelessPairResult {
 
 /// Holds the credentials encoded in a wireless debugging pairing QR code.
 ///
+/// Both fields are generated locally — the device contributes nothing to the
+/// code, so building one is pure computation with no I/O and no failure mode.
 /// The Android device scans [payload] and then advertises an mDNS pairing
-/// service whose name equals [serviceName]; pairing is completed against that
-/// service using [password].
+/// service whose name equals [serviceName]; the scan loop matches on that name
+/// and pairs against that service using [password] as the pairing code.
+///
+/// There is no server side and therefore no expiry: a code stays valid until it
+/// is used. It is single-use, though — regenerate after a pair attempt.
 class WirelessQrPairingSession {
   const WirelessQrPairingSession({
     required this.serviceName,
@@ -69,6 +74,14 @@ class WirelessQrPairingSession {
   String get payload => 'WIFI:T:ADB;S:$serviceName;P:$password;;';
 }
 
+/// Drives the wireless ADB dialog: one QR pairing session plus one background
+/// mDNS scan that serves both the nearby device list and QR scan detection.
+///
+/// The single loop is deliberate. Pairing by QR and listing nearby devices both
+/// need the same `adb mdns services` snapshot, and running them as two
+/// independent operations meant one starved the other — opening the QR pane
+/// while a discovery was in flight left the code ungenerated for ~10 s. Nothing
+/// here should reintroduce a second poller or widen [isWirelessBusy].
 class WirelessConnectionController extends ChangeNotifier {
   WirelessConnectionController({
     required DevicesRepository devicesRepository,
@@ -120,6 +133,10 @@ class WirelessConnectionController extends ChangeNotifier {
   WirelessQrPairingSession? get qrSession => _qrSession;
 
   /// True while an action that must not overlap another one is in flight.
+  ///
+  /// Deliberately *excludes* the background scan: the scan is passive and must
+  /// never block QR generation, pairing or connecting. Widening this to cover
+  /// scanning is exactly the starvation bug this design removed.
   bool get isWirelessBusy => _pairingWireless || _connectingWireless;
   bool get hasAttemptedWirelessDiscovery => _hasAttemptedWirelessDiscovery;
   List<WirelessDebugService> get wirelessServices =>
@@ -268,7 +285,8 @@ class WirelessConnectionController extends ChangeNotifier {
   /// scanned.
   ///
   /// The code is generated locally, so it is on screen from the first frame —
-  /// it never waits on an mDNS probe.
+  /// it never waits on an mDNS probe. Keep it that way: anything that makes
+  /// code generation await I/O puts the ~10 s discovery stall back in the UI.
   void beginPairing() {
     if (_qrSession == null) {
       regenerateQrCode();
@@ -286,6 +304,10 @@ class WirelessConnectionController extends ChangeNotifier {
   }
 
   /// Starts the background mDNS scan. Safe to call when already scanning.
+  ///
+  /// [_scanGeneration] is the cancellation token: a loop parked in its interval
+  /// delay cannot be interrupted, so it re-checks the generation on waking and
+  /// returns if it has been superseded.
   void startScanning() {
     if (_scanning || _disposed) return;
     _scanning = true;
@@ -312,7 +334,12 @@ class WirelessConnectionController extends ChangeNotifier {
     bool isStale() => _disposed || !_scanning || generation != _scanGeneration;
 
     while (!isStale()) {
+      // Skipped, not queued: pairing/connecting already hold adb, and a probe
+      // running alongside `adb pair` is both wasteful and flaky.
       if (!isWirelessBusy) {
+        // `retry: false` is essential — the default retries for ~10 s before
+        // returning empty, which would make this loop tick once per 10 s and
+        // hold adb the whole time. We do the pacing ourselves.
         final result = await _devicesRepository.discoverMdnsServices(
           retry: false,
         );
@@ -334,6 +361,8 @@ class WirelessConnectionController extends ChangeNotifier {
         _hasAttemptedWirelessDiscovery = true;
         if (changed) _notify();
 
+        // The device only starts advertising this name *after* it scans our
+        // code, so a name match is the scan signal — there is no callback.
         final session = _qrSession;
         final scannedService = session == null
             ? null
@@ -370,6 +399,9 @@ class WirelessConnectionController extends ChangeNotifier {
   /// Runs the regular pairing flow with the credentials the device just read
   /// off the QR code. The code is single-use, so a fresh one is published
   /// unless pairing carried all the way through to a connected device.
+  ///
+  /// The new code carries a new service name, so the device's still-advertised
+  /// pairing service cannot re-trigger this on the next pass.
   Future<void> _completeQrPairing(
     WirelessQrPairingSession session,
     WirelessDebugService pairingService,

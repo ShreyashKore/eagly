@@ -122,6 +122,42 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `DeviceSessionRepository.startTerminalProcess()`, which owns startup/merging/teardown
   only — no timeout (`adb logcat` may stream forever), stdin is writable, and cancellation
   is the caller's job. Adding a dispatchable binary = one entry in `terminalTools`.
+- **Wireless ADB:** one dialog (`features/wireless_connection/`) with two panes — **Pair a
+  device** (QR card pinned on top, discovered devices scrolling under it) and **Manual
+  entry**. The whole pane is driven by *one* background mDNS scan
+  (`WirelessConnectionController._runScanLoop`) that both refreshes the nearby list and
+  watches for the QR code being scanned; there is no separate "discover" action.
+  - **How QR pairing actually works:** the payload `WIFI:T:ADB;S:<name>;P:<password>;;` is
+    generated *by us* — a random service name and password, no device involved. After the
+    device scans it, it starts advertising an mDNS **pairing** service whose name equals
+    the name we embedded; the scan loop matches on that name and calls
+    `adb pair <host:port> <password>`. So generating a code is pure local computation and
+    must never be gated on discovery — that was the original bug.
+  - **Gotcha — the retry loop:** `DevicesRepository.discoverMdnsServices()` defaults to
+    `retry: true`, polling up to `_mdnsRetryCountMax × _mdnsRetryInterval` (20 × 500 ms ≈
+    10 s) until something appears. Right for a one-shot; fatal inside a poll loop. The scan
+    loop passes `retry: false` and paces itself with
+    `WirelessConnectionController.scanInterval`.
+  - **Gotcha — `isWirelessBusy` must stay narrow:** it means *pairing or connecting* only.
+    Folding the passive scan back into it re-creates the original starvation (a discovery
+    in flight refusing QR generation for ~10 s). The scan loop instead *skips a pass* while
+    busy, so two adb invocations never contend.
+  - The QR code has no server-side expiry (it is our own random string), so there is no
+    scan timeout — only leaving the pane or an adb failure stops the loop. It *is*
+    single-use: after a pair attempt consumes it, `regenerateQrCode()` publishes a new one
+    unless the flow reached a connected device.
+  - `_scanGeneration` invalidates in-flight loops: `stopScanning()`/`dispose()` bump it so a
+    loop parked in `Future.delayed(scanInterval)` returns instead of resuming. The dialog
+    **must** dispose the controller (it did not before) or the loop outlives it.
+  - The loop notifies listeners only when the service list actually changed — at ~1 Hz an
+    unconditional `notifyListeners()` rebuilds the dialog (and its text fields) constantly.
+  - Pairing yields a *pairing* port; connecting needs the separate *connect* port, resolved
+    from the same mDNS snapshot (`_resolveWirelessConnectAddresses`). Pair auto-continues
+    into connect when a connect endpoint is known, which is why `WirelessPairResult`
+    distinguishes `paired` from `autoConnected`.
+  - Device-side realities worth telling the user (the `HintNote`s do): the device's pairing
+    screen must stay open or it stops advertising, and client-isolating networks (guest or
+    public Wi-Fi) block mDNS entirely — Manual entry is the escape hatch.
 - **Imported logs workspace:** opening a log file with no device hosts it in a single
   synthetic `DeviceSessionController` (`isImportedWorkspace`, id `__imported-logs__`); each
   file becomes a sub-tab. It appears as a tab but is excluded from the landing-screen
@@ -141,6 +177,13 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `test/support/session_test_support.dart` (`FakeSessionService`, `FakeAdbTool`, …). Tunable
   timing constants are exposed as `@visibleForTesting static` fields (e.g.
   `LogController.recoveryBackoff`) — set in `setUp`, reset in `tearDown`.
+- Widget-testing anything with a spinner or a background poll (see
+  `test/wireless_connection_dialog_test.dart`): `pumpAndSettle` **never** returns while a
+  `CircularProgressIndicator` is on screen — advance with explicit `pump(duration)`. The
+  pending-timer check runs when the test *body* ends, before `tearDown`, so tear the widget
+  down inside the body and pump past any parked interval. `AnimatedSection` keeps its child
+  mounted at `heightFactor: 0`, so `find.text` still matches a "hidden" child — hide by not
+  building the child (what `DelayedReveal` does via `AnimatedContent`).
 - Commit/push only when asked; branch off `main` first.
 - Never discard uncommitted working-tree changes you didn't just make (`git checkout --`,
   `git restore`, `stash drop`, etc.) — even if they look stray or unrelated to the current
