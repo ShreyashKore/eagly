@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import '../theme/app_theme.dart';
 
 /// One collapsible toolbar action. Rendered as a button while it fits in the
 /// bar and as an entry in the overflow menu once it doesn't, so the same
@@ -148,7 +149,7 @@ class _OverflowToolbarState extends State<OverflowToolbar> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: SizedBox(
-            height: 18,
+            height: context.scaled(18),
             child: VerticalDivider(
               width: 2,
               thickness: 2,
@@ -203,7 +204,7 @@ class _OverflowToolbarState extends State<OverflowToolbar> {
         PopupMenuItem<ToolbarAction>(
           value: action,
           enabled: action.enabled,
-          height: 40,
+          height: context.scaled(40),
           child: Row(
             children: [
               Icon(action.icon, size: 18, color: color),

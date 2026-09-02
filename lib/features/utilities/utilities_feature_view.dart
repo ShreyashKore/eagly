@@ -339,7 +339,7 @@ class _SearchField extends StatelessWidget {
         ),
       ),
       child: SizedBox(
-        height: 34,
+        height: context.scaled(34),
         child: TextField(
           controller: controller,
           onChanged: onChanged,

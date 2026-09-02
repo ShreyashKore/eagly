@@ -5,6 +5,7 @@ import '../../utilities/data/utility_catalog.dart';
 import '../../utilities/data/utility_command.dart';
 import '../../utilities/utility_runner.dart';
 import '../data/app_info.dart';
+import '../../../presentation/theme/app_theme.dart';
 
 /// The Utilities bridge for the Apps pane.
 ///
@@ -61,7 +62,7 @@ Future<void> showAppUtilityMenu(
     items: [
       PopupMenuItem<UtilityCommand>(
         enabled: false,
-        height: 30,
+        height: context.scaled(30),
         child: Text(
           app.packageName,
           style: theme.textTheme.labelSmall?.copyWith(
