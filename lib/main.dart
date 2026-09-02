@@ -77,8 +77,15 @@ class MyApp extends StatelessWidget {
               themeMode: themeMode,
               home: const HomeScreen(),
               debugShowCheckedModeBanner: false,
-              builder: (context, child) =>
-                  AppZoom(zoomLevel: zoomLevel, child: child!),
+              builder: (context, child) => AppZoom(
+                zoomLevel: zoomLevel,
+                child: SnackBarTheme(
+                  data: Theme.of(context).snackBarTheme.copyWith(
+                    width: _snackBarWidth(MediaQuery.sizeOf(context).width),
+                  ),
+                  child: child!,
+                ),
+              ),
             );
           },
         );
