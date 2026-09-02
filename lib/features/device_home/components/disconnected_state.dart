@@ -43,8 +43,8 @@ class DisconnectedBanner extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 34,
-            height: 34,
+            width: context.scaled(34),
+            height: context.scaled(34),
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(10),
@@ -185,8 +185,8 @@ class _Step extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 26,
-          height: 26,
+          width: context.scaled(26),
+          height: context.scaled(26),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(8),

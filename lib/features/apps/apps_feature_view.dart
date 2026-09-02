@@ -7,6 +7,7 @@ import 'apps_controller.dart';
 import 'components/app_context_menu.dart';
 import 'components/app_tile.dart';
 import 'data/app_info.dart';
+import '../../presentation/theme/app_theme.dart';
 
 /// Apps feature pane: lists installed apps as an icon grid with search and
 /// (Android) a system-apps toggle, and drives the per-app context menu
@@ -320,7 +321,7 @@ class _Toolbar extends StatelessWidget {
         children: [
           Expanded(
             child: SizedBox(
-              height: 34,
+              height: context.scaled(34),
               child: TextField(
                 controller: searchController,
                 onChanged: controller.setSearchText,

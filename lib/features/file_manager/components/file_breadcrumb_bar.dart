@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../file_manager_controller.dart';
 import '../services/device_file_system.dart';
+import '../../../presentation/theme/app_theme.dart';
 
 /// Clickable path breadcrumb (`/ › sdcard › DCIM`). The leading crumb is the
 /// file system root; each subsequent crumb jumps to that ancestor directory.
@@ -47,7 +48,7 @@ class FileBreadcrumbBar extends StatelessWidget {
     }
 
     return Container(
-      height: 36,
+      height: context.scaled(36),
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(

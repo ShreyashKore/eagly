@@ -316,8 +316,8 @@ class _SearchToggleButton extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            width: 26,
-            height: 26,
+            width: context.scaled(26),
+            height: context.scaled(26),
             decoration: value
                 ? BoxDecoration(
                     color: theme.colorScheme.primaryContainer,

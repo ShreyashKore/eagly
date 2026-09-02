@@ -94,7 +94,7 @@ class AppHeader extends StatelessWidget {
                         const AppUpdateChip(),
                         const Gap(4),
                         SizedBox(
-                          height: 22,
+                          height: context.scaled(22),
                           child: VerticalDivider(
                             width: 2,
                             thickness: 1,

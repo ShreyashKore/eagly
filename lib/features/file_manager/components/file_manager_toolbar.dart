@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../file_manager_controller.dart';
+import '../../../presentation/theme/app_theme.dart';
 
 /// Top toolbar of the file-manager pane: navigation (back / up / refresh),
 /// view-mode toggle, and the file actions (new folder, upload, download/delete
@@ -32,7 +33,7 @@ class FileManagerToolbar extends StatelessWidget {
     final isList = controller.viewMode == FileManagerViewMode.list;
 
     return Container(
-      height: 48,
+      height: context.scaled(48),
       padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
