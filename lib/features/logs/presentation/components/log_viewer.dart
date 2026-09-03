@@ -642,6 +642,12 @@ class _LogViewerState extends State<LogViewer> {
     // A single item holding the whole list: [PopupMenuItem]s close the menu on
     // tap, so the rows handle their own taps and the menu stays open until it
     // is dismissed.
+    //
+    // The parent re-keys the viewer whenever the hidden set changes, so the
+    // first toggle disposes this State while its popup is still up. Capture
+    // the callback here: routing later toggles through the dead State would
+    // drop them, leaving the checkboxes flipping with no columns to match.
+    final onHiddenColumnsChanged = widget.onHiddenColumnsChanged;
     showMenu<void>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -657,13 +663,18 @@ class _LogViewerState extends State<LogViewer> {
             columns: LogColumn.values.where((c) => !c.isExpandable).toList(),
             hiddenColumns: _hiddenColumns,
             isIos: widget.isIos,
-            onChanged: _applyHiddenColumns,
+            onChanged: (hidden) {
+              _applyHiddenColumns(hidden);
+              onHiddenColumnsChanged?.call(Set.of(hidden));
+            },
           ),
         ),
       ],
     );
   }
 
+  /// Mirrors the popup's hidden set locally. No-op once this State is gone —
+  /// the replacement is built from the parent's set, which is authoritative.
   void _applyHiddenColumns(Set<String> hidden) {
     if (!mounted) return;
     setState(() {
@@ -671,7 +682,6 @@ class _LogViewerState extends State<LogViewer> {
       // Column widths change the space left for the message column.
       _largestBuiltMessageWidth = 0;
     });
-    widget.onHiddenColumnsChanged?.call(Set.of(hidden));
   }
 
   void _registerRowContext(int index, BuildContext context) {
