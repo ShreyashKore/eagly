@@ -209,6 +209,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
 
 ## Conventions
 
+- **Agent skills live in `.agents/skills/<name>/SKILL.md`** — that directory is
+  the source of truth, and `.claude/skills` is a symlink to it so Claude Code
+  reads the same files with nothing to sync. Wire a new agent up with another
+  symlink (`ln -s ../.agents/skills .<agent>/skills`); never copy the files.
+  See `.agents/skills/README.md`.
 - **This file is the only copy of the project instructions.** `CLAUDE.md` is a
   nine-line pointer to it — write changes here, and never copy content back
   there. The two were byte-copies once and drifted 35 lines apart before anyone

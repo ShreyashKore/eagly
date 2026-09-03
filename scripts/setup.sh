@@ -173,6 +173,15 @@ else
   warn "Not a git checkout; skipping git hook setup."
 fi
 
+# ── agent skills ─────────────────────────────────────────────────────────────
+# .claude/skills is a symlink to the agent-agnostic .agents/skills. Windows
+# clones without symlink support materialise it as a text file instead, which
+# silently hides every skill — so check rather than assume.
+if [ -e "$PROJECT_DIR/.claude/skills" ] && [ ! -L "$PROJECT_DIR/.claude/skills" ]; then
+  warn ".claude/skills is not a symlink; agent skills will not be found."
+  warn "Enable Developer Mode, then: git config core.symlinks true && git checkout -- .claude/skills"
+fi
+
 # ── Dart/Flutter packages ────────────────────────────────────────────────────
 log "Fetching Dart/Flutter packages..."
 (cd "$PROJECT_DIR" && $FLUTTER pub get)
