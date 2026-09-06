@@ -16,6 +16,7 @@ import 'data/models/log_level.dart';
 import 'data/models/log_tab_settings.dart';
 import 'presentation/models/log_view_mode.dart';
 import 'services/filter_utils.dart';
+import 'services/pid_package_index.dart';
 import 'services/log_file_service.dart';
 import '../../session/device_session_controller.dart';
 import '../../session/feature_controller.dart';
@@ -112,6 +113,17 @@ class LogController extends FeatureController {
 
   LogBuffer<LogEntry> _logsBuffer;
   final List<LogEntry> _pendingLogs = [];
+
+  /// pid→package learned from entries that arrived with a resolved package, so
+  /// a package filter still matches the entries whose mapping was missing.
+  final PidPackageIndex _pidPackages = PidPackageIndex();
+
+  /// Bumped only when a newly learned pid→package mapping could change what the
+  /// *active* package filter matches. Folded into the filter signature so the
+  /// filtered list is rebuilt then — and, crucially, not on every unrelated
+  /// mapping: a fresh stream learns hundreds of PIDs, and rebuilding a 50k
+  /// buffer for each of them would cost a full rescan per frame.
+  int _packageIndexRelevance = 0;
 
   StreamSubscription<LogEntry>? _logSub;
   Timer? _flushTimer;
@@ -870,10 +882,38 @@ class LogController extends FeatureController {
     _notify();
   }
 
-  String get _appliedFilterSignature => _appliedFilters.signature;
+  /// The applied filter's signature, extended with the pid→package index
+  /// version while a package filter is active: learning a new mapping can make
+  /// the same filter match entries it previously missed, so the cached filtered
+  /// list has to be rebuilt.
+  String get _appliedFilterSignature {
+    final signature = _appliedFilters.signature;
+    if (_appliedFilters.packageTerms.isEmpty) return signature;
+    return '$signature|pp:$_packageIndexRelevance';
+  }
+
+  /// Records what [entry] teaches us about its PID, and marks the filtered list
+  /// stale only when that mapping bears on the package terms in force — for a
+  /// negated term too, where learning a mapping *hides* entries rather than
+  /// revealing them.
+  void _learnPidPackage(LogEntry entry) {
+    final learned = _pidPackages.record(entry);
+    if (learned == null) return;
+
+    final terms = _appliedFilters.packageTerms;
+    if (terms.isEmpty) return;
+    if (terms.any((term) => term.matches(learned) != term.matches(''))) {
+      _packageIndexRelevance++;
+    }
+  }
 
   bool _matchesLogFilters(LogEntry log) {
-    return matchesLogFilters(log, _appliedFilters, selectedLogLevel);
+    return matchesLogFilters(
+      log,
+      _appliedFilters,
+      selectedLogLevel,
+      packageForPid: _pidPackages.packageForPid,
+    );
   }
 
   bool get _hasActiveRetentionFilter =>
@@ -887,6 +927,9 @@ class LogController extends FeatureController {
   }
 
   void _replaceStoredLogs(Iterable<LogEntry> entries) {
+    for (final entry in entries) {
+      _pidPackages.record(entry);
+    }
     final nextBuffer = LogBuffer<LogEntry>(baseCapacity: logLinesLimit);
     nextBuffer.setFilter(_retentionFilter);
     for (final entry in entries) {
@@ -900,6 +943,7 @@ class LogController extends FeatureController {
 
   void _clearStoredLogs() {
     _logsBuffer.clear();
+    _pidPackages.clear();
     _logsMemoryBytes = 0;
     _invalidateFilteredLogs();
   }
@@ -1014,6 +1058,7 @@ class LogController extends FeatureController {
         if (_liveStreamInterrupted || _recovering || _recoveryAttempts > 0) {
           _markStreamRecovered();
         }
+        _learnPidPackage(logEntry);
         if (logEntry.isSpecialEntry) {
           _appendImmediateLogEntry(logEntry);
           return;
