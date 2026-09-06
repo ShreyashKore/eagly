@@ -10,11 +10,21 @@ import 'filter_utils.dart';
 /// mapping here lets a package filter still recognise those entries by their
 /// PID instead of dropping them.
 class PidPackageIndex {
+  PidPackageIndex({PackageForPid? fallback}) : _fallback = fallback;
+
+  /// Consulted for a PID no entry ever resolved — in practice the session
+  /// repository's own polled `ps -A` map. It covers the process that logged
+  /// only in the window before the first poll saw it and then went quiet: the
+  /// device knows the PID, but no entry in this buffer ever carried its
+  /// package. An in-memory lookup, not a fresh adb call.
+  final PackageForPid? _fallback;
+
   final Map<String, String> _packageByPid = {};
 
-  /// The package/process last seen for [pid], or null when it was never
-  /// resolved.
-  String? packageForPid(String pid) => _packageByPid[pid];
+  /// The package/process last seen for [pid], or null when neither the entries
+  /// nor the fallback ever resolved it.
+  String? packageForPid(String pid) =>
+      _packageByPid[pid] ?? _fallback?.call(pid);
 
   /// Learns [log]'s pid→package mapping, if it has one, and returns the package
   /// when that mapping is *new* (so the caller can tell whether anything the

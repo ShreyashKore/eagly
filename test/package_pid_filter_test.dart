@@ -113,6 +113,34 @@ void main() {
       expect(index.packageForPid('3'), isNull);
     });
 
+    test('falls back to the device map for a pid no entry resolved', () {
+      final deviceMap = {'1': 'com.foo', '2': 'com.bar'};
+      final index = PidPackageIndex(fallback: (pid) => deviceMap[pid])
+        ..record(_log(pid: '2', packageName: 'com.bar.subprocess'));
+
+      expect(index.packageForPid('1'), 'com.foo', reason: 'from the fallback');
+      expect(
+        index.packageForPid('2'),
+        'com.bar.subprocess',
+        reason: 'a learned mapping wins over the polled one',
+      );
+      expect(index.packageForPid('3'), isNull);
+    });
+
+    test('the fallback still keeps unresolved entries in a package filter', () {
+      final index = PidPackageIndex(fallback: (pid) => 'com.foo');
+
+      expect(
+        matchesLogFilters(
+          _log(pid: '100'),
+          _parse('package:com.foo'),
+          LogLevel.verbose,
+          packageForPid: index.packageForPid,
+        ),
+        isTrue,
+      );
+    });
+
     test('record reports only newly learned mappings', () {
       final index = PidPackageIndex();
 

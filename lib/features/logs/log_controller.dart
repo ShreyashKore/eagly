@@ -116,7 +116,9 @@ class LogController extends FeatureController {
 
   /// pid→package learned from entries that arrived with a resolved package, so
   /// a package filter still matches the entries whose mapping was missing.
-  final PidPackageIndex _pidPackages = PidPackageIndex();
+  late final PidPackageIndex _pidPackages = PidPackageIndex(
+    fallback: service.getProcessNameFromPid,
+  );
 
   /// Bumped only when a newly learned pid→package mapping could change what the
   /// *active* package filter matches. Folded into the filter signature so the
