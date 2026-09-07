@@ -51,6 +51,9 @@ dependencies:
   updat: ^1.4.0
   http: ^1.6.0
   archive: ^4.0.9
+  rust_lib_eagly:
+    path: rust_builder
+  flutter_rust_bridge: 2.13.0
 
 dev_dependencies:
   sentry_dart_plugin: ^3.4.0
@@ -63,6 +66,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  integration_test:
+    sdk: flutter
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
