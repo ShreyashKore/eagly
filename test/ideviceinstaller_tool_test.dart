@@ -1,3 +1,4 @@
+import 'package:eagly/services/ios/ios_app_service.dart';
 import 'package:eagly/services/tools/ideviceinstaller_tool.dart';
 import 'package:eagly/services/tools/tool_process_runner.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -99,15 +100,17 @@ void main() {
 ''';
 
   test(
-    'listAllApps parses out-of-order fields and ignores nested dicts',
+    'listApps parses out-of-order fields and ignores nested dicts',
     () async {
       final tool = _FakeIdeviceInstallerTool(xml);
 
-      final apps = await tool.listAllApps('udid');
+      final apps = await tool.listApps('udid');
 
+      // Document order: sorting is applied above by sortIosApps so that both
+      // backends present the same way.
       expect(apps.map((a) => a.packageName), [
-        'com.amazon.AmazonIN',
         'com.truesoftware.TrueCallerOther',
+        'com.amazon.AmazonIN',
       ]);
       expect(
         apps.any((a) => a.packageName == 'should.not.be.picked.up'),
@@ -128,7 +131,7 @@ void main() {
     },
   );
 
-  test('listAllApps requests xml output (plain -l is unparseable)', () async {
+  test('listApps requests xml output (plain -l is unparseable)', () async {
     // The default (no -o xml) output is a terse CSV table with no <key>
     // tags at all — the earlier bug that made every iOS app disappear.
     const csvOutput =
@@ -136,17 +139,29 @@ void main() {
         'com.amazon.AmazonIN, "876082.0", "Amazon"\n';
     final tool = _FakeIdeviceInstallerTool(csvOutput);
 
-    final apps = await tool.listAllApps('udid');
+    final apps = await tool.listApps('udid');
 
     expect(apps, isEmpty);
   });
 
-  test('listInstalledApps caps at 5 and maps to the lighter model', () async {
+  test('sortIosApps orders by display name', () async {
     final tool = _FakeIdeviceInstallerTool(xml);
 
-    final apps = await tool.listInstalledApps('udid');
+    final apps = sortIosApps(await tool.listApps('udid'));
 
-    // Unsorted (document order), matching listAllApps' pre-sort order.
+    expect(apps.map((a) => a.packageName), [
+      'com.amazon.AmazonIN',
+      'com.truesoftware.TrueCallerOther',
+    ]);
+  });
+
+  test('takeRecentIosApps caps at 5 and maps to the lighter model', () async {
+    final tool = _FakeIdeviceInstallerTool(xml);
+
+    final apps = takeRecentIosApps(await tool.listApps('udid'));
+
+    // Document order — the cap is applied before any sort, and this mapping is
+    // shared with the Rust backend.
     expect(apps, hasLength(2));
     expect(apps.map((a) => a.packageName), [
       'com.truesoftware.TrueCallerOther',
@@ -204,8 +219,8 @@ void main() {
       final modern = _CliGenerationFake(legacyBinary: false, stdout: xml);
       final legacy = _CliGenerationFake(legacyBinary: true, stdout: xml);
 
-      expect(await modern.listAllApps('udid'), hasLength(2));
-      expect(await legacy.listAllApps('udid'), hasLength(2));
+      expect(await modern.listApps('udid'), hasLength(2));
+      expect(await legacy.listApps('udid'), hasLength(2));
       expect(modern.calls.single, ['-u', 'udid', 'list', '--xml']);
       expect(legacy.calls.last, ['-u', 'udid', '-l', '-o', 'xml']);
     });

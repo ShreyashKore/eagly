@@ -8,7 +8,7 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 flutter_rust_bridge = "=2.13.0"
-idevice = { version = "=0.1.65", default-features = false, features = ["usbmuxd", "tcp", "pair", "syslog_relay"] }
+idevice = { version = "=0.1.65", default-features = false, features = ["usbmuxd", "tcp", "pair", "syslog_relay", "installation_proxy"] }
 plist = "1.8"
 # `macros` for tokio::select!; FRB's own tokio brings only rt-multi-thread + sync.
 tokio = { version = "1", features = ["macros"] }

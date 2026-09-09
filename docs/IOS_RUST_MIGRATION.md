@@ -30,11 +30,16 @@ IosDeviceService                       discovery + lockdownd domains
 IosLogService                          live syslog streaming
  ├─ LibimobiledeviceIosLogService      wraps IdeviceSyslogTool                 ← default
  └─ RustIosLogService                  wraps lib/src/rust/api/ios.dart
+
+IosAppService                          app inventory and lifecycle
+ ├─ LibimobiledeviceIosAppService      wraps IdeviceInstallerTool              ← default
+ └─ RustIosAppService                  wraps lib/src/rust/api/ios.dart
 ```
 
 Logic that sits *above* the transport is shared rather than duplicated per backend:
-`buildIosDeviceInfo` maps lockdownd domains to the device-home model for both, and
-`IosSyslogParser` turns raw syslog lines into `LogEntry`s for both. Only the reading differs.
+`buildIosDeviceInfo` maps lockdownd domains to the device-home model for both, `IosSyslogParser`
+turns raw syslog lines into `LogEntry`s for both, and `sortIosApps` / `takeRecentIosApps` order
+and cap the app list for both. Only the reading differs.
 
 Rules that keep this from rotting:
 
@@ -56,7 +61,7 @@ EAGLY_IOS_BACKEND=rust fvm flutter run -d macos
 | Discovery (`idevice_id`, `ideviceinfo`) | `IdeviceIdTool`, `IdeviceInfoTool` | `list_ios_devices`, `describe_ios_device` | both, **unverified on hardware** |
 | Syslog streaming | `IdeviceSyslogTool` | `start_ios_syslog`, `stop_ios_syslog` | both, **unverified on hardware** |
 | Extended device info | `IdeviceInfoTool.readDeviceDomains` | `read_ios_device_domains` | both, **unverified on hardware** |
-| App install / list / uninstall | `IdeviceInstallerTool` | — | not started |
+| App install / list / uninstall | `IdeviceInstallerTool` | `list_ios_apps`, `install_ios_app`, `uninstall_ios_app` | both, **unverified on hardware** |
 | Crash reports | `IdeviceCrashReportTool` | — | not started |
 | File manager (AFC) | `IosFileSystem` (`afcclient`) | — | not started |
 | Utilities / Terminal | `DeviceToolRunner` | — | not started |

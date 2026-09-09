@@ -37,6 +37,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool dco_decode_bool(dynamic raw);
 
   @protected
+  IosAppInfo dco_decode_ios_app_info(dynamic raw);
+
+  @protected
   IosDeviceDomains dco_decode_ios_device_domains(dynamic raw);
 
   @protected
@@ -47,6 +50,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   IosError dco_decode_ios_error(dynamic raw);
+
+  @protected
+  List<IosAppInfo> dco_decode_list_ios_app_info(dynamic raw);
 
   @protected
   List<IosDeviceHandle> dco_decode_list_ios_device_handle(dynamic raw);
@@ -89,6 +95,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
+  IosAppInfo sse_decode_ios_app_info(SseDeserializer deserializer);
+
+  @protected
   IosDeviceDomains sse_decode_ios_device_domains(SseDeserializer deserializer);
 
   @protected
@@ -99,6 +108,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   IosError sse_decode_ios_error(SseDeserializer deserializer);
+
+  @protected
+  List<IosAppInfo> sse_decode_list_ios_app_info(SseDeserializer deserializer);
 
   @protected
   List<IosDeviceHandle> sse_decode_list_ios_device_handle(
@@ -155,6 +167,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_ios_app_info(IosAppInfo self, SseSerializer serializer);
+
+  @protected
   void sse_encode_ios_device_domains(
     IosDeviceDomains self,
     SseSerializer serializer,
@@ -174,6 +189,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ios_error(IosError self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_ios_app_info(
+    List<IosAppInfo> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_ios_device_handle(

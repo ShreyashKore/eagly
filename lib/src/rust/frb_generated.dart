@@ -67,7 +67,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -462982729;
+  int get rustContentHash => -1718360287;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -85,6 +85,13 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiSimpleInitApp();
 
+  Future<void> crateApiIosInstallIosApp({
+    required String udid,
+    required String packagePath,
+  });
+
+  Future<List<IosAppInfo>> crateApiIosListIosApps({required String udid});
+
   Future<List<IosDeviceHandle>> crateApiIosListIosDevices();
 
   Future<IosDeviceDomains> crateApiIosReadIosDeviceDomains({
@@ -97,6 +104,11 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<void> crateApiIosStopIosSyslog({required String sessionId});
+
+  Future<void> crateApiIosUninstallIosApp({
+    required String udid,
+    required String bundleId,
+  });
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -188,6 +200,68 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
+  Future<void> crateApiIosInstallIosApp({
+    required String udid,
+    required String packagePath,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(udid, serializer);
+          sse_encode_String(packagePath, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_ios_error,
+        ),
+        constMeta: kCrateApiIosInstallIosAppConstMeta,
+        argValues: [udid, packagePath],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosInstallIosAppConstMeta => const TaskConstMeta(
+    debugName: "install_ios_app",
+    argNames: ["udid", "packagePath"],
+  );
+
+  @override
+  Future<List<IosAppInfo>> crateApiIosListIosApps({required String udid}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(udid, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_ios_app_info,
+          decodeErrorData: sse_decode_ios_error,
+        ),
+        constMeta: kCrateApiIosListIosAppsConstMeta,
+        argValues: [udid],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosListIosAppsConstMeta =>
+      const TaskConstMeta(debugName: "list_ios_apps", argNames: ["udid"]);
+
+  @override
   Future<List<IosDeviceHandle>> crateApiIosListIosDevices() {
     return handler.executeNormal(
       NormalTask(
@@ -196,7 +270,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 6,
             port: port_,
           );
         },
@@ -226,7 +300,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 7,
             port: port_,
           );
         },
@@ -264,7 +338,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 6,
+              funcId: 8,
               port: port_,
             );
           },
@@ -296,7 +370,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 9,
             port: port_,
           );
         },
@@ -314,6 +388,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiIosStopIosSyslogConstMeta => const TaskConstMeta(
     debugName: "stop_ios_syslog",
     argNames: ["sessionId"],
+  );
+
+  @override
+  Future<void> crateApiIosUninstallIosApp({
+    required String udid,
+    required String bundleId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(udid, serializer);
+          sse_encode_String(bundleId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 10,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_ios_error,
+        ),
+        constMeta: kCrateApiIosUninstallIosAppConstMeta,
+        argValues: [udid, bundleId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosUninstallIosAppConstMeta => const TaskConstMeta(
+    debugName: "uninstall_ios_app",
+    argNames: ["udid", "bundleId"],
   );
 
   @protected
@@ -348,6 +456,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
+  }
+
+  @protected
+  IosAppInfo dco_decode_ios_app_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return IosAppInfo(
+      bundleId: dco_decode_String(arr[0]),
+      name: dco_decode_opt_String(arr[1]),
+      version: dco_decode_opt_String(arr[2]),
+    );
   }
 
   @protected
@@ -413,6 +534,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw Exception("unreachable");
     }
+  }
+
+  @protected
+  List<IosAppInfo> dco_decode_list_ios_app_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_ios_app_info).toList();
   }
 
   @protected
@@ -499,6 +626,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  IosAppInfo sse_decode_ios_app_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_bundleId = sse_decode_String(deserializer);
+    var var_name = sse_decode_opt_String(deserializer);
+    var var_version = sse_decode_opt_String(deserializer);
+    return IosAppInfo(
+      bundleId: var_bundleId,
+      name: var_name,
+      version: var_version,
+    );
+  }
+
+  @protected
   IosDeviceDomains sse_decode_ios_device_domains(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_root = sse_decode_Map_String_String_None(deserializer);
@@ -570,6 +710,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw UnimplementedError('');
     }
+  }
+
+  @protected
+  List<IosAppInfo> sse_decode_list_ios_app_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <IosAppInfo>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_ios_app_info(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -696,6 +848,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_ios_app_info(IosAppInfo self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.bundleId, serializer);
+    sse_encode_opt_String(self.name, serializer);
+    sse_encode_opt_String(self.version, serializer);
+  }
+
+  @protected
   void sse_encode_ios_device_domains(
     IosDeviceDomains self,
     SseSerializer serializer,
@@ -754,6 +914,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case IosError_Other(field0: final field0):
         sse_encode_i_32(5, serializer);
         sse_encode_String(field0, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_ios_app_info(
+    List<IosAppInfo> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_ios_app_info(item, serializer);
     }
   }
 

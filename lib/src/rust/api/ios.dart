@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `connect_usbmuxd`, `describe`, `domain`, `flatten`, `forget_syslog_session`, `is_network`, `open_session`, `register_syslog_session`, `status`, `string_value`
+// These functions are ignored because they are not marked as `pub`: `connect_usbmuxd`, `describe`, `domain`, `flatten`, `forget_syslog_session`, `installation_proxy`, `is_network`, `open_session`, `register_syslog_session`, `status`, `string_value`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
 /// Lists every device usbmuxd knows about.
@@ -55,6 +55,60 @@ Stream<String> startIosSyslog({
 /// stream that already ended on its own.
 Future<void> stopIosSyslog({required String sessionId}) =>
     RustLib.instance.api.crateApiIosStopIosSyslog(sessionId: sessionId);
+
+/// Lists user-installed apps, in the order installation_proxy returns them.
+///
+/// Only user apps, matching what `ideviceinstaller` reports — so everything
+/// returned is uninstallable. Ordering and capping are presentation concerns
+/// and are applied above, identically for both backends.
+Future<List<IosAppInfo>> listIosApps({required String udid}) =>
+    RustLib.instance.api.crateApiIosListIosApps(udid: udid);
+
+/// Installs a `.ipa`.
+///
+/// `installation_proxy` also exposes a progress callback that the CLI has no
+/// equivalent for; wiring it to a Dart stream is a UI change and is deliberately
+/// not part of this port.
+Future<void> installIosApp({
+  required String udid,
+  required String packagePath,
+}) => RustLib.instance.api.crateApiIosInstallIosApp(
+  udid: udid,
+  packagePath: packagePath,
+);
+
+Future<void> uninstallIosApp({
+  required String udid,
+  required String bundleId,
+}) => RustLib.instance.api.crateApiIosUninstallIosApp(
+  udid: udid,
+  bundleId: bundleId,
+);
+
+/// One user-installed app.
+class IosAppInfo {
+  final String bundleId;
+
+  /// `CFBundleDisplayName`, falling back to `CFBundleName`.
+  final String? name;
+
+  /// `CFBundleShortVersionString`.
+  final String? version;
+
+  const IosAppInfo({required this.bundleId, this.name, this.version});
+
+  @override
+  int get hashCode => bundleId.hashCode ^ name.hashCode ^ version.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is IosAppInfo &&
+          runtimeType == other.runtimeType &&
+          bundleId == other.bundleId &&
+          name == other.name &&
+          version == other.version;
+}
 
 /// The lockdownd domains the device-home screen reads.
 ///

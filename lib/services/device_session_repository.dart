@@ -22,8 +22,10 @@ import 'tools/device_tool_runner.dart';
 import 'tools/android_apk_icon_extractor.dart';
 import 'tools/idevice_crash_report_tool.dart';
 import 'ios/ios_device_domains.dart';
+import 'ios/ios_app_service.dart';
 import 'ios/ios_device_service.dart';
 import 'ios/ios_log_service.dart';
+import 'ios/libimobiledevice_ios_app_service.dart';
 import 'ios/libimobiledevice_ios_log_service.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
@@ -37,8 +39,8 @@ import 'tools/tool_process_runner.dart';
 class DeviceSessionRepository {
   final Device device;
   final AdbTool _adbTool;
-  final IdeviceInstallerTool _ideviceInstallerTool;
   final IdeviceCrashReportTool _ideviceCrashReportTool;
+  final IosAppService _iosAppService;
   final IosDeviceService _iosDeviceService;
   final IosLogService _iosLogService;
   final ScrcpyMirror _scrcpyMirror;
@@ -71,16 +73,17 @@ class DeviceSessionRepository {
     IdeviceInstallerTool? ideviceInstallerTool,
     IdeviceSyslogTool? ideviceSyslogTool,
     IdeviceCrashReportTool? ideviceCrashReportTool,
+    IosAppService? iosAppService,
     IosDeviceService? iosDeviceService,
     IosLogService? iosLogService,
     ScrcpyMirror? scrcpyMirror,
   }) : _adbTool = adbTool ?? AdbTool(executablePath: adbPath),
-       _ideviceInstallerTool =
-           ideviceInstallerTool ??
-           IdeviceInstallerTool(executablePath: ideviceInstallerPath),
        _ideviceCrashReportTool =
            ideviceCrashReportTool ??
            IdeviceCrashReportTool(executablePath: ideviceCrashReportPath),
+       _iosAppService =
+           iosAppService ??
+           _defaultIosAppService(ideviceInstallerTool, ideviceInstallerPath),
        _iosDeviceService = iosDeviceService ?? createIosDeviceService(),
        _iosLogService =
            iosLogService ??
@@ -96,6 +99,20 @@ class DeviceSessionRepository {
                source: 'DeviceSessionService',
              ).info('[scrcpy] $message'),
            );
+
+  /// See [_defaultIosLogService] — same reasoning for the installer.
+  static IosAppService _defaultIosAppService(
+    IdeviceInstallerTool? tool,
+    String? executablePath,
+  ) {
+    if (tool != null || executablePath != null) {
+      return LibimobiledeviceIosAppService(
+        ideviceInstallerTool:
+            tool ?? IdeviceInstallerTool(executablePath: executablePath),
+      );
+    }
+    return createIosAppService();
+  }
 
   /// An explicitly supplied tool or executable path pins the libimobiledevice
   /// backend — that is what a caller passing one is asking for, and it is how
@@ -344,7 +361,7 @@ class DeviceSessionRepository {
         deviceId: _deviceId,
         apkPath: filePath,
       ),
-      IosDevice() => _ideviceInstallerTool.installApp(
+      IosDevice() => _iosAppService.installApp(
         deviceId: _deviceId,
         appPath: filePath,
       ),
@@ -354,7 +371,7 @@ class DeviceSessionRepository {
   Future<List<InstalledAppInfo>> listRecentlyInstalledApps() {
     return switch (device) {
       AndroidDevice() => _adbTool.listRecentlyInstalledApps(_deviceId),
-      IosDevice() => _ideviceInstallerTool.listInstalledApps(_deviceId),
+      IosDevice() => _iosAppService.listApps(_deviceId).then(takeRecentIosApps),
     };
   }
 
@@ -368,14 +385,14 @@ class DeviceSessionRepository {
         _deviceId,
         includeSystemApps: includeSystemApps,
       ),
-      IosDevice() => _ideviceInstallerTool.listAllApps(_deviceId),
+      IosDevice() => _iosAppService.listApps(_deviceId).then(sortIosApps),
     };
   }
 
   Future<DeviceCommandResult> uninstallApp(String packageName) {
     return switch (device) {
       AndroidDevice() => _adbTool.uninstallApp(_deviceId, packageName),
-      IosDevice() => _ideviceInstallerTool.uninstallApp(
+      IosDevice() => _iosAppService.uninstallApp(
         deviceId: _deviceId,
         bundleId: packageName,
       ),

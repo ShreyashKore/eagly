@@ -2,6 +2,7 @@
 //! directly. Replaces shelling out to `idevice_id -l` + `ideviceinfo -u <udid>`.
 
 use idevice::provider::IdeviceProvider;
+use idevice::services::installation_proxy::InstallationProxyClient;
 use idevice::services::lockdown::LockdownClient;
 use idevice::services::syslog_relay::SyslogRelayClient;
 use idevice::usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdConnection, UsbmuxdDevice};
@@ -371,4 +372,61 @@ fn forget_syslog_session(session_id: &str) {
         .lock()
         .expect("syslog session registry poisoned")
         .remove(session_id);
+}
+
+/// One user-installed app.
+pub struct IosAppInfo {
+    pub bundle_id: String,
+    /// `CFBundleDisplayName`, falling back to `CFBundleName`.
+    pub name: Option<String>,
+    /// `CFBundleShortVersionString`.
+    pub version: Option<String>,
+}
+
+/// Lists user-installed apps, in the order installation_proxy returns them.
+///
+/// Only user apps, matching what `ideviceinstaller` reports — so everything
+/// returned is uninstallable. Ordering and capping are presentation concerns
+/// and are applied above, identically for both backends.
+pub async fn list_ios_apps(udid: String) -> Result<Vec<IosAppInfo>, IosError> {
+    let mut client = installation_proxy(&udid).await?;
+
+    // `Some("User")` is the filter `ideviceinstaller` applies by default.
+    let apps = client.get_apps(Some("User"), None).await?;
+
+    Ok(apps
+        .into_iter()
+        .map(|(bundle_id, value)| IosAppInfo {
+            name: string_value(&value, "CFBundleDisplayName")
+                .or_else(|| string_value(&value, "CFBundleName")),
+            version: string_value(&value, "CFBundleShortVersionString"),
+            bundle_id,
+        })
+        .collect())
+}
+
+/// Installs a `.ipa`.
+///
+/// `installation_proxy` also exposes a progress callback that the CLI has no
+/// equivalent for; wiring it to a Dart stream is a UI change and is deliberately
+/// not part of this port.
+pub async fn install_ios_app(udid: String, package_path: String) -> Result<(), IosError> {
+    let mut client = installation_proxy(&udid).await?;
+    client.install(package_path, None).await?;
+    Ok(())
+}
+
+pub async fn uninstall_ios_app(udid: String, bundle_id: String) -> Result<(), IosError> {
+    let mut client = installation_proxy(&udid).await?;
+    client.uninstall(bundle_id, None).await?;
+    Ok(())
+}
+
+async fn installation_proxy(udid: &str) -> Result<InstallationProxyClient, IosError> {
+    let mut usbmuxd = connect_usbmuxd().await?;
+    let device = usbmuxd.get_device(udid).await?;
+    let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
+    let provider = device.to_provider(address, CLIENT_LABEL);
+
+    Ok(InstallationProxyClient::connect(&provider).await?)
 }
