@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `afc_client`, `connect_usbmuxd`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_syslog_session`, `installation_proxy`, `is_crash_report`, `is_network`, `join_afc_path`, `open_session`, `read_afc_file`, `register_syslog_session`, `status`, `string_value`, `upload_recursive`
+// These functions are ignored because they are not marked as `pub`: `afc_client`, `connect_usbmuxd`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_syslog_session`, `installation_proxy`, `is_crash_report`, `is_network`, `join_afc_path`, `open_session`, `provider_for`, `read_afc_file`, `register_syslog_session`, `status`, `string_value`, `upload_recursive`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
 /// Lists every device usbmuxd knows about.
@@ -64,11 +64,16 @@ Future<void> stopIosSyslog({required String sessionId}) =>
 Future<List<IosAppInfo>> listIosApps({required String udid}) =>
     RustLib.instance.api.crateApiIosListIosApps(udid: udid);
 
-/// Installs a `.ipa`.
+/// Installs a `.ipa` from a **host** path.
 ///
-/// `installation_proxy` also exposes a progress callback that the CLI has no
-/// equivalent for; wiring it to a Dart stream is a UI change and is deliberately
-/// not part of this port.
+/// InstallationProxy's `Install` takes a path inside the device's own AFC jail,
+/// not a host path — handing it one fails with `MissingPackagePath`. So the
+/// package has to be uploaded to `PublicStaging` over AFC first and the staged
+/// path passed instead, which is what `ideviceinstaller` does too and what
+/// `utils::installation` wraps.
+///
+/// It also exposes a progress callback the CLI has no equivalent for; wiring it
+/// to a Dart stream is a UI change and is deliberately not part of this port.
 Future<void> installIosApp({
   required String udid,
   required String packagePath,
@@ -77,6 +82,7 @@ Future<void> installIosApp({
   packagePath: packagePath,
 );
 
+/// Takes a bundle identifier, so unlike install it needs no staging.
 Future<void> uninstallIosApp({
   required String udid,
   required String bundleId,

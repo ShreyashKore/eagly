@@ -2,6 +2,7 @@
 //! directly. Replaces shelling out to `idevice_id -l` + `ideviceinfo -u <udid>`.
 
 use idevice::provider::IdeviceProvider;
+use idevice::provider::UsbmuxdProvider;
 use idevice::services::afc::opcode::AfcFopenMode;
 use idevice::services::afc::AfcClient;
 use idevice::services::crashreportcopymobile::CrashReportCopyMobileClient;
@@ -308,11 +309,7 @@ pub async fn start_ios_syslog(
     udid: String,
     session_id: String,
 ) -> Result<(), IosError> {
-    let mut usbmuxd = connect_usbmuxd().await?;
-    let device = usbmuxd.get_device(&udid).await?;
-    let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
-    let provider = device.to_provider(address, CLIENT_LABEL);
-
+    let provider = provider_for(&udid).await?;
     let mut client = SyslogRelayClient::connect(&provider).await?;
 
     let token = CancellationToken::new();
@@ -408,29 +405,32 @@ pub async fn list_ios_apps(udid: String) -> Result<Vec<IosAppInfo>, IosError> {
         .collect())
 }
 
-/// Installs a `.ipa`.
+/// Installs a `.ipa` from a **host** path.
 ///
-/// `installation_proxy` also exposes a progress callback that the CLI has no
-/// equivalent for; wiring it to a Dart stream is a UI change and is deliberately
-/// not part of this port.
+/// InstallationProxy's `Install` takes a path inside the device's own AFC jail,
+/// not a host path — handing it one fails with `MissingPackagePath`. So the
+/// package has to be uploaded to `PublicStaging` over AFC first and the staged
+/// path passed instead, which is what `ideviceinstaller` does too and what
+/// `utils::installation` wraps.
+///
+/// It also exposes a progress callback the CLI has no equivalent for; wiring it
+/// to a Dart stream is a UI change and is deliberately not part of this port.
 pub async fn install_ios_app(udid: String, package_path: String) -> Result<(), IosError> {
-    let mut client = installation_proxy(&udid).await?;
-    client.install(package_path, None).await?;
+    let provider = provider_for(&udid).await?;
+    idevice::utils::installation::install_package(&provider, &package_path, None).await?;
     Ok(())
 }
 
+/// Takes a bundle identifier, so unlike install it needs no staging.
 pub async fn uninstall_ios_app(udid: String, bundle_id: String) -> Result<(), IosError> {
-    let mut client = installation_proxy(&udid).await?;
+    let provider = provider_for(&udid).await?;
+    let mut client = InstallationProxyClient::connect(&provider).await?;
     client.uninstall(bundle_id, None).await?;
     Ok(())
 }
 
 async fn installation_proxy(udid: &str) -> Result<InstallationProxyClient, IosError> {
-    let mut usbmuxd = connect_usbmuxd().await?;
-    let device = usbmuxd.get_device(udid).await?;
-    let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
-    let provider = device.to_provider(address, CLIENT_LABEL);
-
+    let provider = provider_for(udid).await?;
     Ok(InstallationProxyClient::connect(&provider).await?)
 }
 
@@ -445,10 +445,7 @@ pub async fn pull_ios_crash_reports(
     udid: String,
     output_dir: String,
 ) -> Result<Vec<String>, IosError> {
-    let mut usbmuxd = connect_usbmuxd().await?;
-    let device = usbmuxd.get_device(&udid).await?;
-    let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
-    let provider = device.to_provider(address, CLIENT_LABEL);
+    let provider = provider_for(&udid).await?;
 
     // The service is an AFC endpoint rooted at the crash report directory.
     let mut afc = CrashReportCopyMobileClient::connect(&provider)
@@ -681,10 +678,13 @@ fn join_afc_path(parent: &str, name: &str) -> String {
 }
 
 async fn afc_client(udid: &str) -> Result<AfcClient, IosError> {
+    Ok(AfcClient::connect(&provider_for(udid).await?).await?)
+}
+
+/// Resolves a UDID to a connection provider — every service starts here.
+async fn provider_for(udid: &str) -> Result<UsbmuxdProvider, IosError> {
     let mut usbmuxd = connect_usbmuxd().await?;
     let device = usbmuxd.get_device(udid).await?;
     let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
-    let provider = device.to_provider(address, CLIENT_LABEL);
-
-    Ok(AfcClient::connect(&provider).await?)
+    Ok(device.to_provider(address, CLIENT_LABEL))
 }
