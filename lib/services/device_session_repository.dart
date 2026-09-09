@@ -23,9 +23,11 @@ import 'tools/android_apk_icon_extractor.dart';
 import 'tools/idevice_crash_report_tool.dart';
 import 'ios/ios_device_domains.dart';
 import 'ios/ios_app_service.dart';
+import 'ios/ios_crash_report_service.dart';
 import 'ios/ios_device_service.dart';
 import 'ios/ios_log_service.dart';
 import 'ios/libimobiledevice_ios_app_service.dart';
+import 'ios/libimobiledevice_ios_crash_report_service.dart';
 import 'ios/libimobiledevice_ios_log_service.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
@@ -39,8 +41,8 @@ import 'tools/tool_process_runner.dart';
 class DeviceSessionRepository {
   final Device device;
   final AdbTool _adbTool;
-  final IdeviceCrashReportTool _ideviceCrashReportTool;
   final IosAppService _iosAppService;
+  final IosCrashReportService _iosCrashReportService;
   final IosDeviceService _iosDeviceService;
   final IosLogService _iosLogService;
   final ScrcpyMirror _scrcpyMirror;
@@ -74,16 +76,20 @@ class DeviceSessionRepository {
     IdeviceSyslogTool? ideviceSyslogTool,
     IdeviceCrashReportTool? ideviceCrashReportTool,
     IosAppService? iosAppService,
+    IosCrashReportService? iosCrashReportService,
     IosDeviceService? iosDeviceService,
     IosLogService? iosLogService,
     ScrcpyMirror? scrcpyMirror,
   }) : _adbTool = adbTool ?? AdbTool(executablePath: adbPath),
-       _ideviceCrashReportTool =
-           ideviceCrashReportTool ??
-           IdeviceCrashReportTool(executablePath: ideviceCrashReportPath),
        _iosAppService =
            iosAppService ??
            _defaultIosAppService(ideviceInstallerTool, ideviceInstallerPath),
+       _iosCrashReportService =
+           iosCrashReportService ??
+           _defaultIosCrashReportService(
+             ideviceCrashReportTool,
+             ideviceCrashReportPath,
+           ),
        _iosDeviceService = iosDeviceService ?? createIosDeviceService(),
        _iosLogService =
            iosLogService ??
@@ -99,6 +105,20 @@ class DeviceSessionRepository {
                source: 'DeviceSessionService',
              ).info('[scrcpy] $message'),
            );
+
+  /// See [_defaultIosLogService] — same reasoning for crash reports.
+  static IosCrashReportService _defaultIosCrashReportService(
+    IdeviceCrashReportTool? tool,
+    String? executablePath,
+  ) {
+    if (tool != null || executablePath != null) {
+      return LibimobiledeviceIosCrashReportService(
+        ideviceCrashReportTool:
+            tool ?? IdeviceCrashReportTool(executablePath: executablePath),
+      );
+    }
+    return createIosCrashReportService();
+  }
 
   /// See [_defaultIosLogService] — same reasoning for the installer.
   static IosAppService _defaultIosAppService(
@@ -497,7 +517,7 @@ class DeviceSessionRepository {
       );
     }
     _sessionLogger.info('Reading crash reports for ${device.displayName}');
-    return _ideviceCrashReportTool.pullReports(_deviceId);
+    return _iosCrashReportService.pullReports(_deviceId);
   }
 
   Future<ScrcpyMirrorSession> startScreenMirror({

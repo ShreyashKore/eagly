@@ -6,7 +6,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'data/crash_report.dart';
 import '../../data/device.dart';
 import '../../services/app_breadcrumbs.dart';
-import '../../services/tools/idevice_crash_report_tool.dart';
+import '../../services/ios/ios_crash_report_service.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/utils.dart';
 

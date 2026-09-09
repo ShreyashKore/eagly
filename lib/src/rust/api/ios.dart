@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `connect_usbmuxd`, `describe`, `domain`, `flatten`, `forget_syslog_session`, `installation_proxy`, `is_network`, `open_session`, `register_syslog_session`, `status`, `string_value`
+// These functions are ignored because they are not marked as `pub`: `connect_usbmuxd`, `describe`, `domain`, `flatten`, `forget_syslog_session`, `installation_proxy`, `is_crash_report`, `is_network`, `open_session`, `read_afc_file`, `register_syslog_session`, `status`, `string_value`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
 /// Lists every device usbmuxd knows about.
@@ -83,6 +83,21 @@ Future<void> uninstallIosApp({
 }) => RustLib.instance.api.crateApiIosUninstallIosApp(
   udid: udid,
   bundleId: bundleId,
+);
+
+/// Copies crash reports off the device into `output_dir`, returning the paths
+/// written.
+///
+/// Mirrors `idevicecrashreport -k -e <dir>`: reports are left on the device and
+/// written out as files, because the crash-report viewer re-reads them from
+/// disk. Walks subdirectories (devices keep a `Retired/` folder) and takes only
+/// `.ips`/`.crash`, matching what the CLI backend collects.
+Future<List<String>> pullIosCrashReports({
+  required String udid,
+  required String outputDir,
+}) => RustLib.instance.api.crateApiIosPullIosCrashReports(
+  udid: udid,
+  outputDir: outputDir,
 );
 
 /// One user-installed app.

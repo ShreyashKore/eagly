@@ -2,6 +2,9 @@
 //! directly. Replaces shelling out to `idevice_id -l` + `ideviceinfo -u <udid>`.
 
 use idevice::provider::IdeviceProvider;
+use idevice::services::afc::opcode::AfcFopenMode;
+use idevice::services::afc::AfcClient;
+use idevice::services::crashreportcopymobile::CrashReportCopyMobileClient;
 use idevice::services::installation_proxy::InstallationProxyClient;
 use idevice::services::lockdown::LockdownClient;
 use idevice::services::syslog_relay::SyslogRelayClient;
@@ -429,4 +432,85 @@ async fn installation_proxy(udid: &str) -> Result<InstallationProxyClient, IosEr
     let provider = device.to_provider(address, CLIENT_LABEL);
 
     Ok(InstallationProxyClient::connect(&provider).await?)
+}
+
+/// Copies crash reports off the device into `output_dir`, returning the paths
+/// written.
+///
+/// Mirrors `idevicecrashreport -k -e <dir>`: reports are left on the device and
+/// written out as files, because the crash-report viewer re-reads them from
+/// disk. Walks subdirectories (devices keep a `Retired/` folder) and takes only
+/// `.ips`/`.crash`, matching what the CLI backend collects.
+pub async fn pull_ios_crash_reports(
+    udid: String,
+    output_dir: String,
+) -> Result<Vec<String>, IosError> {
+    let mut usbmuxd = connect_usbmuxd().await?;
+    let device = usbmuxd.get_device(&udid).await?;
+    let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
+    let provider = device.to_provider(address, CLIENT_LABEL);
+
+    // The service is an AFC endpoint rooted at the crash report directory.
+    let mut afc = CrashReportCopyMobileClient::connect(&provider)
+        .await?
+        .to_afc_client();
+
+    let mut written = Vec::new();
+    let mut pending = vec![".".to_string()];
+
+    while let Some(directory) = pending.pop() {
+        // A directory we cannot read (permissions, a race with the device
+        // reaping reports) should not fail the whole pull.
+        let Ok(entries) = afc.list_dir(directory.clone()).await else {
+            continue;
+        };
+
+        for entry in entries {
+            if entry == "." || entry == ".." {
+                continue;
+            }
+            let path = if directory == "." {
+                entry.clone()
+            } else {
+                format!("{directory}/{entry}")
+            };
+
+            let Ok(info) = afc.get_file_info(path.clone()).await else {
+                continue;
+            };
+
+            if info.st_ifmt == "S_IFDIR" {
+                pending.push(path);
+                continue;
+            }
+            if !is_crash_report(&entry) {
+                continue;
+            }
+
+            let Ok(bytes) = read_afc_file(&mut afc, &path).await else {
+                continue;
+            };
+
+            // Flatten into output_dir: the viewer keys reports by file name, and
+            // the CLI backend's recursive collect ignored directory structure too.
+            let destination = format!("{output_dir}/{entry}");
+            if tokio::fs::write(&destination, bytes).await.is_ok() {
+                written.push(destination);
+            }
+        }
+    }
+
+    Ok(written)
+}
+
+fn is_crash_report(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    lower.ends_with(".ips") || lower.ends_with(".crash")
+}
+
+async fn read_afc_file(afc: &mut AfcClient, path: &str) -> Result<Vec<u8>, IdeviceError> {
+    let mut descriptor = afc.open(path, AfcFopenMode::RdOnly).await?;
+    let bytes = descriptor.read_entire().await?;
+    descriptor.close().await?;
+    Ok(bytes)
 }
