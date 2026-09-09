@@ -23,10 +23,18 @@ protocols — called over [flutter_rust_bridge](https://cjycode.com/flutter_rust
 Each iOS surface gets an interface under `lib/services/ios/`, with two implementations:
 
 ```
-IosDeviceService                       lib/services/ios/ios_device_service.dart
+IosDeviceService                       discovery + lockdownd domains
  ├─ LibimobiledeviceIosDeviceService   wraps IdeviceIdTool + IdeviceInfoTool   ← default
  └─ RustIosDeviceService               wraps lib/src/rust/api/ios.dart
+
+IosLogService                          live syslog streaming
+ ├─ LibimobiledeviceIosLogService      wraps IdeviceSyslogTool                 ← default
+ └─ RustIosLogService                  wraps lib/src/rust/api/ios.dart
 ```
+
+Logic that sits *above* the transport is shared rather than duplicated per backend:
+`buildIosDeviceInfo` maps lockdownd domains to the device-home model for both, and
+`IosSyslogParser` turns raw syslog lines into `LogEntry`s for both. Only the reading differs.
 
 Rules that keep this from rotting:
 
@@ -46,8 +54,8 @@ EAGLY_IOS_BACKEND=rust fvm flutter run -d macos
 | Surface | libimobiledevice | Rust | State |
 | --- | --- | --- | --- |
 | Discovery (`idevice_id`, `ideviceinfo`) | `IdeviceIdTool`, `IdeviceInfoTool` | `list_ios_devices`, `describe_ios_device` | both, **unverified on hardware** |
-| Syslog streaming | `IdeviceSyslogTool` | — | not started |
-| Extended device info | `IdeviceInfoTool.fetchExtendedInfo` | — | not started |
+| Syslog streaming | `IdeviceSyslogTool` | `start_ios_syslog`, `stop_ios_syslog` | both, **unverified on hardware** |
+| Extended device info | `IdeviceInfoTool.readDeviceDomains` | `read_ios_device_domains` | both, **unverified on hardware** |
 | App install / list / uninstall | `IdeviceInstallerTool` | — | not started |
 | Crash reports | `IdeviceCrashReportTool` | — | not started |
 | File manager (AFC) | `IosFileSystem` (`afcclient`) | — | not started |
@@ -66,6 +74,13 @@ under `rust/src/api/` is invisible to codegen until it is declared in `rust/src/
 
 `frb_generated.dart` embeds a hash of the Rust API: if `RustLib.init()` throws at startup
 complaining about a codegen version or content hash, re-run the generator.
+
+**Streams.** A function taking a `StreamSink` becomes a Dart `Stream` and its return value is
+discarded — `Result<(), E>` is the only shape that works, so a stream cannot hand back a session
+handle. Cancellation is not propagated either: cancelling the Dart subscription leaves the tokio
+task running, so every stream needs an explicit stop function. `start_ios_syslog` therefore takes
+a caller-supplied session id and `stop_ios_syslog` cancels by that id — keyed per *stream*, never
+per device, because eagly opens one log stream per tab and several tabs may watch one device.
 
 Cargo features are enabled per surface in `rust/Cargo.toml` rather than via `full`, which is the
 difference between a 30-second and a 4-minute cold build. Note `crashreportcopymobile` implies

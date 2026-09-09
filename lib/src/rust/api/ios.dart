@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `connect_usbmuxd`, `describe`, `domain`, `flatten`, `is_network`, `open_session`, `status`, `string_value`
+// These functions are ignored because they are not marked as `pub`: `connect_usbmuxd`, `describe`, `domain`, `flatten`, `forget_syslog_session`, `is_network`, `open_session`, `register_syslog_session`, `status`, `string_value`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
 /// Lists every device usbmuxd knows about.
@@ -32,6 +32,29 @@ Future<IosDeviceSummary> describeIosDevice({required String udid}) =>
 /// own process start, connect and TLS handshake.
 Future<IosDeviceDomains> readIosDeviceDomains({required String udid}) =>
     RustLib.instance.api.crateApiIosReadIosDeviceDomains(udid: udid);
+
+/// Streams the device's syslog until [`stop_ios_syslog`] is called with the
+/// same `session_id`, the device goes away, or Dart drops the stream.
+///
+/// Lines are emitted raw, exactly as `idevicesyslog` prints them, because the
+/// Dart parser that turns them into log entries is stateful (multi-line
+/// continuations, `\M-` meta-escapes) and is shared with the CLI backend.
+///
+/// Connecting happens before the stream starts, so a device that refuses the
+/// service raises an error the caller can show — the CLI path could only infer
+/// that from stderr after an empty stream.
+Stream<String> startIosSyslog({
+  required String udid,
+  required String sessionId,
+}) => RustLib.instance.api.crateApiIosStartIosSyslog(
+  udid: udid,
+  sessionId: sessionId,
+);
+
+/// Stops the stream started under `session_id`. Idempotent, and a no-op for a
+/// stream that already ended on its own.
+Future<void> stopIosSyslog({required String sessionId}) =>
+    RustLib.instance.api.crateApiIosStopIosSyslog(sessionId: sessionId);
 
 /// The lockdownd domains the device-home screen reads.
 ///

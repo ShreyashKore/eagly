@@ -3,10 +3,15 @@
 
 use idevice::provider::IdeviceProvider;
 use idevice::services::lockdown::LockdownClient;
+use idevice::services::syslog_relay::SyslogRelayClient;
 use idevice::usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdConnection, UsbmuxdDevice};
 use idevice::{IdeviceError, IdeviceService};
 use plist::Value;
 use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
+use tokio_util::sync::CancellationToken;
+
+use crate::frb_generated::StreamSink;
 
 /// Label lockdownd records against our session. Shows up in the device's
 /// pairing records, so it should name the app rather than the library.
@@ -269,4 +274,101 @@ fn string_value(values: &Value, key: &str) -> Option<String> {
         .and_then(|dictionary| dictionary.get(key))
         .and_then(Value::as_string)
         .map(str::to_string)
+}
+
+/// Cancellation tokens for the live syslog streams, keyed by a **caller-supplied
+/// stream id**.
+///
+/// Not keyed by UDID, deliberately. Eagly opens one log stream per tab and
+/// several tabs may watch the same device, so a UDID-keyed registry would let
+/// closing one tab tear down another's stream.
+///
+/// A handle returned to Dart would be tidier, but flutter_rust_bridge turns any
+/// function taking a `StreamSink` into a Dart `Stream` and discards its return
+/// value — `Result<(), E>` is the only shape it supports here.
+static SYSLOG_SESSIONS: LazyLock<Mutex<HashMap<String, CancellationToken>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Streams the device's syslog until [`stop_ios_syslog`] is called with the
+/// same `session_id`, the device goes away, or Dart drops the stream.
+///
+/// Lines are emitted raw, exactly as `idevicesyslog` prints them, because the
+/// Dart parser that turns them into log entries is stateful (multi-line
+/// continuations, `\M-` meta-escapes) and is shared with the CLI backend.
+///
+/// Connecting happens before the stream starts, so a device that refuses the
+/// service raises an error the caller can show — the CLI path could only infer
+/// that from stderr after an empty stream.
+pub async fn start_ios_syslog(
+    sink: StreamSink<String>,
+    udid: String,
+    session_id: String,
+) -> Result<(), IosError> {
+    let mut usbmuxd = connect_usbmuxd().await?;
+    let device = usbmuxd.get_device(&udid).await?;
+    let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
+    let provider = device.to_provider(address, CLIENT_LABEL);
+
+    let mut client = SyslogRelayClient::connect(&provider).await?;
+
+    let token = CancellationToken::new();
+    register_syslog_session(&session_id, token.clone());
+
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                // Biased so a pending stop wins over a line that arrived in
+                // the same poll: closing a tab should not emit one more line.
+                //
+                // Cancelling here drops an in-flight `next()`, which is only
+                // safe because we never poll the client again — we break out
+                // and drop it. Do not restructure this into a loop that keeps
+                // reading after a cancelled branch.
+                biased;
+                _ = token.cancelled() => break,
+                line = client.next() => {
+                    match line {
+                        // `add` fails once Dart has dropped the stream, which is
+                        // the other way this task legitimately ends.
+                        Ok(line) => if sink.add(line).is_err() { break },
+                        // Includes the device going away mid-stream; Dart sees
+                        // end-of-stream, same as the CLI backend's EOF.
+                        Err(_) => break,
+                    }
+                }
+            }
+        }
+        // However the loop ended, the entry is dead — drop it so the registry
+        // does not grow for the life of the process.
+        forget_syslog_session(&session_id);
+    });
+
+    Ok(())
+}
+
+/// Stops the stream started under `session_id`. Idempotent, and a no-op for a
+/// stream that already ended on its own.
+pub async fn stop_ios_syslog(session_id: String) {
+    let token = SYSLOG_SESSIONS
+        .lock()
+        .expect("syslog session registry poisoned")
+        .remove(&session_id);
+
+    if let Some(token) = token {
+        token.cancel();
+    }
+}
+
+fn register_syslog_session(session_id: &str, token: CancellationToken) {
+    SYSLOG_SESSIONS
+        .lock()
+        .expect("syslog session registry poisoned")
+        .insert(session_id.to_string(), token);
+}
+
+fn forget_syslog_session(session_id: &str) {
+    SYSLOG_SESSIONS
+        .lock()
+        .expect("syslog session registry poisoned")
+        .remove(session_id);
 }

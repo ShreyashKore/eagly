@@ -23,6 +23,8 @@ import 'tools/android_apk_icon_extractor.dart';
 import 'tools/idevice_crash_report_tool.dart';
 import 'ios/ios_device_domains.dart';
 import 'ios/ios_device_service.dart';
+import 'ios/ios_log_service.dart';
+import 'ios/libimobiledevice_ios_log_service.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
 import 'tools/tool_process_runner.dart';
@@ -36,9 +38,9 @@ class DeviceSessionRepository {
   final Device device;
   final AdbTool _adbTool;
   final IdeviceInstallerTool _ideviceInstallerTool;
-  final IdeviceSyslogTool _ideviceSyslogTool;
   final IdeviceCrashReportTool _ideviceCrashReportTool;
   final IosDeviceService _iosDeviceService;
+  final IosLogService _iosLogService;
   final ScrcpyMirror _scrcpyMirror;
   final AppLogger _logger = AppLogger(source: 'DeviceSessionService');
   final Map<String, String> _pidToPackageCache = {};
@@ -70,18 +72,19 @@ class DeviceSessionRepository {
     IdeviceSyslogTool? ideviceSyslogTool,
     IdeviceCrashReportTool? ideviceCrashReportTool,
     IosDeviceService? iosDeviceService,
+    IosLogService? iosLogService,
     ScrcpyMirror? scrcpyMirror,
   }) : _adbTool = adbTool ?? AdbTool(executablePath: adbPath),
        _ideviceInstallerTool =
            ideviceInstallerTool ??
            IdeviceInstallerTool(executablePath: ideviceInstallerPath),
-       _ideviceSyslogTool =
-           ideviceSyslogTool ??
-           IdeviceSyslogTool(executablePath: ideviceSyslogPath),
        _ideviceCrashReportTool =
            ideviceCrashReportTool ??
            IdeviceCrashReportTool(executablePath: ideviceCrashReportPath),
        _iosDeviceService = iosDeviceService ?? createIosDeviceService(),
+       _iosLogService =
+           iosLogService ??
+           _defaultIosLogService(ideviceSyslogTool, ideviceSyslogPath),
        _scrcpyMirror =
            scrcpyMirror ??
            ScrcpyMirror(
@@ -93,6 +96,22 @@ class DeviceSessionRepository {
                source: 'DeviceSessionService',
              ).info('[scrcpy] $message'),
            );
+
+  /// An explicitly supplied tool or executable path pins the libimobiledevice
+  /// backend — that is what a caller passing one is asking for, and it is how
+  /// the session tests point the stream at a stub executable.
+  static IosLogService _defaultIosLogService(
+    IdeviceSyslogTool? tool,
+    String? executablePath,
+  ) {
+    if (tool != null || executablePath != null) {
+      return LibimobiledeviceIosLogService(
+        ideviceSyslogTool:
+            tool ?? IdeviceSyslogTool(executablePath: executablePath),
+      );
+    }
+    return createIosLogService();
+  }
 
   AppLogger get _sessionLogger =>
       _logger.scoped(sessionTag: sessionLabel ?? _deviceId);
@@ -143,7 +162,7 @@ class DeviceSessionRepository {
 
     sessionLogger.info('iOS syslog stream started for ${device.displayName}');
 
-    final session = _ideviceSyslogTool.start(
+    final session = _iosLogService.startSyslog(
       deviceId: _deviceId,
       processName: device.displayName,
     );

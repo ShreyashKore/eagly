@@ -1,6 +1,5 @@
-import 'dart:io';
-
 import '../../data/ios_device_info.dart';
+import 'ios_backend.dart';
 import 'ios_device_domains.dart';
 import 'libimobiledevice_ios_device_service.dart';
 import 'rust_ios_device_service.dart';
@@ -42,14 +41,8 @@ abstract interface class IosDeviceService {
   bool get usbmuxdUnavailable;
 }
 
-/// Selects the discovery backend.
-///
-/// Defaults to the shipped libimobiledevice path. Set `EAGLY_IOS_BACKEND=rust`
-/// to exercise the Rust implementation — an env var rather than a setting
-/// because this is a migration aid for developers, not a user-facing choice,
-/// and it should disappear once the migration lands.
 IosDeviceService createIosDeviceService() {
-  return Platform.environment['EAGLY_IOS_BACKEND'] == 'rust'
+  return useRustIosBackend
       ? RustIosDeviceService()
       : LibimobiledeviceIosDeviceService();
 }
