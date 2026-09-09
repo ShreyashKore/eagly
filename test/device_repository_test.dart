@@ -2,26 +2,22 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/data/device.dart';
-import 'package:eagly/data/ios_device_info.dart';
 import 'package:eagly/services/devices_repository.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
-import 'package:eagly/services/tools/idevice_id_tool.dart';
-import 'package:eagly/services/tools/idevice_info_tool.dart';
+import 'package:eagly/data/ios_device_info.dart';
+import 'package:eagly/services/ios/ios_device_service.dart';
 
 void main() {
   late _FakeAdbTool adbTool;
-  late _FakeIdeviceIdTool ideviceIdTool;
-  late _FakeIdeviceInfoTool ideviceInfoTool;
+  late _FakeIosDeviceService iosDevicesService;
   late DevicesRepository repository;
 
   setUp(() {
     adbTool = _FakeAdbTool();
-    ideviceIdTool = _FakeIdeviceIdTool();
-    ideviceInfoTool = _FakeIdeviceInfoTool();
+    iosDevicesService = _FakeIosDeviceService();
     repository = DevicesRepository.forTesting(
       adbTool: adbTool,
-      ideviceIdTool: ideviceIdTool,
-      ideviceInfoTool: ideviceInfoTool,
+      iosDeviceService: iosDevicesService,
     );
   });
 
@@ -114,8 +110,8 @@ void main() {
   test(
     'refreshDevices reuses cached iOS descriptions when the device remains connected',
     () async {
-      ideviceIdTool.iosDeviceIds = ['ios-1'];
-      ideviceInfoTool.iosInfos['ios-1'] = const IosDeviceInfo(
+      iosDevicesService.deviceIds = const ['ios-1'];
+      iosDevicesService.infos['ios-1'] = const IosDeviceInfo(
         deviceId: 'ios-1',
         status: 'device',
         deviceName: 'QA iPhone',
@@ -124,13 +120,16 @@ void main() {
 
       await repository.refreshDevices(force: true);
 
-      ideviceInfoTool.iosInfos['ios-1'] = const IosDeviceInfo(
+      iosDevicesService.infos['ios-1'] = const IosDeviceInfo(
         deviceId: 'ios-1',
         status: 'device',
       );
       await repository.refreshDevices(force: true);
 
-      expect(ideviceInfoTool.readDeviceInfoCalls['ios-1'], 1);
+      // The second refresh must not reopen a lockdown session: a connected
+      // device's name cannot change under us, and a TLS handshake per poll is
+      // exactly what the description cache exists to avoid.
+      expect(iosDevicesService.describeCalls['ios-1'], 1);
       expect(repository.devices.single.name, 'QA iPhone');
       expect(repository.devices.single.model, 'iPhone 15');
     },
@@ -139,12 +138,12 @@ void main() {
   test(
     'iosSupportUnavailable mirrors usbmuxd state and toggles back',
     () async {
-      ideviceIdTool.usbmuxdUnavailableValue = true;
+      iosDevicesService.usbmuxdUnavailableValue = true;
       await repository.refreshDevices(force: true);
       expect(repository.iosSupportUnavailable, isTrue);
 
       // Recovers even though the (empty) device list is unchanged.
-      ideviceIdTool.usbmuxdUnavailableValue = false;
+      iosDevicesService.usbmuxdUnavailableValue = false;
       await repository.refreshDevices(force: true);
       expect(repository.iosSupportUnavailable, isFalse);
     },
@@ -182,33 +181,22 @@ class _FakeAdbTool extends AdbTool {
   }
 }
 
-class _FakeIdeviceIdTool extends IdeviceIdTool {
-  _FakeIdeviceIdTool() : super(executablePath: '/usr/bin/true');
-
-  List<String> iosDeviceIds = const [];
+class _FakeIosDeviceService implements IosDeviceService {
+  List<String> deviceIds = const [];
   bool usbmuxdUnavailableValue = false;
+  final Map<String, IosDeviceInfo> infos = {};
+  final Map<String, int> describeCalls = {};
 
   @override
-  Future<List<String>> getDeviceIds() async => List.of(iosDeviceIds);
+  Future<List<String>> listDeviceIds() async => List.of(deviceIds);
+
+  @override
+  Future<IosDeviceInfo> describeDevice(String deviceId) async {
+    describeCalls.update(deviceId, (count) => count + 1, ifAbsent: () => 1);
+    return infos[deviceId] ??
+        IosDeviceInfo(deviceId: deviceId, status: 'device');
+  }
 
   @override
   bool get usbmuxdUnavailable => usbmuxdUnavailableValue;
-}
-
-class _FakeIdeviceInfoTool extends IdeviceInfoTool {
-  _FakeIdeviceInfoTool() : super(executablePath: '/usr/bin/true');
-
-  final Map<String, IosDeviceInfo> iosInfos = {};
-  final Map<String, int> readDeviceInfoCalls = {};
-
-  @override
-  Future<IosDeviceInfo> readDeviceInfo(String deviceId) async {
-    readDeviceInfoCalls.update(
-      deviceId,
-      (count) => count + 1,
-      ifAbsent: () => 1,
-    );
-    return iosInfos[deviceId] ??
-        IosDeviceInfo(deviceId: deviceId, status: 'device');
-  }
 }

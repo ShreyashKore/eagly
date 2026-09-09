@@ -18,7 +18,8 @@ import 'package:eagly/features/wireless_connection/data/wireless_debug_models.da
 import 'package:eagly/features/flutter_scrcpy/flutter_scrcpy.dart';
 import 'package:eagly/services/device_session_repository.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
-import 'package:eagly/services/tools/idevice_id_tool.dart';
+import 'package:eagly/data/ios_device_info.dart';
+import 'package:eagly/services/ios/ios_device_service.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
 import 'package:eagly/services/tools/tool_process_runner.dart';
 
@@ -332,11 +333,24 @@ class FakeAdbTool extends AdbTool {
   }
 }
 
-class FakeIdeviceIdTool extends IdeviceIdTool {
-  FakeIdeviceIdTool() : super(executablePath: '/usr/bin/true');
+class FakeIosDeviceService implements IosDeviceService {
+  List<String> deviceIds = const [];
+  bool usbmuxdUnavailableValue = false;
+  final Map<String, IosDeviceInfo> infos = {};
+  final Map<String, int> describeCalls = {};
 
   @override
-  Future<List<String>> getDeviceIds() async => const [];
+  Future<List<String>> listDeviceIds() async => List.of(deviceIds);
+
+  @override
+  Future<IosDeviceInfo> describeDevice(String deviceId) async {
+    describeCalls.update(deviceId, (count) => count + 1, ifAbsent: () => 1);
+    return infos[deviceId] ??
+        IosDeviceInfo(deviceId: deviceId, status: 'device');
+  }
+
+  @override
+  bool get usbmuxdUnavailable => usbmuxdUnavailableValue;
 }
 
 class FakeIdeviceInfoTool extends IdeviceInfoTool {

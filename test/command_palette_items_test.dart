@@ -16,8 +16,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late FakeAdbTool adbTool;
-  late FakeIdeviceIdTool ideviceIdTool;
-  late FakeIdeviceInfoTool ideviceInfoTool;
+  late FakeIosDeviceService iosDevicesService;
   late DevicesRepository repository;
   late Directory tempDir;
   DeviceSessionManager? manager;
@@ -30,12 +29,10 @@ void main() {
 
   setUp(() {
     adbTool = FakeAdbTool();
-    ideviceIdTool = FakeIdeviceIdTool();
-    ideviceInfoTool = FakeIdeviceInfoTool();
+    iosDevicesService = FakeIosDeviceService();
     repository = DevicesRepository.forTesting(
       adbTool: adbTool,
-      ideviceIdTool: ideviceIdTool,
-      ideviceInfoTool: ideviceInfoTool,
+      iosDeviceService: iosDevicesService,
     );
     tempDir = Directory.systemTemp.createTempSync('command-palette-test');
   });

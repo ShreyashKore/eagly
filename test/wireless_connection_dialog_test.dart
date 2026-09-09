@@ -20,8 +20,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late FakeAdbTool adbTool;
-  late FakeIdeviceIdTool ideviceIdTool;
-  late FakeIdeviceInfoTool ideviceInfoTool;
+  late FakeIosDeviceService iosDevicesService;
   late DevicesRepository repository;
   DeviceSessionManager? manager;
 
@@ -35,12 +34,10 @@ void main() {
     // Keep the background mDNS scan idle: these tests are about the UI.
     WirelessConnectionController.scanInterval = const Duration(seconds: 30);
     adbTool = FakeAdbTool();
-    ideviceIdTool = FakeIdeviceIdTool();
-    ideviceInfoTool = FakeIdeviceInfoTool();
+    iosDevicesService = FakeIosDeviceService();
     repository = DevicesRepository.forTesting(
       adbTool: adbTool,
-      ideviceIdTool: ideviceIdTool,
-      ideviceInfoTool: ideviceInfoTool,
+      iosDeviceService: iosDevicesService,
     );
   });
 

@@ -28,16 +28,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool dco_decode_bool(dynamic raw);
 
   @protected
+  IosDeviceHandle dco_decode_ios_device_handle(dynamic raw);
+
+  @protected
   IosDeviceSummary dco_decode_ios_device_summary(dynamic raw);
 
   @protected
   IosError dco_decode_ios_error(dynamic raw);
 
   @protected
-  List<IosDeviceSummary> dco_decode_list_ios_device_summary(dynamic raw);
+  List<IosDeviceHandle> dco_decode_list_ios_device_handle(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  String? dco_decode_opt_String(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -52,18 +58,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
+  IosDeviceHandle sse_decode_ios_device_handle(SseDeserializer deserializer);
+
+  @protected
   IosDeviceSummary sse_decode_ios_device_summary(SseDeserializer deserializer);
 
   @protected
   IosError sse_decode_ios_error(SseDeserializer deserializer);
 
   @protected
-  List<IosDeviceSummary> sse_decode_list_ios_device_summary(
+  List<IosDeviceHandle> sse_decode_list_ios_device_handle(
     SseDeserializer deserializer,
   );
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -81,6 +93,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_ios_device_handle(
+    IosDeviceHandle self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_ios_device_summary(
     IosDeviceSummary self,
     SseSerializer serializer,
@@ -90,8 +108,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_ios_error(IosError self, SseSerializer serializer);
 
   @protected
-  void sse_encode_list_ios_device_summary(
-    List<IosDeviceSummary> self,
+  void sse_encode_list_ios_device_handle(
+    List<IosDeviceHandle> self,
     SseSerializer serializer,
   );
 
@@ -100,6 +118,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     Uint8List self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);

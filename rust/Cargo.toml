@@ -8,7 +8,8 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 flutter_rust_bridge = "=2.13.0"
-idevice = { version = "=0.1.65", default-features = false, features = ["usbmuxd", "tcp"] }
+idevice = { version = "=0.1.65", default-features = false, features = ["usbmuxd", "tcp", "pair"] }
+plist = "1.8"
 
 [features]
 default = ["ring"]

@@ -70,12 +70,21 @@ by constructor; `DevicesRepository.instance` is the one singleton.
 ```
 tools (process wrappers)         services/tools/*  — AdbTool, IdeviceSyslogTool, … extend ToolProcessRunner
   └─ device facade               services/device_session_repository.dart — per-device, wraps all tools
+iOS backends                     services/ios/* — IosDeviceService, one interface over the bundled
+                                 libimobiledevice CLIs and the `idevice` Rust crate (docs/IOS_RUST_MIGRATION.md)
 discovery                        services/devices_repository.dart (DevicesRepository) — adb/idevice polling + track-devices
 app coordinator                  session/device_session_manager.dart — one DeviceSessionController per device, tab order, selection
 per-device session               session/device_session_controller.dart — owns the live Device + feature controllers (lazy)
 per-feature controllers          session/feature_controller.dart (base) → LogController, MirrorController, CrashReportController, FileManagerController, UtilitiesController, TerminalController
 views                            features/<feature>/..._feature_view.dart — extend presentation/components/feature_view.dart (FeatureView)
 ```
+
+**iOS backends (migration in progress):** every iOS surface is moving from the bundled
+libimobiledevice CLIs to the `idevice` Rust crate, called through flutter_rust_bridge. Both
+implementations live behind an interface in `services/ios/`; libimobiledevice stays the default
+and `EAGLY_IOS_BACKEND=rust` selects the other. The interface speaks domain types — only the
+`Rust*` implementation may import `lib/src/rust/**`, which is generated and never edited by hand.
+See **docs/IOS_RUST_MIGRATION.md** before touching either side.
 
 **Connectivity flow (important):** `DevicesRepository` produces `Device`s with a
 `DeviceConnectionState`. `DeviceSessionManager._sync` pushes updates via

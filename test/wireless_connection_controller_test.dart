@@ -4,31 +4,28 @@ import 'package:eagly/features/wireless_connection/services/wireless_connection_
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
+import 'package:eagly/data/ios_device_info.dart';
 import 'package:eagly/services/devices_repository.dart';
+import 'package:eagly/services/ios/ios_device_service.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
-import 'package:eagly/services/tools/idevice_id_tool.dart';
-import 'package:eagly/services/tools/idevice_info_tool.dart';
 import 'package:eagly/features/wireless_connection/wireless_connection_controller.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late _FakeWirelessAdbTool adbTool;
-  late _FakeWirelessIdeviceIdTool ideviceIdTool;
-  late _FakeWirelessIdeviceInfoTool ideviceInfoTool;
+  late _FakeWirelessIosDeviceService iosDevicesService;
   late _FakeWirelessSessionService sessionService;
   late DevicesRepository repository;
   WirelessConnectionController? controller;
 
   setUp(() {
     adbTool = _FakeWirelessAdbTool();
-    ideviceIdTool = _FakeWirelessIdeviceIdTool();
-    ideviceInfoTool = _FakeWirelessIdeviceInfoTool();
+    iosDevicesService = _FakeWirelessIosDeviceService();
     sessionService = _FakeWirelessSessionService();
     repository = DevicesRepository.forTesting(
       adbTool: adbTool,
-      ideviceIdTool: ideviceIdTool,
-      ideviceInfoTool: ideviceInfoTool,
+      iosDeviceService: iosDevicesService,
     );
   });
 
@@ -399,13 +396,14 @@ class _FakeWirelessAdbTool extends AdbTool {
   }
 }
 
-class _FakeWirelessIdeviceIdTool extends IdeviceIdTool {
-  _FakeWirelessIdeviceIdTool() : super(executablePath: '/usr/bin/true');
+class _FakeWirelessIosDeviceService implements IosDeviceService {
+  @override
+  Future<List<String>> listDeviceIds() async => const [];
 
   @override
-  Future<List<String>> getDeviceIds() async => const [];
-}
+  Future<IosDeviceInfo> describeDevice(String deviceId) async =>
+      IosDeviceInfo(deviceId: deviceId, status: 'device');
 
-class _FakeWirelessIdeviceInfoTool extends IdeviceInfoTool {
-  _FakeWirelessIdeviceInfoTool() : super(executablePath: '/usr/bin/true');
+  @override
+  bool get usbmuxdUnavailable => false;
 }

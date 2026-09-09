@@ -8,29 +8,99 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-Future<List<IosDeviceSummary>> listIosDevices() =>
+// These functions are ignored because they are not marked as `pub`: `connect_usbmuxd`, `describe`, `is_network`, `status`, `string_value`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
+
+/// Lists every device usbmuxd knows about.
+///
+/// Cheap by design — this is what the discovery poll calls. Only a failure to
+/// reach usbmuxd is an error; an empty list just means nothing is plugged in.
+Future<List<IosDeviceHandle>> listIosDevices() =>
     RustLib.instance.api.crateApiIosListIosDevices();
 
+/// Describes one device, opening a lockdown session to do it.
+///
+/// A device that refuses lockdownd is not an error: it comes back with the
+/// status explaining why and no other fields. Callers list first and describe
+/// only what they do not already know — one locked iPhone must never empty
+/// the device list.
+Future<IosDeviceSummary> describeIosDevice({required String udid}) =>
+    RustLib.instance.api.crateApiIosDescribeIosDevice(udid: udid);
+
+/// A device usbmuxd knows about, before anything has asked lockdownd about it.
+///
+/// Listing is deliberately separate from describing: enumerating costs one
+/// usbmuxd round trip, while describing opens a lockdown session and a TLS
+/// handshake per device. The device list is polled, so only the cheap half
+/// runs on every tick.
+class IosDeviceHandle {
+  final String udid;
+  final bool isNetwork;
+
+  const IosDeviceHandle({required this.udid, required this.isNetwork});
+
+  @override
+  int get hashCode => udid.hashCode ^ isNetwork.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is IosDeviceHandle &&
+          runtimeType == other.runtimeType &&
+          udid == other.udid &&
+          isNetwork == other.isNetwork;
+}
+
+/// What lockdownd says about one device.
+///
+/// Every field but `udid`/`status`/`is_network` is optional: a locked or
+/// unpaired device answers usbmuxd (so we know it exists) while refusing
+/// lockdownd (so we know nothing else about it). Those devices still belong in
+/// the list — the UI renders guidance for them off `status`.
 class IosDeviceSummary {
   final String udid;
-  final String name;
-  final String productType;
-  final String productVersion;
+
+  /// `"device"` when lockdownd answered; otherwise `"unpaired"`, `"locked"`
+  /// or `"unavailable"`. Matches the strings `IosGuidance` switches on.
+  final String status;
+
+  /// The user-chosen device name, e.g. `"QA iPhone"`.
+  final String? name;
+
+  /// Marketing name lockdownd reports, e.g. `"iPhone"`. Used as a fallback
+  /// when the device has no user-chosen name.
+  final String? productName;
+
+  /// Apple's internal model identifier, e.g. `"iPhone14,2"`.
+  final String? productType;
+
+  /// Board-level model, e.g. `"D73AP"`. Last-resort fallback when
+  /// `product_type` is missing and so cannot be mapped to a marketing name.
+  final String? hardwareModel;
+
+  /// iOS version, e.g. `"17.5.1"`.
+  final String? productVersion;
   final bool isNetwork;
 
   const IosDeviceSummary({
     required this.udid,
-    required this.name,
-    required this.productType,
-    required this.productVersion,
+    required this.status,
+    this.name,
+    this.productName,
+    this.productType,
+    this.hardwareModel,
+    this.productVersion,
     required this.isNetwork,
   });
 
   @override
   int get hashCode =>
       udid.hashCode ^
+      status.hashCode ^
       name.hashCode ^
+      productName.hashCode ^
       productType.hashCode ^
+      hardwareModel.hashCode ^
       productVersion.hashCode ^
       isNetwork.hashCode;
 
@@ -40,8 +110,11 @@ class IosDeviceSummary {
       other is IosDeviceSummary &&
           runtimeType == other.runtimeType &&
           udid == other.udid &&
+          status == other.status &&
           name == other.name &&
+          productName == other.productName &&
           productType == other.productType &&
+          hardwareModel == other.hardwareModel &&
           productVersion == other.productVersion &&
           isNetwork == other.isNetwork;
 }
@@ -50,10 +123,14 @@ class IosDeviceSummary {
 sealed class IosError with _$IosError implements FrbException {
   const IosError._();
 
+  /// usbmuxd itself is unreachable — on Windows it ships with Apple Mobile
+  /// Device Support, so this is the state that drives the install hint.
   const factory IosError.usbmuxdUnavailable() = IosError_UsbmuxdUnavailable;
   const factory IosError.deviceNotFound(String field0) =
       IosError_DeviceNotFound;
   const factory IosError.notPaired(String field0) = IosError_NotPaired;
+
+  /// The "Trust This Computer?" prompt is on screen right now.
   const factory IosError.pairingDialogPending(String field0) =
       IosError_PairingDialogPending;
   const factory IosError.locked(String field0) = IosError_Locked;

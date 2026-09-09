@@ -10,27 +10,20 @@ import '../features/app_log/app_logger.dart';
 import 'app_breadcrumbs.dart';
 import '../utils/apple_device_mapping.dart';
 import 'tools/adb_tool.dart';
-import 'tools/idevice_id_tool.dart';
-import 'tools/idevice_info_tool.dart';
+import 'ios/ios_device_service.dart';
 
 class DevicesRepository extends ChangeNotifier {
-  DevicesRepository._({
-    AdbTool? adbTool,
-    IdeviceIdTool? ideviceIdTool,
-    IdeviceInfoTool? ideviceInfoTool,
-  }) : _adbTool = adbTool ?? AdbTool(),
-       _ideviceIdTool = ideviceIdTool ?? IdeviceIdTool(),
-       _ideviceInfoTool = ideviceInfoTool ?? IdeviceInfoTool();
+  DevicesRepository._({AdbTool? adbTool, IosDeviceService? iosDeviceService})
+    : _adbTool = adbTool ?? AdbTool(),
+      _iosDeviceService = iosDeviceService ?? createIosDeviceService();
 
   factory DevicesRepository.forTesting({
     AdbTool? adbTool,
-    IdeviceIdTool? ideviceIdTool,
-    IdeviceInfoTool? ideviceInfoTool,
+    IosDeviceService? iosDeviceService,
   }) {
     return DevicesRepository._(
       adbTool: adbTool,
-      ideviceIdTool: ideviceIdTool,
-      ideviceInfoTool: ideviceInfoTool,
+      iosDeviceService: iosDeviceService,
     );
   }
 
@@ -46,8 +39,7 @@ class DevicesRepository extends ChangeNotifier {
   static const int _mdnsRetryCountMax = 20;
 
   final AdbTool _adbTool;
-  final IdeviceIdTool _ideviceIdTool;
-  final IdeviceInfoTool _ideviceInfoTool;
+  final IosDeviceService _iosDeviceService;
   final AppLogger _logger = AppLogger(source: 'DevicesRepository');
   final Map<String, _CachedAndroidDeviceDescription> _androidDescriptionCache =
       {};
@@ -188,8 +180,8 @@ class DevicesRepository extends ChangeNotifier {
     final deduplicatedAndroid = _deduplicateWirelessAndroid(
       describedAndroidDevices,
     );
-    final iosDeviceIds = await _ideviceIdTool.getDeviceIds();
-    final iosSupportUnavailable = _ideviceIdTool.usbmuxdUnavailable;
+    final iosDeviceIds = await _iosDeviceService.listDeviceIds();
+    final iosSupportUnavailable = _iosDeviceService.usbmuxdUnavailable;
     final iosDevices = await Future.wait(iosDeviceIds.map(_resolveIosDevice));
     final nextDevices = _mergeDevices([...deduplicatedAndroid, ...iosDevices]);
 
@@ -343,7 +335,7 @@ class DevicesRepository extends ChangeNotifier {
       return cached.toIosDevice(deviceId);
     }
 
-    final info = await _ideviceInfoTool.readDeviceInfo(deviceId);
+    final info = await _iosDeviceService.describeDevice(deviceId);
     final described = await _mapIosDeviceInfo(info);
     if (described.name != null || described.model != null) {
       _iosDescriptionCache[deviceId] = _CachedIosDeviceDescription(
