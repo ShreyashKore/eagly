@@ -19,9 +19,10 @@ fvm dart format --output=none --set-exit-if-changed .   # what CI gates on
 ```
 
 Formatting is enforced, not advisory: `.githooks/pre-commit` formats staged Dart
-and re-stages it (a *partially* staged file is reported instead of rewritten, so
-the hook can't sweep unstaged hunks into your commit), and CI fails on any
-unformatted file. `scripts/setup.sh` points git at the hooks; in an existing
+(`dart format`) and Rust (`cargo fmt`, for the crate under `rust/`) and re-stages
+it (a *partially* staged file is reported instead of rewritten, so the hook can't
+sweep unstaged hunks into your commit), and CI fails on any unformatted file.
+`scripts/setup.sh` points git at the hooks; in an existing
 clone run `git config core.hooksPath .githooks` once. `--no-verify` bypasses it.
 
 **Verifying the scrcpy wire protocol.** `scrcpy-server` is a *versioned binary
