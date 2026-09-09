@@ -31,8 +31,15 @@ LINUX_OPENSSL_DEB_URL="http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libs
 # arm64 and x86_64/Intel tags) instead of the x86_64-only imobiledevice-net
 # package, so the bundled idevice_* tools run natively on Apple Silicon instead
 # of requiring Rosetta. See stage_macos_libimobiledevice_universal.
-MACOS_LIBIMOBILEDEVICE_FORMULAE="libimobiledevice ideviceinstaller libplist libimobiledevice-glue libusbmuxd openssl libzip xz zstd"
-MACOS_LIBIMOBILEDEVICE_TOOLS="idevice_id idevicesyslog ideviceinfo idevicecrashreport ideviceinstaller"
+MACOS_LIBIMOBILEDEVICE_FORMULAE="libimobiledevice ideviceinstaller libplist libimobiledevice-glue libusbmuxd libtatsu openssl libzip xz zstd"
+# Every CLI the app can dispatch to: the Utilities catalog
+# (lib/features/utilities/data/utility_catalog.dart), the Terminal's tool list
+# (lib/features/terminal/data/terminal_tools.dart) and the iOS file manager
+# (afcclient). Keep it in step with those three — a tool the UI offers but that
+# is missing here fails at spawn time with no output, which reads as "utility
+# broken" rather than "tool not shipped". Every name below comes out of a
+# bottle this script already downloads, so adding one costs nothing but bytes.
+MACOS_LIBIMOBILEDEVICE_TOOLS="afcclient idevice_id idevicebackup2 idevicecrashreport idevicedate idevicedebug idevicedebugserverproxy idevicediagnostics ideviceenterrecovery ideviceimagemounter ideviceinfo ideviceinstaller idevicename idevicenotificationproxy idevicepair ideviceprovision idevicescreenshot idevicesetlocation idevicesyslog plistutil"
 
 macos_homebrew_repo() {
   case "$1" in
@@ -57,6 +64,8 @@ macos_homebrew_bottle_url() {
     libimobiledevice-glue:x86_64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libimobiledevice-glue/blobs/sha256:0b08285aeb078331e4240420422e5330d91aba640b21c0d1f06c470deb6b9eb6' ;;
     libusbmuxd:arm64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libusbmuxd/blobs/sha256:b3dfe62a2e25c35da59e32db101d490974d93a1a6ed30755bb4380a7d947a63e' ;;
     libusbmuxd:x86_64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libusbmuxd/blobs/sha256:f20787b876fc3b9c8412d92ac2adaeb3dc2526155d327b0118534bb06c208079' ;;
+    libtatsu:arm64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libtatsu/blobs/sha256:efb9b3d41f8e825551a9047fd46788477ee53b3fa40f1c032bb74297be7ca21b' ;;
+    libtatsu:x86_64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libtatsu/blobs/sha256:3c64e4c3dec2b31b5d9a228073f08997d2efa813fe6ec431eba870112995fa08' ;;
     openssl:arm64) printf '%s' 'https://ghcr.io/v2/homebrew/core/openssl/3/blobs/sha256:79774ba3c854f0a9f94d939c628414c9b3dd2ff5eeb1dc61743199c979dd3490' ;;
     openssl:x86_64) printf '%s' 'https://ghcr.io/v2/homebrew/core/openssl/3/blobs/sha256:f641a0a3028a7ba2ab247767a6961226ba8c1777dac6e986e6fc62ec09e4a62a' ;;
     libzip:arm64) printf '%s' 'https://ghcr.io/v2/homebrew/core/libzip/blobs/sha256:41df5da85bc172a781efd6f32c46708f7a88f9b1faa82577cec64992f5254f5b' ;;
@@ -243,7 +252,7 @@ stage_macos_libimobiledevice_arch() {
   done
 }
 
-# Stages idevice_id/idevicesyslog/ideviceinfo/idevicecrashreport/ideviceinstaller
+# Stages every tool in MACOS_LIBIMOBILEDEVICE_TOOLS
 # plus their full dylib dependency closure for macOS as universal (arm64 +
 # x86_64) binaries, built by lipo-combining matching Homebrew bottles for each
 # arch. This replaces the x86_64-only imobiledevice-net package for macOS so
@@ -255,7 +264,14 @@ stage_macos_libimobiledevice_universal() {
   local x86_64_dir="$TMP_DIR/macos-universal-x86_64"
   local issues_file="$TMP_DIR/macos-universal-issues.txt"
 
-  if bundle_contains_file "$target_dir" 'idevice_id' && bundle_contains_file "$target_dir" 'libimobiledevice-1.0.dylib'; then
+  # Re-stage unless *every* tool is already there: checking one name would
+  # leave an existing checkout permanently short of any tool added to
+  # MACOS_LIBIMOBILEDEVICE_TOOLS later.
+  local staged_all=1 staged_tool
+  for staged_tool in $MACOS_LIBIMOBILEDEVICE_TOOLS; do
+    bundle_contains_file "$target_dir" "$staged_tool" || staged_all=0
+  done
+  if [ "$staged_all" -eq 1 ] && bundle_contains_file "$target_dir" 'libimobiledevice-1.0.dylib'; then
     return
   fi
 
@@ -354,7 +370,7 @@ rewrite_macos_bundle_load_paths() {
     target_name="$(basename "$target_path")"
 
     case "$target_name" in
-      scrcpy|idevice*|inetcat|ios_webkit_debug_proxy|iproxy|irecovery|plistutil|usbmuxd|lib*.dylib)
+      scrcpy|afcclient|idevice*|inetcat|ios_webkit_debug_proxy|iproxy|irecovery|plistutil|usbmuxd|lib*.dylib)
         ;;
       *)
         continue
@@ -385,6 +401,15 @@ rewrite_macos_bundle_load_paths() {
         install_name_tool -change "$dependency_path" "@loader_path/$dependency_name" "$target_path"
       fi
     done
+
+    # install_name_tool invalidates the bottle's signature, and macOS kills a
+    # Mach-O whose signature does not match its contents (SIGTRAP/SIGKILL
+    # before main, so the caller sees a signal, not an error message). The
+    # macOS app-bundle copy re-signs its own copies, but re-sign here too so
+    # the staged tree is runnable in place — tests, scripts and manual
+    # debugging all reach for these directly.
+    codesign --force --sign - "$target_path" >/dev/null 2>&1 ||
+      echo "warning: could not re-sign $target_name after rewriting its load paths." >&2
   done
 }
 

@@ -9,9 +9,9 @@ import 'device_file_system.dart';
 ///
 /// Talks to the AFC "media" sandbox directly — the user-visible area Finder
 /// exposes (DCIM, Downloads, Books, …). Unlike the `afcclient` backend this
-/// needs no external binary, which matters: `afcclient` is bundled on no
-/// platform, so the CLI path only works for users who installed
-/// libimobiledevice themselves.
+/// needs no external binary at all, so it cannot fail the way that one did:
+/// `afcclient` was left out of the macOS bundle until it was noticed, and a
+/// tool the UI offers but does not ship fails at spawn time with no output.
 class RustIosFileSystem implements DeviceFileSystem {
   RustIosFileSystem({required this.deviceId});
 
