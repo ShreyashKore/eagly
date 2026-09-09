@@ -73,7 +73,7 @@ EAGLY_IOS_BACKEND=rust fvm flutter run -d macos
 | App install / list / uninstall | `IdeviceInstallerTool` | `list_ios_apps`, `install_ios_app`, `uninstall_ios_app` | both, **unverified on hardware** |
 | Crash reports | `IdeviceCrashReportTool` | `pull_ios_crash_reports` | both, **unverified on hardware** |
 | File manager (AFC) | `IosFileSystem` (`afcclient`, **not bundled**) | `RustIosFileSystem` | both, **unverified on hardware** |
-| Utilities / Terminal | `DeviceToolRunner` | — | not started |
+| Utilities / Terminal | `DeviceToolRunner` | — | **blocked on a product decision — see below** |
 
 ## Working on the Rust side
 
@@ -103,3 +103,32 @@ difference between a 30-second and a 4-minute cold build. Note `crashreportcopym
 The crate is pinned exactly (`=0.1.65`): it is pre-1.0 and its README warns of breaking changes at
 every release until 0.2.0. It is also built against the `ring` TLS backend rather than the default
 `aws-lc`, which needs cmake and (on Windows) NASM.
+
+## Utilities and Terminal: why these are not ported
+
+Every other surface was a transport swap behind an interface. These two are not, because their
+domain model *is* the command line.
+
+`UtilityInvocation` is `(executable, argv)`; `DeviceSessionRepository.runUtility` prepends the
+tool's device selector (`-u <udid>`) and returns a `ToolCommandResult` of stdout, stderr and an
+exit code, which the UI renders as raw text. The Terminal feature goes further: it lets the user
+type arbitrary arguments for 18 different `idevice*` binaries.
+
+There is no "run an arbitrary binary with arbitrary arguments" in a library that exposes one typed
+client per service. Porting them means picking one of:
+
+1. **Map each catalogued command to a typed call and synthesise CLI-shaped stdout.** Feasible for
+   the fixed Utilities catalog — `diagnostics_relay` covers restart/shutdown/sleep/IORegistry,
+   lockdown covers device name/date/WiFiAddress, `pair` covers validate/unpair,
+   `location_simulation` covers set/reset. But the text would not match what the CLIs print, and
+   the UI shows it verbatim, so users comparing against the real tools would see it drift. It also
+   does nothing for Terminal's free-form arguments.
+2. **Redesign Utilities as a typed command palette** — each entry a Rust call with typed
+   parameters and a structured result, rather than an argv and a text blob. Honest, and better
+   than what is there, but a UI change rather than a port. Terminal would become iOS-unsupported
+   (it already refuses free-form shell on iOS).
+3. **Keep libimobiledevice bundled for these two features only.** Cheapest, and everything else
+   still moves — but it forfeits dropping the bundled CLIs, which is the packaging payoff.
+
+Only (2) reaches a build with no libimobiledevice in it. This is a product decision, not an
+implementation one, so it is recorded here rather than made.
