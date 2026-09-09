@@ -3,6 +3,7 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/ios.dart';
 import 'api/simple.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -66,7 +67,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1918914929;
+  int get rustContentHash => -1123549291;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -81,6 +82,8 @@ abstract class RustLibApi extends BaseApi {
   String crateApiSimpleGreet({required String name});
 
   Future<void> crateApiSimpleInitApp();
+
+  Future<List<IosDeviceSummary>> crateApiIosListIosDevices();
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -141,10 +144,85 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiSimpleInitAppConstMeta =>
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
+  @override
+  Future<List<IosDeviceSummary>> crateApiIosListIosDevices() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_ios_device_summary,
+          decodeErrorData: sse_decode_ios_error,
+        ),
+        constMeta: kCrateApiIosListIosDevicesConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosListIosDevicesConstMeta =>
+      const TaskConstMeta(debugName: "list_ios_devices", argNames: []);
+
   @protected
   String dco_decode_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as String;
+  }
+
+  @protected
+  bool dco_decode_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as bool;
+  }
+
+  @protected
+  IosDeviceSummary dco_decode_ios_device_summary(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return IosDeviceSummary(
+      udid: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      productType: dco_decode_String(arr[2]),
+      productVersion: dco_decode_String(arr[3]),
+      isNetwork: dco_decode_bool(arr[4]),
+    );
+  }
+
+  @protected
+  IosError dco_decode_ios_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return IosError_UsbmuxdUnavailable();
+      case 1:
+        return IosError_DeviceNotFound(dco_decode_String(raw[1]));
+      case 2:
+        return IosError_NotPaired(dco_decode_String(raw[1]));
+      case 3:
+        return IosError_PairingDialogPending(dco_decode_String(raw[1]));
+      case 4:
+        return IosError_Locked(dco_decode_String(raw[1]));
+      case 5:
+        return IosError_Other(dco_decode_String(raw[1]));
+      default:
+        throw Exception("unreachable");
+    }
+  }
+
+  @protected
+  List<IosDeviceSummary> dco_decode_list_ios_device_summary(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_ios_device_summary).toList();
   }
 
   @protected
@@ -173,6 +251,71 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  bool sse_decode_bool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint8() != 0;
+  }
+
+  @protected
+  IosDeviceSummary sse_decode_ios_device_summary(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_udid = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_productType = sse_decode_String(deserializer);
+    var var_productVersion = sse_decode_String(deserializer);
+    var var_isNetwork = sse_decode_bool(deserializer);
+    return IosDeviceSummary(
+      udid: var_udid,
+      name: var_name,
+      productType: var_productType,
+      productVersion: var_productVersion,
+      isNetwork: var_isNetwork,
+    );
+  }
+
+  @protected
+  IosError sse_decode_ios_error(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        return IosError_UsbmuxdUnavailable();
+      case 1:
+        var var_field0 = sse_decode_String(deserializer);
+        return IosError_DeviceNotFound(var_field0);
+      case 2:
+        var var_field0 = sse_decode_String(deserializer);
+        return IosError_NotPaired(var_field0);
+      case 3:
+        var var_field0 = sse_decode_String(deserializer);
+        return IosError_PairingDialogPending(var_field0);
+      case 4:
+        var var_field0 = sse_decode_String(deserializer);
+        return IosError_Locked(var_field0);
+      case 5:
+        var var_field0 = sse_decode_String(deserializer);
+        return IosError_Other(var_field0);
+      default:
+        throw UnimplementedError('');
+    }
+  }
+
+  @protected
+  List<IosDeviceSummary> sse_decode_list_ios_device_summary(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <IosDeviceSummary>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_ios_device_summary(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
@@ -197,15 +340,64 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  bool sse_decode_bool(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getUint8() != 0;
-  }
-
-  @protected
   void sse_encode_String(String self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
+  }
+
+  @protected
+  void sse_encode_bool(bool self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint8(self ? 1 : 0);
+  }
+
+  @protected
+  void sse_encode_ios_device_summary(
+    IosDeviceSummary self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.udid, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.productType, serializer);
+    sse_encode_String(self.productVersion, serializer);
+    sse_encode_bool(self.isNetwork, serializer);
+  }
+
+  @protected
+  void sse_encode_ios_error(IosError self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case IosError_UsbmuxdUnavailable():
+        sse_encode_i_32(0, serializer);
+      case IosError_DeviceNotFound(field0: final field0):
+        sse_encode_i_32(1, serializer);
+        sse_encode_String(field0, serializer);
+      case IosError_NotPaired(field0: final field0):
+        sse_encode_i_32(2, serializer);
+        sse_encode_String(field0, serializer);
+      case IosError_PairingDialogPending(field0: final field0):
+        sse_encode_i_32(3, serializer);
+        sse_encode_String(field0, serializer);
+      case IosError_Locked(field0: final field0):
+        sse_encode_i_32(4, serializer);
+        sse_encode_String(field0, serializer);
+      case IosError_Other(field0: final field0):
+        sse_encode_i_32(5, serializer);
+        sse_encode_String(field0, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_ios_device_summary(
+    List<IosDeviceSummary> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_ios_device_summary(item, serializer);
+    }
   }
 
   @protected
@@ -233,11 +425,5 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_i_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putInt32(self);
-  }
-
-  @protected
-  void sse_encode_bool(bool self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putUint8(self ? 1 : 0);
   }
 }

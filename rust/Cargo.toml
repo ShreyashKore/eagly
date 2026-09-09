@@ -8,6 +8,13 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 flutter_rust_bridge = "=2.13.0"
+idevice = { version = "=0.1.65", default-features = false, features = ["usbmuxd", "tcp"] }
+
+[features]
+default = ["ring"]
+aws-lc = ["idevice/aws-lc"]
+ring = ["idevice/ring"]
+openssl = ["idevice/openssl"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
