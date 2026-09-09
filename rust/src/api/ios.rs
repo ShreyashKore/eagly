@@ -514,3 +514,177 @@ async fn read_afc_file(afc: &mut AfcClient, path: &str) -> Result<Vec<u8>, Idevi
     descriptor.close().await?;
     Ok(bytes)
 }
+
+/// One entry in an AFC directory listing.
+pub struct IosFileEntry {
+    pub name: String,
+    /// `"S_IFDIR"`, `"S_IFREG"`, `"S_IFLNK"`, … straight from AFC, mapped to
+    /// the shared entry type in Dart.
+    pub kind: String,
+    pub size_bytes: u64,
+    /// Milliseconds since the epoch, or `None` when AFC reports no timestamp.
+    pub modified_ms: Option<i64>,
+    pub link_target: Option<String>,
+}
+
+/// Lists an AFC directory, with attributes.
+///
+/// One `get_file_info` per entry, as AFC has no batched stat — but over a
+/// single connection, where the CLI backend had to drive an interactive REPL
+/// and re-associate output with commands by splitting on the prompt.
+pub async fn list_ios_files(udid: String, path: String) -> Result<Vec<IosFileEntry>, IosError> {
+    let mut afc = afc_client(&udid).await?;
+    let names = afc.list_dir(path.clone()).await?;
+
+    let mut entries = Vec::new();
+    for name in names {
+        if name == "." || name == ".." {
+            continue;
+        }
+
+        let full = join_afc_path(&path, &name);
+        // An entry that vanishes between listing and stat is skipped rather
+        // than failing the whole listing.
+        let Ok(info) = afc.get_file_info(full).await else {
+            continue;
+        };
+
+        entries.push(IosFileEntry {
+            name,
+            kind: info.st_ifmt.clone(),
+            size_bytes: info.size as u64,
+            modified_ms: Some(info.modified.and_utc().timestamp_millis()),
+            link_target: info.st_link_target.clone(),
+        });
+    }
+
+    Ok(entries)
+}
+
+pub async fn create_ios_directory(udid: String, path: String) -> Result<(), IosError> {
+    let mut afc = afc_client(&udid).await?;
+    afc.mk_dir(path).await?;
+    Ok(())
+}
+
+pub async fn rename_ios_path(udid: String, from: String, to: String) -> Result<(), IosError> {
+    let mut afc = afc_client(&udid).await?;
+    afc.rename(from, to).await?;
+    Ok(())
+}
+
+/// Deletes a file or directory. Recursive, matching the CLI backend's `rm`
+/// (which prompts for confirmation on a non-empty path; AFC has no prompt).
+pub async fn delete_ios_path(udid: String, path: String) -> Result<(), IosError> {
+    let mut afc = afc_client(&udid).await?;
+    afc.remove_all(path).await?;
+    Ok(())
+}
+
+/// Copies a device file or directory tree to `local_path`.
+pub async fn download_ios_path(
+    udid: String,
+    device_path: String,
+    local_path: String,
+) -> Result<(), IosError> {
+    let mut afc = afc_client(&udid).await?;
+    download_recursive(&mut afc, &device_path, &local_path).await
+}
+
+/// Copies a local file or directory tree to `device_path`.
+pub async fn upload_ios_path(
+    udid: String,
+    local_path: String,
+    device_path: String,
+) -> Result<(), IosError> {
+    let mut afc = afc_client(&udid).await?;
+    upload_recursive(&mut afc, &local_path, &device_path).await
+}
+
+async fn download_recursive(
+    afc: &mut AfcClient,
+    device_path: &str,
+    local_path: &str,
+) -> Result<(), IosError> {
+    let info = afc.get_file_info(device_path.to_string()).await?;
+
+    if info.st_ifmt != "S_IFDIR" {
+        let bytes = read_afc_file(afc, device_path).await?;
+        tokio::fs::write(local_path, bytes)
+            .await
+            .map_err(|error| IosError::Other(error.to_string()))?;
+        return Ok(());
+    }
+
+    tokio::fs::create_dir_all(local_path)
+        .await
+        .map_err(|error| IosError::Other(error.to_string()))?;
+
+    for name in afc.list_dir(device_path.to_string()).await? {
+        if name == "." || name == ".." {
+            continue;
+        }
+        Box::pin(download_recursive(
+            afc,
+            &join_afc_path(device_path, &name),
+            &format!("{local_path}/{name}"),
+        ))
+        .await?;
+    }
+    Ok(())
+}
+
+async fn upload_recursive(
+    afc: &mut AfcClient,
+    local_path: &str,
+    device_path: &str,
+) -> Result<(), IosError> {
+    let metadata = tokio::fs::metadata(local_path)
+        .await
+        .map_err(|error| IosError::Other(error.to_string()))?;
+
+    if !metadata.is_dir() {
+        let bytes = tokio::fs::read(local_path)
+            .await
+            .map_err(|error| IosError::Other(error.to_string()))?;
+        let mut descriptor = afc.open(device_path, AfcFopenMode::WrOnly).await?;
+        descriptor.write_entire(&bytes).await?;
+        descriptor.close().await?;
+        return Ok(());
+    }
+
+    // Already existing is fine — this mirrors `put -rf`.
+    let _ = afc.mk_dir(device_path.to_string()).await;
+
+    let mut children = tokio::fs::read_dir(local_path)
+        .await
+        .map_err(|error| IosError::Other(error.to_string()))?;
+
+    while let Ok(Some(child)) = children.next_entry().await {
+        let name = child.file_name().to_string_lossy().to_string();
+        Box::pin(upload_recursive(
+            afc,
+            &child.path().to_string_lossy(),
+            &join_afc_path(device_path, &name),
+        ))
+        .await?;
+    }
+    Ok(())
+}
+
+fn join_afc_path(parent: &str, name: &str) -> String {
+    if parent.ends_with('/') {
+        format!("{parent}{name}")
+    } else {
+        format!("{parent}/{name}")
+    }
+}
+
+async fn afc_client(udid: &str) -> Result<AfcClient, IosError> {
+    let mut usbmuxd = connect_usbmuxd().await?;
+    let device = usbmuxd.get_device(udid).await?;
+    let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
+    let provider = device.to_provider(address, CLIENT_LABEL);
+
+    Ok(AfcClient::connect(&provider).await?)
+}

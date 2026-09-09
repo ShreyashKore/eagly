@@ -1,7 +1,9 @@
 import '../../../data/device.dart';
 import '../data/device_file_entry.dart';
+import '../../../services/ios/ios_backend.dart';
 import 'android_file_system.dart';
 import 'ios_file_system.dart';
+import 'rust_ios_file_system.dart';
 
 /// Thrown when a device file operation fails. [message] is already
 /// human-readable and safe to surface in the UI.
@@ -15,8 +17,9 @@ class DeviceFileException implements Exception {
 }
 
 /// Platform-agnostic view of a device's browsable file system. Android is
-/// backed by `adb`, iOS by `afcclient` (the AFC "media" sandbox). Both speak
-/// POSIX-style paths, so navigation helpers are shared as top-level functions.
+/// backed by `adb`; iOS by the AFC "media" sandbox, reached either through
+/// `afcclient` or the `idevice` Rust crate. Both speak POSIX-style paths, so
+/// navigation helpers are shared as top-level functions.
 ///
 /// This abstraction is intentionally self-contained inside the file-manager
 /// feature so the feature owns its own device dependencies rather than routing
@@ -30,6 +33,11 @@ abstract interface class DeviceFileSystem {
         deviceId: device.id,
         executablePath: executablePath,
       ),
+      // An explicit executablePath pins the afcclient backend — that is
+      // what a caller passing one is asking for, and it is how the file
+      // manager tests point at a stub binary.
+      IosDevice() when executablePath == null && useRustIosBackend =>
+        RustIosFileSystem(deviceId: device.id),
       IosDevice() => IosFileSystem(
         deviceId: device.id,
         executablePath: executablePath,

@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `connect_usbmuxd`, `describe`, `domain`, `flatten`, `forget_syslog_session`, `installation_proxy`, `is_crash_report`, `is_network`, `open_session`, `read_afc_file`, `register_syslog_session`, `status`, `string_value`
+// These functions are ignored because they are not marked as `pub`: `afc_client`, `connect_usbmuxd`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_syslog_session`, `installation_proxy`, `is_crash_report`, `is_network`, `join_afc_path`, `open_session`, `read_afc_file`, `register_syslog_session`, `status`, `string_value`, `upload_recursive`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
 /// Lists every device usbmuxd knows about.
@@ -98,6 +98,56 @@ Future<List<String>> pullIosCrashReports({
 }) => RustLib.instance.api.crateApiIosPullIosCrashReports(
   udid: udid,
   outputDir: outputDir,
+);
+
+/// Lists an AFC directory, with attributes.
+///
+/// One `get_file_info` per entry, as AFC has no batched stat — but over a
+/// single connection, where the CLI backend had to drive an interactive REPL
+/// and re-associate output with commands by splitting on the prompt.
+Future<List<IosFileEntry>> listIosFiles({
+  required String udid,
+  required String path,
+}) => RustLib.instance.api.crateApiIosListIosFiles(udid: udid, path: path);
+
+Future<void> createIosDirectory({required String udid, required String path}) =>
+    RustLib.instance.api.crateApiIosCreateIosDirectory(udid: udid, path: path);
+
+Future<void> renameIosPath({
+  required String udid,
+  required String from,
+  required String to,
+}) => RustLib.instance.api.crateApiIosRenameIosPath(
+  udid: udid,
+  from: from,
+  to: to,
+);
+
+/// Deletes a file or directory. Recursive, matching the CLI backend's `rm`
+/// (which prompts for confirmation on a non-empty path; AFC has no prompt).
+Future<void> deleteIosPath({required String udid, required String path}) =>
+    RustLib.instance.api.crateApiIosDeleteIosPath(udid: udid, path: path);
+
+/// Copies a device file or directory tree to `local_path`.
+Future<void> downloadIosPath({
+  required String udid,
+  required String devicePath,
+  required String localPath,
+}) => RustLib.instance.api.crateApiIosDownloadIosPath(
+  udid: udid,
+  devicePath: devicePath,
+  localPath: localPath,
+);
+
+/// Copies a local file or directory tree to `device_path`.
+Future<void> uploadIosPath({
+  required String udid,
+  required String localPath,
+  required String devicePath,
+}) => RustLib.instance.api.crateApiIosUploadIosPath(
+  udid: udid,
+  localPath: localPath,
+  devicePath: devicePath,
 );
 
 /// One user-installed app.
@@ -277,4 +327,45 @@ sealed class IosError with _$IosError implements FrbException {
       IosError_PairingDialogPending;
   const factory IosError.locked(String field0) = IosError_Locked;
   const factory IosError.other(String field0) = IosError_Other;
+}
+
+/// One entry in an AFC directory listing.
+class IosFileEntry {
+  final String name;
+
+  /// `"S_IFDIR"`, `"S_IFREG"`, `"S_IFLNK"`, … straight from AFC, mapped to
+  /// the shared entry type in Dart.
+  final String kind;
+  final BigInt sizeBytes;
+
+  /// Milliseconds since the epoch, or `None` when AFC reports no timestamp.
+  final PlatformInt64? modifiedMs;
+  final String? linkTarget;
+
+  const IosFileEntry({
+    required this.name,
+    required this.kind,
+    required this.sizeBytes,
+    this.modifiedMs,
+    this.linkTarget,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      kind.hashCode ^
+      sizeBytes.hashCode ^
+      modifiedMs.hashCode ^
+      linkTarget.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is IosFileEntry &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          kind == other.kind &&
+          sizeBytes == other.sizeBytes &&
+          modifiedMs == other.modifiedMs &&
+          linkTarget == other.linkTarget;
 }

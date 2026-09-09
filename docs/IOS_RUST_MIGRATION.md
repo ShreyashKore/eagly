@@ -38,6 +38,10 @@ IosAppService                          app inventory and lifecycle
 IosCrashReportService                  crash report retrieval
  ├─ LibimobiledeviceIosCrashReportService  wraps IdeviceCrashReportTool        ← default
  └─ RustIosCrashReportService              wraps lib/src/rust/api/ios.dart
+
+DeviceFileSystem                       file browsing (shared with Android)
+ ├─ IosFileSystem                      drives the afcclient REPL              ← default
+ └─ RustIosFileSystem                  wraps lib/src/rust/api/ios.dart
 ```
 
 Logic that sits *above* the transport is shared rather than duplicated per backend:
@@ -68,7 +72,7 @@ EAGLY_IOS_BACKEND=rust fvm flutter run -d macos
 | Extended device info | `IdeviceInfoTool.readDeviceDomains` | `read_ios_device_domains` | both, **unverified on hardware** |
 | App install / list / uninstall | `IdeviceInstallerTool` | `list_ios_apps`, `install_ios_app`, `uninstall_ios_app` | both, **unverified on hardware** |
 | Crash reports | `IdeviceCrashReportTool` | `pull_ios_crash_reports` | both, **unverified on hardware** |
-| File manager (AFC) | `IosFileSystem` (`afcclient`) | — | not started |
+| File manager (AFC) | `IosFileSystem` (`afcclient`, **not bundled**) | `RustIosFileSystem` | both, **unverified on hardware** |
 | Utilities / Terminal | `DeviceToolRunner` | — | not started |
 
 ## Working on the Rust side
