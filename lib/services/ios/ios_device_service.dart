@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../../data/ios_device_info.dart';
+import 'ios_device_domains.dart';
 import 'libimobiledevice_ios_device_service.dart';
 import 'rust_ios_device_service.dart';
 
@@ -26,6 +27,12 @@ abstract interface class IosDeviceService {
   /// comes back with a [IosDeviceInfo.status] explaining why and no other
   /// fields, so one bad device cannot empty the list.
   Future<IosDeviceInfo> describeDevice(String deviceId);
+
+  /// The lockdownd domains behind the device-home screen.
+  ///
+  /// Returns empty domains rather than throwing: the screen renders whatever it
+  /// gets, and a device that locks mid-session should blank fields, not error.
+  Future<IosDeviceDomains> readDeviceDomains(String deviceId);
 
   /// Whether the last [listDeviceIds] failed because usbmuxd was unreachable.
   ///

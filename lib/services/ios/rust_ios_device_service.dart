@@ -1,6 +1,7 @@
 import '../../data/ios_device_info.dart';
 import '../../features/app_log/app_logger.dart';
 import '../../src/rust/api/ios.dart' as rust;
+import 'ios_device_domains.dart';
 import 'ios_device_service.dart';
 
 /// [IosDeviceService] backed by the `idevice` Rust crate, which talks to
@@ -50,6 +51,25 @@ class RustIosDeviceService implements IosDeviceService {
         detail: error.toString(),
       );
       return IosDeviceInfo(deviceId: deviceId, status: 'unavailable');
+    }
+  }
+
+  @override
+  Future<IosDeviceDomains> readDeviceDomains(String deviceId) async {
+    try {
+      final domains = await rust.readIosDeviceDomains(udid: deviceId);
+      return IosDeviceDomains(
+        root: domains.root,
+        battery: domains.battery,
+        diskUsage: domains.diskUsage,
+        international: domains.international,
+      );
+    } catch (error) {
+      _logger.error(
+        'Failed to read iOS device domains for $deviceId',
+        detail: error.toString(),
+      );
+      return const IosDeviceDomains();
     }
   }
 

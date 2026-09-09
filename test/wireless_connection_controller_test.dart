@@ -6,6 +6,7 @@ import 'package:eagly/data/device.dart';
 import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
 import 'package:eagly/data/ios_device_info.dart';
 import 'package:eagly/services/devices_repository.dart';
+import 'package:eagly/services/ios/ios_device_domains.dart';
 import 'package:eagly/services/ios/ios_device_service.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/features/wireless_connection/wireless_connection_controller.dart';
@@ -403,6 +404,10 @@ class _FakeWirelessIosDeviceService implements IosDeviceService {
   @override
   Future<IosDeviceInfo> describeDevice(String deviceId) async =>
       IosDeviceInfo(deviceId: deviceId, status: 'device');
+
+  @override
+  Future<IosDeviceDomains> readDeviceDomains(String deviceId) async =>
+      const IosDeviceDomains();
 
   @override
   bool get usbmuxdUnavailable => false;

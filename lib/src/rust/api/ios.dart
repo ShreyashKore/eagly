@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `connect_usbmuxd`, `describe`, `is_network`, `status`, `string_value`
+// These functions are ignored because they are not marked as `pub`: `connect_usbmuxd`, `describe`, `domain`, `flatten`, `is_network`, `open_session`, `status`, `string_value`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
 /// Lists every device usbmuxd knows about.
@@ -26,6 +26,56 @@ Future<List<IosDeviceHandle>> listIosDevices() =>
 /// the device list.
 Future<IosDeviceSummary> describeIosDevice({required String udid}) =>
     RustLib.instance.api.crateApiIosDescribeIosDevice(udid: udid);
+
+/// Reads every domain the device-home screen needs, over **one** lockdown
+/// session. The CLI path had to spawn `ideviceinfo` four times, each paying its
+/// own process start, connect and TLS handshake.
+Future<IosDeviceDomains> readIosDeviceDomains({required String udid}) =>
+    RustLib.instance.api.crateApiIosReadIosDeviceDomains(udid: udid);
+
+/// The lockdownd domains the device-home screen reads.
+///
+/// Values are flattened to strings the way `ideviceinfo` prints them, because
+/// the Dart side already parses that shape (`int.tryParse`, `== 'true'`) and
+/// that parsing is shared with the libimobiledevice backend.
+class IosDeviceDomains {
+  /// The root domain: DeviceName, ProductVersion, BuildVersion, SerialNumber,
+  /// CPUArchitecture, SIMStatus, TimeZone.
+  final Map<String, String> root;
+
+  /// `com.apple.mobile.battery`.
+  final Map<String, String> battery;
+
+  /// `com.apple.disk_usage`.
+  final Map<String, String> diskUsage;
+
+  /// `com.apple.international`.
+  final Map<String, String> international;
+
+  const IosDeviceDomains({
+    required this.root,
+    required this.battery,
+    required this.diskUsage,
+    required this.international,
+  });
+
+  @override
+  int get hashCode =>
+      root.hashCode ^
+      battery.hashCode ^
+      diskUsage.hashCode ^
+      international.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is IosDeviceDomains &&
+          runtimeType == other.runtimeType &&
+          root == other.root &&
+          battery == other.battery &&
+          diskUsage == other.diskUsage &&
+          international == other.international;
+}
 
 /// A device usbmuxd knows about, before anything has asked lockdownd about it.
 ///

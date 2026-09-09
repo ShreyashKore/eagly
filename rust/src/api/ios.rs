@@ -6,6 +6,7 @@ use idevice::services::lockdown::LockdownClient;
 use idevice::usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdConnection, UsbmuxdDevice};
 use idevice::{IdeviceError, IdeviceService};
 use plist::Value;
+use std::collections::HashMap;
 
 /// Label lockdownd records against our session. Shows up in the device's
 /// pairing records, so it should name the app rather than the library.
@@ -147,9 +148,84 @@ async fn connect_usbmuxd() -> Result<UsbmuxdConnection, IosError> {
         .map_err(|_| IosError::UsbmuxdUnavailable)
 }
 
-/// Reads the lockdownd values for one device. Private, so flutter_rust_bridge
-/// leaves it alone and `?` stays usable for the fallible half of the listing.
-async fn describe(device: &UsbmuxdDevice) -> Result<IosDeviceSummary, IosError> {
+/// The lockdownd domains the device-home screen reads.
+///
+/// Values are flattened to strings the way `ideviceinfo` prints them, because
+/// the Dart side already parses that shape (`int.tryParse`, `== 'true'`) and
+/// that parsing is shared with the libimobiledevice backend.
+pub struct IosDeviceDomains {
+    /// The root domain: DeviceName, ProductVersion, BuildVersion, SerialNumber,
+    /// CPUArchitecture, SIMStatus, TimeZone.
+    pub root: HashMap<String, String>,
+    /// `com.apple.mobile.battery`.
+    pub battery: HashMap<String, String>,
+    /// `com.apple.disk_usage`.
+    pub disk_usage: HashMap<String, String>,
+    /// `com.apple.international`.
+    pub international: HashMap<String, String>,
+}
+
+/// Reads every domain the device-home screen needs, over **one** lockdown
+/// session. The CLI path had to spawn `ideviceinfo` four times, each paying its
+/// own process start, connect and TLS handshake.
+pub async fn read_ios_device_domains(udid: String) -> Result<IosDeviceDomains, IosError> {
+    let mut usbmuxd = connect_usbmuxd().await?;
+    let device = usbmuxd.get_device(&udid).await?;
+    let mut lockdown = open_session(&device).await?;
+
+    Ok(IosDeviceDomains {
+        root: domain(&mut lockdown, None).await?,
+        battery: domain(&mut lockdown, Some("com.apple.mobile.battery")).await?,
+        disk_usage: domain(&mut lockdown, Some("com.apple.disk_usage")).await?,
+        international: domain(&mut lockdown, Some("com.apple.international")).await?,
+    })
+}
+
+/// Reads one domain, flattened. A domain the device refuses is returned empty
+/// rather than failing the read: which domains exist varies by iOS version, and
+/// a missing battery reading should not blank out the identity card.
+async fn domain(
+    lockdown: &mut LockdownClient,
+    domain: Option<&str>,
+) -> Result<HashMap<String, String>, IosError> {
+    match lockdown.get_value(None, domain).await {
+        Ok(values) => Ok(flatten(&values)),
+        Err(IdeviceError::GetProhibited) | Err(IdeviceError::UnknownErrorType(_)) => {
+            Ok(HashMap::new())
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Flattens a lockdownd dictionary into the text form `ideviceinfo` prints.
+///
+/// Scalars only — nothing above consumes the nested arrays and dictionaries,
+/// and inventing a text form for them would be guessing at a format no caller
+/// has agreed to.
+fn flatten(values: &Value) -> HashMap<String, String> {
+    let Some(dictionary) = values.as_dictionary() else {
+        return HashMap::new();
+    };
+
+    dictionary
+        .iter()
+        .filter_map(|(key, value)| {
+            let text = match value {
+                Value::String(text) => text.clone(),
+                Value::Integer(number) => number.to_string(),
+                Value::Boolean(flag) => flag.to_string(),
+                Value::Real(number) => number.to_string(),
+                // Arrays, dictionaries, dates and blobs: nothing above
+                // consumes them, and inventing a text form would be guessing.
+                _ => return None,
+            };
+            Some((key.to_string(), text))
+        })
+        .collect()
+}
+
+/// Connects to lockdownd and authenticates with the stored pairing record.
+async fn open_session(device: &UsbmuxdDevice) -> Result<LockdownClient, IosError> {
     let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
     let provider = device.to_provider(address, CLIENT_LABEL);
 
@@ -157,6 +233,13 @@ async fn describe(device: &UsbmuxdDevice) -> Result<IosDeviceSummary, IosError> 
     lockdown
         .start_session(&provider.get_pairing_file().await?)
         .await?;
+    Ok(lockdown)
+}
+
+/// Reads the lockdownd values for one device. Private, so flutter_rust_bridge
+/// leaves it alone and `?` stays usable for the fallible half of the listing.
+async fn describe(device: &UsbmuxdDevice) -> Result<IosDeviceSummary, IosError> {
+    let mut lockdown = open_session(device).await?;
 
     // `None` key means the whole root domain in one round trip, which is all
     // discovery needs. Per-domain queries (battery, storage) come later.

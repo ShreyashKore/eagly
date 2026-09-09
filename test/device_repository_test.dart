@@ -5,6 +5,7 @@ import 'package:eagly/data/device.dart';
 import 'package:eagly/services/devices_repository.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/data/ios_device_info.dart';
+import 'package:eagly/services/ios/ios_device_domains.dart';
 import 'package:eagly/services/ios/ios_device_service.dart';
 
 void main() {
@@ -186,6 +187,7 @@ class _FakeIosDeviceService implements IosDeviceService {
   bool usbmuxdUnavailableValue = false;
   final Map<String, IosDeviceInfo> infos = {};
   final Map<String, int> describeCalls = {};
+  final Map<String, IosDeviceDomains> domains = {};
 
   @override
   Future<List<String>> listDeviceIds() async => List.of(deviceIds);
@@ -196,6 +198,10 @@ class _FakeIosDeviceService implements IosDeviceService {
     return infos[deviceId] ??
         IosDeviceInfo(deviceId: deviceId, status: 'device');
   }
+
+  @override
+  Future<IosDeviceDomains> readDeviceDomains(String deviceId) async =>
+      domains[deviceId] ?? const IosDeviceDomains();
 
   @override
   bool get usbmuxdUnavailable => usbmuxdUnavailableValue;

@@ -1,6 +1,7 @@
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/device_home/data/device_info.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
+import 'package:eagly/services/ios/ios_device_domains.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
 import 'package:eagly/services/tools/tool_process_runner.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -195,7 +196,7 @@ Filesystem     1K-blocks    Used Available Use% Mounted on
     });
   });
 
-  group('IdeviceInfoTool.fetchExtendedInfo', () {
+  group('iOS device info: IdeviceInfoTool domains + buildIosDeviceInfo', () {
     const defaultDomain = '''
 DeviceName: My iPhone
 ProductVersion: 17.4
@@ -221,7 +222,7 @@ Locale: en_US
 TimeZone: America/New_York
 ''';
 
-    Future<DeviceInfo> fetch({String status = 'device'}) {
+    Future<DeviceInfo> fetch({String status = 'device'}) async {
       final tool = _FakeIdeviceInfoTool({
         'default': defaultDomain,
         'com.apple.mobile.battery': batteryDomain,
@@ -229,7 +230,12 @@ TimeZone: America/New_York
         'com.apple.international': internationalDomain,
       });
       final device = IosDevice('udid-1', status, model: 'iPhone 15 Pro');
-      return tool.fetchExtendedInfo(device);
+      // Both backends share buildIosDeviceInfo, so these assertions cover the
+      // Rust path's mapping too — only the domain-reading half differs.
+      return buildIosDeviceInfo(
+        device,
+        await tool.readDeviceDomains(device.id),
+      );
     }
 
     test('parses identity from the default domain', () async {

@@ -1,8 +1,7 @@
 import 'dart:io';
 
-import '../../data/device.dart';
 import '../../data/ios_device_info.dart';
-import '../../features/device_home/data/device_info.dart';
+import '../ios/ios_device_domains.dart';
 import 'tool_process_runner.dart';
 
 class IdeviceInfoTool extends ToolProcessRunner {
@@ -41,14 +40,15 @@ class IdeviceInfoTool extends ToolProcessRunner {
     }
   }
 
-  /// Broader device info for the device home screen, sourced entirely from
-  /// `ideviceinfo` domain queries — the only libimobiledevice CLI bundled on
-  /// every platform (macOS ships a curated subset that excludes
-  /// `idevicediagnostics`/`idevicepair`). Display, Wi-Fi/Bluetooth state and
-  /// cellular carrier details aren't exposed by lockdownd, so those fields
-  /// stay null on iOS rather than guessing.
-  Future<DeviceInfo> fetchExtendedInfo(IosDevice device) async {
-    final deviceId = device.id;
+  /// The lockdownd domains behind the device home screen, sourced entirely
+  /// from `ideviceinfo` — the only libimobiledevice CLI bundled on every
+  /// platform (macOS ships a curated subset that excludes
+  /// `idevicediagnostics`/`idevicepair`).
+  ///
+  /// One process per domain: `ideviceinfo` takes a single `-q`, so this is four
+  /// process starts, four connects and four TLS handshakes. The Rust backend
+  /// reads all four over one lockdown session.
+  Future<IosDeviceDomains> readDeviceDomains(String deviceId) async {
     try {
       final results = await Future.wait([
         runText(['-u', deviceId]),
@@ -57,91 +57,19 @@ class IdeviceInfoTool extends ToolProcessRunner {
         runText(['-u', deviceId, '-q', 'com.apple.international']),
       ]);
 
-      final defaultInfo = _parseInfoOutput(results[0].stdout);
-      final batteryInfo = _parseInfoOutput(results[1].stdout);
-      final diskInfo = _parseInfoOutput(results[2].stdout);
-      final intlInfo = _parseInfoOutput(results[3].stdout);
-
-      return DeviceInfo(
-        identity: DeviceIdentityInfo(
-          deviceName: device.name ?? defaultInfo['DeviceName'],
-          manufacturer: 'Apple',
-          model: device.model,
-          osName: 'iOS',
-          osVersion: defaultInfo['ProductVersion'],
-          buildVersion: defaultInfo['BuildVersion'],
-          serialNumber: defaultInfo['SerialNumber'],
-          cpuArchitecture: defaultInfo['CPUArchitecture'],
-        ),
-        battery: _parseIosBattery(batteryInfo),
-        storage: _parseIosStorage(diskInfo),
-        // iOS devices in this app are only ever seen over USB (no wireless
-        // idevice support), so this is a known constant, not a guess.
-        connectivity: const DeviceConnectivityInfo(usbConnected: true),
-        cellular: DeviceCellularInfo(simState: defaultInfo['SIMStatus']),
-        developerState: DeviceDeveloperStateInfo(
-          debuggingReady: device.status == 'device',
-          pairingState: _pairingState(device.status),
-        ),
-        software: DeviceSoftwareInfo(
-          locale: intlInfo['Locale'],
-          timeZone: defaultInfo['TimeZone'] ?? intlInfo['TimeZone'],
-        ),
+      return IosDeviceDomains(
+        root: _parseInfoOutput(results[0].stdout),
+        battery: _parseInfoOutput(results[1].stdout),
+        diskUsage: _parseInfoOutput(results[2].stdout),
+        international: _parseInfoOutput(results[3].stdout),
       );
     } on ProcessException catch (error) {
-      logError(
-        'ProcessException fetching iOS device info for $deviceId',
-        error,
-      );
-      return const DeviceInfo();
+      logError('ProcessException reading iOS domains for $deviceId', error);
+      return const IosDeviceDomains();
     } catch (error) {
-      logError(
-        'Unexpected error fetching iOS device info for $deviceId',
-        error,
-      );
-      return const DeviceInfo();
+      logError('Unexpected error reading iOS domains for $deviceId', error);
+      return const IosDeviceDomains();
     }
-  }
-
-  DeviceBatteryInfo _parseIosBattery(Map<String, String> values) {
-    final percentage = int.tryParse(values['BatteryCurrentCapacity'] ?? '');
-    BatteryChargingState? state;
-    if (values.containsKey('BatteryIsCharging')) {
-      state = values['BatteryIsFullyCharged'] == 'true'
-          ? BatteryChargingState.full
-          : (values['BatteryIsCharging'] == 'true'
-                ? BatteryChargingState.charging
-                : BatteryChargingState.discharging);
-    }
-    return DeviceBatteryInfo(percentage: percentage, chargingState: state);
-  }
-
-  DeviceStorageInfo _parseIosStorage(Map<String, String> values) {
-    final total = int.tryParse(
-      values['TotalDiskCapacity'] ?? values['TotalDataCapacity'] ?? '',
-    );
-    if (total == null) return const DeviceStorageInfo();
-    final available = int.tryParse(
-      values['TotalDataAvailable'] ?? values['TotalSystemAvailable'] ?? '',
-    );
-    return DeviceStorageInfo(
-      totalBytes: total,
-      availableBytes: available,
-      usedBytes: available != null ? total - available : null,
-    );
-  }
-
-  /// Maps the same status values produced by [readDeviceInfo] (and mirrored
-  /// onto `Device.status` for connected iOS devices) into a human-readable
-  /// pairing/trust label.
-  String? _pairingState(String status) {
-    return switch (status) {
-      'device' => 'Paired',
-      'unpaired' => 'Not Paired',
-      'locked' => 'Locked (enter passcode)',
-      'offline' => 'Unavailable',
-      _ => null,
-    };
   }
 
   Map<String, String> _parseInfoOutput(String stdout) {

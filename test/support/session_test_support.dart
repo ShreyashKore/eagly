@@ -19,6 +19,7 @@ import 'package:eagly/features/flutter_scrcpy/flutter_scrcpy.dart';
 import 'package:eagly/services/device_session_repository.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/data/ios_device_info.dart';
+import 'package:eagly/services/ios/ios_device_domains.dart';
 import 'package:eagly/services/ios/ios_device_service.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
 import 'package:eagly/services/tools/tool_process_runner.dart';
@@ -338,6 +339,7 @@ class FakeIosDeviceService implements IosDeviceService {
   bool usbmuxdUnavailableValue = false;
   final Map<String, IosDeviceInfo> infos = {};
   final Map<String, int> describeCalls = {};
+  final Map<String, IosDeviceDomains> domains = {};
 
   @override
   Future<List<String>> listDeviceIds() async => List.of(deviceIds);
@@ -348,6 +350,10 @@ class FakeIosDeviceService implements IosDeviceService {
     return infos[deviceId] ??
         IosDeviceInfo(deviceId: deviceId, status: 'device');
   }
+
+  @override
+  Future<IosDeviceDomains> readDeviceDomains(String deviceId) async =>
+      domains[deviceId] ?? const IosDeviceDomains();
 
   @override
   bool get usbmuxdUnavailable => usbmuxdUnavailableValue;
