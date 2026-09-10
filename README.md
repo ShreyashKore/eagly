@@ -90,6 +90,7 @@ support.**
 | 📂 **File manager** | Browse, upload, download and delete files on Android (single-level browsing on iOS). |
 | 📦 **Install apps** | Drag & drop an `.apk` (Android) or `.ipa` (iOS) onto the window to install. |
 | 🌐 **Wireless debugging** | Connect to Android devices over Wi-Fi — no cable needed. |
+| 🤖 **Android emulators** | Start, cold-boot, wipe, create or delete AVDs from your installed Android SDK — no Android Studio needed. |
 | 🗂️ **Import / export** | Open saved log files in dedicated tabs or export captured logs. |
 | 🎨 **Tabbed sessions & themes** | View multiple devices side by side, with light and dark themes. |
 | 🛠️ **No external tools** | `adb` and `libimobiledevice` are bundled — nothing to install separately. |
@@ -152,6 +153,13 @@ A friendly landing screen and full light / dark theme support.
 2. Turn on **USB Debugging** (Settings → Developer Options → USB debugging).
 3. Connect your device via USB (or use wireless debugging).
 4. Launch Eagly — your device should appear automatically.
+
+No physical device? Open the **Emulators** panel — the phone icon in the header, or the
+**Emulators** button on the landing screen — to start, cold-boot, wipe, create or delete an
+Android emulator, and its tab opens by itself once it finishes booting. This uses the Android
+SDK already installed on your machine (the emulator itself is several gigabytes, so Eagly does
+not bundle it); if it isn't found automatically, point Eagly at it under
+**Settings → Android SDK**.
 
 ### iOS — macOS / Linux
 

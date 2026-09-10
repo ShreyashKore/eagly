@@ -50,6 +50,14 @@ not just the tools with a dedicated wrapper: `idevicediagnostics`, `idevicescree
 `idevicedate`, `idevicename`, `idevicepair`, `idevicesetlocation`, `idevicebackup2`, … —
 reach for one before concluding an Android feature has no iOS counterpart.
 
+The **Android SDK is the opposite case**: `emulator` and `avdmanager` are *not* bundled — they
+are part of a multi-gigabyte Android Studio install, so Eagly locates an SDK the machine
+already has (`lib/utils/android_sdk_path.dart`, overridable in **Settings → Android SDK**).
+Environment variables alone are not enough to find it: an app launched from Finder or the Start
+menu inherits the login environment, not a shell's, and `ANDROID_HOME`/`ANDROID_SDK_ROOT` are
+usually unset even on machines where Android Studio works fine — hence the list of well-known
+install roots that `AndroidSdkPath.candidateSdkRoots()` probes, and the manual override.
+
 Dev scripts (`scripts/`):
 
 - `setup.sh` — one-shot first-time onboarding: validates the toolchain, installs platform
@@ -212,6 +220,48 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   - Device-side realities worth telling the user (the `HintNote`s do): the device's pairing
     screen must stay open or it stops advertising, and client-isolating networks (guest or
     public Wi-Fi) block mDNS entirely — Manual entry is the escape hatch.
+- **Emulator manager:** `EmulatorManagerController` (feature `emulator_manager/`) lists the
+  located SDK's AVDs, launches them, stops them over the adb console, and can create or delete
+  one. The dialog is reachable from four places (header action, header context menu, landing
+  card, command palette) and **must** dispose the controller.
+  - **Two-tier refresh:** `refresh()` re-reads the SDK — `emulator -list-avds` plus one
+    `config.ini` per AVD — and runs only on open, on Refresh, and after a mutation. The ~2 s
+    poll (`pollInterval`) re-reads *runtime* state only: the devices `DevicesRepository` already
+    tracks, plus one `adb emu avd name` per unresolved emulator serial (cached in
+    `_serialAvdNames`, pruned when a serial disappears). Folding the SDK read into the poll
+    would re-stat every AVD twice a second.
+  - **Gotcha — `starting` is our own record, not something adb reports:**
+    `DevicesRepository._mergeDevices` downgrades any Android device whose `status != 'device'`
+    to `disconnected`, so a mid-boot emulator is indistinguishable from a stopped one. The
+    `starting` state therefore comes from `_pendingLaunches` (name → launch time, expiring at
+    `launchTimeout`), which is why an emulator someone started in Android Studio stays
+    `stopped` here until it finishes booting.
+  - **Gotcha — `isBusy` must stay narrow:** it means a launch or stop *command* is in flight —
+    never the poll, never the boot. Same starvation lesson as `isWirelessBusy`: a three-minute
+    boot must not disable the whole dialog.
+  - Launching uses `ProcessStartMode.detached` (the emulator has to outlive Eagly), which costs
+    the exit code and stdio — so a name is validated *before* the spawn
+    (`AvdManagerTool.describeInvalidName`) and the boot is observed through `adb devices`.
+    Detached children are deliberately excluded from `ToolProcessRunner._liveProcesses`.
+  - `_pollGeneration` invalidates in-flight loops the way `_scanGeneration` does, and a tick
+    notifies only when the runtime state actually changed. Both the tick and the
+    `onEmulatorReady` callback are wrapped in try/catch: an exception escaping the `while`
+    would leave `_polling` true and the loop permanently unrestartable.
+  - AVD metadata is read straight off the INI files (`~/.android/avd/<name>.ini` points at
+    `<name>.avd/config.ini`; `AvdMetadataReader`) rather than from `avdmanager list avd` — no
+    JVM to start, and it is what each tile's API / device / ABI line is built from.
+  - **Gotcha — `avdmanager` realities:** `create avd` asks on stdin whether to build a custom
+    hardware profile, so it hangs forever on a pipe that never closes —
+    `runTextWithTimeout(…, closeStdin: true)` makes it take its own default instead. It reports
+    problems on an `Error:` line and prints a literal `null` line (`describeFailure` handles
+    both), accepts only `[A-Za-z0-9._-]` in a name, and spends ~1.5 s just starting the JVM
+    (hence the 90 s timeout). A system image's tag must match the device profile's tag —
+    untagged profiles are phones/tablets, and an unknown image tag is treated as handheld.
+  - Creating is gated on `canManageAvds` (the SDK must actually ship `avdmanager`), deleting is
+    refused while the AVD is running, and both finish with `refresh(clearFeedback: false)` so
+    the failure message survives the reload that follows it.
+  - Not covered, deliberately: iOS simulators (`xcrun simctl`), system-image downloads
+    (`sdkmanager`, licence prompts, multi-GB fetches) and hardware-profile editing.
 - **Imported logs workspace:** opening a log file with no device hosts it in a single
   synthetic `DeviceSessionController` (`isImportedWorkspace`, id `__imported-logs__`); each
   file becomes a sub-tab. It appears as a tab but is excluded from the landing-screen
@@ -247,6 +297,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   down inside the body and pump past any parked interval. `AnimatedSection` keeps its child
   mounted at `heightFactor: 0`, so `find.text` still matches a "hidden" child — hide by not
   building the child (what `DelayedReveal` does via `AnimatedContent`).
+  Never `await repository.refreshDevices(force: true)` from a test body while a
+  `DeviceSessionManager` is alive: it hands back the manager's parked start-up
+  `_reloadDevicesWith(retry: true)` future and the test deadlocks — set the fake tool's device
+  list and `pump` past the retry delay instead.
 - Commit/push only when asked; branch off `main` first.
 - Never discard uncommitted working-tree changes you didn't just make (`git checkout --`,
   `git restore`, `stash drop`, etc.) — even if they look stray or unrelated to the current
