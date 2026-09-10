@@ -751,6 +751,102 @@ class AdbTool extends ToolProcessRunner {
     }
   }
 
+  // ── Emulators ────────────────────────────────────────────────────────────
+
+  /// True for a serial adb assigns to a local emulator (`emulator-5554`).
+  ///
+  /// The `emu` subcommand exists only on an emulator's console transport, so
+  /// this guard is what stops a poll over a mixed device list from spawning a
+  /// doomed adb call per physical phone.
+  static bool isEmulatorSerial(String deviceId) =>
+      _emulatorSerialPattern.hasMatch(deviceId);
+
+  static final RegExp _emulatorSerialPattern = RegExp(r'^emulator-\d+$');
+
+  /// The AVD a running emulator was booted from, or `null` when [deviceId] is
+  /// not an emulator or its console did not answer.
+  ///
+  /// This is the only link between a booted emulator and the AVD it came from:
+  /// the serial carries a console port, not a name.
+  Future<String?> emulatorAvdName(
+    String deviceId, {
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    if (!isEmulatorSerial(deviceId)) return null;
+
+    try {
+      final result = await runTextWithTimeout([
+        '-s',
+        deviceId,
+        'emu',
+        'avd',
+        'name',
+      ], timeout: timeout);
+      return parseEmulatorAvdName(result);
+    } catch (error) {
+      logError('Failed to read the AVD name of $deviceId', error);
+      return null;
+    }
+  }
+
+  /// The emulator console answers with the value and then its acknowledgement
+  /// line — `OK` on success, `KO` with a reason on failure. Neither is part of
+  /// the name.
+  String? parseEmulatorAvdName(ToolCommandResult result) {
+    if (!result.isSuccess) return null;
+
+    for (final line in const LineSplitter().convert(result.stdout)) {
+      final value = line.trim();
+      if (value.isEmpty || value == 'OK') continue;
+      if (value.startsWith('KO')) return null;
+      return value;
+    }
+    return null;
+  }
+
+  /// Asks a running emulator to shut itself down (`adb emu kill`).
+  ///
+  /// Killable, unlike `Process.run`: a wedged emulator console accepts the
+  /// connection and then never answers, so an uninterruptible call would hang
+  /// the caller for good.
+  Future<DeviceCommandResult> killEmulator(
+    String deviceId, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    if (!isEmulatorSerial(deviceId)) {
+      return DeviceCommandResult.failure(
+        error: '$deviceId is not a local emulator.',
+      );
+    }
+
+    logInfo('Stopping emulator $deviceId');
+    try {
+      final result = await runTextWithTimeout([
+        '-s',
+        deviceId,
+        'emu',
+        'kill',
+      ], timeout: timeout);
+
+      if (!result.isSuccess) {
+        final details = describeCommandFailure(
+          'Failed to stop $deviceId.',
+          result,
+        );
+        logError('Emulator kill failed for $deviceId', details);
+        return DeviceCommandResult.failure(error: details);
+      }
+
+      logSuccess('Stopped emulator $deviceId');
+      return DeviceCommandResult.success(message: 'Stopping $deviceId\u2026');
+    } catch (error) {
+      logError('Exception while stopping $deviceId', error);
+      return DeviceCommandResult.failure(
+        error: 'Failed to stop $deviceId: ${describeError(error)}',
+      );
+    }
+  }
+
   Future<void> clearLogs(String deviceId) async {
     logInfo('Clearing adb logcat buffer for $deviceId');
     await runText(['-s', deviceId, 'logcat', '-c']);

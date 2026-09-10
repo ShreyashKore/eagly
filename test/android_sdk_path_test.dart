@@ -179,37 +179,67 @@ void main() {
   });
 
   group('avdHome', () {
-    test('ANDROID_AVD_HOME is used verbatim', () {
-      AndroidSdkPath.environment = {'ANDROID_AVD_HOME': '/avds'};
-      expect(AndroidSdkPath.avdHome(), '/avds');
+    test('ANDROID_AVD_HOME is used verbatim when it exists', () {
+      final avds = Directory('${temp.path}/avds')..createSync();
+      AndroidSdkPath.environment = {'ANDROID_AVD_HOME': avds.path};
+
+      expect(AndroidSdkPath.avdHome(), avds.path);
     });
 
     test('ANDROID_USER_HOME gets an avd suffix', () {
-      AndroidSdkPath.environment = {'ANDROID_USER_HOME': '/user-home'};
+      final userHome = Directory('${temp.path}/user-home/avd')
+        ..createSync(recursive: true);
+      AndroidSdkPath.environment = {
+        'ANDROID_USER_HOME': '${temp.path}/user-home',
+      };
+
+      expect(AndroidSdkPath.avdHome(), userHome.path);
+    });
+
+    test('both ANDROID_SDK_HOME layouts are searched', () {
+      // The emulator's own message says `$ANDROID_SDK_HOME/avd`; the pre-2019
+      // layout put it under `.android/avd`. Whichever exists is the one.
+      final legacy = Directory('${temp.path}/legacy/.android/avd')
+        ..createSync(recursive: true);
+      AndroidSdkPath.environment = {'ANDROID_SDK_HOME': '${temp.path}/legacy'};
+
+      expect(AndroidSdkPath.avdHome(), legacy.path);
       expect(
-        AndroidSdkPath.avdHome(),
-        ['/user-home', 'avd'].join(Platform.pathSeparator),
+        AndroidSdkPath.avdHomeCandidates(),
+        containsAllInOrder([
+          ['${temp.path}/legacy', 'avd'].join(Platform.pathSeparator),
+          legacy.path,
+        ]),
       );
     });
 
-    test('ANDROID_SDK_HOME keeps the legacy .android/avd layout', () {
-      AndroidSdkPath.environment = {'ANDROID_SDK_HOME': '/legacy'};
-      expect(
-        AndroidSdkPath.avdHome(),
-        ['/legacy', '.android', 'avd'].join(Platform.pathSeparator),
-      );
+    test('skips a configured directory that does not exist', () {
+      final real = Directory('${temp.path}/home/.android/avd')
+        ..createSync(recursive: true);
+      AndroidSdkPath.environment = {
+        'ANDROID_AVD_HOME': '${temp.path}/missing',
+        'HOME': '${temp.path}/home',
+      };
+
+      expect(AndroidSdkPath.avdHome(), real.path);
     });
 
-    test('falls back to the home directory', () {
-      AndroidSdkPath.environment = {'HOME': '/users/dev'};
+    test('falls back to the conventional path when nothing exists', () {
+      AndroidSdkPath.environment = {'HOME': '${temp.path}/nowhere'};
+
       expect(
         AndroidSdkPath.avdHome(),
-        ['/users/dev', '.android', 'avd'].join(Platform.pathSeparator),
+        [
+          '${temp.path}/nowhere',
+          '.android',
+          'avd',
+        ].join(Platform.pathSeparator),
       );
     });
 
     test('is null when the environment has no home at all', () {
       expect(AndroidSdkPath.avdHome(), isNull);
+      expect(AndroidSdkPath.avdHomeCandidates(), isEmpty);
     });
   });
 }

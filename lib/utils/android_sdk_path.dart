@@ -209,24 +209,55 @@ class AndroidSdkPath {
     return _existingFile(_join(sdkRoot, ['tools', 'bin', fileName]));
   }
 
-  /// Where the `.avd` folders and their `.ini` files live.
+  /// Every directory the emulator searches for AVDs, in order.
   ///
-  /// This is *not* under the SDK root — it defaults to `~/.android/avd`, and
-  /// the emulator honours three overrides ahead of that, in this order.
-  static String? avdHome() {
-    final explicit = _normalize(environment['ANDROID_AVD_HOME']);
-    if (explicit != null) return explicit;
+  /// Taken from the emulator's own error output rather than from the docs,
+  /// which disagree with it:
+  ///
+  ///     (Note: Directories are searched in the order $ANDROID_AVD_HOME,
+  ///      $ANDROID_SDK_HOME/avd and $HOME/.android/avd)
+  ///
+  /// `ANDROID_USER_HOME` is newer than that message and is what current SDK
+  /// tooling sets, so it goes in too, and `$ANDROID_SDK_HOME/.android/avd` is
+  /// the pre-2019 layout still found in the wild beside the `/avd` spelling.
+  /// Getting this wrong costs metadata, not function: the emulator resolves
+  /// the AVD itself at launch, so a missed directory shows up as a tile with
+  /// no details rather than an AVD that will not start.
+  static List<String> avdHomeCandidates() {
+    final candidates = <String>[];
+
+    void add(String? path) {
+      if (path != null && !candidates.contains(path)) candidates.add(path);
+    }
+
+    add(_normalize(environment['ANDROID_AVD_HOME']));
 
     final userHome = _normalize(environment['ANDROID_USER_HOME']);
-    if (userHome != null) return _join(userHome, ['avd']);
+    if (userHome != null) add(_join(userHome, ['avd']));
 
-    // Pre-2020 name, still honoured by current emulator builds.
     final sdkHome = _normalize(environment['ANDROID_SDK_HOME']);
-    if (sdkHome != null) return _join(sdkHome, ['.android', 'avd']);
+    if (sdkHome != null) {
+      add(_join(sdkHome, ['avd']));
+      add(_join(sdkHome, ['.android', 'avd']));
+    }
 
     final home = homeDirectory();
-    if (home == null) return null;
-    return _join(home, ['.android', 'avd']);
+    if (home != null) add(_join(home, ['.android', 'avd']));
+
+    return candidates;
+  }
+
+  /// The first candidate that exists on disk.
+  ///
+  /// Falls back to the last candidate — the conventional `~/.android/avd` —
+  /// when none do, so an error message always has a path to name. `null` only
+  /// when the environment reveals no home directory at all.
+  static String? avdHome() {
+    final candidates = avdHomeCandidates();
+    for (final candidate in candidates) {
+      if (Directory(candidate).existsSync()) return candidate;
+    }
+    return candidates.isEmpty ? null : candidates.last;
   }
 
   /// The user's home directory, or `null` when the environment has no idea.
