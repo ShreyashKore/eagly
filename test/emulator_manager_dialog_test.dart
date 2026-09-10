@@ -4,11 +4,14 @@ import 'package:eagly/features/emulator_manager/data/android_emulator.dart';
 import 'package:eagly/features/emulator_manager/data/emulator_launch_options.dart';
 import 'package:eagly/features/emulator_manager/emulator_manager_controller.dart';
 import 'package:eagly/features/emulator_manager/emulator_manager_dialog.dart';
+import 'package:eagly/features/emulator_manager/services/android_sdk_picker.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/services/devices_repository.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_manager.dart';
 import 'package:eagly/utils/android_sdk_path.dart';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -58,6 +61,8 @@ void main() {
     controller = null;
     await adbTool.disposeTool();
     EmulatorManagerController.pollInterval = const Duration(seconds: 2);
+    AndroidSdkPicker.resetChooseDirectory();
+    AndroidSdkPath.resetEnvironment();
   });
 
   /// One frame, then past any route or menu transition.
@@ -309,6 +314,70 @@ void main() {
       emulatorTool.listCallCount,
       0,
       reason: 'there is no emulator binary to ask',
+    );
+
+    await closeDialog(tester);
+  });
+
+  testWidgets('the missing-SDK state names every place that was searched', (
+    tester,
+  ) async {
+    sdk = const AndroidSdkLocation.missing();
+    // A path only wrong by one directory is the hard case, so the notice has
+    // to say where Eagly actually looked rather than leave it to be guessed.
+    AndroidSdkPath.environment = const {
+      'HOME': '/home/tester',
+      'ANDROID_HOME': '/opt/android-home',
+      'ANDROID_SDK_ROOT': '/opt/android-sdk-root',
+    };
+
+    await pumpDialog(tester);
+
+    expect(find.text('/opt/android-home'), findsOneWidget);
+    expect(find.text('/opt/android-sdk-root'), findsOneWidget);
+    expect(find.textContaining('/home/tester'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Locate SDK…'), findsOneWidget);
+
+    await closeDialog(tester);
+  });
+
+  testWidgets('locating an SDK saves it and reloads the list', (tester) async {
+    final root = Directory.systemTemp.createTempSync('dialog-sdk');
+    addTearDown(() => root.deleteSync(recursive: true));
+    Directory('${root.path}/platform-tools').createSync(recursive: true);
+
+    sdk = const AndroidSdkLocation.missing();
+    AndroidSdkPicker.chooseDirectory = ({String? initialDirectory}) async =>
+        root.path;
+
+    await pumpDialog(tester);
+    expect(find.text('No Android SDK found'), findsOneWidget);
+
+    // The controller re-locates on every refresh, so the dialog picks the new
+    // path up with no plumbing between here and Settings.
+    sdk = fakeReadySdk;
+    emulatorTool.avdNames = ['Small_Phone'];
+    await tester.tap(find.widgetWithText(FilledButton, 'Locate SDK…'));
+    await pumpAction(tester);
+
+    expect(PreferencesService.androidSdkPath, root.path);
+    expect(snackBars.single, contains(root.path));
+    expect(find.byType(EmulatorTile), findsOneWidget);
+
+    await closeDialog(tester);
+  });
+
+  testWidgets('an incomplete SDK still offers a way out', (tester) async {
+    sdk = const AndroidSdkLocation(
+      status: AndroidSdkStatus.emulatorMissing,
+      sdkPath: '/opt/android-sdk',
+    );
+
+    await pumpDialog(tester);
+
+    expect(
+      find.widgetWithText(FilledButton, 'Use a different SDK…'),
+      findsOneWidget,
     );
 
     await closeDialog(tester);

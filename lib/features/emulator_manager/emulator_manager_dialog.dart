@@ -7,9 +7,10 @@ import '../../data/device.dart';
 import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/eagly_dialog.dart';
 import '../../session/device_session_manager.dart';
-import '../../utils/android_sdk_path.dart';
 import '../wireless_connection/components/wireless_feedback_banner.dart';
 import 'components/emulator_tile.dart';
+import 'components/sdk_notice.dart';
+import 'services/android_sdk_picker.dart';
 import 'data/emulator_entry.dart';
 import 'data/emulator_launch_options.dart';
 import 'emulator_manager_controller.dart';
@@ -200,7 +201,9 @@ class _EmulatorManagerDialogState extends State<EmulatorManagerDialog> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (!sdk.isReady) return _buildSdkNotice(sdk);
+    if (!sdk.isReady) {
+      return SdkNotice(sdk: sdk, onLocate: () => unawaited(_locateSdk()));
+    }
 
     if (controller.entries.isEmpty) {
       return const CenteredStateMessage(
@@ -228,27 +231,15 @@ class _EmulatorManagerDialogState extends State<EmulatorManagerDialog> {
     );
   }
 
-  /// The two ways an SDK can come up short need opposite advice: a missing SDK
-  /// sends the user looking for one, while a missing `emulator` package sends
-  /// them to the SDK they already have.
-  Widget _buildSdkNotice(AndroidSdkLocation sdk) {
-    return switch (sdk.status) {
-      AndroidSdkStatus.emulatorMissing => CenteredStateMessage(
-        icon: Icons.extension_off_outlined,
-        title: 'The emulator package is not installed',
-        description:
-            'An Android SDK is at ${sdk.sdkPath}, but it has no emulator. '
-            'Install it from Android Studio’s SDK Manager, under SDK Tools.',
-      ),
-      AndroidSdkStatus.sdkMissing => const CenteredStateMessage(
-        icon: Icons.folder_off_outlined,
-        title: 'No Android SDK found',
-        description:
-            'Eagly bundles adb, but the emulator ships with your own Android '
-            'SDK — install one through Android Studio, or point Eagly at it '
-            'in Settings.',
-      ),
-      AndroidSdkStatus.ready => const SizedBox.shrink(),
-    };
+  /// Lets the user point Eagly at their SDK without a detour through
+  /// Settings — this dialog is where they find out it is missing.
+  Future<void> _locateSdk() async {
+    final choice = await AndroidSdkPicker.chooseAndSave(
+      initialDirectory: controller.sdk?.sdkPath,
+    );
+    if (choice == null || !mounted) return;
+
+    widget.onShowSnackBar(choice.message);
+    if (choice.accepted) await controller.refresh();
   }
 }

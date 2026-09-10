@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../emulator_manager/services/android_sdk_picker.dart';
 import '../logs/data/models/log_level.dart';
 import '../mirror/services/capture_storage.dart';
 import '../../utils/file_reveal.dart';
@@ -10,6 +11,7 @@ import '../../services/eagly_info_service.dart';
 import '../../services/preferences_service.dart';
 import '../../presentation/components/app_log_overlay.dart';
 import '../../presentation/components/eagly_dialog.dart';
+import '../../utils/android_sdk_path.dart';
 
 /// Presents the settings as a large desktop dialog.
 Future<void> showSettingsDialog(BuildContext context) {
@@ -37,6 +39,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _tipsEnabled;
   late String _captureDirectory;
   late bool _captureAskEveryTime;
+  late AndroidSdkLocation _androidSdk;
   late final TextEditingController _logLinesController;
 
   @override
@@ -52,6 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _tipsEnabled = PreferencesService.tipsEnabled;
     _captureDirectory = CaptureStorage.resolveDirectory();
     _captureAskEveryTime = PreferencesService.captureAskEveryTime;
+    _androidSdk = AndroidSdkPath.locate();
     _logLinesController = TextEditingController(
       text: PreferencesService.logLinesLimit.toString(),
     );
@@ -107,6 +111,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await openPathExternally(_captureDirectory);
   }
 
+  Future<void> _chooseAndroidSdk() async {
+    final choice = await AndroidSdkPicker.chooseAndSave(
+      initialDirectory: _androidSdk.sdkPath,
+    );
+    if (choice == null || !mounted) return;
+
+    setState(() => _androidSdk = AndroidSdkPath.locate());
+    _showSnackBar(choice.message);
+  }
+
+  Future<void> _resetAndroidSdk() async {
+    await AndroidSdkPicker.clear();
+    if (!mounted) return;
+    setState(() => _androidSdk = AndroidSdkPath.locate());
+    _showSnackBar('Android SDK location reset to the default.');
+  }
+
   Future<void> _resetHiddenColumns() async {
     PreferencesService.hiddenColumns = {};
     if (!mounted) return;
@@ -119,6 +140,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     setState(() {});
     _showSnackBar('Column widths reset.');
+  }
+
+  /// One line covering both halves of the question: which SDK, and whether it
+  /// can actually launch anything. `adb` is bundled and always works, so the
+  /// emulator is the only reason this setting exists.
+  String get _androidSdkSummary {
+    final path = _androidSdk.sdkPath;
+    return switch (_androidSdk.status) {
+      AndroidSdkStatus.ready => '$path\nEmulator ready',
+      AndroidSdkStatus.emulatorMissing =>
+        '$path\nNo emulator package in this SDK',
+      AndroidSdkStatus.sdkMissing =>
+        'Not found — choose the folder that contains platform-tools '
+            'and emulator',
+    };
   }
 
   int get _themeIndex {
@@ -482,6 +518,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   setState(() => _captureAskEveryTime = value);
                   PreferencesService.captureAskEveryTime = value;
                 },
+              ),
+            ],
+          ),
+          const Gap(16),
+          sectionCard(
+            title: 'Android SDK',
+            children: [
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('SDK location'),
+                subtitle: Tooltip(
+                  message: _androidSdk.sdkPath ?? '',
+                  child: Text(
+                    _androidSdkSummary,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: _androidSdk.isReady
+                          ? null
+                          : theme.colorScheme.error,
+                    ),
+                  ),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      onPressed: _chooseAndroidSdk,
+                      child: const Text('Change…'),
+                    ),
+                    TextButton(
+                      onPressed: PreferencesService.androidSdkPath == null
+                          ? null
+                          : _resetAndroidSdk,
+                      child: const Text('Reset'),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
