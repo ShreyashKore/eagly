@@ -56,6 +56,9 @@ class DevicesRepository extends ChangeNotifier {
 
   Future<void>? _refreshInFlight;
   StreamSubscription<List<Device>>? _androidDeviceChangesSub;
+
+  /// In-flight watcher (re)start, so restarts queue instead of racing.
+  Future<void>? _androidWatcherStart;
   Timer? _androidRefreshTimer;
   Timer? _androidWatcherRestartTimer;
   Timer? _iosRefreshTimer;
@@ -347,8 +350,31 @@ class DevicesRepository extends ChangeNotifier {
   }
 
   void _startAndroidDeviceWatcher() {
-    _androidDeviceChangesSub?.cancel();
     _androidWatcherRestartTimer?.cancel();
+    _androidWatcherStart = _restartAndroidDeviceWatcher(_androidWatcherStart);
+  }
+
+  /// Tears the previous watcher down *before* spawning the next one, and
+  /// serialises overlapping restarts through [_androidWatcherStart].
+  ///
+  /// Cancelling the subscription is what stops the `adb track-devices` child,
+  /// and that cancel is asynchronous. Firing it and immediately re-listening
+  /// (or letting two restarts race) left the old tracker running: a duplicate
+  /// per restart, each holding an adb server connection for the life of the
+  /// app. The cancel is bounded so a wedged teardown can't permanently stop
+  /// device discovery — a leaked tracker is recoverable, a dead watcher is not.
+  Future<void> _restartAndroidDeviceWatcher(Future<void>? pending) async {
+    await pending;
+
+    final previous = _androidDeviceChangesSub;
+    _androidDeviceChangesSub = null;
+    if (previous != null) {
+      await previous.cancel().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {},
+      );
+    }
+    if (_disposed) return;
 
     _androidDeviceChangesSub = _adbTool.watchDeviceChanges().listen(
       (_) => _scheduleAndroidRefresh(),

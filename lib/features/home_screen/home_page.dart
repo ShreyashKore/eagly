@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'dart:ui' show AppExitResponse;
+
 import 'package:flutter/material.dart';
 
 import '../../constants/app_constants.dart';
@@ -10,6 +12,7 @@ import '../../command_palette/command_palette_dialog.dart';
 import '../../command_palette/command_palette_items.dart';
 import '../../services/eagly_info_service.dart';
 import '../../services/preferences_service.dart';
+import '../../services/tools/tool_process_runner.dart';
 import '../../session/device_session_manager.dart';
 import '../../utils/log_feedback.dart';
 import '../settings/settings_screen.dart';
@@ -36,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final AppMenuController _menuController = AppMenuController(_manager);
   final ValueNotifier<int> _appMemoryBytes = ValueNotifier<int>(0);
   Timer? _memoryRefreshTimer;
+  AppLifecycleListener? _lifecycleListener;
 
   bool get _supportsDesktopMenuBar => Platform.isMacOS;
 
@@ -49,11 +53,24 @@ class _HomeScreenState extends State<HomeScreen> {
     _memoryRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _refreshAppMemory();
     });
+    // Child processes are reparented to init rather than killed when we exit,
+    // so every live `adb track-devices` / `adb logcat` would otherwise outlive
+    // the app and keep its adb server connection open. See
+    // [ToolProcessRunner.terminateAllProcesses].
+    _lifecycleListener = AppLifecycleListener(
+      onExitRequested: _terminateToolProcesses,
+    );
+  }
+
+  Future<AppExitResponse> _terminateToolProcesses() async {
+    await ToolProcessRunner.terminateAllProcesses();
+    return AppExitResponse.exit;
   }
 
   @override
   void dispose() {
     _memoryRefreshTimer?.cancel();
+    _lifecycleListener?.dispose();
     _appMemoryBytes.dispose();
     _menuController.dispose();
     _tipsController.dispose();

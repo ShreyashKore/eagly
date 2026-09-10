@@ -137,17 +137,57 @@ abstract class ToolProcessRunner {
     return result.stdout as List<int>;
   }
 
+  /// Every non-detached child this app has spawned and not yet reaped.
+  ///
+  /// Nothing kills these for us: on macOS and Linux a child outlives its
+  /// parent and is reparented to init, so a long-running `adb track-devices`
+  /// or `adb logcat` survives the app that started it and holds its adb server
+  /// connection open forever. Quitting eagly repeatedly used to leave one
+  /// orphan per launch. [terminateAllProcesses] is what closes them out.
+  ///
+  /// Detached processes are deliberately excluded — `AdbTool.ensureServerRunning`
+  /// starts the adb server that way precisely so it *does* outlive us.
+  static final Set<Process> _liveProcesses = <Process>{};
+
+  /// Terminates every tracked child. Called on app exit; also safe to call
+  /// mid-session (a process that already exited is simply not in the set).
+  ///
+  /// Only covers a graceful shutdown — a `SIGKILL`ed app still orphans its
+  /// children, since no cleanup of ours can run.
+  static Future<void> terminateAllProcesses() async {
+    final processes = _liveProcesses.toList(growable: false);
+    _liveProcesses.clear();
+    await Future.wait(processes.map(_terminate));
+  }
+
+  static Future<void> _terminate(Process process) async {
+    process.kill(ProcessSignal.sigterm);
+    try {
+      await process.exitCode.timeout(const Duration(milliseconds: 500));
+    } catch (_) {
+      process.kill(ProcessSignal.sigkill);
+    }
+  }
+
   Future<Process> startProcess(
     List<String> arguments, {
     ProcessStartMode mode = ProcessStartMode.normal,
-  }) {
-    return Process.start(
+  }) async {
+    final process = await Process.start(
       executable,
       arguments,
       environment: _toolEnvironment(),
       workingDirectory: _toolWorkingDirectory(),
       mode: mode,
     );
+    if (mode != ProcessStartMode.detached &&
+        mode != ProcessStartMode.detachedWithStdio) {
+      _liveProcesses.add(process);
+      unawaited(
+        process.exitCode.whenComplete(() => _liveProcesses.remove(process)),
+      );
+    }
+    return process;
   }
 
   Stream<String> stdoutLines(Process process) {
