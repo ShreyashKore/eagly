@@ -40,6 +40,7 @@ List<CommandPaletteItem> buildCommandPaletteItems({
   required VoidCallback onInstallApp,
   required VoidCallback onExportLogs,
   required VoidCallback onShowWireless,
+  required VoidCallback onShowEmulators,
   required VoidCallback onImportLog,
   required VoidCallback onZoomIn,
   required VoidCallback onZoomOut,
@@ -270,6 +271,15 @@ List<CommandPaletteItem> buildCommandPaletteItems({
       category: 'App',
       icon: Icons.wifi_tethering_outlined,
       run: onShowWireless,
+    ),
+  );
+  items.add(
+    CommandPaletteItem(
+      id: 'app.emulators',
+      label: 'Android Emulators…',
+      category: 'App',
+      icon: Icons.smartphone_outlined,
+      run: onShowEmulators,
     ),
   );
   items.add(

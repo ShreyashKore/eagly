@@ -10,6 +10,7 @@ void showHeaderMenu(
   Offset globalPosition, {
   required DeviceSessionManager manager,
   required VoidCallback onShowWireless,
+  required VoidCallback onShowEmulators,
   required VoidCallback onOpenSettings,
 }) async {
   final result = await showMenu<_HeaderMenuAction>(
@@ -22,6 +23,10 @@ void showHeaderMenu(
           Icons.wifi_tethering_outlined,
           'Connect via Wireless ADB',
         ),
+      ),
+      PopupMenuItem(
+        value: _HeaderMenuAction.emulators,
+        child: _MenuRow(Icons.smartphone_outlined, 'Android Emulators'),
       ),
       PopupMenuItem(
         value: _HeaderMenuAction.refresh,
@@ -38,6 +43,8 @@ void showHeaderMenu(
   switch (result) {
     case _HeaderMenuAction.wireless:
       onShowWireless();
+    case _HeaderMenuAction.emulators:
+      onShowEmulators();
     case _HeaderMenuAction.refresh:
       manager.refreshDevices();
     case _HeaderMenuAction.settings:
@@ -110,7 +117,7 @@ void _toast(BuildContext context, String message) {
   messenger.showSnackBar(SnackBar(content: Text(message)));
 }
 
-enum _HeaderMenuAction { wireless, refresh, settings }
+enum _HeaderMenuAction { wireless, emulators, refresh, settings }
 
 enum _TabMenuAction { reload, copyName, copyId, close }
 

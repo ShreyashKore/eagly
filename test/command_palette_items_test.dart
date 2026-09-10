@@ -92,6 +92,7 @@ void main() {
         onInstallApp: () {},
         onExportLogs: () {},
         onShowWireless: () {},
+        onShowEmulators: () {},
         onImportLog: () {},
         onZoomIn: () {},
         onZoomOut: () {},
@@ -112,4 +113,52 @@ void main() {
       expect(reboot.subtitle, contains('adb'));
     },
   );
+
+  testWidgets('the emulator manager is reachable from the palette', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      manager = DeviceSessionManager(
+        repository: repository,
+        serviceFactory: (device) => FakeSessionService(device),
+      );
+      menuController = AppMenuController(manager!);
+    });
+
+    late BuildContext context;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (c) {
+            context = c;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    var opened = 0;
+    final items = buildCommandPaletteItems(
+      context: context,
+      manager: manager!,
+      menuController: menuController!,
+      onOpenSettings: () {},
+      onShowAbout: () {},
+      onQuit: () {},
+      onInstallApp: () {},
+      onExportLogs: () {},
+      onShowWireless: () {},
+      onShowEmulators: () => opened++,
+      onImportLog: () {},
+      onZoomIn: () {},
+      onZoomOut: () {},
+      onShowSnackBar: (_) {},
+    );
+
+    final emulators = items.firstWhere((item) => item.id == 'app.emulators');
+    expect(emulators.label, 'Android Emulators…');
+    expect(emulators.category, 'App');
+    emulators.run();
+    expect(opened, 1);
+  });
 }

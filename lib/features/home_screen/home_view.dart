@@ -13,12 +13,14 @@ import 'components/home_device_list.dart';
 import 'components/recent_files_list.dart';
 
 /// Landing screen shown when no device tab is selected. Lets the user load
-/// devices, connect wirelessly, and pick a detected device to open its tab.
+/// devices, connect wirelessly, start an Android emulator, and pick a detected
+/// device to open its tab.
 class HomeView extends StatelessWidget {
   const HomeView({
     super.key,
     required this.manager,
     required this.onShowWireless,
+    required this.onShowEmulators,
     required this.onShowMessage,
     required this.onImportLog,
     required this.onOpenRecent,
@@ -26,6 +28,7 @@ class HomeView extends StatelessWidget {
 
   final DeviceSessionManager manager;
   final VoidCallback onShowWireless;
+  final VoidCallback onShowEmulators;
   final ValueChanged<String> onShowMessage;
 
   /// Opens a log file via the system picker (no device required).
@@ -102,6 +105,11 @@ class HomeView extends StatelessWidget {
                         icon: const Icon(Icons.wifi_tethering_outlined),
                         onPressed: onShowWireless,
                         label: const Text('Wireless ADB'),
+                      ),
+                      FilledButton.tonalIcon(
+                        icon: const Icon(Icons.smartphone_outlined),
+                        onPressed: onShowEmulators,
+                        label: const Text('Emulators'),
                       ),
                     ],
                     children: [

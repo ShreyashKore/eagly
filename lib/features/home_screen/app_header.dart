@@ -14,7 +14,8 @@ import 'components/header_action.dart';
 import 'window_controls.dart';
 
 /// Top app header: logo + name, the horizontal device-tab strip (auto-created
-/// per detected device), home/load/wireless actions, and a GitHub link.
+/// per detected device), home/load/wireless/emulator actions, and a GitHub
+/// link.
 class AppHeader extends StatelessWidget {
   const AppHeader({
     super.key,
@@ -22,12 +23,14 @@ class AppHeader extends StatelessWidget {
     required this.tipsController,
     required this.onOpenSettings,
     required this.onShowWireless,
+    required this.onShowEmulators,
   });
 
   final DeviceSessionManager manager;
   final TipsController tipsController;
   final VoidCallback onOpenSettings;
   final VoidCallback onShowWireless;
+  final VoidCallback onShowEmulators;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +61,7 @@ class AppHeader extends StatelessWidget {
                     details.globalPosition,
                     manager: manager,
                     onShowWireless: onShowWireless,
+                    onShowEmulators: onShowEmulators,
                     onOpenSettings: onOpenSettings,
                   ),
                   child: DragToMoveArea(
@@ -89,6 +93,11 @@ class AppHeader extends StatelessWidget {
                           icon: Icons.wifi_tethering_outlined,
                           tooltip: 'Wireless ADB',
                           onPressed: onShowWireless,
+                        ),
+                        HeaderAction(
+                          icon: Icons.smartphone_outlined,
+                          tooltip: 'Android emulators',
+                          onPressed: onShowEmulators,
                         ),
                         const Gap(6),
                         const AppUpdateChip(),

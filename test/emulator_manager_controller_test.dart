@@ -1,37 +1,27 @@
-import 'dart:async';
-
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/emulator_manager/data/android_emulator.dart';
 import 'package:eagly/features/emulator_manager/data/emulator_entry.dart';
 import 'package:eagly/features/emulator_manager/data/emulator_launch_options.dart';
 import 'package:eagly/features/emulator_manager/emulator_manager_controller.dart';
-import 'package:eagly/features/emulator_manager/services/avd_metadata_reader.dart';
 import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
 import 'package:eagly/services/devices_repository.dart';
-import 'package:eagly/services/ios/ios_device_domains.dart';
-import 'package:eagly/services/ios/ios_device_service.dart';
-import 'package:eagly/data/ios_device_info.dart';
-import 'package:eagly/services/tools/adb_tool.dart';
-import 'package:eagly/services/tools/emulator_tool.dart';
 import 'package:eagly/utils/android_sdk_path.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/emulator_test_support.dart';
+import 'support/session_test_support.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late _FakeEmulatorAdbTool adbTool;
-  late _FakeIosDeviceService iosDeviceService;
-  late _FakeEmulatorTool emulatorTool;
-  late _FakeMetadataReader metadataReader;
+  late FakeEmulatorAdbTool adbTool;
+  late FakeIosDeviceService iosDeviceService;
+  late FakeEmulatorTool emulatorTool;
+  late FakeAvdMetadataReader metadataReader;
   late DevicesRepository repository;
   EmulatorManagerController? controller;
 
-  AndroidSdkLocation sdk = const AndroidSdkLocation(
-    status: AndroidSdkStatus.ready,
-    sdkPath: '/fake/sdk',
-    emulatorExecutable: '/fake/sdk/emulator/emulator',
-    avdManagerExecutable: '/fake/sdk/cmdline-tools/latest/bin/avdmanager',
-  );
+  AndroidSdkLocation sdk = fakeReadySdk;
 
   final readyDevices = <Device>[];
 
@@ -47,17 +37,12 @@ void main() {
   }
 
   setUp(() {
-    adbTool = _FakeEmulatorAdbTool();
-    iosDeviceService = _FakeIosDeviceService();
-    emulatorTool = _FakeEmulatorTool();
-    metadataReader = _FakeMetadataReader();
+    adbTool = FakeEmulatorAdbTool();
+    iosDeviceService = FakeIosDeviceService();
+    emulatorTool = FakeEmulatorTool();
+    metadataReader = FakeAvdMetadataReader();
     readyDevices.clear();
-    sdk = const AndroidSdkLocation(
-      status: AndroidSdkStatus.ready,
-      sdkPath: '/fake/sdk',
-      emulatorExecutable: '/fake/sdk/emulator/emulator',
-      avdManagerExecutable: '/fake/sdk/cmdline-tools/latest/bin/avdmanager',
-    );
+    sdk = fakeReadySdk;
     repository = DevicesRepository.forTesting(
       adbTool: adbTool,
       iosDeviceService: iosDeviceService,
@@ -207,7 +192,7 @@ void main() {
 
       final controller = buildController();
       await controller.start();
-      await _waitFor(() => adbTool.avdNameRequests.length >= 3);
+      await waitFor(() => adbTool.avdNameRequests.length >= 3);
 
       expect(controller.entryFor('Small_Phone')!.isStopped, isTrue);
     },
@@ -225,14 +210,14 @@ void main() {
       expect(controller.entryFor('Small_Phone')!.isRunning, isTrue);
 
       await setDevices([]);
-      await _waitFor(() => controller.entryFor('Small_Phone')!.isStopped);
+      await waitFor(() => controller.entryFor('Small_Phone')!.isStopped);
 
       expect(controller.entryFor('Small_Phone')!.serial, isNull);
 
       // The port is recycled, so the mapping must not have been kept.
       adbTool.avdNames['emulator-5554'] = 'Small_Phone';
       await setDevices([Device.android('emulator-5554', 'device')]);
-      await _waitFor(() => controller.entryFor('Small_Phone')!.isRunning);
+      await waitFor(() => controller.entryFor('Small_Phone')!.isRunning);
 
       expect(adbTool.avdNameRequests, hasLength(2));
     },
@@ -281,7 +266,7 @@ void main() {
       await controller.launch('Small_Phone');
 
       await setDevices([Device.android('emulator-5556', 'device')]);
-      await _waitFor(() => readyDevices.isNotEmpty);
+      await waitFor(() => readyDevices.isNotEmpty);
 
       expect(readyDevices.single.id, 'emulator-5556');
       expect(controller.entryFor('Small_Phone')!.isRunning, isTrue);
@@ -298,7 +283,7 @@ void main() {
     await controller.start();
 
     await setDevices([Device.android('emulator-5554', 'device')]);
-    await _waitFor(() => controller.entryFor('Small_Phone')!.isRunning);
+    await waitFor(() => controller.entryFor('Small_Phone')!.isRunning);
     await _pump(const Duration(milliseconds: 20));
 
     expect(
@@ -358,7 +343,7 @@ void main() {
     await controller.start();
     await controller.launch('Small_Phone');
 
-    await _waitFor(() => controller.error != null);
+    await waitFor(() => controller.error != null);
 
     expect(controller.error, contains('did not finish booting'));
     expect(controller.pendingLaunches, isEmpty);
@@ -388,7 +373,7 @@ void main() {
     );
 
     await setDevices([]);
-    await _waitFor(() => controller.entryFor('Small_Phone')!.isStopped);
+    await waitFor(() => controller.entryFor('Small_Phone')!.isStopped);
   });
 
   test('a stop that fails puts the AVD back to running', () async {
@@ -450,7 +435,7 @@ void main() {
     // Not shadowed: tearDown must not dispose this one a second time.
     buildController();
     await controller!.start();
-    await _waitFor(() => adbTool.avdNameRequests.length >= 3);
+    await waitFor(() => adbTool.avdNameRequests.length >= 3);
 
     final disposed = controller!;
     disposed.dispose();
@@ -470,122 +455,3 @@ void main() {
 }
 
 Future<void> _pump(Duration duration) => Future<void>.delayed(duration);
-
-Future<void> _waitFor(
-  bool Function() condition, {
-  Duration timeout = const Duration(seconds: 5),
-}) async {
-  final deadline = DateTime.now().add(timeout);
-  while (!condition()) {
-    if (DateTime.now().isAfter(deadline)) {
-      fail('Condition was not met within ${timeout.inSeconds}s');
-    }
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-  }
-}
-
-class _FakeEmulatorAdbTool extends AdbTool {
-  _FakeEmulatorAdbTool() : super(executablePath: '/usr/bin/true');
-
-  List<Device> androidDevices = const [];
-
-  /// Serial → the AVD its console reports. A serial that is absent stands for
-  /// a console that has not answered yet.
-  final Map<String, String> avdNames = {};
-  final List<String> avdNameRequests = [];
-  final List<String> killRequests = [];
-  DeviceCommandResult killResult = DeviceCommandResult.success(
-    message: 'Stopping…',
-  );
-
-  final StreamController<List<Device>> _watchController =
-      StreamController<List<Device>>.broadcast();
-
-  @override
-  Future<List<Device>> getDevices() async => List.of(androidDevices);
-
-  @override
-  Future<Device> describeDevice(String deviceId) async =>
-      Device.android(deviceId, 'device');
-
-  @override
-  Stream<List<Device>> watchDeviceChanges() => _watchController.stream;
-
-  @override
-  Future<String?> emulatorAvdName(
-    String deviceId, {
-    Duration timeout = const Duration(seconds: 5),
-  }) async {
-    avdNameRequests.add(deviceId);
-    return avdNames[deviceId];
-  }
-
-  @override
-  Future<DeviceCommandResult> killEmulator(
-    String deviceId, {
-    Duration timeout = const Duration(seconds: 10),
-  }) async {
-    killRequests.add(deviceId);
-    return killResult;
-  }
-
-  Future<void> disposeTool() async {
-    await _watchController.close();
-  }
-}
-
-class _FakeEmulatorTool extends EmulatorTool {
-  _FakeEmulatorTool() : super(executablePath: '/usr/bin/true');
-
-  List<String> avdNames = const [];
-  var listCallCount = 0;
-
-  /// (name, coldBoot, wipeData) per launch.
-  final List<(String, bool, bool)> launchRequests = [];
-  EmulatorLaunchOutcome launchOutcome = const EmulatorLaunchOutcome.success(
-    4242,
-  );
-
-  @override
-  Future<List<String>> listAvds() async {
-    listCallCount++;
-    return List.of(avdNames);
-  }
-
-  @override
-  Future<EmulatorLaunchOutcome> launch(
-    String avdName, {
-    EmulatorLaunchOptions options = EmulatorLaunchOptions.normal,
-  }) async {
-    launchRequests.add((avdName, options.coldBoot, options.wipeData));
-    return launchOutcome;
-  }
-}
-
-class _FakeMetadataReader extends AvdMetadataReader {
-  // A path that cannot exist, so an unstubbed read is a visible mistake rather
-  // than a silent trip through the developer's own ~/.android/avd.
-  _FakeMetadataReader() : super(avdHome: '/nonexistent/avd/home');
-
-  final Map<String, AndroidEmulator> emulators = {};
-
-  @override
-  Future<AndroidEmulator> read(String name) async =>
-      emulators[name] ?? AndroidEmulator(name: name);
-}
-
-class _FakeIosDeviceService implements IosDeviceService {
-  @override
-  Future<List<String>> listDeviceIds() async => const [];
-
-  @override
-  Future<IosDeviceInfo> describeDevice(String deviceId) async =>
-      IosDeviceInfo(deviceId: deviceId, status: 'device');
-
-  @override
-  Future<IosDeviceDomains> readDeviceDomains(String deviceId) async =>
-      const IosDeviceDomains();
-
-  @override
-  bool get usbmuxdUnavailable => false;
-}

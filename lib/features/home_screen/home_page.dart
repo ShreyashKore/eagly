@@ -15,6 +15,7 @@ import '../../services/preferences_service.dart';
 import '../../services/tools/tool_process_runner.dart';
 import '../../session/device_session_manager.dart';
 import '../../utils/log_feedback.dart';
+import '../emulator_manager/emulator_manager_dialog.dart';
 import '../settings/settings_screen.dart';
 import '../tips/tips_controller.dart';
 import '../wireless_connection/wireless_connection_dialog.dart';
@@ -143,6 +144,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _showEmulatorDialog() async {
+    await showEmulatorManagerDialog(
+      context: context,
+      manager: _manager,
+      onShowSnackBar: _showSnackBar,
+    );
+  }
+
   Future<void> _handleInstallApp() async {
     final session = _manager.selected;
     if (session == null) return;
@@ -191,6 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onInstallApp: () => unawaited(_handleInstallApp()),
         onExportLogs: () => unawaited(_handleExportLogs()),
         onShowWireless: () => unawaited(_showWirelessDialog()),
+        onShowEmulators: () => unawaited(_showEmulatorDialog()),
         onImportLog: () => unawaited(_handleImportLog()),
         onZoomIn: () => _changeZoomLevel(0.05),
         onZoomOut: () => _changeZoomLevel(-0.05),
@@ -291,6 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 tipsController: _tipsController,
                 onOpenSettings: _openSettings,
                 onShowWireless: _showWirelessDialog,
+                onShowEmulators: _showEmulatorDialog,
               ),
               Expanded(
                 child: ListenableBuilder(
@@ -324,6 +335,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return HomeView(
         manager: _manager,
         onShowWireless: _showWirelessDialog,
+        onShowEmulators: _showEmulatorDialog,
         onShowMessage: _showSnackBar,
         onImportLog: () => unawaited(_handleImportLog()),
         onOpenRecent: (path) => unawaited(_handleImportLog(path: path)),
