@@ -92,8 +92,15 @@ abstract class ToolProcessRunner {
   Future<ToolCommandResult> runTextWithTimeout(
     List<String> arguments, {
     Duration timeout = const Duration(seconds: 30),
+    bool closeStdin = false,
   }) async {
     final process = await startProcess(arguments);
+    // A tool that asks a question mid-run blocks forever on a stdin pipe that
+    // never closes; closing it makes the tool take its own default instead.
+    // (`avdmanager create avd` offers to build a custom hardware profile.)
+    if (closeStdin) {
+      unawaited(process.stdin.close().catchError((_) {}));
+    }
     const decoder = Utf8Decoder(allowMalformed: true);
     final stdoutFuture = process.stdout.transform(decoder).join();
     final stderrFuture = process.stderr.transform(decoder).join();

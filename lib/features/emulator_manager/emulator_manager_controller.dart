@@ -7,12 +7,16 @@ import '../../data/device.dart';
 import '../app_log/app_logger.dart';
 import '../../services/devices_repository.dart';
 import '../../services/tools/adb_tool.dart';
+import '../../services/tools/avd_manager_tool.dart';
 import '../../services/tools/emulator_tool.dart';
 import '../../utils/android_sdk_path.dart';
 import 'data/android_emulator.dart';
+import 'data/device_profile.dart';
 import 'data/emulator_entry.dart';
 import 'data/emulator_launch_options.dart';
+import 'data/system_image.dart';
 import 'services/avd_metadata_reader.dart';
+import 'services/system_image_scanner.dart';
 
 /// Drives the emulator manager: the AVD list read off disk, the runtime state
 /// of each one, and the launch/stop actions.
@@ -37,21 +41,30 @@ class EmulatorManagerController extends ChangeNotifier {
     AvdMetadataReader? metadataReader,
     AndroidSdkLocation Function()? locateSdk,
     EmulatorTool Function(String executablePath)? createEmulatorTool,
+    AvdManagerTool Function(String executablePath)? createAvdManagerTool,
+    SystemImageScanner? systemImageScanner,
     this.onEmulatorReady,
   }) : _devicesRepository = devicesRepository ?? DevicesRepository.instance,
        _adbTool = adbTool ?? AdbTool(),
        _metadataReader = metadataReader ?? AvdMetadataReader(),
        _locateSdk = locateSdk ?? AndroidSdkPath.locate,
-       _createEmulatorTool = createEmulatorTool ?? _defaultEmulatorTool;
+       _createEmulatorTool = createEmulatorTool ?? _defaultEmulatorTool,
+       _createAvdManagerTool = createAvdManagerTool ?? _defaultAvdManagerTool,
+       _systemImageScanner = systemImageScanner ?? const SystemImageScanner();
 
   static EmulatorTool _defaultEmulatorTool(String executablePath) =>
       EmulatorTool(executablePath: executablePath);
+
+  static AvdManagerTool _defaultAvdManagerTool(String executablePath) =>
+      AvdManagerTool(executablePath: executablePath);
 
   final DevicesRepository _devicesRepository;
   final AdbTool _adbTool;
   final AvdMetadataReader _metadataReader;
   final AndroidSdkLocation Function() _locateSdk;
   final EmulatorTool Function(String executablePath) _createEmulatorTool;
+  final AvdManagerTool Function(String executablePath) _createAvdManagerTool;
+  final SystemImageScanner _systemImageScanner;
   final AppLogger _logger = AppLogger(source: 'EmulatorManagerController');
 
   /// Called once a launched AVD has booted far enough for adb to call it
@@ -78,6 +91,13 @@ class EmulatorManagerController extends ChangeNotifier {
   List<EmulatorEntry> _entries = const [];
   EmulatorTool? _emulatorTool;
   String? _emulatorToolPath;
+  AvdManagerTool? _avdManagerTool;
+  String? _avdManagerToolPath;
+
+  List<SystemImage> _systemImages = const [];
+  List<DeviceProfile> _deviceProfiles = const [];
+  var _loadingCreationOptions = false;
+  var _hasLoadedCreationOptions = false;
 
   var _loading = false;
   var _busy = false;
@@ -125,6 +145,17 @@ class EmulatorManagerController extends ChangeNotifier {
   String? get message => _message;
   String? get error => _error;
 
+  /// System images already installed in this SDK — the only ones an AVD can be
+  /// created from here. Downloading one is `sdkmanager`'s job, not ours.
+  List<SystemImage> get systemImages => List.unmodifiable(_systemImages);
+
+  /// Hardware profiles `avdmanager` accepts. Empty is workable: `-d` is
+  /// optional, and the emulator falls back to a generic device.
+  List<DeviceProfile> get deviceProfiles => List.unmodifiable(_deviceProfiles);
+
+  bool get isLoadingCreationOptions => _loadingCreationOptions;
+  bool get hasLoadedCreationOptions => _hasLoadedCreationOptions;
+
   /// Names of AVDs whose launch has been fired but whose device has not booted
   /// yet.
   @visibleForTesting
@@ -147,11 +178,15 @@ class EmulatorManagerController extends ChangeNotifier {
 
   /// Re-reads the SDK: where it is, which AVDs it has, and what is in each
   /// one's `config.ini`.
-  Future<void> refresh() async {
+  ///
+  /// [clearFeedback] is false when this runs as the tail of another action —
+  /// creating or deleting reloads the list, and wiping the result of the thing
+  /// the user just did would leave a failure with nothing to show for it.
+  Future<void> refresh({bool clearFeedback = true}) async {
     if (_disposed) return;
 
     _loading = true;
-    _error = null;
+    if (clearFeedback) _error = null;
     _notify();
 
     try {
@@ -319,6 +354,144 @@ class EmulatorManagerController extends ChangeNotifier {
     }
   }
 
+  // ── Creating and deleting ────────────────────────────────────────────────
+
+  /// Loads what the create sheet needs: the installed system images, and the
+  /// hardware profiles `avdmanager` knows.
+  ///
+  /// The two halves cost wildly different amounts — the images are a directory
+  /// walk, the profiles a JVM start of about a second and a half — so the
+  /// result is kept for the life of the dialog and only re-read when the SDK
+  /// itself changes under it.
+  Future<void> loadCreationOptions({bool force = false}) async {
+    if (_disposed || _loadingCreationOptions) return;
+    if (_hasLoadedCreationOptions && !force) return;
+
+    final sdk = _sdk;
+    if (sdk == null || !sdk.isReady) return;
+
+    _loadingCreationOptions = true;
+    _notify();
+
+    try {
+      _systemImages = await _systemImageScanner.scan(sdk.sdkPath!);
+      if (_disposed) return;
+
+      final avdManager = _avdManagerFor(sdk);
+      _deviceProfiles = avdManager == null
+          ? const []
+          : await avdManager.listDeviceProfiles();
+      if (_disposed) return;
+
+      _hasLoadedCreationOptions = true;
+    } finally {
+      _loadingCreationOptions = false;
+      _notify();
+    }
+  }
+
+  /// Creates an AVD from an image already on disk, then reloads the list.
+  ///
+  /// Returns whether it was created. The new AVD is stopped, like any other —
+  /// creating is not launching.
+  Future<bool> createEmulator({
+    required String name,
+    required String packagePath,
+    String? deviceProfileId,
+  }) async {
+    final sdk = _sdk;
+    final avdManager = sdk == null ? null : _avdManagerFor(sdk);
+    if (avdManager == null) {
+      return _fail(
+        'Creating emulators needs the SDK’s command-line tools. Install '
+        'cmdline-tools from Android Studio’s SDK Manager.',
+      );
+    }
+    if (_busy) {
+      return _fail('Finish the current emulator action before creating one.');
+    }
+
+    final trimmed = name.trim();
+    final invalid = AvdManagerTool.describeInvalidName(trimmed);
+    if (invalid != null) return _fail(invalid);
+    if (entryFor(trimmed) != null) {
+      return _fail('An emulator called $trimmed already exists.');
+    }
+
+    _busy = true;
+    _message = null;
+    _error = null;
+    _notify();
+
+    try {
+      final result = await avdManager.createAvd(
+        name: trimmed,
+        packagePath: packagePath,
+        deviceProfileId: deviceProfileId,
+      );
+      if (_disposed) return result.isSuccess;
+
+      if (!result.isSuccess) {
+        _error = result.error ?? 'Could not create $trimmed.';
+        return false;
+      }
+      _message = result.message;
+      return true;
+    } finally {
+      _busy = false;
+      _notify();
+      // Outside the guard: the list has to pick the new AVD up, and refresh
+      // clears its own busy state.
+      if (!_disposed) await refresh(clearFeedback: false);
+    }
+  }
+
+  /// Deletes an AVD and everything in it.
+  ///
+  /// Refused while it is running: `avdmanager` would pull the disk images out
+  /// from under a live emulator, and what survives is neither a working AVD
+  /// nor a clean absence.
+  Future<bool> deleteEmulator(String name) async {
+    final sdk = _sdk;
+    final avdManager = sdk == null ? null : _avdManagerFor(sdk);
+    if (avdManager == null) {
+      return _fail(
+        'Deleting emulators needs the SDK’s command-line tools. Install '
+        'cmdline-tools from Android Studio’s SDK Manager.',
+      );
+    }
+    if (_busy) {
+      return _fail('Finish the current emulator action before deleting one.');
+    }
+
+    final entry = entryFor(name);
+    if (entry == null) return _fail('$name is no longer in this SDK.');
+    if (!entry.isStopped) {
+      return _fail('Stop ${entry.label} before deleting it.');
+    }
+
+    _busy = true;
+    _message = null;
+    _error = null;
+    _notify();
+
+    try {
+      final result = await avdManager.deleteAvd(name);
+      if (_disposed) return result.isSuccess;
+
+      if (!result.isSuccess) {
+        _error = result.error ?? 'Could not delete ${entry.label}.';
+        return false;
+      }
+      _message = 'Deleted ${entry.label}.';
+      return true;
+    } finally {
+      _busy = false;
+      _notify();
+      if (!_disposed) await refresh(clearFeedback: false);
+    }
+  }
+
   void clearFeedback() {
     if (_message == null && _error == null) return;
     _message = null;
@@ -475,6 +648,21 @@ class EmulatorManagerController extends ChangeNotifier {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
+
+  /// `null` when this SDK has no `cmdline-tools`, which is an ordinary state:
+  /// listing and launching work without it, only create and delete do not.
+  AvdManagerTool? _avdManagerFor(AndroidSdkLocation sdk) {
+    final path = sdk.avdManagerExecutable;
+    if (path == null) return null;
+
+    final tool = _avdManagerTool;
+    if (tool != null && _avdManagerToolPath == path) return tool;
+
+    final created = _createAvdManagerTool(path);
+    _avdManagerTool = created;
+    _avdManagerToolPath = path;
+    return created;
+  }
 
   EmulatorTool _toolFor(AndroidSdkLocation sdk) {
     final path = sdk.emulatorExecutable!;

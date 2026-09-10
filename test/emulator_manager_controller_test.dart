@@ -18,6 +18,8 @@ void main() {
   late FakeIosDeviceService iosDeviceService;
   late FakeEmulatorTool emulatorTool;
   late FakeAvdMetadataReader metadataReader;
+  late FakeAvdManagerTool avdManager;
+  late FakeSystemImageScanner imageScanner;
   late DevicesRepository repository;
   EmulatorManagerController? controller;
 
@@ -32,6 +34,8 @@ void main() {
       metadataReader: metadataReader,
       locateSdk: () => sdk,
       createEmulatorTool: (_) => emulatorTool,
+      createAvdManagerTool: (_) => avdManager,
+      systemImageScanner: imageScanner,
       onEmulatorReady: (device) async => readyDevices.add(device),
     );
   }
@@ -41,6 +45,8 @@ void main() {
     iosDeviceService = FakeIosDeviceService();
     emulatorTool = FakeEmulatorTool();
     metadataReader = FakeAvdMetadataReader();
+    avdManager = FakeAvdManagerTool();
+    imageScanner = FakeSystemImageScanner();
     readyDevices.clear();
     sdk = fakeReadySdk;
     repository = DevicesRepository.forTesting(
@@ -401,6 +407,197 @@ void main() {
     expect(stopped, isFalse);
     expect(controller.error, contains('not running'));
     expect(adbTool.killRequests, isEmpty);
+  });
+
+  // ── Creating and deleting ────────────────────────────────────────────────
+
+  test('the create sheet gets the installed images and the profiles', () async {
+    imageScanner.images = const [fakePlayStoreImage];
+    avdManager.profiles = const [fakePixelProfile, fakeTvProfile];
+
+    final controller = buildController();
+    await controller.refresh();
+    await controller.loadCreationOptions();
+
+    expect(imageScanner.scanRequests, ['/fake/sdk']);
+    expect(controller.systemImages, [fakePlayStoreImage]);
+    expect(controller.deviceProfiles, hasLength(2));
+    expect(controller.hasLoadedCreationOptions, isTrue);
+  });
+
+  test('the options are loaded once, not on every open', () async {
+    imageScanner.images = const [fakePlayStoreImage];
+
+    final controller = buildController();
+    await controller.refresh();
+    await controller.loadCreationOptions();
+    await controller.loadCreationOptions();
+    await controller.loadCreationOptions();
+
+    expect(
+      avdManager.listProfilesCallCount,
+      1,
+      reason: 'each avdmanager call costs a JVM start of about 1.5s',
+    );
+    expect(imageScanner.scanRequests, hasLength(1));
+  });
+
+  test('force re-reads them, for an SDK that changed underneath', () async {
+    final controller = buildController();
+    await controller.refresh();
+    await controller.loadCreationOptions();
+    await controller.loadCreationOptions(force: true);
+
+    expect(avdManager.listProfilesCallCount, 2);
+  });
+
+  test('an SDK without cmdline-tools still loads its images', () async {
+    sdk = const AndroidSdkLocation(
+      status: AndroidSdkStatus.ready,
+      sdkPath: '/fake/sdk',
+      emulatorExecutable: '/fake/sdk/emulator/emulator',
+    );
+    imageScanner.images = const [fakePlayStoreImage];
+
+    final controller = buildController();
+    await controller.refresh();
+    await controller.loadCreationOptions();
+
+    expect(controller.systemImages, [fakePlayStoreImage]);
+    expect(controller.deviceProfiles, isEmpty);
+    expect(avdManager.listProfilesCallCount, 0);
+  });
+
+  test('create passes the image and profile through, then reloads', () async {
+    emulatorTool.avdNames = [];
+
+    final controller = buildController();
+    await controller.refresh();
+
+    emulatorTool.avdNames = ['Pixel_7_API_34'];
+    final created = await controller.createEmulator(
+      name: 'Pixel_7_API_34',
+      packagePath: fakePlayStoreImage.packagePath,
+      deviceProfileId: 'pixel_7',
+    );
+
+    expect(created, isTrue);
+    expect(avdManager.createRequests, [
+      ('Pixel_7_API_34', fakePlayStoreImage.packagePath, 'pixel_7'),
+    ]);
+    expect(
+      controller.entryFor('Pixel_7_API_34')?.isStopped,
+      isTrue,
+      reason: 'creating is not launching, and the list has to show it',
+    );
+  });
+
+  test('a name is trimmed and checked before the JVM starts', () async {
+    final controller = buildController();
+    await controller.refresh();
+
+    final created = await controller.createEmulator(
+      name: 'has spaces',
+      packagePath: fakePlayStoreImage.packagePath,
+    );
+
+    expect(created, isFalse);
+    expect(controller.error, contains('no spaces'));
+    expect(avdManager.createRequests, isEmpty);
+  });
+
+  test('a name already taken is refused', () async {
+    emulatorTool.avdNames = ['Small_Phone'];
+
+    final controller = buildController();
+    await controller.refresh();
+    final created = await controller.createEmulator(
+      name: '  Small_Phone  ',
+      packagePath: fakePlayStoreImage.packagePath,
+    );
+
+    expect(created, isFalse);
+    expect(controller.error, contains('already exists'));
+    expect(avdManager.createRequests, isEmpty);
+  });
+
+  test('a create that avdmanager rejects is reported', () async {
+    avdManager.createResult = DeviceCommandResult.failure(
+      error: 'Package path is not valid.',
+    );
+
+    final controller = buildController();
+    await controller.refresh();
+    final created = await controller.createEmulator(
+      name: 'Broken',
+      packagePath: 'system-images;android-99;google_apis;arm64-v8a',
+    );
+
+    expect(created, isFalse);
+    expect(controller.error, 'Package path is not valid.');
+  });
+
+  test('creating without cmdline-tools says what is missing', () async {
+    sdk = const AndroidSdkLocation(
+      status: AndroidSdkStatus.ready,
+      sdkPath: '/fake/sdk',
+      emulatorExecutable: '/fake/sdk/emulator/emulator',
+    );
+
+    final controller = buildController();
+    await controller.refresh();
+    final created = await controller.createEmulator(
+      name: 'Nope',
+      packagePath: fakePlayStoreImage.packagePath,
+    );
+
+    expect(created, isFalse);
+    expect(controller.canManageAvds, isFalse);
+    expect(controller.error, contains('cmdline-tools'));
+  });
+
+  test('delete removes the AVD and reloads the list', () async {
+    emulatorTool.avdNames = ['Small_Phone'];
+
+    final controller = buildController();
+    await controller.refresh();
+
+    emulatorTool.avdNames = [];
+    final deleted = await controller.deleteEmulator('Small_Phone');
+
+    expect(deleted, isTrue);
+    expect(avdManager.deleteRequests, ['Small_Phone']);
+    expect(controller.entries, isEmpty);
+  });
+
+  test('a running AVD is never deleted out from under itself', () async {
+    emulatorTool.avdNames = ['Small_Phone'];
+    adbTool.avdNames['emulator-5554'] = 'Small_Phone';
+    await setDevices([Device.android('emulator-5554', 'device')]);
+
+    final controller = buildController();
+    await controller.refresh();
+    final deleted = await controller.deleteEmulator('Small_Phone');
+
+    expect(deleted, isFalse);
+    expect(controller.error, contains('Stop Small Phone'));
+    expect(
+      avdManager.deleteRequests,
+      isEmpty,
+      reason:
+          'pulling the disk images out from under a live emulator leaves '
+          'neither a working AVD nor a clean absence',
+    );
+  });
+
+  test('deleting an AVD that is already gone is reported', () async {
+    final controller = buildController();
+    await controller.refresh();
+
+    final deleted = await controller.deleteEmulator('Ghost');
+
+    expect(deleted, isFalse);
+    expect(avdManager.deleteRequests, isEmpty);
   });
 
   // ── The poll itself ──────────────────────────────────────────────────────

@@ -27,6 +27,8 @@ void main() {
   late FakeIosDeviceService iosDeviceService;
   late FakeEmulatorTool emulatorTool;
   late FakeAvdMetadataReader metadataReader;
+  late FakeAvdManagerTool avdManager;
+  late FakeSystemImageScanner imageScanner;
   late DevicesRepository repository;
   DeviceSessionManager? manager;
   EmulatorManagerController? controller;
@@ -44,6 +46,8 @@ void main() {
     iosDeviceService = FakeIosDeviceService();
     emulatorTool = FakeEmulatorTool();
     metadataReader = FakeAvdMetadataReader();
+    avdManager = FakeAvdManagerTool();
+    imageScanner = FakeSystemImageScanner();
     snackBars.clear();
     sdk = fakeReadySdk;
     repository = DevicesRepository.forTesting(
@@ -109,6 +113,8 @@ void main() {
                         metadataReader: metadataReader,
                         locateSdk: () => sdk,
                         createEmulatorTool: (_) => emulatorTool,
+                        createAvdManagerTool: (_) => avdManager,
+                        systemImageScanner: imageScanner,
                         onEmulatorReady: onEmulatorReady,
                       ),
                 ),
@@ -432,6 +438,166 @@ void main() {
     expect(find.byType(EmulatorTile), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Start'), findsOneWidget);
     expect(tester.takeException(), isNull);
+
+    await closeDialog(tester);
+  });
+
+  // ── Creating and deleting ────────────────────────────────────────────────
+
+  testWidgets('the create sheet offers the installed images', (tester) async {
+    emulatorTool.avdNames = ['Small_Phone'];
+    imageScanner.images = const [fakePlayStoreImage];
+    avdManager.profiles = const [fakePixelProfile, fakeTvProfile];
+
+    await pumpDialog(tester);
+    await tester.tap(find.widgetWithText(TextButton, 'New'));
+    await pumpAction(tester);
+
+    expect(find.text('New emulator'), findsOneWidget);
+    expect(find.text('API 34 · Google Play · arm64-v8a'), findsOneWidget);
+    // The TV profile belongs to another device class and is not offered for a
+    // phone image — that pairing boots to a blank screen.
+    expect(find.text('Pixel 7 · Google'), findsOneWidget);
+    expect(find.text('Television (1080p) · Google'), findsNothing);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await pumpAction(tester);
+    await closeDialog(tester);
+  });
+
+  testWidgets('creating passes the name, image and profile through', (
+    tester,
+  ) async {
+    imageScanner.images = const [fakePlayStoreImage];
+    avdManager.profiles = const [fakePixelProfile];
+
+    await pumpDialog(tester);
+    await tester.tap(find.widgetWithText(TextButton, 'New'));
+    await pumpAction(tester);
+
+    await tester.enterText(find.byType(TextField), 'Pixel_7_API_34');
+    emulatorTool.avdNames = ['Pixel_7_API_34'];
+    await tester.tap(find.widgetWithText(FilledButton, 'Create'));
+    await pumpAction(tester);
+
+    expect(avdManager.createRequests, [
+      ('Pixel_7_API_34', fakePlayStoreImage.packagePath, 'pixel_7'),
+    ]);
+    expect(find.byType(EmulatorTile), findsOneWidget);
+
+    await closeDialog(tester);
+  });
+
+  testWidgets('a name with a space is caught in the sheet', (tester) async {
+    imageScanner.images = const [fakePlayStoreImage];
+
+    await pumpDialog(tester);
+    await tester.tap(find.widgetWithText(TextButton, 'New'));
+    await pumpAction(tester);
+
+    await tester.enterText(find.byType(TextField), 'Pixel 7');
+    await tester.tap(find.widgetWithText(FilledButton, 'Create'));
+    await pumpAction(tester);
+
+    expect(find.textContaining('no spaces'), findsOneWidget);
+    expect(
+      avdManager.createRequests,
+      isEmpty,
+      reason: 'a typo should not cost a JVM start',
+    );
+    // Still open, with the mistake shown in place rather than dismissed.
+    expect(find.widgetWithText(FilledButton, 'Create'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await pumpAction(tester);
+    await closeDialog(tester);
+  });
+
+  testWidgets('an SDK with no system images says so instead of pretending', (
+    tester,
+  ) async {
+    emulatorTool.avdNames = ['Small_Phone'];
+
+    await pumpDialog(tester);
+    await tester.tap(find.widgetWithText(TextButton, 'New'));
+    await pumpAction(tester);
+
+    expect(find.text('No system images installed'), findsOneWidget);
+    final create = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Create'),
+    );
+    expect(create.onPressed, isNull);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await pumpAction(tester);
+    await closeDialog(tester);
+  });
+
+  testWidgets('without cmdline-tools there is nothing to create with', (
+    tester,
+  ) async {
+    sdk = const AndroidSdkLocation(
+      status: AndroidSdkStatus.ready,
+      sdkPath: '/fake/sdk',
+      emulatorExecutable: '/fake/sdk/emulator/emulator',
+    );
+    emulatorTool.avdNames = ['Small_Phone'];
+
+    await pumpDialog(tester);
+
+    expect(
+      find.widgetWithText(TextButton, 'New'),
+      findsNothing,
+      reason:
+          'an action that can never work in this SDK is noise, not a '
+          'disabled button',
+    );
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await pumpAction(tester);
+    expect(find.text('Delete'), findsNothing);
+
+    await tester.tapAt(const Offset(10, 10));
+    await pumpAction(tester);
+    await closeDialog(tester);
+  });
+
+  testWidgets('deleting is confirmed, and Cancel deletes nothing', (
+    tester,
+  ) async {
+    emulatorTool.avdNames = ['Small_Phone'];
+
+    await pumpDialog(tester);
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await pumpAction(tester);
+    await tester.tap(find.text('Delete'));
+    await pumpAction(tester);
+
+    expect(find.text('Delete this emulator?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await pumpAction(tester);
+
+    expect(avdManager.deleteRequests, isEmpty);
+    expect(find.byType(EmulatorTile), findsOneWidget);
+
+    await closeDialog(tester);
+  });
+
+  testWidgets('confirming the delete removes it from the list', (tester) async {
+    emulatorTool.avdNames = ['Small_Phone'];
+
+    await pumpDialog(tester);
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await pumpAction(tester);
+    await tester.tap(find.text('Delete'));
+    await pumpAction(tester);
+
+    emulatorTool.avdNames = [];
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await pumpAction(tester);
+
+    expect(avdManager.deleteRequests, ['Small_Phone']);
+    expect(find.byType(EmulatorTile), findsNothing);
+    expect(find.text('No emulators yet'), findsOneWidget);
 
     await closeDialog(tester);
   });

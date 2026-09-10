@@ -3,16 +3,20 @@ import 'package:gap/gap.dart';
 
 import '../data/emulator_entry.dart';
 
-/// How the user chose to start an AVD.
-enum EmulatorLaunchChoice {
+/// What the user picked from a tile's menu.
+enum EmulatorTileAction {
   /// Resume the saved snapshot if there is one — the plain Start button.
-  normal,
+  start,
 
   /// Boot from scratch. The usual fix for an AVD that resumes broken.
   coldBoot,
 
   /// Factory reset, then boot. Destructive, so it is confirmed first.
   wipeData,
+
+  /// Delete the AVD outright. Also confirmed, and only offered when the SDK
+  /// has the cmdline-tools that can do it.
+  delete,
 }
 
 /// One AVD in the emulator list: what it is, and the one action it can take
@@ -25,17 +29,22 @@ class EmulatorTile extends StatelessWidget {
   const EmulatorTile({
     super.key,
     required this.entry,
-    required this.onLaunch,
+    required this.onAction,
     required this.onStop,
     this.enabled = true,
+    this.canDelete = false,
   });
 
   final EmulatorEntry entry;
-  final ValueChanged<EmulatorLaunchChoice> onLaunch;
+  final ValueChanged<EmulatorTileAction> onAction;
   final VoidCallback onStop;
 
   /// False while another emulator action is in flight.
   final bool enabled;
+
+  /// Whether this SDK has the cmdline-tools that can delete an AVD. Hidden
+  /// rather than disabled: an action that can never work here is noise.
+  final bool canDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -136,33 +145,44 @@ class EmulatorTile extends StatelessWidget {
           children: [
             FilledButton.tonalIcon(
               onPressed: enabled
-                  ? () => onLaunch(EmulatorLaunchChoice.normal)
+                  ? () => onAction(EmulatorTileAction.start)
                   : null,
               icon: const Icon(Icons.play_arrow_rounded, size: 18),
               label: const Text('Start'),
             ),
-            PopupMenuButton<EmulatorLaunchChoice>(
+            PopupMenuButton<EmulatorTileAction>(
               enabled: enabled,
-              tooltip: 'More start options',
+              tooltip: 'More options',
               icon: const Icon(Icons.more_vert, size: 18),
-              onSelected: onLaunch,
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: EmulatorLaunchChoice.coldBoot,
+              onSelected: onAction,
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: EmulatorTileAction.coldBoot,
                   child: _MenuRow(
                     Icons.restart_alt,
                     'Cold boot',
                     'Ignore the saved snapshot',
                   ),
                 ),
-                PopupMenuItem(
-                  value: EmulatorLaunchChoice.wipeData,
+                const PopupMenuItem(
+                  value: EmulatorTileAction.wipeData,
                   child: _MenuRow(
                     Icons.delete_sweep_outlined,
                     'Wipe data and start',
                     'Factory reset — cannot be undone',
                   ),
                 ),
+                if (canDelete) ...[
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(
+                    value: EmulatorTileAction.delete,
+                    child: _MenuRow(
+                      Icons.delete_outline,
+                      'Delete',
+                      'Removes the emulator and its data',
+                    ),
+                  ),
+                ],
               ],
             ),
           ],

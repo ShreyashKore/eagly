@@ -8,6 +8,7 @@ import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/eagly_dialog.dart';
 import '../../session/device_session_manager.dart';
 import '../wireless_connection/components/wireless_feedback_banner.dart';
+import 'components/create_emulator_sheet.dart';
 import 'components/emulator_tile.dart';
 import 'components/sdk_notice.dart';
 import 'services/android_sdk_picker.dart';
@@ -102,11 +103,18 @@ class _EmulatorManagerDialogState extends State<EmulatorManagerDialog> {
     }
   }
 
-  Future<void> _handleLaunch(
+  Future<void> _handleTileAction(
     EmulatorEntry entry,
-    EmulatorLaunchChoice choice,
+    EmulatorTileAction action,
   ) async {
-    if (choice == EmulatorLaunchChoice.wipeData &&
+    if (action == EmulatorTileAction.delete) {
+      if (await _confirmDelete(entry.label)) {
+        await controller.deleteEmulator(entry.name);
+      }
+      return;
+    }
+
+    if (action == EmulatorTileAction.wipeData &&
         !await _confirmWipe(entry.label)) {
       return;
     }
@@ -114,16 +122,67 @@ class _EmulatorManagerDialogState extends State<EmulatorManagerDialog> {
 
     await controller.launch(
       entry.name,
-      options: switch (choice) {
-        EmulatorLaunchChoice.normal => EmulatorLaunchOptions.normal,
-        EmulatorLaunchChoice.coldBoot => const EmulatorLaunchOptions(
+      options: switch (action) {
+        EmulatorTileAction.coldBoot => const EmulatorLaunchOptions(
           coldBoot: true,
         ),
-        EmulatorLaunchChoice.wipeData => const EmulatorLaunchOptions(
+        EmulatorTileAction.wipeData => const EmulatorLaunchOptions(
           wipeData: true,
         ),
+        _ => EmulatorLaunchOptions.normal,
       },
     );
+  }
+
+  /// Opens the create sheet, loading its options in the background so the
+  /// fields are usable before `avdmanager` has finished starting its JVM.
+  Future<void> _handleCreate() async {
+    unawaited(controller.loadCreationOptions());
+
+    final request = await showDialog<CreateEmulatorRequest>(
+      context: context,
+      builder: (_) => AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) => CreateEmulatorSheet(
+          systemImages: controller.systemImages,
+          deviceProfiles: controller.deviceProfiles,
+          isLoading: controller.isLoadingCreationOptions,
+          existingNames: {for (final entry in controller.entries) entry.name},
+        ),
+      ),
+    );
+    if (request == null || !mounted) return;
+
+    await controller.createEmulator(
+      name: request.name,
+      packagePath: request.packagePath,
+      deviceProfileId: request.deviceProfileId,
+    );
+  }
+
+  Future<bool> _confirmDelete(String label) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.delete_outline),
+        title: const Text('Delete this emulator?'),
+        content: Text(
+          '$label and everything on it is removed from disk. Recreating it '
+          'is easy; getting its contents back is not.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
   }
 
   Future<bool> _confirmWipe(String label) async {
@@ -163,6 +222,14 @@ class _EmulatorManagerDialogState extends State<EmulatorManagerDialog> {
           height: 520,
           contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
           headerActions: [
+            if (controller.canManageAvds)
+              TextButton.icon(
+                onPressed: controller.isBusy
+                    ? null
+                    : () => unawaited(_handleCreate()),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('New'),
+              ),
             IconButton(
               tooltip: 'Refresh',
               onPressed: controller.isLoading
@@ -206,12 +273,21 @@ class _EmulatorManagerDialogState extends State<EmulatorManagerDialog> {
     }
 
     if (controller.entries.isEmpty) {
-      return const CenteredStateMessage(
+      return CenteredStateMessage(
         icon: Icons.phone_android_outlined,
         title: 'No emulators yet',
-        description:
-            'This SDK has no virtual devices. Create one in Android '
-            'Studio’s Device Manager and it will show up here.',
+        description: controller.canManageAvds
+            ? 'Create one from a system image you already have installed.'
+            : 'This SDK has no virtual devices, and no cmdline-tools to '
+                  'create one with. Add them from Android Studio’s SDK '
+                  'Manager, or create an emulator in its Device Manager.',
+        footer: controller.canManageAvds
+            ? FilledButton.tonalIcon(
+                onPressed: () => unawaited(_handleCreate()),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('New emulator'),
+              )
+            : null,
       );
     }
 
@@ -224,7 +300,8 @@ class _EmulatorManagerDialogState extends State<EmulatorManagerDialog> {
         return EmulatorTile(
           entry: entry,
           enabled: !controller.isBusy,
-          onLaunch: (choice) => unawaited(_handleLaunch(entry, choice)),
+          canDelete: controller.canManageAvds,
+          onAction: (action) => unawaited(_handleTileAction(entry, action)),
           onStop: () => unawaited(controller.stopEmulator(entry.name)),
         );
       },

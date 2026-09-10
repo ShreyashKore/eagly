@@ -28,6 +28,7 @@ class _FakeAdbTool extends AdbTool {
   Future<ToolCommandResult> runTextWithTimeout(
     List<String> arguments, {
     Duration timeout = const Duration(seconds: 30),
+    bool closeStdin = false,
   }) async {
     final script = arguments.last;
     if (!script.contains(_marker)) {
