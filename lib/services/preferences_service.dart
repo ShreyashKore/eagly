@@ -55,6 +55,7 @@ class PreferencesService {
   static const _keyTipRotationIndex = 'tipRotationIndex';
   static const _keyCaptureDirectory = 'captureDirectory';
   static const _keyCaptureAskEveryTime = 'captureAskEveryTime';
+  static const _keyAndroidSdkPath = 'androidSdkPath';
 
   /// Maximum number of recently opened log files retained for quick re-open.
   static const _maxRecentLogFiles = 10;
@@ -226,6 +227,22 @@ class PreferencesService {
       _prefs.getBool(_keyCaptureAskEveryTime) ?? false;
   static set captureAskEveryTime(bool v) =>
       _prefs.setBool(_keyCaptureAskEveryTime, v);
+
+  // --- Android SDK (emulator manager) ---
+  /// Android SDK root the emulator manager should use. `null` means "work it
+  /// out" — `AndroidSdkPath.resolveSdkRoot()` then falls back to the env vars
+  /// and the platform default. Unlike `adb`, the emulator is not bundled.
+  static String? get androidSdkPath {
+    final stored = _prefs.getString(_keyAndroidSdkPath);
+    return (stored == null || stored.isEmpty) ? null : stored;
+  }
+
+  static Future<bool> setAndroidSdkPath(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return _prefs.remove(_keyAndroidSdkPath);
+    }
+    return _prefs.setString(_keyAndroidSdkPath, value.trim());
+  }
 
   // --- Column widths (stored as single JSON object) ---
 
