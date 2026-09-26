@@ -8,6 +8,8 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _interval = Duration(milliseconds: 100);
+const _fallback = Duration(seconds: 1);
+const _header = '[ 09-26 20:46:04.996  1: 2 D/Tag ]';
 
 class _CountingParser implements LogLineParser {
   final _inner = LogcatParser();
@@ -21,6 +23,9 @@ class _CountingParser implements LogLineParser {
     flushes++;
     return _inner.flush();
   }
+
+  @override
+  PendingEntryStatus get pendingEntryStatus => _inner.pendingEntryStatus;
 }
 
 /// Drives [parseLogLines] over a hand-fed line stream inside [FakeAsync].
@@ -31,6 +36,7 @@ class _Harness {
       _lines.stream,
       this.parser,
       idleFlushInterval: _interval,
+      incompleteEntryFlushDelay: _fallback,
     ).listen(entries.add, onError: errors.add);
   }
 
@@ -84,6 +90,84 @@ void main() {
 
         harness.elapse(_interval * 3);
         expect(harness.messages, ['only entry']);
+      });
+    });
+
+    test('holds a header however long its body takes, then joins them', () {
+      fakeAsync((async) {
+        final harness = _Harness(async)..add([_header]);
+        harness.elapse(_fallback * 3);
+        expect(harness.entries, isEmpty);
+
+        harness
+          ..add(['one', 'two', ''])
+          ..elapse(_interval * 3);
+        expect(harness.messages, ['one\ntwo']);
+        expect(harness.entries.single.timestamp, '09-26 20:46:04.996');
+      });
+    });
+
+    test('waits for the fallback before flushing an entry with no footer', () {
+      fakeAsync((async) {
+        final harness = _Harness(async)..add([_header, 'one']);
+        harness.elapse(_fallback ~/ 2);
+        expect(harness.entries, isEmpty);
+
+        harness
+          ..add(['two', ''])
+          ..elapse(_interval * 3);
+        expect(harness.messages, ['one\ntwo']);
+      });
+    });
+
+    test('keeps the rest of an entry cut off past the fallback', () {
+      fakeAsync((async) {
+        final harness = _Harness(async)..add([_header, 'one']);
+        harness.elapse(_fallback + _interval * 2);
+        expect(harness.messages, ['one']);
+
+        harness
+          ..add(['two', ''])
+          ..elapse(_interval * 3);
+        expect(harness.messages, ['one', 'two']);
+        final [first, rest] = harness.entries;
+        expect(
+          [rest.timestamp, rest.pid, rest.tid, rest.level, rest.tag],
+          [first.timestamp, first.pid, first.tid, first.level, first.tag],
+        );
+      });
+    });
+
+    test('flushes an entry with its footer after the short interval', () {
+      fakeAsync((async) {
+        final harness = _Harness(async)..add([_header, 'body', '']);
+        // The first tick still sees the lines; only the second is quiet.
+        harness.elapse(_interval);
+        expect(harness.entries, isEmpty);
+
+        harness.elapse(_interval);
+        expect(harness.messages, ['body']);
+      });
+    });
+
+    test('keeps an iOS continuation that arrives after an idle flush', () {
+      fakeAsync((async) {
+        final harness = _Harness(
+          async,
+          parser: IosSyslogParser(now: () => DateTime(2026, 9, 26)),
+        )..add(['Sep 26 20:46:04 MyApp[123] <Notice>: first']);
+        harness.elapse(_interval * 3);
+        expect(harness.messages, ['first']);
+
+        harness
+          ..add(['second'])
+          ..elapse(_interval * 3);
+        expect(harness.messages, ['first', 'second']);
+        final [first, rest] = harness.entries;
+        expect(
+          [rest.timestamp, rest.pid, rest.processName],
+          [first.timestamp, first.pid, first.processName],
+        );
       });
     });
 

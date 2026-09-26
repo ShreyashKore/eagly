@@ -10,6 +10,12 @@ import '../../data/models/log_entry.dart';
 /// completes (the previous one, when a new one starts), and [flush] hands over
 /// the one still being built.
 ///
+/// A flush can come too early — an idle flush while the tool is mid-write —
+/// so a parser must never drop the lines that follow one: body lines arriving
+/// after a [flush], before any new header, start a new entry under the flushed
+/// entry's header. The worst case is one message split across two rows, never
+/// lost text. Lines before the first header ever seen may be ignored.
+///
 /// Drive a parser with [parseLogLines] (a tool's line-by-line output) or
 /// [parseLogRecords] (a source that frames whole entries) rather than by hand.
 abstract interface class LogLineParser {
@@ -20,27 +26,63 @@ abstract interface class LogLineParser {
 
   /// Returns the entry being built, if any, and forgets it.
   LogEntry? flush();
+
+  /// What the parser is holding, which decides how soon an idle stream may
+  /// [flush] it.
+  PendingEntryStatus get pendingEntryStatus;
 }
 
-/// How long a log stream may stay silent before the entry the parser is
-/// holding is emitted anyway. The tools write a whole entry in one go, so in
-/// practice a gap this long only ever falls between entries.
+/// What a [LogLineParser] is holding, as far as flushing it early goes.
+enum PendingEntryStatus {
+  /// Nothing is buffered.
+  none,
+
+  /// A header whose body hasn't arrived yet. There is nothing to show, and
+  /// holding it delays nothing — the next line either fills it or starts a new
+  /// entry — so it is never flushed for being idle; end of stream flushes it.
+  awaitingBody,
+
+  /// The entry hasn't ended the way a whole entry does, so the tool may still
+  /// be writing it. Flushed only after [logLineIncompleteEntryFlushDelay].
+  incomplete,
+
+  /// The entry ends the way a whole entry does (for a format with no end
+  /// marker, always). Flushed after [logLineIdleFlushInterval].
+  complete,
+}
+
+/// How long a log stream may stay silent before an entry that looks complete
+/// is emitted. The tools write a whole entry in one go, so a gap this long
+/// almost always falls between entries — and when it doesn't, the rest of the
+/// entry becomes a second row rather than being lost.
 const Duration logLineIdleFlushInterval = Duration(milliseconds: 100);
 
+/// How long a log stream may stay silent before an entry that looks cut off
+/// (see [PendingEntryStatus.incomplete]) is emitted anyway, so a missing end
+/// marker can't hide the last entry until the next one arrives.
+const Duration logLineIncompleteEntryFlushDelay = Duration(seconds: 1);
+
 /// Parses [lines] with [parser], flushing the entry it holds when [lines]
-/// ends or goes quiet for [idleFlushInterval] (without that, the last entry of
-/// a burst would wait for the next line, which may be a long time coming).
+/// ends or goes quiet (without that, the last entry of a burst would wait for
+/// the next line, which may be a long time coming). How long "quiet" is
+/// depends on [LogLineParser.pendingEntryStatus]: [idleFlushInterval] for an
+/// entry that looks complete, [incompleteEntryFlushDelay] for one that doesn't.
+///
+/// Silence is sampled on one periodic timer rather than a timer reset per
+/// line, which a high-volume stream would pay for on every line.
 ///
 /// Errors on [lines] are forwarded unchanged.
 Stream<LogEntry> parseLogLines(
   Stream<String> lines,
   LogLineParser parser, {
   Duration idleFlushInterval = logLineIdleFlushInterval,
+  Duration incompleteEntryFlushDelay = logLineIncompleteEntryFlushDelay,
 }) {
   late final StreamController<LogEntry> controller;
   StreamSubscription<String>? subscription;
   Timer? idleFlushTimer;
   var sawLineSinceTick = false;
+  var quietTicks = 0;
 
   void emitPending() {
     final pending = parser.flush();
@@ -52,9 +94,17 @@ Stream<LogEntry> parseLogLines(
       idleFlushTimer = Timer.periodic(idleFlushInterval, (_) {
         if (sawLineSinceTick) {
           sawLineSinceTick = false;
+          quietTicks = 0;
           return;
         }
-        emitPending();
+        quietTicks++;
+        final flushDue = switch (parser.pendingEntryStatus) {
+          PendingEntryStatus.none || PendingEntryStatus.awaitingBody => false,
+          PendingEntryStatus.complete => true,
+          PendingEntryStatus.incomplete =>
+            idleFlushInterval * quietTicks >= incompleteEntryFlushDelay,
+        };
+        if (flushDue) emitPending();
       });
       subscription = lines.listen(
         (line) {

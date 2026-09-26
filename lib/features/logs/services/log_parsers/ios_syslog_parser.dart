@@ -38,6 +38,10 @@ class IosSyslogParser implements LogLineParser {
   final DateTime Function() _now;
   _IosSyslogEntryBuilder? _currentEntry;
 
+  /// The header of the entry [flush] last handed over, for continuation lines
+  /// that turn up after it. Cleared by the next header.
+  _IosSyslogEntryBuilder? _flushedHeader;
+
   @override
   List<LogEntry> addLine(String line) {
     final normalizedLine = _decodeMetaEscapes(line);
@@ -48,18 +52,29 @@ class IosSyslogParser implements LogLineParser {
     if (parsedHeader != null) {
       final previousEntry = _currentEntry?.build();
       _currentEntry = parsedHeader;
+      _flushedHeader = null;
       return [?previousEntry];
     }
 
-    _currentEntry?.appendContinuation(normalizedLine);
+    final entry = _currentEntry ??= _flushedHeader?.resumed();
+    entry?.appendContinuation(normalizedLine);
     return const [];
   }
 
+  /// A syslog entry has no end marker: the header line already carries the
+  /// first line of the message, and any continuation is only extra.
+  @override
+  PendingEntryStatus get pendingEntryStatus => _currentEntry == null
+      ? PendingEntryStatus.none
+      : PendingEntryStatus.complete;
+
   @override
   LogEntry? flush() {
-    final entry = _currentEntry?.build();
+    final entry = _currentEntry;
+    if (entry == null) return null;
     _currentEntry = null;
-    return entry;
+    _flushedHeader = entry;
+    return entry.build();
   }
 
   static String? normalizeTimestamp(
@@ -194,13 +209,26 @@ class _IosSyslogEntryBuilder {
     required this.pid,
     required this.level,
     required String message,
-  }) : _message = StringBuffer(message);
+  }) : _message = StringBuffer(message),
+       isResumed = false;
+
+  /// Carries on [flushed] under its header, for continuation lines that
+  /// arrived after it was flushed; the message starts empty.
+  _IosSyslogEntryBuilder._resumed(_IosSyslogEntryBuilder flushed)
+    : timestamp = flushed.timestamp,
+      processLabel = flushed.processLabel,
+      pid = flushed.pid,
+      level = flushed.level,
+      _message = StringBuffer(),
+      isResumed = true;
 
   final String timestamp;
   final String processLabel;
   final String pid;
   final String level;
   final StringBuffer _message;
+  final bool isResumed;
+  var _hasContinuation = false;
 
   static _IosSyslogEntryBuilder? tryParse(
     String line, {
@@ -231,12 +259,21 @@ class _IosSyslogEntryBuilder {
   static String _mapLevel(String rawLevel) =>
       LogLevel.normalizeIosStoredLevel(rawLevel);
 
+  _IosSyslogEntryBuilder resumed() => _IosSyslogEntryBuilder._resumed(this);
+
   void appendContinuation(String line) {
-    _message.writeln();
+    // A resumed entry's first line opens the message instead of following
+    // the header's text.
+    if (!isResumed || _hasContinuation) _message.writeln();
     _message.write(line);
+    _hasContinuation = true;
   }
 
-  LogEntry build() {
+  /// Returns null for a resumed entry holding nothing but blank lines, which
+  /// would otherwise show as an empty row.
+  LogEntry? build() {
+    if (isResumed && _message.toString().trim().isEmpty) return null;
+
     // idevicesyslog line format (group 2 of the header pattern):
     //   <processName>[(<variant>)]*(<category>)
     // Examples:

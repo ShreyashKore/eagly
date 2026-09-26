@@ -150,6 +150,42 @@ void main() {
       expect(restored.message, entry.message);
     });
 
+    test('continuations after a flush start a new entry under its header', () {
+      final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
+      parser.addLine(
+        'Apr 23 17:10:40.588246 novio (R14)(Flutter)[5727] <Notice>: head',
+      );
+      final first = parser.flush()!;
+
+      parser.addLine('late one');
+      parser.addLine('late two');
+      final rest = parser.flush()!;
+
+      expect(first.message, 'head');
+      expect(rest.message, 'late one\nlate two');
+      expect(
+        [rest.timestamp, rest.pid, rest.level, rest.tag, rest.processName],
+        [first.timestamp, first.pid, first.level, first.tag, first.processName],
+      );
+    });
+
+    test('blank continuations after a flush add no empty row', () {
+      final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
+      parser.addLine('Apr 23 17:10:40.588246 novio[5727] <Notice>: head');
+      parser.flush();
+
+      parser.addLine('');
+      parser.addLine('   ');
+      expect(parser.flush(), isNull);
+    });
+
+    test('ignores continuations before the first header', () {
+      final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
+
+      expect(parser.addLine('orphan'), isEmpty);
+      expect(parser.flush(), isNull);
+    });
+
     test('preserves unknown iOS raw level values', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
 

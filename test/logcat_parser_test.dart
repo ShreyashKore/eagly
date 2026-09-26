@@ -1,4 +1,5 @@
 import 'package:eagly/features/logs/data/models/log_entry.dart';
+import 'package:eagly/features/logs/services/log_parsers/log_line_parser.dart';
 import 'package:eagly/features/logs/services/log_parsers/logcat_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -96,7 +97,7 @@ void main() {
       expect(logs.single.tag, 'My Tag [x]');
     });
 
-    test('ignores lines that arrive before any header', () {
+    test('ignores lines that arrive before the first header', () {
       final logs = _parseAll([
         'stray output',
         '[ 09-26 20:46:05.034  1: 2 I/Tag ]',
@@ -104,6 +105,69 @@ void main() {
       ]);
 
       expect(logs.single.message, 'hello');
+    });
+
+    test('body lines after a flush start a new entry under its header', () {
+      final parser = LogcatParser();
+      parser.addLine('[ 09-26 20:46:05.034  1: 2 I/Tag ]');
+      parser.addLine('first half');
+      final first = parser.flush()!;
+
+      parser.addLine('second half');
+      parser.addLine('');
+      final rest = parser.flush()!;
+
+      expect(first.message, 'first half');
+      expect(rest.message, 'second half');
+      expect(
+        [rest.timestamp, rest.pid, rest.tid, rest.level, rest.tag],
+        [first.timestamp, first.pid, first.tid, first.level, first.tag],
+      );
+      expect(rest.id, isNot(first.id));
+    });
+
+    test('a footer arriving after a flush adds no empty row', () {
+      final parser = LogcatParser();
+      parser.addLine('[ 09-26 20:46:05.034  1: 2 I/Tag ]');
+      parser.addLine('body');
+      expect(parser.flush()?.message, 'body');
+
+      expect(parser.addLine(''), isEmpty);
+      expect(parser.flush(), isNull);
+    });
+
+    test('keeps a genuinely empty message', () {
+      final logs = _parseAll(['[ 09-26 20:46:05.034  1: 2 I/Tag ]', '', '']);
+
+      expect(logs.single.message, '');
+    });
+
+    test('a separator ends the flushed entry\'s claim on later lines', () {
+      final parser = LogcatParser();
+      parser.addLine('[ 09-26 20:46:05.034  1: 2 I/Tag ]');
+      parser.addLine('body');
+      parser.flush();
+
+      parser.addLine('--------- switch to crash');
+      parser.addLine('stray');
+      expect(parser.flush(), isNull);
+    });
+
+    test('reports how complete the pending entry looks', () {
+      final parser = LogcatParser();
+      expect(parser.pendingEntryStatus, PendingEntryStatus.none);
+
+      parser.addLine('[ 09-26 20:46:05.034  1: 2 I/Tag ]');
+      expect(parser.pendingEntryStatus, PendingEntryStatus.awaitingBody);
+
+      parser.addLine('body');
+      expect(parser.pendingEntryStatus, PendingEntryStatus.incomplete);
+
+      parser.addLine('');
+      expect(parser.pendingEntryStatus, PendingEntryStatus.complete);
+
+      parser.flush();
+      expect(parser.pendingEntryStatus, PendingEntryStatus.none);
     });
   });
 }
