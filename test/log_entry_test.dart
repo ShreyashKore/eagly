@@ -11,16 +11,17 @@ void main() {
   final parser = LogcatParser();
   group('LogEntry', () {
     test('parseFromLogcat assigns a unique incrementing internal ID', () {
-      final first = parser.parse(
-        '04-26 20:54:02.025 1234 5678 I AuthTag: first message',
-      );
-      final second = parser.parse(
-        '04-26 20:54:02.026 1234 5678 I AuthTag: second message',
-      );
+      parser.addLine('[ 04-26 20:54:02.025  1234: 5678 I/AuthTag  ]').toList();
+      parser.addLine('first message').toList();
+      final first = parser
+          .addLine('[ 04-26 20:54:02.026  1234: 5678 I/AuthTag  ]')
+          .single;
+      parser.addLine('second message').toList();
+      final second = parser.flush();
 
       expect(first, isNotNull);
       expect(second, isNotNull);
-      expect(first!.id, isNonNegative);
+      expect(first.id, isNonNegative);
       expect(second!.id, first.id + 1);
       expect(first.id, isNot(second.id));
     });
@@ -92,10 +93,12 @@ void main() {
       expect(paused.specialSearchableText, contains('Paused'));
     });
 
-    test('parses fatal Android threadtime lines and trims padded tags', () {
-      final entry = parser.parse(
-        '05-14 17:12:59.035  2002 12397 F DEBUG   : Softversion: PD2201IF_EX_A_14.2.14.2.W30.V000L1',
-      );
+    test('parses fatal Android long-format entries and trims padded tags', () {
+      parser.addLine('[ 05-14 17:12:59.035  2002:12397 F/DEBUG    ]').toList();
+      parser
+          .addLine('Softversion: PD2201IF_EX_A_14.2.14.2.W30.V000L1')
+          .toList();
+      final entry = parser.flush();
 
       expect(entry, isNotNull);
       expect(entry!.type, LogEntryType.log);
@@ -105,10 +108,10 @@ void main() {
     });
 
     test('parses logcat section separators into special notice entries', () {
-      final entry = parser.parse('--------- beginning of crash');
+      final entry = parser.addLine('--------- beginning of crash').single;
 
       expect(entry, isNotNull);
-      expect(entry!.type, LogEntryType.notice);
+      expect(entry.type, LogEntryType.notice);
       expect(entry.isSpecialEntry, isTrue);
       expect(entry.isUserSelectable, isFalse);
       expect(entry.tag, 'adb logcat');
