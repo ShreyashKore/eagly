@@ -39,6 +39,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _tipsEnabled;
   late String _captureDirectory;
   late bool _captureAskEveryTime;
+  late bool _rememberHiddenColumns;
   late AndroidSdkLocation _androidSdk;
   late final TextEditingController _logLinesController;
 
@@ -55,6 +56,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _tipsEnabled = PreferencesService.tipsEnabled;
     _captureDirectory = CaptureStorage.resolveDirectory();
     _captureAskEveryTime = PreferencesService.captureAskEveryTime;
+    _rememberHiddenColumns = PreferencesService.rememberHiddenColumns;
     _androidSdk = AndroidSdkPath.locate();
     _logLinesController = TextEditingController(
       text: PreferencesService.logLinesLimit.toString(),
@@ -564,6 +566,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           sectionCard(
             title: 'Stored layout defaults',
             children: [
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: _rememberHiddenColumns,
+                title: const Text('Remember hidden columns'),
+                subtitle: const Text(
+                  'Columns shown or hidden in a log tab become the default '
+                  'for new tabs',
+                ),
+                onChanged: (value) {
+                  setState(() => _rememberHiddenColumns = value);
+                  PreferencesService.rememberHiddenColumns = value;
+                },
+              ),
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,

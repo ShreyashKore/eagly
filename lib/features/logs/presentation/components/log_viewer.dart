@@ -648,6 +648,7 @@ class _LogViewerState extends State<LogViewer> {
     // the callback here: routing later toggles through the dead State would
     // drop them, leaving the checkboxes flipping with no columns to match.
     final onHiddenColumnsChanged = widget.onHiddenColumnsChanged;
+    var latestHidden = Set.of(_hiddenColumns);
     showMenu<void>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -664,8 +665,19 @@ class _LogViewerState extends State<LogViewer> {
             hiddenColumns: _hiddenColumns,
             isIos: widget.isIos,
             onChanged: (hidden) {
+              latestHidden = Set.of(hidden);
               _applyHiddenColumns(hidden);
               onHiddenColumnsChanged?.call(Set.of(hidden));
+              if (PreferencesService.rememberHiddenColumns) {
+                PreferencesService.hiddenColumns = latestHidden;
+              }
+            },
+            rememberForNewTabs: PreferencesService.rememberHiddenColumns,
+            // Opting back in adopts what this tab shows right now; opting out
+            // keeps the stored default untouched (Settings can reset it).
+            onRememberForNewTabsChanged: (remember) {
+              PreferencesService.rememberHiddenColumns = remember;
+              if (remember) PreferencesService.hiddenColumns = latestHidden;
             },
           ),
         ),

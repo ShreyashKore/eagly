@@ -201,4 +201,69 @@ void main() {
       expect(visibleColumns(), contains(LogColumn.tag));
     },
   );
+
+  group('remembering hidden columns', () {
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      await PreferencesService.init();
+    });
+
+    Future<void> openMenu(WidgetTester tester) async {
+      final scrollController = ScrollController();
+      addTearDown(scrollController.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: LogViewer(
+              logs: [testLogEntry(message: 'Message')],
+              scrollController: scrollController,
+              wrapText: false,
+              rowSelectionMode: false,
+              selectedRowIndices: const {},
+              search: const TextSearchConfig(),
+              hiddenColumns: const {},
+              columnWidths: const {},
+              onHiddenColumnsChanged: (_) {},
+              isIos: false,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byIcon(Icons.view_column_outlined));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a toggle becomes the default for new tabs', (tester) async {
+      await openMenu(tester);
+
+      await tester.tap(find.text(LogColumn.tag.labelFor()).last);
+      await tester.pumpAndSettle();
+
+      expect(PreferencesService.hiddenColumns, {LogColumn.tag.name});
+      expect(PreferencesService.defaultTabSettings.hiddenColumns, {
+        LogColumn.tag.name,
+      });
+    });
+
+    testWidgets('opting out from the menu stops saving, opting in adopts', (
+      tester,
+    ) async {
+      await openMenu(tester);
+
+      await tester.tap(find.text('Use for new tabs'));
+      await tester.pumpAndSettle();
+      expect(PreferencesService.rememberHiddenColumns, isFalse);
+
+      await tester.tap(find.text(LogColumn.tag.labelFor()).last);
+      await tester.pumpAndSettle();
+      expect(PreferencesService.hiddenColumns, isEmpty);
+
+      // Opting back in saves what the tab shows right now.
+      await tester.tap(find.text('Use for new tabs'));
+      await tester.pumpAndSettle();
+      expect(PreferencesService.rememberHiddenColumns, isTrue);
+      expect(PreferencesService.hiddenColumns, {LogColumn.tag.name});
+    });
+  });
 }

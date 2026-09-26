@@ -116,6 +116,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   stream EOF (no cheap liveness probe).
 - **Device statuses:** Android is connected only when `adb` status == `device` (offline/
   unauthorized ⇒ disconnected). iOS presence in `idevice_id -l` ⇒ connected.
+- **Hidden columns persist across tabs and launches** unless the user opts out
+  (`PreferencesService.rememberHiddenColumns`, default on; toggled from the column popup's
+  last row and in Settings). The write happens in `LogViewer`'s popup handler, not in
+  `LogController` — the controller only holds per-tab state. Opting back in saves the
+  current tab's set; opting out leaves the stored default alone.
 - **Multiple log tabs** per device via `LogSessionManager` (first live tab is permanent;
   extra live + imported tabs allowed).
 - **Screen captures:** screenshots and `screenrecord` videos taken from the mirror pane

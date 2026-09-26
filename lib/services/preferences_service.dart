@@ -46,6 +46,7 @@ class PreferencesService {
   static const _keyFilterViewMode = 'filterViewMode';
   static const _keyColumnWidths = 'columnWidths';
   static const _keyHiddenColumns = 'hiddenColumns';
+  static const _keyRememberHiddenColumns = 'rememberHiddenColumns';
   static const _keyLogLinesLimit = 'logLinesLimit';
   static const _keyThemeMode = 'themeMode';
   static const _keyLastFileDialogDirectory = 'lastFileDialogDirectory';
@@ -272,6 +273,14 @@ class PreferencesService {
 
   static set hiddenColumns(Set<String> v) =>
       _prefs.setJson(_keyHiddenColumns, v.toList());
+
+  /// When true, showing or hiding a column in a log tab also saves that set as
+  /// [hiddenColumns], so new tabs (and later sessions) open with it. Opting out
+  /// leaves the stored set as it was; Settings can reset it.
+  static bool get rememberHiddenColumns =>
+      _prefs.getBool(_keyRememberHiddenColumns) ?? true;
+  static set rememberHiddenColumns(bool v) =>
+      _prefs.setBool(_keyRememberHiddenColumns, v);
 
   static ThemeMode? _themeModeFromName(String? value) {
     return switch (value) {

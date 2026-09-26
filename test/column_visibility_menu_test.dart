@@ -10,6 +10,7 @@ void main() {
   Future<List<Set<String>>> pumpMenu(
     WidgetTester tester, {
     Set<String> hidden = const <String>{},
+    ValueChanged<bool>? onRememberChanged,
   }) async {
     final changes = <Set<String>>[];
     await tester.pumpWidget(
@@ -28,6 +29,8 @@ void main() {
                       hiddenColumns: hidden,
                       isIos: false,
                       onChanged: changes.add,
+                      rememberForNewTabs: true,
+                      onRememberForNewTabsChanged: onRememberChanged,
                     ),
                   ),
                 ],
@@ -88,5 +91,30 @@ void main() {
     await pumpMenu(tester, hidden: {LogColumn.timestamp.name});
     expect(checkboxFor(tester, LogColumn.timestamp), isFalse);
     expect(checkboxFor(tester, LogColumn.level), isTrue);
+  });
+
+  testWidgets('omits the remember row without a callback', (tester) async {
+    await pumpMenu(tester);
+    expect(find.text('Use for new tabs'), findsNothing);
+  });
+
+  testWidgets('remember row is last and toggles without closing', (
+    tester,
+  ) async {
+    final remembers = <bool>[];
+    final changes = await pumpMenu(tester, onRememberChanged: remembers.add);
+
+    final rows = find.descendant(
+      of: find.byType(ColumnVisibilityMenu),
+      matching: find.byType(Text),
+    );
+    expect(tester.widget<Text>(rows.last).data, 'Use for new tabs');
+
+    await tester.tap(find.text('Use for new tabs'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ColumnVisibilityMenu), findsOneWidget);
+    expect(remembers, [false]);
+    expect(changes, isEmpty);
   });
 }
