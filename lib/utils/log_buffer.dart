@@ -37,18 +37,6 @@ class LogBuffer<T> {
     _evictOverflowBatch();
   }
 
-  /// Re-evaluates the active filter against every stored entry without
-  /// evicting anything. For when the filter's *answer* changed while the
-  /// filter itself didn't — e.g. a package filter that learned a pid→package
-  /// mapping — so an entry that now matches stops being evicted first.
-  void refreshMatches() {
-    final filter = _activeFilter;
-    if (filter == null) return;
-    for (final entry in _entries) {
-      entry.matchesFilter = filter(entry.value);
-    }
-  }
-
   List<T> append(T log) {
     final matches = _activeFilter?.call(log) ?? false;
 

@@ -127,13 +127,6 @@ class LogController extends FeatureController {
   /// buffer for each of them would cost a full rescan per frame.
   int _packageIndexRelevance = 0;
 
-  /// Set alongside [_packageIndexRelevance]: the buffer's retention flags were
-  /// computed before that mapping was known, so entries it now matches are
-  /// still flagged non-matching — and would be evicted first, losing exactly
-  /// the unresolved-PID lines the filter now shows. Cleared by
-  /// [_refreshRetentionMatchesIfStale] before the next append.
-  bool _retentionMatchesStale = false;
-
   StreamSubscription<LogEntry>? _logSub;
   Timer? _flushTimer;
   Timer? _filterSaveDebounceTimer;
@@ -913,17 +906,11 @@ class LogController extends FeatureController {
     if (terms.isEmpty) return;
     if (terms.any((term) => term.matches(learned) != term.matches(''))) {
       _packageIndexRelevance++;
-      _retentionMatchesStale = true;
+      // The buffer flagged stored entries before this mapping was known; ones
+      // it now matches would otherwise be evicted first. Same filter, so
+      // capacity is unchanged and this only re-flags — it never evicts.
+      _syncLogBufferFilter();
     }
-  }
-
-  /// Re-flags stored entries against the retention filter when a learned
-  /// mapping changed its answer. Runs at most once per append batch, not per
-  /// mapping, so a burst of new PIDs costs one rescan.
-  void _refreshRetentionMatchesIfStale() {
-    if (!_retentionMatchesStale) return;
-    _retentionMatchesStale = false;
-    _logsBuffer.refreshMatches();
   }
 
   bool _matchesLogFilters(LogEntry log) {
@@ -942,7 +929,6 @@ class LogController extends FeatureController {
       _hasActiveRetentionFilter ? _matchesLogFilters : null;
 
   void _syncLogBufferFilter() {
-    _retentionMatchesStale = false;
     _logsBuffer.setFilter(_retentionFilter);
   }
 
@@ -998,7 +984,6 @@ class LogController extends FeatureController {
   }
 
   void _appendImmediateLogEntry(LogEntry entry) {
-    _refreshRetentionMatchesIfStale();
     final evictedLogs = _logsBuffer.append(entry);
     final addedBytes = estimateLogEntryBytes(entry);
     final evictedBytes = estimateLogsBytes(evictedLogs);
@@ -1122,7 +1107,6 @@ class LogController extends FeatureController {
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
 
-    _refreshRetentionMatchesIfStale();
     var evictedMemoryBytes = 0;
     var didEvictStoredLogs = false;
     for (final logEntry in pendingLogs) {
