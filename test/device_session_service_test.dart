@@ -25,7 +25,9 @@ EOF
   exit 0
 fi
 if [ "$1" = "-s" ] && [ "$3" = "shell" ] && [ "$4" = "ps" ]; then
-  echo ps >> "$(dirname "$0")/ps_calls"
+  echo start >> "$(dirname "$0")/ps_log"
+  sleep 0.2
+  echo end >> "$(dirname "$0")/ps_log"
   echo "USER PID PPID VSZ RSS WCHAN ADDR S NAME"
   echo "u0_a1 4242 1 0 0 0 0 S com.foo"
   exit 0
@@ -124,8 +126,10 @@ exit 0
         () => DeviceSessionRepository.pidRefreshMinInterval = previousInterval,
       );
       final service = buildService(Device.android('emulator-5554', 'device'));
-      final calls = File('${tempDir.path}/ps_calls');
-      int psCalls() => calls.existsSync() ? calls.readAsLinesSync().length : 0;
+      final log = File('${tempDir.path}/ps_log');
+      int psCalls() => log.existsSync()
+          ? log.readAsLinesSync().where((line) => line == 'end').length
+          : 0;
       Future<void> waitForPsCalls(int count) async {
         final deadline = DateTime.now().add(const Duration(seconds: 5));
         while (psCalls() < count && DateTime.now().isBefore(deadline)) {
@@ -158,6 +162,34 @@ exit 0
     },
   );
 
+  test(
+    'a refresh requested mid-flight runs after it, never alongside',
+    () async {
+      final previousInterval = DeviceSessionRepository.pidRefreshMinInterval;
+      DeviceSessionRepository.pidRefreshMinInterval = const Duration(
+        milliseconds: 100,
+      );
+      addTearDown(
+        () => DeviceSessionRepository.pidRefreshMinInterval = previousInterval,
+      );
+      final service = buildService(Device.android('emulator-5554', 'device'));
+      final log = File('${tempDir.path}/ps_log');
+
+      final polled = service.refreshPidToPackageMap();
+      final joined = service.refreshPidToPackageMap();
+      service.requestPidToPackageRefresh();
+      await Future.wait([polled, joined]);
+
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (log.readAsLinesSync().length < 4 &&
+          DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(log.readAsLinesSync(), ['start', 'end', 'start', 'end']);
+      await service.dispose();
+    },
+  );
+
   test('a pid→package refresh reports only the mappings it changed', () async {
     final service = buildService(Device.android('emulator-5554', 'device'));
     final updates = <Map<String, String>>[];
@@ -180,7 +212,7 @@ exit 0
     );
     service.requestPidToPackageRefresh();
     await Future<void>.delayed(const Duration(milliseconds: 100));
-    expect(File('${tempDir.path}/ps_calls').existsSync(), isFalse);
+    expect(File('${tempDir.path}/ps_log').existsSync(), isFalse);
     await service.dispose();
   });
 
