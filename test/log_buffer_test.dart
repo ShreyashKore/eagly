@@ -79,4 +79,23 @@ void main() {
       expect(buffer.getLogs(), ['e', 'f']);
     },
   );
+
+  test('refreshMatches re-flags stored entries without evicting', () {
+    final kept = <String>{};
+    final buffer = LogBuffer<String>(baseCapacity: 2)..setFilter(kept.contains);
+
+    for (final value in ['a', 'b', 'c', 'd']) {
+      buffer.append(value);
+    }
+    // 'a' now matches, but its flag was computed when it didn't.
+    kept.add('a');
+    buffer.refreshMatches();
+    expect(buffer.getLogs(), ['a', 'b', 'c', 'd']);
+
+    // A filter doubles capacity to 4; the sixth append evicts back down to it,
+    // taking the non-matching 'b' and 'c' but not the re-flagged 'a'.
+    buffer.append('e');
+    expect(buffer.append('f'), ['b', 'c']);
+    expect(buffer.getLogs(), ['a', 'd', 'e', 'f']);
+  });
 }

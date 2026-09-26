@@ -632,6 +632,43 @@ void main() {
     },
   );
 
+  test(
+    'a package filter keeps an unresolved-PID line once its package is learned',
+    () async {
+      final log = createLog(settings: testSettings(logLinesLimit: 3));
+
+      applyInlineFilter(log, 'package:com.foo');
+      await log.startLogcat();
+
+      // Arrives before anything maps pid 500, so it's stored as non-matching.
+      service.emit(testLogEntry(message: 'early', pid: '500'));
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+
+      // Now pid 500 resolves, then enough unrelated lines to force eviction.
+      service.emit(
+        testLogEntry(message: 'late', pid: '500', packageName: 'com.foo'),
+      );
+      for (var index = 0; index < 10; index++) {
+        service.emit(
+          testLogEntry(message: 'other $index', pid: '${600 + index}'),
+        );
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      expect(
+        log.logs.map((entry) => entry.message),
+        containsAll(['early', 'late']),
+        reason: 'the early line matches now, so it must not be evicted first',
+      );
+      expect(
+        log.filteredLogs
+            .where((entry) => !entry.isSpecialEntry)
+            .map((entry) => entry.message),
+        ['early', 'late'],
+      );
+    },
+  );
+
   test('full pending queue flushes as a batch during a burst', () async {
     final log = createLog();
     LogController.maxPendingLogs = 2;
