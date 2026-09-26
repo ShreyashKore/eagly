@@ -62,6 +62,8 @@ class DeviceSessionRepository {
   static Duration pidRefreshMinInterval = const Duration(seconds: 1);
   DateTime? _lastPidRefreshAt;
   Timer? _requestedPidRefreshTimer;
+  final StreamController<Map<String, String>> _pidToPackageUpdates =
+      StreamController.broadcast();
 
   /// Number of live log streams currently open for this device. Each live tab
   /// owns an independent stream (see [startLogStream]); this is just a counter
@@ -376,6 +378,7 @@ class DeviceSessionRepository {
     _pidCacheConsumers = 0;
     _requestedPidRefreshTimer?.cancel();
     _requestedPidRefreshTimer = null;
+    await _pidToPackageUpdates.close();
     final iconTempDir = _iconTempDir;
     if (iconTempDir != null) {
       try {
@@ -708,10 +711,25 @@ class DeviceSessionRepository {
   /// Refresh the PID to package name mapping.
   Future<void> refreshPidToPackageMap() async {
     _lastPidRefreshAt = DateTime.now();
+    final next = await _adbTool.getPidToPackageMap(_deviceId);
+    final changed = {
+      for (final MapEntry(key: pid, value: package) in next.entries)
+        if (_pidToPackageCache[pid] != package) pid: package,
+    };
     _pidToPackageCache
       ..clear()
-      ..addAll(await _adbTool.getPidToPackageMap(_deviceId));
+      ..addAll(next);
+    if (changed.isNotEmpty && !_pidToPackageUpdates.isClosed) {
+      _pidToPackageUpdates.add(changed);
+    }
   }
+
+  /// The mappings each refresh added or changed: PIDs it sees for the first
+  /// time, or whose process changed. Lets a log tab re-evaluate lines that
+  /// arrived before the refresh — otherwise they wait for their PID to log
+  /// again, which never happens if the process has gone quiet.
+  Stream<Map<String, String>> get pidToPackageUpdates =>
+      _pidToPackageUpdates.stream;
 
   /// Asks for the pid→package map to be refreshed soon rather than at the next
   /// poll, for a log line from a PID the map doesn't know yet — typically an

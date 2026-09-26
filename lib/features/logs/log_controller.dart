@@ -82,6 +82,9 @@ class LogController extends FeatureController {
       isIos: isIosLogContext,
     );
     _syncLogBufferFilter();
+    _pidPackageUpdatesSub = service.pidToPackageUpdates.listen(
+      _learnRefreshedPidPackages,
+    );
   }
 
   /// Creates a controller pre-loaded with [entries] from a log file.
@@ -128,6 +131,7 @@ class LogController extends FeatureController {
   int _packageIndexRelevance = 0;
 
   StreamSubscription<LogEntry>? _logSub;
+  StreamSubscription<Map<String, String>>? _pidPackageUpdatesSub;
   Timer? _flushTimer;
   Timer? _filterSaveDebounceTimer;
   Timer? _inlineSearchDebounce;
@@ -900,17 +904,34 @@ class LogController extends FeatureController {
   /// revealing them.
   void _learnPidPackage(LogEntry entry) {
     final learned = _pidPackages.record(entry);
-    if (learned == null) return;
-
-    final terms = _appliedFilters.packageTerms;
-    if (terms.isEmpty) return;
-    if (terms.any((term) => term.matches(learned) != term.matches(''))) {
-      _packageIndexRelevance++;
-      // The buffer flagged stored entries before this mapping was known; ones
-      // it now matches would otherwise be evicted first. Same filter, so
-      // capacity is unchanged and this only re-flags — it never evicts.
-      _syncLogBufferFilter();
+    if (learned != null && _bearsOnPackageFilter(learned)) {
+      _applyRelevantPidPackage();
     }
+  }
+
+  /// The same, for the mappings a device-side refresh added or changed. Unlike
+  /// [_learnPidPackage] nothing else notifies afterwards, so this does.
+  void _learnRefreshedPidPackages(Map<String, String> updates) {
+    if (_disposed) return;
+    var relevant = false;
+    for (final MapEntry(key: pid, value: package) in updates.entries) {
+      final learned = _pidPackages.learn(pid, package);
+      if (learned != null && _bearsOnPackageFilter(learned)) relevant = true;
+    }
+    if (!relevant) return;
+    _applyRelevantPidPackage();
+    _notify();
+  }
+
+  bool _bearsOnPackageFilter(String learned) => _appliedFilters.packageTerms
+      .any((term) => term.matches(learned) != term.matches(''));
+
+  void _applyRelevantPidPackage() {
+    _packageIndexRelevance++;
+    // The buffer flagged stored entries before this mapping was known; ones
+    // it now matches would otherwise be evicted first. Same filter, so
+    // capacity is unchanged and this only re-flags — it never evicts.
+    _syncLogBufferFilter();
   }
 
   /// While a package filter is active, a line from a PID nothing has resolved
@@ -1537,6 +1558,7 @@ class LogController extends FeatureController {
     _filterSaveDebounceTimer?.cancel();
     _inlineSearchDebounce?.cancel();
     unawaited(_logSub?.cancel());
+    unawaited(_pidPackageUpdatesSub?.cancel());
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
     scrollController.dispose();

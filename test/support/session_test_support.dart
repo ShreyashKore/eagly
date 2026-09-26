@@ -103,6 +103,16 @@ class FakeSessionService extends DeviceSessionRepository {
   @override
   void requestPidToPackageRefresh() => pidRefreshRequests++;
 
+  final _pidPackageUpdates = StreamController<Map<String, String>>.broadcast();
+
+  @override
+  Stream<Map<String, String>> get pidToPackageUpdates =>
+      _pidPackageUpdates.stream;
+
+  /// Simulates a `ps -A` refresh that added or changed these mappings.
+  void pushPidPackages(Map<String, String> updates) =>
+      _pidPackageUpdates.add(updates);
+
   /// Simulates the underlying tool/pipe dying so the live stream completes.
   Future<void> endStream() async {
     final controller = _activeStream;

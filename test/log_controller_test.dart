@@ -697,6 +697,43 @@ void main() {
     },
   );
 
+  test(
+    'a pid→package refresh reveals and keeps lines that logged before it',
+    () async {
+      final log = createLog(settings: testSettings(logLinesLimit: 3));
+      applyInlineFilter(log, 'package:com.foo');
+      await log.startLogcat();
+
+      service.emit(testLogEntry(message: 'early', pid: '500'));
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      List<String> visible() => log.filteredLogs
+          .where((entry) => !entry.isSpecialEntry)
+          .map((entry) => entry.message)
+          .toList();
+      expect(visible(), isEmpty);
+
+      // The process goes quiet; only the refresh learns its package.
+      var notified = 0;
+      log.addListener(() => notified++);
+      service.pushPidPackages({'500': 'com.foo', '600': 'com.bar'});
+      await Future<void>.delayed(Duration.zero);
+      expect(notified, greaterThan(0));
+      expect(visible(), ['early']);
+
+      for (var index = 0; index < 10; index++) {
+        service.emit(
+          testLogEntry(message: 'other $index', pid: '${700 + index}'),
+        );
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(
+        log.logs.map((entry) => entry.message),
+        contains('early'),
+        reason: 'the refresh re-flags it, so it is not evicted first',
+      );
+    },
+  );
+
   test('full pending queue flushes as a batch during a burst', () async {
     final log = createLog();
     LogController.maxPendingLogs = 2;

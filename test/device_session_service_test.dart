@@ -158,6 +158,22 @@ exit 0
     },
   );
 
+  test('a pid→package refresh reports only the mappings it changed', () async {
+    final service = buildService(Device.android('emulator-5554', 'device'));
+    final updates = <Map<String, String>>[];
+    final sub = service.pidToPackageUpdates.listen(updates.add);
+
+    await service.refreshPidToPackageMap();
+    await service.refreshPidToPackageMap();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(updates, [
+      {'4242': 'com.foo'},
+    ]);
+    await sub.cancel();
+    await service.dispose();
+  });
+
   test('requested pid→package refreshes are a no-op on iOS', () async {
     final service = buildService(
       Device.ios('00008110-001234567890801E', 'device'),
