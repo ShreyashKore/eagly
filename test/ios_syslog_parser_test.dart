@@ -118,11 +118,9 @@ void main() {
     test('decodes cat-v style meta escapes emitted by piped iOS syslog', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 26));
 
-      parser
-          .addLine(
-            r'Apr 26 20:54:02.025982 novio (R14)(Flutter)[1800] <Notice>: flutter: \M-b\M^U\M^T Query Parameters',
-          )
-          .toList();
+      parser.addLine(
+        r'Apr 26 20:54:02.025982 novio (R14)(Flutter)[1800] <Notice>: flutter: \M-b\M^U\M^T Query Parameters',
+      );
 
       final entry = parser.flush();
       expect(entry, isNotNull);
@@ -131,11 +129,9 @@ void main() {
 
     test('export round-trips parsed iOS log entries', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
-      parser
-          .addLine(
-            'Apr 23 17:10:40.588246 novio (R14)(Flutter)[5727] <Notice>: flutter: ╟ server: [None]',
-          )
-          .toList();
+      parser.addLine(
+        'Apr 23 17:10:40.588246 novio (R14)(Flutter)[5727] <Notice>: flutter: ╟ server: [None]',
+      );
 
       final entry = parser.flush();
       expect(entry, isNotNull);
@@ -157,11 +153,9 @@ void main() {
     test('preserves unknown iOS raw level values', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
 
-      parser
-          .addLine(
-            'Apr 23 17:10:40.588246 novio[5727] <Panic>: flutter: something unexpected happened',
-          )
-          .toList();
+      parser.addLine(
+        'Apr 23 17:10:40.588246 novio[5727] <Panic>: flutter: something unexpected happened',
+      );
 
       final entry = parser.flush();
       expect(entry, isNotNull);

@@ -13,7 +13,7 @@ class _CountingParser implements LogLineParser {
   var flushes = 0;
 
   @override
-  Iterable<LogEntry> addLine(String line) => _inner.addLine(line);
+  List<LogEntry> addLine(String line) => _inner.addLine(line);
 
   @override
   LogEntry? flush() {

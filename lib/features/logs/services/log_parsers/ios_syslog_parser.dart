@@ -39,7 +39,7 @@ class IosSyslogParser implements LogLineParser {
   _IosSyslogEntryBuilder? _currentEntry;
 
   @override
-  Iterable<LogEntry> addLine(String line) sync* {
+  List<LogEntry> addLine(String line) {
     final normalizedLine = _decodeMetaEscapes(line);
     final parsedHeader = _IosSyslogEntryBuilder.tryParse(
       normalizedLine,
@@ -48,13 +48,11 @@ class IosSyslogParser implements LogLineParser {
     if (parsedHeader != null) {
       final previousEntry = _currentEntry?.build();
       _currentEntry = parsedHeader;
-      if (previousEntry != null) {
-        yield previousEntry;
-      }
-      return;
+      return [?previousEntry];
     }
 
     _currentEntry?.appendContinuation(normalizedLine);
+    return const [];
   }
 
   @override

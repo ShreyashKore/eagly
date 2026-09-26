@@ -11,12 +11,12 @@ void main() {
   final parser = LogcatParser();
   group('LogEntry', () {
     test('parseFromLogcat assigns a unique incrementing internal ID', () {
-      parser.addLine('[ 04-26 20:54:02.025  1234: 5678 I/AuthTag  ]').toList();
-      parser.addLine('first message').toList();
+      parser.addLine('[ 04-26 20:54:02.025  1234: 5678 I/AuthTag  ]');
+      parser.addLine('first message');
       final first = parser
           .addLine('[ 04-26 20:54:02.026  1234: 5678 I/AuthTag  ]')
           .single;
-      parser.addLine('second message').toList();
+      parser.addLine('second message');
       final second = parser.flush();
 
       expect(first, isNotNull);
@@ -94,10 +94,8 @@ void main() {
     });
 
     test('parses fatal Android long-format entries and trims padded tags', () {
-      parser.addLine('[ 05-14 17:12:59.035  2002:12397 F/DEBUG    ]').toList();
-      parser
-          .addLine('Softversion: PD2201IF_EX_A_14.2.14.2.W30.V000L1')
-          .toList();
+      parser.addLine('[ 05-14 17:12:59.035  2002:12397 F/DEBUG    ]');
+      parser.addLine('Softversion: PD2201IF_EX_A_14.2.14.2.W30.V000L1');
       final entry = parser.flush();
 
       expect(entry, isNotNull);

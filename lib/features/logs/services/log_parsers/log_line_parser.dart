@@ -6,14 +6,17 @@ import '../../data/models/log_entry.dart';
 ///
 /// Both platforms' tools can spread one entry over several lines, and neither
 /// marks where an entry ends — only the start of the next one shows that. So a
-/// parser buffers the entry being built: [addLine] yields the entries a line
+/// parser buffers the entry being built: [addLine] returns the entries a line
 /// completes (the previous one, when a new one starts), and [flush] hands over
 /// the one still being built.
 ///
 /// Drive a parser with [parseLogLines] rather than by hand; it also flushes
 /// when the stream goes quiet, which a parser can't do on its own.
 abstract interface class LogLineParser {
-  Iterable<LogEntry> addLine(String line);
+  /// Feeds one line and returns the entries it completes, oldest first — most
+  /// often none. Eager rather than a lazy `sync*` iterable, so a caller that
+  /// ignores the result still has the line consumed.
+  List<LogEntry> addLine(String line);
 
   /// Returns the entry being built, if any, and forgets it.
   LogEntry? flush();

@@ -24,24 +24,19 @@ class LogcatParser implements LogLineParser {
   _LogcatEntryBuilder? _currentEntry;
 
   @override
-  Iterable<LogEntry> addLine(String line) sync* {
+  List<LogEntry> addLine(String line) {
     final separator = _parseSectionSeparator(line);
-    if (separator != null) {
-      final previousEntry = flush();
-      if (previousEntry != null) yield previousEntry;
-      yield separator;
-      return;
-    }
+    if (separator != null) return [?flush(), separator];
 
     final header = _LogcatEntryBuilder.tryParse(line);
     if (header != null) {
       final previousEntry = flush();
       _currentEntry = header;
-      if (previousEntry != null) yield previousEntry;
-      return;
+      return [?previousEntry];
     }
 
     _currentEntry?.appendLine(line);
+    return const [];
   }
 
   @override
