@@ -153,6 +153,14 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `AppInstallService.inferSupportedPlatform`) go to `installAppFromPath()`; everything else
   is copied onto the device via `FileManagerController.copyExternalFiles()`. Installs run
   one-at-a-time behind a per-device guard.
+  - **Dropping onto the Files pane** copies into the folder it shows instead, and an
+    installable for this device first asks *Install* or *Copy*; other-platform installables
+    are copied there rather than rejected. The pane is a `DropZone`
+    (`presentation/components/drop_zone.dart`), **not** a second `DropTarget`: desktop_drop
+    broadcasts each event to every mounted target containing the pointer, so nested targets
+    would both act on one drop. `DeviceScreen`'s single target hit-tests for the zone under
+    the pointer (`DropZone.at`, via `MetaData`) and hands it the drop — which is also why
+    the screen-wide `DropOverlay` sits in an `IgnorePointer`.
 - **Utilities feature:** a declarative catalog (`features/utilities/data/utility_catalog.dart`)
   of curated `adb` / `adb shell` commands with a libimobiledevice equivalent where one
   exists. Each `UtilityCommand` owns its label, params, confirmation text and a

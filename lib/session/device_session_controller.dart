@@ -509,13 +509,22 @@ class DeviceSessionController extends ChangeNotifier {
   /// True while a dropped batch is being installed/copied.
   bool get isHandlingDrop => _isHandlingDrop;
 
-  /// Handles files dropped onto this device's screen. Installable binaries that
-  /// match this device (APK on Android; IPA/.app on iOS) are installed; every
-  /// other file is copied into the device's drop directory. Installables for
-  /// the *other* platform are rejected rather than copied as plain data. Mixed
-  /// drops are handled item by item. Returns `null` when busy or nothing was
-  /// dropped; otherwise a [DropHandlingResult] to surface.
-  Future<DropHandlingResult?> handleDroppedPaths(Iterable<String> paths) async {
+  /// Handles files dropped onto this device. Installable binaries that match
+  /// this device (APK on Android; IPA/.app on iOS) are installed unless
+  /// [installApps] is false, in which case they are copied like any other
+  /// file. Everything else is copied into [copyDirectory], or the device's
+  /// drop directory when none is given.
+  ///
+  /// Installables for the *other* platform are rejected on a plain drop onto
+  /// the device, but copied when [copyDirectory] is given — the user aimed at
+  /// a folder, so they asked for a file, not an install. Mixed drops are
+  /// handled item by item. Returns `null` when busy or nothing was dropped;
+  /// otherwise a [DropHandlingResult] to surface.
+  Future<DropHandlingResult?> handleDroppedPaths(
+    Iterable<String> paths, {
+    String? copyDirectory,
+    bool installApps = true,
+  }) async {
     if (_isHandlingDrop) return null;
     final normalizedPaths = paths
         .map((path) => path.trim())
@@ -538,7 +547,9 @@ class DeviceSessionController extends ChangeNotifier {
       if (installablePlatform == null) {
         toCopy.add(path);
       } else if (installablePlatform == platform) {
-        toInstall.add(path);
+        (installApps ? toInstall : toCopy).add(path);
+      } else if (copyDirectory != null) {
+        toCopy.add(path);
       } else {
         errors.add(
           '${extractFileName(path)} can\'t be installed on '
@@ -576,7 +587,10 @@ class DeviceSessionController extends ChangeNotifier {
 
       final copyResult = toCopy.isEmpty
           ? null
-          : await fileManagerController.copyExternalFiles(toCopy);
+          : await fileManagerController.copyExternalFiles(
+              toCopy,
+              directory: copyDirectory,
+            );
       if (_disposed) return null;
       if (copyResult != null) errors.addAll(copyResult.errors);
 

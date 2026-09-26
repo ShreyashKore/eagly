@@ -2,6 +2,7 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../presentation/components/drop_zone.dart';
 import '../../session/device_session_controller.dart';
 import '../../utils/log_feedback.dart';
 import '../logs/log_feature_view.dart';
@@ -30,6 +31,10 @@ class DeviceScreen extends StatefulWidget {
 class _DeviceScreenState extends State<DeviceScreen> {
   bool _isDragOver = false;
 
+  /// The pane-level zone under the pointer during a drag; while one is set it
+  /// owns the drop, and the screen-wide overlay stays hidden.
+  DropZoneHandle? _hoveredZone;
+
   void _showSnackBar(String message) {
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
@@ -42,13 +47,43 @@ class _DeviceScreenState extends State<DeviceScreen> {
     _showSnackBar(formatAppInstallMessage(result));
   }
 
+  void _handleDragMove(DropEventDetails details) {
+    final zone = DropZone.at(context, details.globalPosition);
+    // Updates arrive per pointer move; rebuild only on an actual change.
+    if (_isDragOver && zone == _hoveredZone) return;
+    _hoveredZone?.isHovered = false;
+    zone?.isHovered = true;
+    setState(() {
+      _isDragOver = true;
+      _hoveredZone = zone;
+    });
+  }
+
+  void _handleDragExit(DropEventDetails _) {
+    _hoveredZone?.isHovered = false;
+    setState(() {
+      _isDragOver = false;
+      _hoveredZone = null;
+    });
+  }
+
   Future<void> _handleDrop(DropDoneDetails detail) async {
-    if (mounted) setState(() => _isDragOver = false);
+    // Resolved from the drop point itself rather than the last hover, which
+    // lags a fast drag by up to one update.
+    final zone = DropZone.at(context, detail.globalPosition);
+    _hoveredZone?.isHovered = false;
+    if (mounted) {
+      setState(() {
+        _isDragOver = false;
+        _hoveredZone = null;
+      });
+    }
     final paths = detail.files
         .map((file) => file.path)
         .where((path) => path.isNotEmpty)
         .toList(growable: false);
     if (paths.isEmpty) return;
+    if (zone != null) return zone.drop(paths);
 
     final result = await widget.session.handleDroppedPaths(paths);
     if (!mounted || result == null) return;
@@ -75,8 +110,9 @@ class _DeviceScreenState extends State<DeviceScreen> {
     }
 
     return DropTarget(
-      onDragEntered: (_) => setState(() => _isDragOver = true),
-      onDragExited: (_) => setState(() => _isDragOver = false),
+      onDragEntered: _handleDragMove,
+      onDragUpdated: _handleDragMove,
+      onDragExited: _handleDragExit,
       onDragDone: _handleDrop,
       child: DecoratedBox(
         decoration: BoxDecoration(color: theme.colorScheme.surface),
@@ -100,8 +136,14 @@ class _DeviceScreenState extends State<DeviceScreen> {
                 ),
               ],
             ),
-            if (_isDragOver)
-              Positioned.fill(child: DropOverlay(session: widget.session)),
+            // IgnorePointer: the overlay must not hide the panes beneath it
+            // from DropZone.at's hit test.
+            if (_isDragOver && _hoveredZone == null)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DropOverlay(session: widget.session),
+                ),
+              ),
           ],
         ),
       ),

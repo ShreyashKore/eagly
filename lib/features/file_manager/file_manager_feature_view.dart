@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../presentation/components/centered_state_message.dart';
+import '../../presentation/components/drop_zone.dart';
 import '../../presentation/components/feature_view.dart';
+import '../../services/app_install_service.dart';
+import '../../utils/utils.dart';
 import 'components/file_breadcrumb_bar.dart';
 import 'components/file_context_menu.dart';
 import 'components/file_grid_view.dart';
@@ -13,7 +16,9 @@ import 'file_manager_controller.dart';
 /// File-manager feature pane. Composes the toolbar, breadcrumb, the active
 /// list/grid view (with empty/error/loading states), a busy overlay for
 /// transfers, and a status bar. Owns the dialogs and snackbars for the file
-/// actions. [onClose] hides the pane (handled by the device screen).
+/// actions. Files dropped onto the pane are copied into the folder it shows —
+/// an app for this device first asks whether to install it instead. [onClose]
+/// hides the pane (handled by the device screen).
 class FileManagerFeatureView extends FeatureView {
   const FileManagerFeatureView({
     super.key,
@@ -87,6 +92,78 @@ class _FileManagerFeatureViewState
     _showSnackBar(await controller.deleteEntry(target));
   }
 
+  Future<void> _handleDrop(List<String> paths) async {
+    final session = controller.session;
+    final installables = paths
+        .where(
+          (path) =>
+              AppInstallService.inferSupportedPlatform(path) ==
+              session.platform,
+        )
+        .toList(growable: false);
+    // Disconnected: nothing to ask — the drop reports it can't reach the device.
+    var installApps = false;
+    if (installables.isNotEmpty && controller.isConnected) {
+      final install = await _askInstallOrCopy(
+        installables,
+        otherCount: paths.length - installables.length,
+      );
+      if (install == null || !mounted) return;
+      installApps = install;
+    }
+    final result = await session.handleDroppedPaths(
+      paths,
+      copyDirectory: controller.currentPath,
+      installApps: installApps,
+    );
+    if (!mounted || result == null) return;
+    _showSnackBar(result.message);
+  }
+
+  /// Asks whether dropped [installables] should be installed or copied into
+  /// the current folder; [otherCount] non-app files are copied either way.
+  /// Returns true to install, false to copy, or null when cancelled.
+  Future<bool?> _askInstallOrCopy(
+    List<String> installables, {
+    required int otherCount,
+  }) {
+    final device = controller.device.displayName;
+    final folder = controller.currentPath;
+    final subject = installables.length == 1
+        ? extractFileName(installables.single)
+        : '${installables.length} apps';
+    final pronoun = installables.length == 1 ? 'it' : 'them';
+    final others = switch (otherCount) {
+      0 => '',
+      1 => '\n\nThe other file is copied to $folder either way.',
+      _ => '\n\nThe other $otherCount files are copied to $folder either way.',
+    };
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Install $subject?'),
+        content: Text(
+          'Install $pronoun on $device, or copy $pronoun to $folder?$others',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Copy'),
+          ),
+          FilledButton(
+            autofocus: true,
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Install'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<String?> _promptForName({
     required String title,
     required String label,
@@ -158,6 +235,18 @@ class _FileManagerFeatureViewState
 
   @override
   Widget buildContent(BuildContext context) {
+    return DropZone(
+      onDrop: _handleDrop,
+      builder: (context, isHovered) => Stack(
+        children: [
+          Positioned.fill(child: _buildPane()),
+          if (isHovered) Positioned.fill(child: _buildDropHighlight(context)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPane() {
     return FeaturePane(
       header: Column(
         mainAxisSize: MainAxisSize.min,
@@ -239,6 +328,44 @@ class _FileManagerFeatureViewState
         actions: _actions,
       ),
       child: viewer,
+    );
+  }
+
+  /// Outlines the pane while files are dragged over it, naming the folder
+  /// they will land in.
+  Widget _buildDropHighlight(BuildContext context) {
+    final theme = Theme.of(context);
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primary.withValues(alpha: 0.08),
+          border: Border.all(color: theme.colorScheme.primary, width: 2),
+        ),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Material(
+              color: theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                child: Text(
+                  'Copy to ${controller.currentPath}',
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
