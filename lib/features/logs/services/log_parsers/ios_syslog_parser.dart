@@ -16,6 +16,12 @@ class IosSyslogParser implements LogLineParser {
 
   static final RegExp _metaEscapePattern = RegExp(r'\\M(?:-|\^|.)');
 
+  /// Status lines `idevicesyslog` prints itself — `[connected:<udid>]` when it
+  /// attaches and `[disconnected:<udid>]` if the device drops mid-stream.
+  static final RegExp _toolStatusPattern = RegExp(
+    r'^\[(?:dis)?connected:[^\]]*\]$',
+  );
+
   static final RegExp _headerPattern = RegExp(
     r'^([A-Z][a-z]{2}\s+\d{1,2}\s+\d\d:\d\d:\d\d(?:\.\d+)?)\s+(.+?)\[(\d+)\]\s+<([^>]+)>:\s?(.*)$',
   );
@@ -44,6 +50,15 @@ class IosSyslogParser implements LogLineParser {
 
   @override
   List<LogEntry> addLine(String line) {
+    // Not a device line: it ends the entry before it rather than being taken
+    // as one of its continuation lines, and is dropped.
+    if (_toolStatusPattern.hasMatch(line)) {
+      final previousEntry = _currentEntry?.build();
+      _currentEntry = null;
+      _flushedHeader = null;
+      return [?previousEntry];
+    }
+
     final normalizedLine = _decodeMetaEscapes(line);
     final parsedHeader = _IosSyslogEntryBuilder.tryParse(
       normalizedLine,

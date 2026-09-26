@@ -186,6 +186,22 @@ void main() {
       expect(parser.flush(), isNull);
     });
 
+    test('idevicesyslog status lines end an entry and are dropped', () {
+      final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
+      expect(parser.addLine('[connected:00008140-001564CA3493801C]'), isEmpty);
+      parser.addLine('Apr 23 17:10:40.588246 novio[5727] <Notice>: before');
+      parser.addLine('  continued');
+
+      final ended = parser.addLine('[disconnected:00008140-001564CA3493801C]');
+      expect(ended.single.message, 'before\n  continued');
+
+      // Neither the status lines nor what follows them join that entry.
+      expect(parser.addLine('[connected:00008140-001564CA3493801C]'), isEmpty);
+      expect(parser.addLine('orphan'), isEmpty);
+      parser.addLine('Apr 23 17:10:41.000000 novio[5727] <Notice>: after');
+      expect(parser.flush()?.message, 'after');
+    });
+
     test('preserves unknown iOS raw level values', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
 

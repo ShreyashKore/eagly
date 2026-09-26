@@ -116,8 +116,8 @@ Sep 26 23:11:50.009491 appleh16camerad(libEmbeddedSystemAUs.dylib)[136] <Debug>:
 - Non-ASCII bytes can arrive as `cat -v` style escapes (`\M-b\M^U\M^T` → `╔`); the parser
   decodes them per line.
 - The CLI prints its own status lines: `[connected:<udid>]` when it attaches and
-  `[disconnected:<udid>]` if the device drops mid-stream. The first is ignored (nothing comes
-  before the first header).
+  `[disconnected:<udid>]` if the device drops mid-stream. They are not device lines: each one
+  ends the entry before it (so it can't be glued onto that message) and is dropped.
 
 ### iOS via Rust: the `syslog_relay` service
 
@@ -281,8 +281,6 @@ platform-tools/macos/idevicesyslog | head -50
   the stream. Logcat writes an entry in one go, so in practice this is invisible.
 - A continuation line that happens to look exactly like a header is parsed as one. Nothing
   distinguishes them in either format.
-- **iOS CLI `[disconnected:<udid>]` / `[connected:<udid>]` mid-stream** are taken as
-  continuation lines of the entry before them.
 - A Rust relay record without a header would be filed under the previous entry's header as a
   separate row. None seen in the device runs (tens of thousands of records).
 
