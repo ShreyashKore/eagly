@@ -669,6 +669,34 @@ void main() {
     },
   );
 
+  test(
+    'an unresolved PID asks for a pid→package refresh only under a package filter',
+    () async {
+      final log = createLog();
+      await log.startLogcat();
+
+      service.emit(testLogEntry(message: 'unfiltered', pid: '500'));
+      await Future<void>.delayed(Duration.zero);
+      expect(service.pidRefreshRequests, 0);
+
+      applyInlineFilter(log, 'package:com.foo');
+      service.emit(
+        testLogEntry(message: 'resolved', pid: '501', packageName: 'com.bar'),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(service.pidRefreshRequests, 0, reason: 'it already has a package');
+
+      service.emit(testLogEntry(message: 'unresolved', pid: '502'));
+      await Future<void>.delayed(Duration.zero);
+      expect(service.pidRefreshRequests, 1);
+
+      // pid 501 was learned from the resolved line above.
+      service.emit(testLogEntry(message: 'learned', pid: '501'));
+      await Future<void>.delayed(Duration.zero);
+      expect(service.pidRefreshRequests, 1);
+    },
+  );
+
   test('full pending queue flushes as a batch during a burst', () async {
     final log = createLog();
     LogController.maxPendingLogs = 2;

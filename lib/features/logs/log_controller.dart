@@ -913,6 +913,17 @@ class LogController extends FeatureController {
     }
   }
 
+  /// While a package filter is active, a line from a PID nothing has resolved
+  /// asks the device for a fresh pid→package map instead of waiting for the
+  /// next poll — the usual case being the filtered app (re)launching.
+  void _requestPackageForUnknownPid(LogEntry entry) {
+    if (_appliedFilters.packageTerms.isEmpty) return;
+    final pid = entry.pid.trim();
+    if (pid.isEmpty || packageFilterValue(entry).isNotEmpty) return;
+    if (_pidPackages.packageForPid(pid) != null) return;
+    service.requestPidToPackageRefresh();
+  }
+
   bool _matchesLogFilters(LogEntry log) {
     return matchesLogFilters(
       log,
@@ -1070,6 +1081,7 @@ class LogController extends FeatureController {
           return;
         }
         if (logcatState == LogcatState.paused) return;
+        _requestPackageForUnknownPid(logEntry);
         if (_pendingLogs.length >= maxPendingLogs) {
           // High-volume streams can fill this queue before the periodic
           // flush. Flush the whole queue once, rather than falling back to an

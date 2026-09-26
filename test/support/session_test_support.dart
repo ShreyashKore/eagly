@@ -98,6 +98,11 @@ class FakeSessionService extends DeviceSessionRepository {
 
   void emit(LogEntry entry) => _activeStream?.add(entry);
 
+  int pidRefreshRequests = 0;
+
+  @override
+  void requestPidToPackageRefresh() => pidRefreshRequests++;
+
   /// Simulates the underlying tool/pipe dying so the live stream completes.
   Future<void> endStream() async {
     final controller = _activeStream;

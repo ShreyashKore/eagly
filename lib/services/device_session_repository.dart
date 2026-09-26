@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import '../data/device.dart';
 import '../features/apps/data/app_info.dart';
 import '../features/device_home/data/device_info.dart';
@@ -53,6 +55,13 @@ class DeviceSessionRepository {
   /// concurrent Android log streams share a single `ps -A` poll.
   Timer? _pidCacheRefreshTimer;
   int _pidCacheConsumers = 0;
+
+  /// Minimum gap between a requested refresh and the previous `ps -A`, polled
+  /// or requested; see [requestPidToPackageRefresh].
+  @visibleForTesting
+  static Duration pidRefreshMinInterval = const Duration(seconds: 1);
+  DateTime? _lastPidRefreshAt;
+  Timer? _requestedPidRefreshTimer;
 
   /// Number of live log streams currently open for this device. Each live tab
   /// owns an independent stream (see [startLogStream]); this is just a counter
@@ -365,6 +374,8 @@ class DeviceSessionRepository {
     _pidCacheRefreshTimer?.cancel();
     _pidCacheRefreshTimer = null;
     _pidCacheConsumers = 0;
+    _requestedPidRefreshTimer?.cancel();
+    _requestedPidRefreshTimer = null;
     final iconTempDir = _iconTempDir;
     if (iconTempDir != null) {
       try {
@@ -696,9 +707,30 @@ class DeviceSessionRepository {
 
   /// Refresh the PID to package name mapping.
   Future<void> refreshPidToPackageMap() async {
+    _lastPidRefreshAt = DateTime.now();
     _pidToPackageCache
       ..clear()
       ..addAll(await _adbTool.getPidToPackageMap(_deviceId));
+  }
+
+  /// Asks for the pid→package map to be refreshed soon rather than at the next
+  /// poll, for a log line from a PID the map doesn't know yet — typically an
+  /// app that has just launched. Requests coalesce into one pending refresh,
+  /// spaced at least [pidRefreshMinInterval] after the previous `ps -A`, so a
+  /// burst of unknown PIDs (or a process that exits before `ps` sees it) costs
+  /// at most one refresh per interval. Android only: iOS lines carry their
+  /// process name.
+  void requestPidToPackageRefresh() {
+    if (device is! AndroidDevice || _requestedPidRefreshTimer != null) return;
+    final last = _lastPidRefreshAt;
+    final sinceLast = last == null ? null : DateTime.now().difference(last);
+    final wait = sinceLast == null || sinceLast >= pidRefreshMinInterval
+        ? Duration.zero
+        : pidRefreshMinInterval - sinceLast;
+    _requestedPidRefreshTimer = Timer(wait, () {
+      _requestedPidRefreshTimer = null;
+      unawaited(refreshPidToPackageMap());
+    });
   }
 
   String? getProcessNameFromPid(String pid) {
