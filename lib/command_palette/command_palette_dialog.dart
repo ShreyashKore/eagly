@@ -158,65 +158,70 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
     final theme = Theme.of(context);
     final media = MediaQuery.of(context);
 
+    // Pin the top edge (rather than centring) so the search field stays put
+    // while the result list grows and shrinks beneath it as you type.
     return Align(
-      alignment: const Alignment(0, -0.42),
-      child: Material(
-        color: theme.colorScheme.surfaceContainerHigh,
-        elevation: 12,
-        borderRadius: BorderRadius.circular(14),
-        clipBehavior: Clip.antiAlias,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: media.size.width - 64,
-            maxHeight: media.size.height * 0.6,
-          ),
-          child: SizedBox(
-            width: 640,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.search,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      const Gap(10),
-                      Expanded(
-                        child: TextField(
-                          controller: _queryController,
-                          focusNode: _fieldFocusNode,
-                          autofocus: true,
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            hintText: 'Search commands…',
-                            isDense: true,
-                          ),
-                          style: theme.textTheme.bodyLarge,
-                          onChanged: (value) =>
-                              setState(() => _applyFilter(value)),
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: EdgeInsets.only(top: media.size.height * 0.12),
+        child: Material(
+          color: theme.colorScheme.surfaceContainerHigh,
+          elevation: 12,
+          borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: media.size.width - 64,
+              maxHeight: media.size.height * 0.6,
+            ),
+            child: SizedBox(
+              width: 640,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.search,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                Divider(height: 1, color: theme.colorScheme.outlineVariant),
-                Flexible(
-                  child: _filtered.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Text(
-                            'No matching commands.',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                        const Gap(10),
+                        Expanded(
+                          child: TextField(
+                            controller: _queryController,
+                            focusNode: _fieldFocusNode,
+                            autofocus: true,
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              hintText: 'Search commands…',
+                              isDense: true,
                             ),
+                            style: theme.textTheme.bodyLarge,
+                            onChanged: (value) =>
+                                setState(() => _applyFilter(value)),
                           ),
-                        )
-                      : _buildList(theme),
-                ),
-              ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Divider(height: 1, color: theme.colorScheme.outlineVariant),
+                  Flexible(
+                    child: _filtered.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              'No matching commands.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          )
+                        : _buildList(theme),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
