@@ -1,6 +1,7 @@
 import '../../data/models/log_entry.dart';
 import '../../data/models/log_level.dart';
 import '../../../../utils/log_entry_utils.dart';
+import 'log_line_parser.dart';
 
 /// Parses `adb logcat -v long` output into [LogEntry] objects.
 ///
@@ -18,15 +19,11 @@ import '../../../../utils/log_entry_utils.dart';
 /// message, and one message can't be told apart from two logged by the same
 /// thread in the same millisecond.) A message may itself contain blank lines,
 /// so an entry is only known to be complete when the next header or section
-/// separator arrives. This parser is therefore stateful — it buffers the entry
-/// being built until then, or until [flush] is called (at end of stream, or
-/// when the stream goes idle).
-class LogcatParser {
+/// separator arrives — see [LogLineParser].
+class LogcatParser implements LogLineParser {
   _LogcatEntryBuilder? _currentEntry;
 
-  /// Whether an entry is buffered, waiting for [flush] or the next header.
-  bool get hasPendingEntry => _currentEntry != null;
-
+  @override
   Iterable<LogEntry> addLine(String line) sync* {
     final separator = _parseSectionSeparator(line);
     if (separator != null) {
@@ -47,6 +44,7 @@ class LogcatParser {
     _currentEntry?.appendLine(line);
   }
 
+  @override
   LogEntry? flush() {
     final entry = _currentEntry?.build();
     _currentEntry = null;

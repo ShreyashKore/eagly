@@ -66,11 +66,8 @@ void main() {
       expect(parser.addLine('[ 09-26 20:46:05.034  1: 2 W/Tag ]'), isEmpty);
       expect(parser.addLine('first'), isEmpty);
       expect(parser.addLine('second'), isEmpty);
-      expect(parser.hasPendingEntry, isTrue);
 
-      final entry = parser.flush();
-      expect(entry?.message, 'first\nsecond');
-      expect(parser.hasPendingEntry, isFalse);
+      expect(parser.flush()?.message, 'first\nsecond');
       expect(parser.flush(), isNull);
     });
 

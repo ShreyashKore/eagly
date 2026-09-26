@@ -3,15 +3,15 @@ import 'dart:convert';
 import '../../../../data/device.dart';
 import '../../data/models/log_entry.dart';
 import '../../data/models/log_level.dart';
+import 'log_line_parser.dart';
 
 /// Parses `idevicesyslog` output into [LogEntry] objects.
 ///
 /// iOS syslog entries can span multiple lines: a header line carries the
 /// timestamp, process, pid and level, and any following non-header lines are
-/// continuations of the same message. This parser is therefore stateful — it
-/// buffers the entry being built until the next header arrives (or until
-/// [flush] is called at end of stream).
-class IosSyslogParser {
+/// continuations of the same message, so an entry is only known to be complete
+/// when the next header arrives — see [LogLineParser].
+class IosSyslogParser implements LogLineParser {
   IosSyslogParser({DateTime Function()? now}) : _now = now ?? DateTime.now;
 
   static final RegExp _metaEscapePattern = RegExp(r'\\M(?:-|\^|.)');
@@ -38,6 +38,7 @@ class IosSyslogParser {
   final DateTime Function() _now;
   _IosSyslogEntryBuilder? _currentEntry;
 
+  @override
   Iterable<LogEntry> addLine(String line) sync* {
     final normalizedLine = _decodeMetaEscapes(line);
     final parsedHeader = _IosSyslogEntryBuilder.tryParse(
@@ -56,6 +57,7 @@ class IosSyslogParser {
     _currentEntry?.appendContinuation(normalizedLine);
   }
 
+  @override
   LogEntry? flush() {
     final entry = _currentEntry?.build();
     _currentEntry = null;

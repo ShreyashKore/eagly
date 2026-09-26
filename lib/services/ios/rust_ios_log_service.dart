@@ -3,6 +3,7 @@ import 'dart:async';
 import '../../features/app_log/app_logger.dart';
 import '../../features/logs/data/models/log_entry.dart';
 import '../../features/logs/services/log_parsers/ios_syslog_parser.dart';
+import '../../features/logs/services/log_parsers/log_line_parser.dart';
 import '../../src/rust/api/ios.dart' as rust;
 import '../../utils/log_entry_utils.dart';
 import '../tools/tool_process_runner.dart';
@@ -28,9 +29,8 @@ class RustIosLogService implements IosLogService {
     // that two tabs on one device stop independently.
     final sessionId = '$deviceId-${_nextSessionId++}';
 
-    final parser = IosSyslogParser();
     late final StreamController<LogEntry> controller;
-    StreamSubscription<String>? subscription;
+    StreamSubscription<LogEntry>? subscription;
     var stopped = false;
     var ended = false;
 
@@ -50,14 +50,12 @@ class RustIosLogService implements IosLogService {
     controller = StreamController<LogEntry>(
       onListen: () {
         _logger.info('Starting iOS syslog stream for $processName');
-        subscription = rust
-            .startIosSyslog(udid: deviceId, sessionId: sessionId)
-            .listen(
-              (line) {
-                for (final entry in parser.addLine(line)) {
-                  controller.add(entry);
-                }
-              },
+        subscription =
+            parseLogLines(
+              rust.startIosSyslog(udid: deviceId, sessionId: sessionId),
+              IosSyslogParser(),
+            ).listen(
+              controller.add,
               onError: (Object error) {
                 _logger.error(
                   'iOS syslog stream failed for $processName',
@@ -74,8 +72,6 @@ class RustIosLogService implements IosLogService {
               onDone: () async {
                 // The Rust task has already dropped its registry entry.
                 ended = true;
-                final trailing = parser.flush();
-                if (trailing != null) controller.add(trailing);
                 _logger.info('iOS syslog stream ended for $processName');
                 await stop();
                 await controller.close();

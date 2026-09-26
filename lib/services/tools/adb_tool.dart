@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:eagly/features/logs/services/log_parsers/log_line_parser.dart';
 import 'package:eagly/features/logs/services/log_parsers/logcat_parser.dart';
 
 import '../../data/device.dart';
@@ -18,12 +19,6 @@ class AdbTool extends ToolProcessRunner {
   AdbTool({super.executablePath}) : super(executableName: 'adb');
 
   static const int _defaultServerPort = 5037;
-
-  /// How long `adb logcat` may stay silent before the entry the parser is
-  /// holding (it can't see the end of an entry until the next one starts) is
-  /// emitted anyway. logcat writes a whole entry in one go, so in practice a
-  /// gap this long only ever falls between entries.
-  static const Duration _logcatIdleFlushInterval = Duration(milliseconds: 100);
 
   Future<void>? _serverStartup;
 
@@ -640,8 +635,6 @@ class AdbTool extends ToolProcessRunner {
     var stopRequested = false;
     var stopFuture = Future<void>.value();
     late final StreamController<LogEntry> controller;
-    final parser = LogcatParser();
-    Timer? idleFlushTimer;
 
     Future<void> stop() {
       if (stopRequested) {
@@ -665,32 +658,13 @@ class AdbTool extends ToolProcessRunner {
           ]);
           final stderrFuture = stderrText(process!);
           var emittedLogs = false;
-          var sawLineSinceTick = false;
 
-          idleFlushTimer = Timer.periodic(_logcatIdleFlushInterval, (_) {
-            if (sawLineSinceTick) {
-              sawLineSinceTick = false;
-              return;
-            }
-            final pending = parser.flush();
-            if (pending == null) return;
+          await for (final entry in parseLogLines(
+            stdoutLines(process!),
+            LogcatParser(),
+          )) {
             emittedLogs = true;
-            controller.add(pending);
-          });
-
-          await for (final line in stdoutLines(process!)) {
-            sawLineSinceTick = true;
-            for (final entry in parser.addLine(line)) {
-              emittedLogs = true;
-              controller.add(entry);
-            }
-          }
-
-          idleFlushTimer?.cancel();
-          final trailingEntry = parser.flush();
-          if (trailingEntry != null) {
-            emittedLogs = true;
-            controller.add(trailingEntry);
+            controller.add(entry);
           }
 
           final stderrOutput = (await stderrFuture).trim();
@@ -726,7 +700,6 @@ class AdbTool extends ToolProcessRunner {
           );
         } finally {
           logInfo('Logcat stream ended for $deviceId');
-          idleFlushTimer?.cancel();
           await stop();
           await controller.close();
         }
