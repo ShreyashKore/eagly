@@ -1116,4 +1116,70 @@ void main() {
     expect(notifications, 1);
     expect(log.logViewerRevision, revision + 1);
   });
+
+  group('special entries keep their place after queued logs', () {
+    Future<void> deliver() => Future<void>.delayed(Duration.zero);
+
+    List<String> messagesAfterStart(LogController log) => log.logs
+        .skipWhile((entry) => entry.type != LogEntryType.started)
+        .skip(1)
+        .map(
+          (entry) => entry.type == LogEntryType.log
+              ? entry.message
+              : '<${entry.type.name}>',
+        )
+        .toList();
+
+    test(
+      'a separator from the stream lands after the logs before it',
+      () async {
+        final log = createLog();
+        await log.startLogcat();
+
+        service
+          ..emit(testLogEntry(message: 'first'))
+          ..emit(testLogEntry(message: 'second'))
+          ..emit(
+            LogEntryUtils.buildSpecial(
+              type: LogEntryType.notice,
+              message: 'Beginning of crash',
+            ),
+          )
+          ..emit(testLogEntry(message: 'third'));
+        await deliver();
+        // Before the periodic flush: 'third' is still queued.
+        expect(messagesAfterStart(log), ['first', 'second', '<notice>']);
+
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        expect(messagesAfterStart(log), [
+          'first',
+          'second',
+          '<notice>',
+          'third',
+        ]);
+      },
+    );
+
+    test('the paused marker lands after the logs captured before it', () async {
+      final log = createLog();
+      await log.startLogcat();
+
+      service.emit(testLogEntry(message: 'before pause'));
+      await deliver();
+      log.togglePauseResume();
+
+      expect(messagesAfterStart(log), ['before pause', '<paused>']);
+    });
+
+    test('stopping keeps the logs captured just before the stop', () async {
+      final log = createLog();
+      await log.startLogcat();
+
+      service.emit(testLogEntry(message: 'before stop'));
+      await deliver();
+      await log.stopLogcat();
+
+      expect(messagesAfterStart(log), ['before stop', '<stopped>']);
+    });
+  });
 }

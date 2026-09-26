@@ -1009,6 +1009,12 @@ class LogController extends FeatureController {
   }
 
   void _appendImmediateLogEntry(LogEntry entry) {
+    // Entries still queued for the periodic flush arrived first; appending
+    // around them would put a separator or session marker ("paused",
+    // "stopped") ahead of up to one flush interval of earlier logs — and
+    // after a stop, whose flush timer is already gone, strand them.
+    _flushPendingLogs();
+
     _syncLogBufferFilterIfDirty();
     final evictedLogs = _logsBuffer.append(entry);
     final addedBytes = estimateLogEntryBytes(entry);
