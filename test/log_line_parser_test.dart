@@ -28,6 +28,29 @@ class _CountingParser implements LogLineParser {
   PendingEntryStatus get pendingEntryStatus => _inner.pendingEntryStatus;
 }
 
+class _ThrowingParser implements LogLineParser {
+  _ThrowingParser({this.onAddLine = false, this.onFlush = false});
+
+  final bool onAddLine;
+  final bool onFlush;
+  final _inner = LogcatParser();
+
+  @override
+  List<LogEntry> addLine(String line) {
+    if (onAddLine && line == 'bad') throw const FormatException('addLine');
+    return _inner.addLine(line);
+  }
+
+  @override
+  LogEntry? flush() {
+    if (onFlush) throw const FormatException('flush');
+    return _inner.flush();
+  }
+
+  @override
+  PendingEntryStatus get pendingEntryStatus => _inner.pendingEntryStatus;
+}
+
 /// Drives [parseLogLines] over a hand-fed line stream inside [FakeAsync].
 class _Harness {
   _Harness(this.async, {LogLineParser? parser})
@@ -171,6 +194,94 @@ void main() {
       });
     });
 
+    test('delivers a parser exception as an error and keeps going', () {
+      fakeAsync((async) {
+        final harness = _Harness(
+          async,
+          parser: _ThrowingParser(onAddLine: true),
+        )..add([_header, 'bad', _header, 'good', '']);
+        harness.close();
+
+        expect(harness.errors, [isFormatException]);
+        expect(harness.messages, ['', 'good']);
+      });
+    });
+
+    test('delivers an idle-flush exception as an error', () {
+      fakeAsync((async) {
+        final harness = _Harness(async, parser: _ThrowingParser(onFlush: true))
+          ..add([_header, 'body', '']);
+        harness.elapse(_interval * 2);
+
+        expect(harness.errors, [isFormatException]);
+      });
+    });
+
+    test('never idle-flushes while the output is paused', () {
+      fakeAsync((async) {
+        final parser = _CountingParser();
+        final harness = _Harness(async, parser: parser)
+          ..add([_header, 'body', '']);
+        harness.subscription.pause();
+        harness.elapse(_fallback * 5);
+        // A paused listener wouldn't see a flushed entry anyway, so check the
+        // parser still holds it.
+        expect(parser.flushes, 0);
+
+        harness.subscription.resume();
+        harness.elapse(_interval * 2);
+        expect(harness.messages, ['body']);
+      });
+    });
+
+    test('does not restart the timer when resumed after the source ends', () {
+      fakeAsync((async) {
+        final lines = StreamController<String>();
+        final messages = <String>[];
+        late final StreamSubscription<LogEntry> subscription;
+        subscription =
+            parseLogLines(
+              lines.stream,
+              LogcatParser(),
+              idleFlushInterval: _interval,
+            ).listen((entry) {
+              messages.add(entry.message);
+              // Still draining after the source has ended.
+              subscription.pause();
+              subscription.resume();
+            });
+
+        lines
+          ..add(_header)
+          ..add('body')
+          ..close();
+        async.flushMicrotasks();
+
+        expect(messages, ['body']);
+        expect(async.periodicTimerCount, 0);
+      });
+    });
+
+    test('emits the held entry before a source error', () {
+      fakeAsync((async) {
+        final lines = StreamController<String>();
+        final events = <Object>[];
+        parseLogLines(
+          lines.stream,
+          LogcatParser(),
+          idleFlushInterval: _interval,
+        ).listen((entry) => events.add(entry.message), onError: events.add);
+
+        lines
+          ..add(_header)
+          ..add('before the error')
+          ..addError(StateError('boom'));
+        async.flushMicrotasks();
+
+        expect(events, ['before the error', isStateError]);
+      });
+    });
+
     test('forwards errors from the line stream', () {
       fakeAsync((async) {
         final errors = <Object>[];
@@ -260,6 +371,16 @@ void main() {
       ).toList();
 
       expect(entries.single.message, 'a\n\nb');
+    });
+
+    test('delivers a parser exception as an error event', () async {
+      await expectLater(
+        parseLogRecords(
+          Stream.fromIterable(['bad']),
+          _ThrowingParser(onAddLine: true),
+        ),
+        emitsInOrder([emitsError(isFormatException), emitsDone]),
+      );
     });
 
     test('decodes meta escapes on every line of a record', () async {

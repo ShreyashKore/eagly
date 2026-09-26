@@ -69,9 +69,14 @@ const Duration logLineIncompleteEntryFlushDelay = Duration(seconds: 1);
 /// entry that looks complete, [incompleteEntryFlushDelay] for one that doesn't.
 ///
 /// Silence is sampled on one periodic timer rather than a timer reset per
-/// line, which a high-volume stream would pay for on every line.
+/// line, which a high-volume stream would pay for on every line. The timer is
+/// stopped while the output is paused: the entry's remaining lines may be
+/// sitting in the paused source, so silence proves nothing then.
 ///
-/// Errors on [lines] are forwarded unchanged.
+/// Errors on [lines] are forwarded after the held entry, which came first. A
+/// parser exception is delivered as an error event too, rather than escaping
+/// to the zone, so a consumer's `await for` sees it where it would have seen
+/// one thrown by an inline parse.
 Stream<LogEntry> parseLogLines(
   Stream<String> lines,
   LogLineParser parser, {
@@ -89,40 +94,72 @@ Stream<LogEntry> parseLogLines(
     if (pending != null) controller.add(pending);
   }
 
+  void guarded(void Function() parse) {
+    try {
+      parse();
+    } catch (error, stackTrace) {
+      controller.addError(error, stackTrace);
+    }
+  }
+
+  void onTick(Timer _) {
+    if (sawLineSinceTick) {
+      sawLineSinceTick = false;
+      quietTicks = 0;
+      return;
+    }
+    quietTicks++;
+    guarded(() {
+      final flushDue = switch (parser.pendingEntryStatus) {
+        PendingEntryStatus.none || PendingEntryStatus.awaitingBody => false,
+        PendingEntryStatus.complete => true,
+        PendingEntryStatus.incomplete =>
+          idleFlushInterval * quietTicks >= incompleteEntryFlushDelay,
+      };
+      if (flushDue) emitPending();
+    });
+  }
+
+  void startIdleFlushTimer() {
+    sawLineSinceTick = false;
+    quietTicks = 0;
+    idleFlushTimer = Timer.periodic(idleFlushInterval, onTick);
+  }
+
+  void stopIdleFlushTimer() {
+    idleFlushTimer?.cancel();
+    idleFlushTimer = null;
+  }
+
   controller = StreamController<LogEntry>(
     onListen: () {
-      idleFlushTimer = Timer.periodic(idleFlushInterval, (_) {
-        if (sawLineSinceTick) {
-          sawLineSinceTick = false;
-          quietTicks = 0;
-          return;
-        }
-        quietTicks++;
-        final flushDue = switch (parser.pendingEntryStatus) {
-          PendingEntryStatus.none || PendingEntryStatus.awaitingBody => false,
-          PendingEntryStatus.complete => true,
-          PendingEntryStatus.incomplete =>
-            idleFlushInterval * quietTicks >= incompleteEntryFlushDelay,
-        };
-        if (flushDue) emitPending();
-      });
+      startIdleFlushTimer();
       subscription = lines.listen(
         (line) {
           sawLineSinceTick = true;
-          parser.addLine(line).forEach(controller.add);
+          guarded(() => parser.addLine(line).forEach(controller.add));
         },
-        onError: controller.addError,
+        onError: (Object error, StackTrace stackTrace) {
+          guarded(emitPending);
+          controller.addError(error, stackTrace);
+        },
         onDone: () {
-          idleFlushTimer?.cancel();
-          emitPending();
+          stopIdleFlushTimer();
+          guarded(emitPending);
           controller.close();
         },
       );
     },
-    onPause: () => subscription?.pause(),
-    onResume: () => subscription?.resume(),
+    onPause: () {
+      stopIdleFlushTimer();
+      subscription?.pause();
+    },
+    onResume: () {
+      subscription?.resume();
+      startIdleFlushTimer();
+    },
     onCancel: () {
-      idleFlushTimer?.cancel();
+      stopIdleFlushTimer();
       return subscription?.cancel();
     },
   );
