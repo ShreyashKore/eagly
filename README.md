@@ -185,6 +185,20 @@ not bundle it); if it isn't found automatically, point Eagly at it under
 3. When prompted on the device, tap **Trust This Computer** and enter your passcode.
 4. Launch Eagly — your device should appear automatically.
 
+### Filtering logs
+
+Click the filter icon at the left of the filter bar to switch to the inline filter, then type
+`key:value` terms. Keys are `tag` (`category` on iOS), `package`, `pid`, `message`, `level`
+and `age`; bare words search the whole entry. Prefix a term with `-` to exclude matches, and
+add `=` or `~` after the key for an exact or regex match:
+
+```
+package:com.myapp level:W -tag:AudioTrackImpl -message~:heartbeat
+```
+
+All terms must match, so this shows warnings and above from `com.myapp`, without
+`AudioTrackImpl` logs or heartbeat messages.
+
 ---
 
 ## Building from Source
