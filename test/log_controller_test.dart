@@ -680,20 +680,26 @@ void main() {
       expect(service.pidRefreshRequests, 0);
 
       applyInlineFilter(log, 'package:com.foo');
+      // Applying the filter asks once on its own; count lines from there.
+      final base = service.pidRefreshRequests;
       service.emit(
         testLogEntry(message: 'resolved', pid: '501', packageName: 'com.bar'),
       );
       await Future<void>.delayed(Duration.zero);
-      expect(service.pidRefreshRequests, 0, reason: 'it already has a package');
+      expect(
+        service.pidRefreshRequests,
+        base,
+        reason: 'it already has a package',
+      );
 
       service.emit(testLogEntry(message: 'unresolved', pid: '502'));
       await Future<void>.delayed(Duration.zero);
-      expect(service.pidRefreshRequests, 1);
+      expect(service.pidRefreshRequests, base + 1);
 
       // pid 501 was learned from the resolved line above.
       service.emit(testLogEntry(message: 'learned', pid: '501'));
       await Future<void>.delayed(Duration.zero);
-      expect(service.pidRefreshRequests, 1);
+      expect(service.pidRefreshRequests, base + 1);
     },
   );
 
@@ -731,6 +737,25 @@ void main() {
         contains('early'),
         reason: 'the refresh re-flags it, so it is not evicted first',
       );
+    },
+  );
+
+  test(
+    'a settled package filter change asks for a pid→package refresh',
+    () async {
+      final log = createLog();
+      applyInlineFilter(log, 'package:com.foo');
+      expect(service.pidRefreshRequests, 0, reason: 'not capturing yet');
+
+      await log.startLogcat();
+      applyInlineFilter(log, 'package:com.foo level:error');
+      expect(service.pidRefreshRequests, 0, reason: 'package terms unchanged');
+
+      applyInlineFilter(log, 'package:com.bar');
+      expect(service.pidRefreshRequests, 1);
+
+      applyInlineFilter(log, 'tag:Foo');
+      expect(service.pidRefreshRequests, 1, reason: 'no package terms');
     },
   );
 

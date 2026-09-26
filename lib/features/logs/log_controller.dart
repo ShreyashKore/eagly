@@ -873,6 +873,8 @@ class LogController extends FeatureController {
   /// Records the applied terms/level, schedules recording of recent values, and
   /// refreshes the filtered view. Does not touch the filter bars.
   void _applyFilterConfig(LogFilters configuration) {
+    final packageTermsChanged =
+        configuration.packageSignature != _appliedFilters.packageSignature;
     _appliedFilters = configuration;
     if (selectedLogLevel != configuration.level) {
       _settings = _settings.copyWith(selectedLogLevel: configuration.level);
@@ -886,6 +888,14 @@ class LogController extends FeatureController {
     _syncLogBufferFilter();
     _invalidateFilteredLogs();
     _notify();
+
+    // A package filter that just settled resolves against the processes
+    // running now, rather than at the next poll or the next unresolved line.
+    if (packageTermsChanged &&
+        configuration.packageTerms.isNotEmpty &&
+        isRunning) {
+      service.requestPidToPackageRefresh();
+    }
   }
 
   /// The applied filter's signature, extended with the pid→package index
@@ -1584,6 +1594,8 @@ extension on LogFilters {
     'pt:${_termSignatures(pidTidTerms)}',
     't:${_termSignatures(tagTerms)}',
   ].join('\u0000');
+
+  String get packageSignature => _termSignatures(packageTerms);
 
   static String _termSignatures(List<FilterTerm> terms) =>
       terms.map((term) => term.signature).join('\u0001');
