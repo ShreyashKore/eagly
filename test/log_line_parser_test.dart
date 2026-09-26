@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:eagly/features/logs/data/models/log_entry.dart';
+import 'package:eagly/features/logs/services/log_parsers/ios_syslog_parser.dart';
 import 'package:eagly/features/logs/services/log_parsers/log_line_parser.dart';
 import 'package:eagly/features/logs/services/log_parsers/logcat_parser.dart';
 import 'package:fake_async/fake_async.dart';
@@ -123,6 +124,71 @@ void main() {
         expect(sourceCancelled, isTrue);
         expect(parser.flushes, 0);
       });
+    });
+  });
+
+  group('parseLogRecords', () {
+    IosSyslogParser iosParser() =>
+        IosSyslogParser(now: () => DateTime(2026, 9, 26));
+
+    test(
+      'keeps a multi-line relay record as one entry under its own header',
+      () async {
+        final entries = await parseLogRecords(
+          Stream.fromIterable([
+            'Sep 26 20:46:04 MyApp[123] <Notice>: one\ntwo',
+            'Sep 26 20:46:05 OtherApp(Net)[456] <Error>: three',
+          ]),
+          iosParser(),
+        ).toList();
+
+        expect(entries, hasLength(2));
+        expect(entries[0].message, 'one\ntwo');
+        expect(entries[0].timestamp, '2026-09-26 20:46:04.000');
+        expect(entries[0].pid, '123');
+        expect(entries[0].packageName, 'MyApp');
+        expect(entries[0].level, 'default');
+        expect(entries[1].message, 'three');
+        expect(entries[1].timestamp, '2026-09-26 20:46:05.000');
+        expect(entries[1].pid, '456');
+        expect(entries[1].tag, 'Net');
+        expect(entries[1].level, 'error');
+      },
+    );
+
+    test('emits each record as soon as it arrives', () {
+      fakeAsync((async) {
+        final records = StreamController<String>();
+        final entries = <LogEntry>[];
+        parseLogRecords(records.stream, iosParser()).listen(entries.add);
+
+        records.add('Sep 26 20:46:04 MyApp[123] <Notice>: solo');
+        async.flushMicrotasks();
+
+        expect(entries.map((entry) => entry.message), ['solo']);
+      });
+    });
+
+    test('drops only the empty piece after a trailing newline', () async {
+      final entries = await parseLogRecords(
+        Stream.fromIterable(['Sep 26 20:46:04 MyApp[123] <Notice>: a\n\nb\n']),
+        iosParser(),
+      ).toList();
+
+      expect(entries.single.message, 'a\n\nb');
+    });
+
+    test('decodes meta escapes on every line of a record', () async {
+      final entries = await parseLogRecords(
+        Stream.fromIterable([
+          r'Sep 26 20:46:04 MyApp[123] <Notice>: \M-b\M^U\M^T top'
+              '\n'
+              r'\M-b\M^U\M^Z bottom',
+        ]),
+        iosParser(),
+      ).toList();
+
+      expect(entries.single.message, '╔ top\n╚ bottom');
     });
   });
 }

@@ -298,9 +298,12 @@ static SYSLOG_SESSIONS: LazyLock<Mutex<HashMap<String, CancellationToken>>> =
 /// Streams the device's syslog until [`stop_ios_syslog`] is called with the
 /// same `session_id`, the device goes away, or Dart drops the stream.
 ///
-/// Lines are emitted raw, exactly as `idevicesyslog` prints them, because the
-/// Dart parser that turns them into log entries is stateful (multi-line
-/// continuations, `\M-` meta-escapes) and is shared with the CLI backend.
+/// Emits one string per syslog-relay record, raw. A record is one whole
+/// message, so it can contain newlines: the relay delimits records with
+/// `\n\0`, unlike `idevicesyslog`, which prints each line of a message
+/// separately. The Dart side splits records itself because the parser that
+/// turns them into log entries (`\M-` meta-escapes, header parsing) is shared
+/// with the CLI backend.
 ///
 /// Connecting happens before the stream starts, so a device that refuses the
 /// service raises an error the caller can show — the CLI path could only infer

@@ -11,10 +11,12 @@ import 'ios_log_service.dart';
 
 /// [IosLogService] backed by the `idevice` crate's syslog relay client.
 ///
-/// Rust emits raw lines, byte-identical to what `idevicesyslog` prints, and the
-/// same [IosSyslogParser] turns them into [LogEntry]s for both backends — it is
-/// stateful (multi-line continuations, `\M-` meta-escapes) and well tested, so
-/// moving it across the bridge would buy nothing and risk a lot.
+/// Rust emits one string per syslog-relay record — a whole message, embedded
+/// newlines included (the relay delimits records with `\n\0`) — and the same
+/// [IosSyslogParser] turns them into [LogEntry]s for both backends, via
+/// [parseLogRecords] rather than the CLI's line-by-line [parseLogLines]. The
+/// parser (`\M-` meta-escapes, header parsing) is well tested, so moving it
+/// across the bridge would buy nothing and risk a lot.
 class RustIosLogService implements IosLogService {
   static int _nextSessionId = 0;
 
@@ -51,7 +53,7 @@ class RustIosLogService implements IosLogService {
       onListen: () {
         _logger.info('Starting iOS syslog stream for $processName');
         subscription =
-            parseLogLines(
+            parseLogRecords(
               rust.startIosSyslog(udid: deviceId, sessionId: sessionId),
               IosSyslogParser(),
             ).listen(
