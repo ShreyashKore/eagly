@@ -5,6 +5,10 @@ human-readable stdout. We are replacing that, surface by surface, with
 [`idevice`](https://github.com/jkcoxson/idevice) — a pure-Rust implementation of the same
 protocols — called over [flutter_rust_bridge](https://cjycode.com/flutter_rust_bridge/).
 
+**The libimobiledevice CLIs and friends will be removed in a future version.** The Rust backend
+is the one that stays, so new iOS features and fixes land there first; the CLI path is kept
+correct while it ships, not extended.
+
 ## Why
 
 - **Typed errors instead of stderr string-matching.** `IdeviceError` distinguishes
@@ -46,7 +50,8 @@ DeviceFileSystem                       file browsing (shared with Android)
 
 Logic that sits *above* the transport is shared rather than duplicated per backend:
 `buildIosDeviceInfo` maps lockdownd domains to the device-home model for both, `IosSyslogParser`
-turns raw syslog lines into `LogEntry`s for both, `sortIosApps` / `takeRecentIosApps` order
+turns raw syslog text into `LogEntry`s for both (the CLI's lines via `parseLogLines`, the Rust
+relay's whole-message records via `parseLogRecords`), `sortIosApps` / `takeRecentIosApps` order
 and cap the app list for both, and `collectCrashReports` parses pulled report files for both.
 Only the reading differs.
 
@@ -68,12 +73,30 @@ EAGLY_IOS_BACKEND=rust fvm flutter run -d macos
 | Surface | libimobiledevice | Rust | State |
 | --- | --- | --- | --- |
 | Discovery (`idevice_id`, `ideviceinfo`) | `IdeviceIdTool`, `IdeviceInfoTool` | `list_ios_devices`, `describe_ios_device` | both, **unverified on hardware** |
-| Syslog streaming | `IdeviceSyslogTool` | `start_ios_syslog`, `stop_ios_syslog` | both, **unverified on hardware** |
+| Syslog streaming | `IdeviceSyslogTool` | `start_ios_syslog`, `stop_ios_syslog` | both, **verified on hardware (iOS 26.7, 27.0) — Rust has gaps, see below** |
 | Extended device info | `IdeviceInfoTool.readDeviceDomains` | `read_ios_device_domains` | both, **unverified on hardware** |
 | App install / list / uninstall | `IdeviceInstallerTool` | `list_ios_apps`, `install_ios_app`, `uninstall_ios_app` | both, **unverified on hardware** |
 | Crash reports | `IdeviceCrashReportTool` | `pull_ios_crash_reports` | both, **unverified on hardware** |
 | File manager (AFC) | `IosFileSystem` (`afcclient`, **not bundled**) | `RustIosFileSystem` | both, **unverified on hardware** |
 | Utilities / Terminal | `DeviceToolRunner` | — | **blocked on a product decision — see below** |
+
+### Syslog: what hardware showed
+
+Both backends stream without losing, splitting or reordering lines — checked against the raw
+output on an iPhone (iOS 26.7 and 27.0) with `test/device/log_stream_integrity_test.dart`. But
+the Rust side reads a different device service from the CLI, with three gaps that block making
+it the default:
+
+- **`syslog_relay` has no Debug or Info messages** — roughly 80–85% of what `idevicesyslog`
+  shows, which reads `os_trace_relay`.
+- **No sub-second timestamps.**
+- **Its records keep the device hostname**, so process and package names come out as
+  `Shreyashs-iPhone backboardd`, which breaks package filtering.
+
+Moving `start_ios_syslog` to the crate's `os_trace_relay` (`OsTraceRelayClient`, structured
+logs) likely fixes all three. Relay records are whole messages, embedded newlines included, and
+go through `parseLogRecords`, not the CLI's line-by-line `parseLogLines`. Details, numbers and
+the device check: **docs/LOG_STREAMING.md**.
 
 ## Working on the Rust side
 
