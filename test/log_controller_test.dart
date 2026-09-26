@@ -689,6 +689,11 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(service.pidRefreshRequests, base + 1);
 
+      // Still unresolved after that ask: pid 502 doesn't ask again.
+      service.emit(testLogEntry(message: 'still unresolved', pid: '502'));
+      await Future<void>.delayed(Duration.zero);
+      expect(service.pidRefreshRequests, base + 1);
+
       // pid 501 was learned from the resolved line above.
       service.emit(testLogEntry(message: 'learned', pid: '501'));
       await Future<void>.delayed(Duration.zero);

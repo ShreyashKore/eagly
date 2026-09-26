@@ -127,6 +127,12 @@ class LogController extends FeatureController {
   /// rather than running once per learned PID.
   bool _logBufferFilterDirty = false;
 
+  /// PIDs [_requestPackageForUnknownPid] has already asked about. One refresh
+  /// per PID: if that didn't resolve it — the process exited first, or the
+  /// device's `ps` can't list it (older Androids reject `-A`) — asking again
+  /// would only repeat the same `ps -A` every second for as long as it logs.
+  final Set<String> _pidsAskedToResolve = {};
+
   StreamSubscription<LogEntry>? _logSub;
   StreamSubscription<Map<String, String>>? _pidPackageUpdatesSub;
   Timer? _flushTimer;
@@ -920,6 +926,9 @@ class LogController extends FeatureController {
     final pid = entry.pid.trim();
     if (pid.isEmpty || packageFilterValue(entry).isNotEmpty) return;
     if (_pidPackages.packageForPid(pid) != null) return;
+    // Capped; clearing only risks one more ask per PID.
+    if (_pidsAskedToResolve.length >= 4096) _pidsAskedToResolve.clear();
+    if (!_pidsAskedToResolve.add(pid)) return;
     service.requestPidToPackageRefresh();
   }
 
