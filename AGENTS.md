@@ -134,7 +134,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   are *any-field* terms and become "Any field" pills, never message pills. A pill with a
   blank value is a draft and contributes no term. Its popovers are `AnchoredPopover`s, which
   don't nest (a click in a second one counts as outside the first), so choices inside a card
-  — the operator list — open inline rather than as a menu.
+  — the operator list — open inline rather than as a menu. `AnchoredPopover` positions its
+  card with `OverlayPortal.overlayChildLayoutBuilder`; don't reach for
+  `CompositedTransformFollower` for overlays — a `Tooltip` (or anything else on the layout
+  builder) inside a follower asserts and paints Flutter's red error box.
 - **Multiple log tabs** per device via `LogSessionManager` (first live tab is permanent;
   extra live + imported tabs allowed).
 - **Screen captures:** screenshots and `screenrecord` videos taken from the mirror pane

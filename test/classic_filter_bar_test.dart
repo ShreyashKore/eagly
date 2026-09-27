@@ -3,6 +3,7 @@ import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/presentation/theme/log_level_presentation.dart';
 import 'package:eagly/features/logs/presentation/components/classic_filter_bar.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -182,6 +183,30 @@ void main() {
 
     expect(controller.conditions, isEmpty);
     expect(emitted, isNull);
+  });
+
+  // Tooltips lay out through OverlayPortal.overlayChildLayoutBuilder, which
+  // asserts under a CompositedTransformFollower — the red error box that
+  // flashed when the pointer crossed "Delete filter" while typing.
+  testWidgets('tooltips inside an open pill editor show without errors', (
+    WidgetTester tester,
+  ) async {
+    final controller = buildController();
+    addTearDown(controller.dispose);
+
+    await pumpClassicFilterBar(tester, controller: controller);
+    await addField(tester, 'Message');
+    await tester.enterText(editorField, 'auth');
+    await tester.pump();
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(find.byTooltip('Delete filter')));
+    await tester.pumpAndSettle(const Duration(seconds: 1));
+
+    expect(find.text('Delete filter'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('changing the level keeps an open draft pill', (
