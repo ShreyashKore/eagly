@@ -4,6 +4,7 @@ import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/presentation/theme/log_level_presentation.dart';
 import 'package:eagly/features/logs/presentation/components/classic_filter_bar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -55,25 +56,147 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('classic package field suggests known package values', (
+  Finder editorField() => find.byWidgetPredicate(
+    (widget) =>
+        widget is TextField &&
+        widget.decoration?.hintText != 'Filter message text…',
+  );
+
+  Future<void> addFilter(WidgetTester tester, String field) async {
+    await tester.tap(find.widgetWithText(TextButton, 'Filter'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(field).last);
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets(
+    'a package pill suggests known values and applies a clicked one',
+    (WidgetTester tester) async {
+      LogFilters? emitted;
+      final controller = buildController(
+        onStateChanged: (state) => emitted = state,
+      );
+      addTearDown(controller.dispose);
+
+      await pumpClassicFilterBar(tester, controller: controller);
+      await addFilter(tester, 'Package');
+
+      await tester.enterText(editorField(), 'payments');
+      await tester.pumpAndSettle();
+
+      expect(find.text('io.sample.payments'), findsOneWidget);
+      expect(find.text('com.example.auth'), findsNothing);
+
+      await tester.tap(find.text('io.sample.payments'));
+      await tester.pumpAndSettle();
+
+      expect(editorField(), findsNothing, reason: 'picking a value closes it');
+      expect(
+        find.text('Package contains io.sample.payments', findRichText: true),
+        findsOneWidget,
+      );
+      final term = emitted!.packageTerms.single;
+      expect(term.value, 'io.sample.payments');
+      expect(term.mode, FilterMatchMode.contains);
+      expect(term.negate, isFalse);
+    },
+  );
+
+  testWidgets('a pill can be switched to regex and negated', (
+    WidgetTester tester,
+  ) async {
+    LogFilters? emitted;
+    final controller = buildController(
+      onStateChanged: (state) => emitted = state,
+    );
+    addTearDown(controller.dispose);
+
+    await pumpClassicFilterBar(tester, controller: controller);
+    await addFilter(tester, 'Tag');
+
+    await tester.enterText(editorField(), '^Chat');
+    await tester.pump();
+    await tester.tap(find.text('Regex'));
+    await tester.pump();
+    await tester.tap(find.text('Hide matches'));
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Tag does not match regex ^Chat', findRichText: true),
+      findsOneWidget,
+    );
+    final term = emitted!.tagTerms.single;
+    expect(term.value, '^Chat');
+    expect(term.mode, FilterMatchMode.regex);
+    expect(term.negate, isTrue);
+    expect(
+      LogFilters.compose(
+        emitted!,
+        defaultLevel: LogLevel.verbose,
+        isIos: false,
+      ),
+      '-tag~:^Chat',
+    );
+  });
+
+  testWidgets('closing a pill that never got a value drops it', (
+    WidgetTester tester,
+  ) async {
+    LogFilters? emitted;
+    final controller = buildController(
+      onStateChanged: (state) => emitted = state,
+    );
+    addTearDown(controller.dispose);
+
+    await pumpClassicFilterBar(tester, controller: controller);
+    await addFilter(tester, 'Message');
+    expect(controller.conditions, hasLength(1));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(controller.conditions, isEmpty);
+    expect(emitted, isNull);
+  });
+
+  testWidgets('changing the level keeps an open draft pill', (
     WidgetTester tester,
   ) async {
     final controller = buildController();
     addTearDown(controller.dispose);
 
     await pumpClassicFilterBar(tester, controller: controller);
+    await addFilter(tester, 'Package');
 
-    await tester.enterText(find.byType(TextField).first, 'payments');
+    controller.setLevel(LogLevel.error);
     await tester.pumpAndSettle();
 
-    expect(find.text('io.sample.payments'), findsWidgets);
-    expect(find.text('com.example.auth'), findsNothing);
-
-    // Flush the debounce scheduled by typing so no timer outlives the test.
-    await tester.pump(const Duration(milliseconds: 350));
+    expect(editorField(), findsOneWidget);
+    expect(controller.conditions.single.isDraft, isTrue);
   });
 
-  testWidgets('classic package field applies a clicked known package value', (
+  testWidgets('an age preset applies at once', (WidgetTester tester) async {
+    LogFilters? emitted;
+    final controller = buildController(
+      onStateChanged: (state) => emitted = state,
+    );
+    addTearDown(controller.dispose);
+
+    await pumpClassicFilterBar(tester, controller: controller);
+    await addFilter(tester, 'Age');
+    await tester.tap(find.text('15m'));
+    await tester.pumpAndSettle();
+
+    expect(emitted?.maxAge, const Duration(minutes: 15));
+    expect(
+      find.text('Age within last 15m', findRichText: true),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('inline state splits into the quick field and pills', (
     WidgetTester tester,
   ) async {
     LogFilters? emitted;
@@ -84,14 +207,41 @@ void main() {
 
     await pumpClassicFilterBar(tester, controller: controller);
 
-    await tester.enterText(find.byType(TextField).first, 'payments');
+    const inline =
+        'age:5m package=:com.x pid:12 -tag~:^Chat message:hello '
+        '-message:noise bare';
+    controller.updateState(
+      LogFilters.parse(
+        inline,
+        fallbackLevel: LogLevel.verbose,
+        isIosLogContext: false,
+      ),
+    );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('io.sample.payments').first);
-    await tester.pumpAndSettle();
+    expect(controller.messageController.text, 'hello');
+    for (final pill in [
+      'Age within last 5m',
+      'Package is com.x',
+      'PID / TID contains 12',
+      'Tag does not match regex ^Chat',
+      'Message does not contain noise',
+      'Any field contains bare',
+    ]) {
+      expect(find.text(pill, findRichText: true), findsOneWidget, reason: pill);
+    }
 
-    expect(controller.packageController.text, 'io.sample.payments');
-    expect(emitted?.packageText, 'io.sample.payments');
+    // Rebuilding the filter from the pills loses nothing.
+    controller.applyNow();
+    controller.removeCondition(controller.conditions.last.id);
+    expect(
+      LogFilters.compose(
+        emitted!,
+        defaultLevel: LogLevel.verbose,
+        isIos: false,
+      ),
+      'age:5m package=:com.x pid:12 -tag~:^Chat message:hello -message:noise',
+    );
   });
 
   testWidgets('classic level dropdown renders colored level labels', (

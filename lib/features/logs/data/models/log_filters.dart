@@ -1,17 +1,14 @@
 import 'package:eagly/features/logs/data/models/log_level.dart';
 
-enum LogFilterField { message, packageName, pidTid, tag }
-
 enum InlineFilterKey { message, packageName, pidTid, tag, level, age }
 
 /// How a [FilterTerm]'s value is compared against a candidate string. The
-/// classic bar only ever produces [contains]; the inline bar's advanced syntax
-/// (`[-]key[=|~]:value`) can also select [exact] (`=`) or [regex] (`~`).
+/// inline bar's advanced syntax (`[-]key[=|~]:value`) selects [exact] (`=`) or
+/// [regex] (`~`); the classic bar's filter pills pick one from a menu.
 enum FilterMatchMode { contains, exact, regex }
 
 /// A single filter value, how it should be matched, and whether the result is
-/// negated. Matching is always case-insensitive, matching the classic bar's
-/// substring behaviour.
+/// negated. Matching is always case-insensitive.
 class FilterTerm {
   FilterTerm(
     this.value, {
@@ -114,9 +111,34 @@ class LogFilters {
     maxAge: null,
   );
 
-  /// Builds a filter from discrete classic-field values. Each field contributes
-  /// a single (trimmed) [FilterTerm.contains] term; the message field filters
-  /// the message column only (no [rawTerms]).
+  /// Builds a filter from per-field [FilterTerm] lists, deriving the plain
+  /// `*Text` summaries from them. Raw (any-field) terms fold into
+  /// [messageText] alongside the message terms.
+  factory LogFilters.fromTerms({
+    required LogLevel level,
+    List<FilterTerm> messageTerms = const [],
+    List<FilterTerm> rawTerms = const [],
+    List<FilterTerm> packageTerms = const [],
+    List<FilterTerm> pidTidTerms = const [],
+    List<FilterTerm> tagTerms = const [],
+    Duration? maxAge,
+  }) => LogFilters(
+    messageText: _plainValues([...rawTerms, ...messageTerms]),
+    packageText: _plainValues(packageTerms),
+    pidTidText: _plainValues(pidTidTerms),
+    tagText: _plainValues(tagTerms),
+    messageTerms: List.unmodifiable(messageTerms),
+    rawTerms: List.unmodifiable(rawTerms),
+    packageTerms: List.unmodifiable(packageTerms),
+    pidTidTerms: List.unmodifiable(pidTidTerms),
+    tagTerms: List.unmodifiable(tagTerms),
+    level: level,
+    maxAge: maxAge,
+  );
+
+  /// Builds a filter from at most one plain (contains) value per field — the
+  /// shorthand programmatic callers use. The message value filters the message
+  /// column only (no [rawTerms]).
   factory LogFilters.fromFields({
     required LogLevel level,
     String message = '',
@@ -130,17 +152,12 @@ class LogFilters {
       return trimmed.isEmpty ? const [] : [FilterTerm(trimmed)];
     }
 
-    return LogFilters(
-      messageText: message.trim(),
-      packageText: package.trim(),
-      pidTidText: pidTid.trim(),
-      tagText: tag.trim(),
+    return LogFilters.fromTerms(
+      level: level,
       messageTerms: single(message),
-      rawTerms: const [],
       packageTerms: single(package),
       pidTidTerms: single(pidTid),
       tagTerms: single(tag),
-      level: level,
       maxAge: maxAge,
     );
   }
@@ -276,9 +293,8 @@ String _quoteFilterValue(String value) {
 }
 
 /// Space-joined values of the plain (case-insensitive contains, non-negated)
-/// terms — the only form the classic bar's single-value fields can represent.
-/// Advanced terms are omitted, so switching an advanced inline filter to the
-/// classic bar shows an empty field rather than a corrupted value.
+/// terms — a one-line summary of a field that leaves advanced terms out rather
+/// than rendering them as a corrupted literal.
 String _plainValues(List<FilterTerm> terms) => terms
     .where((term) => term.mode == FilterMatchMode.contains && !term.negate)
     .map((term) => term.value)
@@ -335,17 +351,13 @@ LogFilters _parseInlineFilters(
     }
   }
 
-  return LogFilters(
-    messageText: _plainValues([...rawTerms, ...messageTerms]),
-    packageText: _plainValues(packageTerms),
-    pidTidText: _plainValues(pidTidTerms),
-    tagText: _plainValues(tagTerms),
-    messageTerms: List.unmodifiable(messageTerms),
-    rawTerms: List.unmodifiable(rawTerms),
-    packageTerms: List.unmodifiable(packageTerms),
-    pidTidTerms: List.unmodifiable(pidTidTerms),
-    tagTerms: List.unmodifiable(tagTerms),
+  return LogFilters.fromTerms(
     level: parsedLevel,
+    messageTerms: messageTerms,
+    rawTerms: rawTerms,
+    packageTerms: packageTerms,
+    pidTidTerms: pidTidTerms,
+    tagTerms: tagTerms,
     maxAge: parsedMaxAge,
   );
 }

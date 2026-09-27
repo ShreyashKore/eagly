@@ -342,8 +342,7 @@ class LogController extends FeatureController {
   /// immediately, regardless of which filter bar is active — used by the
   /// Apps feature's "View logs" action to jump straight to one app's lines.
   void applyPackageFilter(String packageName) {
-    classicFilter.setFieldFromInput(LogFilterField.packageName, packageName);
-    classicFilter.applyNow();
+    classicFilter.setPackageFilter(packageName);
   }
 
   void focusFilterInputs() {

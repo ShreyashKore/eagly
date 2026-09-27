@@ -1,5 +1,6 @@
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/logs/data/models/log_column.dart';
+import 'package:eagly/features/logs/data/models/filter_condition.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/data/models/log_filters.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
@@ -497,10 +498,25 @@ void main() {
       expect(log.selectedLogLevel, LogLevel.error);
       expect(log.filteredLogs, hasLength(1));
       expect(log.filteredLogs.single.level, 'E');
-      expect(log.classicFilter.messageController.text, 'signed in');
-      expect(log.classicFilter.packageController.text, 'com.example.auth');
-      expect(log.classicFilter.tagController.text, 'Auth');
-      expect(log.classicFilter.pidTidController.text, '101/202');
+      // A bare word searches every field, so it is an "Any field" pill rather
+      // than the message-only quick field.
+      expect(log.classicFilter.messageController.text, isEmpty);
+      expect(
+        [
+          for (final condition in log.classicFilter.conditions)
+            (condition.field, condition.operator, condition.value),
+        ],
+        [
+          (
+            FilterConditionField.packageName,
+            FilterOperator.contains,
+            'com.example.auth',
+          ),
+          (FilterConditionField.tag, FilterOperator.contains, 'Auth'),
+          (FilterConditionField.pidTid, FilterOperator.contains, '101/202'),
+          (FilterConditionField.anyField, FilterOperator.contains, 'signed in'),
+        ],
+      );
     },
   );
 

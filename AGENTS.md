@@ -121,6 +121,14 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   last row and in Settings). The write happens in `LogViewer`'s popup handler, not in
   `LogController` — the controller only holds per-tab state. Opting back in saves the
   current tab's set; opting out leaves the stored default alone.
+- **Log filter bars:** both bars edit one `LogFilters` (per-field `FilterTerm` lists — each
+  term has a match mode and negation, all ANDed — plus level and age); `LogController` mirrors
+  every emit into the other bar, so switching modes is lossless. The classic bar
+  (`ClassicFilterController`) holds a quick message field plus `FilterCondition` pills and
+  splits incoming state by one rule: the first plain (contains, non-negated) message term goes
+  to the quick field, every other term becomes a pill — including inline bare words, which
+  are *any-field* terms and become "Any field" pills, never the message field. A pill with a
+  blank value is a draft and contributes no term.
 - **Multiple log tabs** per device via `LogSessionManager` (first live tab is permanent;
   extra live + imported tabs allowed).
 - **Screen captures:** screenshots and `screenrecord` videos taken from the mirror pane
