@@ -64,7 +64,14 @@ void main() {
     (widget) => widget is TextField && widget.decoration?.hintText == hint,
   );
   final editorField = fieldWithHint('Type a value…');
-  Finder pill(String text) => find.text(text, findRichText: true);
+
+  /// A menu row, or a filter chip by the sentence it reads as ("Tag does not
+  /// contain Chatty") — chips show it split over a label and a value line.
+  Finder pill(String text) => find.byWidgetPredicate(
+    (widget) =>
+        (widget is RichText && widget.text.toPlainText() == text) ||
+        (widget is Semantics && widget.properties.label == text),
+  );
 
   /// The bar's type-to-filter field.
   final filterField = find.byWidgetPredicate(
@@ -199,6 +206,28 @@ void main() {
 
     expect(composed(emitted!), 'level:error tag:Auth -message~:^noise');
     expect(controller.inputFocusNode.hasFocus, isTrue, reason: 'keep typing');
+  });
+
+  testWidgets('a chip floats its field and operator over the value', (
+    WidgetTester tester,
+  ) async {
+    final controller = buildController();
+    addTearDown(controller.dispose);
+
+    await pumpClassicFilterBar(tester, controller: controller);
+    controller.applyTyped('-tag:Chatty');
+    await tester.pumpAndSettle();
+
+    final label = find.text('Tag · excludes', findRichText: true);
+    final value = find.text('Chatty');
+    expect(label, findsOneWidget);
+    expect(value, findsOneWidget);
+    expect(
+      tester.getBottomLeft(label).dy,
+      lessThanOrEqualTo(tester.getTopLeft(value).dy),
+      reason: 'the label line sits above the value',
+    );
+    expect(pill('Tag does not contain Chatty'), findsOneWidget);
   });
 
   testWidgets('pasted filter text applies as one row', (

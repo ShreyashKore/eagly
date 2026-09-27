@@ -123,8 +123,9 @@ const double kFilterTextHeight = 1.25;
 /// Corner radius of the filter row's controls; pills are fully rounded.
 const double kFilterControlRadius = 8.0;
 
-/// Height of a filter pill, which sits inside the filter field.
-const double kFilterPillHeight = 28.0;
+/// Height of a filter pill — a label line over a value line — which sits
+/// inside the filter field.
+const double kFilterPillHeight = 32.0;
 
 /// Decoration for a text field that sits inside a filter row control, which
 /// draws the border and fill itself: every border state, the theme's fill

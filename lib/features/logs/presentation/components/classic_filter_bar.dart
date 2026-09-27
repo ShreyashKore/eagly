@@ -383,7 +383,14 @@ class _FilterFieldState extends State<_FilterField> {
                     ),
                   )
                 else if (hasPills)
-                  _ClearFiltersButton(onPressed: controller.clearConditions),
+                  SizedBox(
+                    height: kFilterPillHeight,
+                    child: Center(
+                      child: _ClearFiltersButton(
+                        onPressed: controller.clearConditions,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -432,7 +439,7 @@ class _FilterFieldState extends State<_FilterField> {
   }
 }
 
-/// The field's "Clear filters" ×, exactly one pill line high. An [IconButton]
+/// The field's "Clear filters" ×, a fixed 28 px. An [IconButton]
 /// won't do: Material 3 keeps its minimum size over tight constraints, which
 /// stretched the field and pushed the × off its line.
 class _ClearFiltersButton extends StatelessWidget {
@@ -448,7 +455,7 @@ class _ClearFiltersButton extends StatelessWidget {
         onTap: onPressed,
         customBorder: const CircleBorder(),
         child: SizedBox.square(
-          dimension: kFilterPillHeight,
+          dimension: 28,
           child: Icon(
             Icons.close,
             size: 16,
@@ -472,9 +479,11 @@ List<Widget> _buildPills(
     if (controller.showsAgePill)
       _FilterPill(
         key: const ValueKey('age-pill'),
-        icon: Icons.schedule,
         fieldLabel: 'Age',
         operatorLabel: 'within last',
+        description: maxAge == null
+            ? 'Age within last …'
+            : 'Age within last ${formatMaxAge(maxAge)}',
         value: maxAge == null ? '' : formatMaxAge(maxAge),
         armed: armedId == ClassicFilterController.ageConditionId,
         openOnMount: controller.takePendingEditor(
@@ -498,9 +507,12 @@ List<Widget> _buildPills(
     for (final condition in controller.conditions)
       _FilterPill(
         key: ValueKey(condition.id),
-        icon: _fieldIcon(condition.field),
         fieldLabel: condition.field.label(isIos: isIos),
-        operatorLabel: condition.operator.label,
+        operatorLabel: condition.operator.shortLabel,
+        description:
+            '${condition.field.label(isIos: isIos)} '
+            '${condition.operator.label} '
+            '${condition.isDraft ? '…' : condition.value.trim()}',
         value: condition.value.trim(),
         negated: condition.operator.negate,
         armed: armedId == condition.id,
@@ -1026,14 +1038,16 @@ class _LevelButtonState extends State<_LevelButton> {
 
 // ── Pill ─────────────────────────────────────────────────────────────────────
 
-/// One active filter as a rounded pill ("Tag is not Chatty"); clicking it
-/// opens [editorBuilder] in a popover underneath.
+/// One active filter as a compact two-line chip: a small label naming the
+/// field and how it matches ("Tag · excludes") floats over the value
+/// ("Chatty"), so a chip is as wide as the longer of the two rather than the
+/// whole sentence. Clicking it opens [editorBuilder] in a popover underneath.
 class _FilterPill extends StatefulWidget {
   const _FilterPill({
     super.key,
-    required this.icon,
     required this.fieldLabel,
     required this.operatorLabel,
+    required this.description,
     required this.value,
     required this.onRemove,
     required this.onEditorClosed,
@@ -1044,9 +1058,14 @@ class _FilterPill extends StatefulWidget {
     this.openOnMount = false,
   });
 
-  final IconData icon;
   final String fieldLabel;
+
+  /// The operator's short form, for the label line.
   final String operatorLabel;
+
+  /// The filter as a sentence ("Tag does not contain Chatty"), which is what
+  /// assistive technology reads for the chip.
+  final String description;
 
   /// Blank while the pill is a draft.
   final String value;
@@ -1108,6 +1127,12 @@ class _FilterPillState extends State<_FilterPill> {
     final error = widget.error;
     final isDraft = widget.value.isEmpty;
     final accent = error != null ? colors.error : colors.primary;
+    final labelStyle = TextStyle(
+      fontSize: 10,
+      height: 1.2,
+      letterSpacing: 0.1,
+      color: colors.onSurfaceVariant,
+    );
 
     final pill = MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -1117,12 +1142,13 @@ class _FilterPillState extends State<_FilterPill> {
           alpha: widget.armed
               ? 0.24
               : _hovered || isOpen
-              ? 0.16
-              : 0.10,
+              ? 0.15
+              : 0.09,
         ),
-        shape: StadiumBorder(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kFilterControlRadius - 1),
           side: BorderSide(
-            color: accent.withValues(alpha: lit ? 0.9 : 0.35),
+            color: accent.withValues(alpha: lit ? 0.9 : 0.3),
             width: widget.armed ? 1.5 : 1,
           ),
         ),
@@ -1132,39 +1158,55 @@ class _FilterPillState extends State<_FilterPill> {
           child: SizedBox(
             height: kFilterPillHeight,
             child: Padding(
-              padding: const EdgeInsets.only(left: 11, right: 4),
+              padding: const EdgeInsets.only(left: 9, right: 3),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(widget.icon, size: 14, color: accent),
-                  const SizedBox(width: 6),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 280),
-                    child: Text.rich(
-                      TextSpan(
+                  Semantics(
+                    label: widget.description,
+                    excludeSemantics: true,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 220),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          TextSpan(
-                            text: widget.fieldLabel,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: accent,
+                          Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: widget.fieldLabel,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: accent,
+                                  ),
+                                ),
+                                const TextSpan(text: ' · '),
+                                TextSpan(
+                                  text: widget.operatorLabel,
+                                  style: widget.negated
+                                      ? TextStyle(
+                                          color: colors.error,
+                                          fontWeight: FontWeight.w600,
+                                        )
+                                      : null,
+                                ),
+                              ],
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: labelStyle,
                           ),
-                          TextSpan(
-                            text: ' ${widget.operatorLabel} ',
+                          Text(
+                            isDraft ? 'Add a value…' : widget.value,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: widget.negated
-                                  ? colors.error
-                                  : colors.onSurfaceVariant,
-                              fontWeight: widget.negated
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                            ),
-                          ),
-                          TextSpan(
-                            text: isDraft ? '…' : widget.value,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
+                              fontSize: 12.5,
+                              height: 1.2,
+                              fontWeight: isDraft
+                                  ? FontWeight.w400
+                                  : FontWeight.w500,
                               color: isDraft
                                   ? colors.onSurfaceVariant
                                   : colors.onSurface,
@@ -1172,26 +1214,27 @@ class _FilterPillState extends State<_FilterPill> {
                           ),
                         ],
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12.5),
                     ),
                   ),
-                  const SizedBox(width: 2),
-                  SizedBox(
-                    width: 22,
-                    height: 22,
+                  const SizedBox(width: 3),
+                  SizedBox.square(
+                    dimension: 18,
                     child: _hovered
-                        ? IconButton(
-                            tooltip: 'Remove filter',
-                            onPressed: widget.onRemove,
-                            icon: const Icon(Icons.close, size: 14),
-                            padding: EdgeInsets.zero,
-                            visualDensity: VisualDensity.compact,
+                        ? Tooltip(
+                            message: 'Remove filter',
+                            child: InkWell(
+                              onTap: widget.onRemove,
+                              customBorder: const CircleBorder(),
+                              child: Icon(
+                                Icons.close,
+                                size: 13,
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
                           )
                         : Icon(
                             Icons.expand_more,
-                            size: 15,
+                            size: 14,
                             color: colors.onSurfaceVariant,
                           ),
                   ),

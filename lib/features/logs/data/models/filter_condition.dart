@@ -28,22 +28,53 @@ enum FilterConditionField {
 /// A filter pill's comparison: a [FilterMatchMode] plus negation, named the
 /// way a person reads the pill ("Tag is not Chatty").
 enum FilterOperator {
-  contains(FilterMatchMode.contains, negate: false, label: 'contains'),
+  contains(
+    FilterMatchMode.contains,
+    negate: false,
+    label: 'contains',
+    shortLabel: 'contains',
+  ),
   notContains(
     FilterMatchMode.contains,
     negate: true,
     label: 'does not contain',
+    shortLabel: 'excludes',
   ),
-  exact(FilterMatchMode.exact, negate: false, label: 'is'),
-  notExact(FilterMatchMode.exact, negate: true, label: 'is not'),
-  regex(FilterMatchMode.regex, negate: false, label: 'matches regex'),
-  notRegex(FilterMatchMode.regex, negate: true, label: 'does not match regex');
+  exact(FilterMatchMode.exact, negate: false, label: 'is', shortLabel: 'is'),
+  notExact(
+    FilterMatchMode.exact,
+    negate: true,
+    label: 'is not',
+    shortLabel: 'is not',
+  ),
+  regex(
+    FilterMatchMode.regex,
+    negate: false,
+    label: 'matches regex',
+    shortLabel: 'regex',
+  ),
+  notRegex(
+    FilterMatchMode.regex,
+    negate: true,
+    label: 'does not match regex',
+    shortLabel: 'not regex',
+  );
 
-  const FilterOperator(this.mode, {required this.negate, required this.label});
+  const FilterOperator(
+    this.mode, {
+    required this.negate,
+    required this.label,
+    required this.shortLabel,
+  });
 
   final FilterMatchMode mode;
   final bool negate;
+
+  /// How the operator reads in a sentence: "Tag does not match regex ^Chat".
   final String label;
+
+  /// The one- or two-word form a pill's small label line has room for.
+  final String shortLabel;
 
   static FilterOperator of(FilterMatchMode mode, {required bool negate}) =>
       values.firstWhere((op) => op.mode == mode && op.negate == negate);
