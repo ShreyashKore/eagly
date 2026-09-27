@@ -1147,8 +1147,16 @@ class _FilterPillState extends State<_FilterPill> {
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(kFilterControlRadius - 1),
+          // A hairline tint at rest; the fill carries the chip. Open or
+          // marked for removal, it firms up to show which chip that is.
           side: BorderSide(
-            color: accent.withValues(alpha: lit ? 0.9 : 0.3),
+            color: accent.withValues(
+              alpha: lit
+                  ? 0.6
+                  : _hovered
+                  ? 0.22
+                  : 0.12,
+            ),
             width: widget.armed ? 1.5 : 1,
           ),
         ),
