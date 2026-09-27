@@ -45,6 +45,7 @@ class AnchoredPopover extends StatefulWidget {
     required this.child,
     this.width = 300,
     this.onClosed,
+    this.tapGroupId,
   });
 
   final PopoverController controller;
@@ -53,13 +54,19 @@ class AnchoredPopover extends StatefulWidget {
   final double width;
   final VoidCallback? onClosed;
 
+  /// The [TapRegion] group the anchor and card share. Pass the same object as
+  /// a text field's `groupId` inside the anchor so a click in the card doesn't
+  /// take the field's focus.
+  final Object? tapGroupId;
+
   @override
   State<AnchoredPopover> createState() => _AnchoredPopoverState();
 }
 
 class _AnchoredPopoverState extends State<AnchoredPopover> {
   final OverlayPortalController _portal = OverlayPortalController();
-  final Object _tapGroup = Object();
+  late final Object _ownTapGroup = Object();
+  Object get _tapGroup => widget.tapGroupId ?? _ownTapGroup;
 
   @override
   void initState() {

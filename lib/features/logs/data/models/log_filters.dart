@@ -313,11 +313,11 @@ LogFilters _parseInlineFilters(
   var parsedLevel = fallbackLevel;
   Duration? parsedMaxAge;
 
-  for (final token in _tokenizeInlineFilterText(rawText)) {
+  for (final token in tokenizeFilterText(rawText)) {
     final trimmedToken = token.trim();
     if (trimmedToken.isEmpty) continue;
 
-    final parsed = _parseKeyedToken(trimmedToken);
+    final parsed = parseKeyedFilterToken(trimmedToken);
     if (parsed == null) {
       // Not a recognised keyed filter → the whole token is a raw contains term.
       // Bare words (including a leading '-') are always literal.
@@ -364,8 +364,8 @@ LogFilters _parseInlineFilters(
 
 /// The key, value, match mode, and negation extracted from a single inline
 /// token shaped `[-]key[=|~]:value`.
-class _KeyedToken {
-  const _KeyedToken(this.key, this.value, this.mode, this.negate);
+class KeyedFilterToken {
+  const KeyedFilterToken(this.key, this.value, this.mode, this.negate);
 
   final InlineFilterKey key;
   final String value;
@@ -376,7 +376,13 @@ class _KeyedToken {
 /// Parses [token] as an advanced keyed filter, or returns null when it is not a
 /// recognised `key:value` (so the caller keeps it as a literal raw term). A
 /// leading `-` negates; a trailing `=`/`~` on the key selects exact/regex.
-_KeyedToken? _parseKeyedToken(String token) {
+///
+/// With [allowEmptyValue], a bare `key:` still parses (with an empty value) —
+/// for a field that suggests values while the user is still typing one.
+KeyedFilterToken? parseKeyedFilterToken(
+  String token, {
+  bool allowEmptyValue = false,
+}) {
   var rest = token;
   var negate = false;
   if (rest.length > 1 && rest.startsWith('-')) {
@@ -401,8 +407,8 @@ _KeyedToken? _parseKeyedToken(String token) {
 
   final key = _canonicalInlineFilterKey(keyText);
   final value = _normalizeInlineFilterValue(rawValue);
-  if (key == null || value.isEmpty) return null;
-  return _KeyedToken(key, value, mode, negate);
+  if (key == null || (value.isEmpty && !allowEmptyValue)) return null;
+  return KeyedFilterToken(key, value, mode, negate);
 }
 
 InlineFilterKey? _canonicalInlineFilterKey(String rawKey) {
@@ -427,7 +433,8 @@ String _normalizeInlineFilterValue(String rawValue) {
   return normalized.replaceAll(r'\"', '"').trim();
 }
 
-List<String> _tokenizeInlineFilterText(String rawText) {
+/// Splits inline filter text into tokens at whitespace outside double quotes.
+List<String> tokenizeFilterText(String rawText) {
   final tokens = <String>[];
   final buffer = StringBuffer();
   var inQuotes = false;

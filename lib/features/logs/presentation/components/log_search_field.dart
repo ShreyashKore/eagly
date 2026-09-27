@@ -18,7 +18,7 @@ class LogSearchField extends StatefulWidget {
   final LogController controller;
 
   static const double collapsedWidth = 220;
-  static const double expandedWidth = 400;
+  static const double expandedWidth = 340;
 
   @override
   State<LogSearchField> createState() => _LogSearchFieldState();
@@ -178,7 +178,7 @@ class _LogSearchFieldState extends State<LogSearchField> {
                     ),
                   ),
                   if (!expanded)
-                    _KeyHint(label: _shortcutLabel)
+                    FilterKeyHint(label: _shortcutLabel)
                   else
                     ..._buildActiveControls(context, colors),
                 ],
@@ -253,29 +253,6 @@ class _LogSearchFieldState extends State<LogSearchField> {
         onPressed: _close,
       ),
     ];
-  }
-}
-
-class _KeyHint extends StatelessWidget {
-  const _KeyHint({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(right: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: colors.outlineVariant),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 10.5, color: colors.onSurfaceVariant),
-      ),
-    );
   }
 }
 

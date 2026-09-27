@@ -121,18 +121,22 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   last row and in Settings). The write happens in `LogViewer`'s popup handler, not in
   `LogController` — the controller only holds per-tab state. Opting back in saves the
   current tab's set; opting out leaves the stored default alone.
-- **Log filter row:** `LogFilterArea` puts the always-visible search (`LogSearchField`:
-  highlight and step through matches, hides nothing) beside the filter controls, so neither
-  is buried; the toolbar has no search button and there is no floating search box. ⌘F
-  focuses the field through `LogController.searchFocusNode`, which is why the field sits
-  *outside* the mode cross-fade — two fading copies can't share one focus node. ⌘L opens the
-  pill bar's "Filter by…" menu (`LogController.activateFilterInput`).
+- **Log filter row:** `LogFilterArea` puts the filter on the left and the always-visible
+  search (`LogSearchField`: highlight and step through matches, hides nothing) on the right,
+  so neither is buried; the toolbar has no search button and there is no floating search
+  box. ⌘F focuses search through `LogController.searchFocusNode`, which is why the field
+  sits *outside* the mode cross-fade — two fading copies can't share one focus node. ⌘L
+  focuses the active bar's filter field (`LogController.activateFilterInput`).
 - **Log filter bars:** both bars edit one `LogFilters` (per-field `FilterTerm` lists — each
   term has a match mode and negation, all ANDed — plus level and age); `LogController` mirrors
   every emit into the other bar, so switching modes is lossless. The classic ("pills") bar
   (`ClassicFilterController`) holds one `FilterCondition` pill per term — inline bare words
   are *any-field* terms and become "Any field" pills, never message pills. A pill with a
-  blank value is a draft and contributes no term. Its popovers are `AnchoredPopover`s, which
+  blank value is a draft and contributes no term. The pills live inside one type-to-filter
+  field serving both audiences: focusing it opens a "Filter by…" menu (pick a field, get a
+  draft pill and its editor), and typed inline syntax (`tag:Auth`, `-message~:^x`, `level:e`)
+  becomes pills on Space / ↵ through `applyTyped` — the inline parser's rules, so both bars
+  read text the same way. Its popovers are `AnchoredPopover`s, which
   don't nest (a click in a second one counts as outside the first), so choices inside a card
   — the operator list — open inline rather than as a menu. `AnchoredPopover` positions its
   card with `OverlayPortal.overlayChildLayoutBuilder`; don't reach for

@@ -178,11 +178,9 @@ class ClassicFilterController extends LogFilterController {
     seedFields();
   }
 
-  /// Focus for the bar's "Filter" button, the bar's primary control.
-  final FocusNode filterButtonFocusNode = FocusNode();
-
-  /// Bumped to ask the bar to open its "Filter by…" menu (⌘L).
-  final ValueNotifier<int> filterMenuRequests = ValueNotifier(0);
+  /// Focus for the bar's type-to-filter field, the bar's primary control
+  /// (⌘L); focusing it opens the "Filter by…" menu.
+  final FocusNode inputFocusNode = FocusNode();
 
   List<FilterCondition> _conditions = const [];
   List<FilterCondition> get conditions => _conditions;
@@ -219,7 +217,13 @@ class ClassicFilterController extends LogFilterController {
     return true;
   }
 
-  void openFilterMenu() => filterMenuRequests.value++;
+  /// The pill shown last — the one Backspace in the empty field removes —
+  /// or null when there are none. The age pill leads the row.
+  int? get lastPillId => _conditions.isNotEmpty
+      ? _conditions.last.id
+      : showsAgePill
+      ? ageConditionId
+      : null;
 
   LogFilters _buildState({Duration? maxAge, bool keepMaxAge = true}) {
     final terms = {
@@ -339,6 +343,44 @@ class ClassicFilterController extends LogFilterController {
     notifyListeners();
   }
 
+  /// Applies typed filter syntax at once: every `[-]key[=|~]:value` token
+  /// becomes a pill (or sets the level / age limit), and bare words become
+  /// "Any field" pills — the inline bar's rules, so typing `tag:Auth
+  /// -message:noise` here builds the same filter.
+  void applyTyped(String text) {
+    final parsed = LogFilters.parse(
+      text,
+      fallbackLevel: state.level,
+      isIosLogContext: isIos,
+    );
+    _conditions = List.unmodifiable([..._conditions, ..._pillsFor(parsed)]);
+    final maxAge = parsed.maxAge ?? state.maxAge;
+    emitUserState(
+      _buildState(
+        maxAge: maxAge,
+        keepMaxAge: false,
+      ).copyWith(level: parsed.level),
+      immediate: true,
+    );
+    notifyListeners();
+  }
+
+  /// Removes the pill [lastPillId] names, if any.
+  void removeLastPill() {
+    final id = lastPillId;
+    if (id == null) return;
+    if (id == ageConditionId) {
+      _ageDraft = false;
+      if (maxAge == null) {
+        notifyListeners();
+      } else {
+        setMaxAge(null);
+      }
+      return;
+    }
+    removeCondition(id);
+  }
+
   /// Replaces any package pills with one `Package contains [packageName]` and
   /// applies it immediately.
   void setPackageFilter(String packageName) {
@@ -367,7 +409,11 @@ class ClassicFilterController extends LogFilterController {
   @override
   void writeStateToFields() {
     if (_termsKey(_buildState()) == _termsKey(state)) return;
+    _conditions = List.unmodifiable(_pillsFor(state));
+  }
 
+  /// One new pill per term of [filters], in the order the bar shows them.
+  List<FilterCondition> _pillsFor(LogFilters filters) {
     FilterCondition pill(FilterConditionField field, FilterTerm term) =>
         FilterCondition(
           id: _nextConditionId++,
@@ -375,26 +421,25 @@ class ClassicFilterController extends LogFilterController {
           operator: FilterOperator.of(term.mode, negate: term.negate),
           value: term.value,
         );
-    _conditions = List.unmodifiable([
-      for (final term in state.packageTerms)
+    return [
+      for (final term in filters.packageTerms)
         pill(FilterConditionField.packageName, term),
-      for (final term in state.tagTerms) pill(FilterConditionField.tag, term),
-      for (final term in state.pidTidTerms)
+      for (final term in filters.tagTerms) pill(FilterConditionField.tag, term),
+      for (final term in filters.pidTidTerms)
         pill(FilterConditionField.pidTid, term),
-      for (final term in state.messageTerms)
+      for (final term in filters.messageTerms)
         pill(FilterConditionField.message, term),
-      for (final term in state.rawTerms)
+      for (final term in filters.rawTerms)
         pill(FilterConditionField.anyField, term),
-    ]);
+    ];
   }
 
   @override
-  void focusPrimaryField() => filterButtonFocusNode.requestFocus();
+  void focusPrimaryField() => inputFocusNode.requestFocus();
 
   @override
   void dispose() {
-    filterButtonFocusNode.dispose();
-    filterMenuRequests.dispose();
+    inputFocusNode.dispose();
     super.dispose();
   }
 }

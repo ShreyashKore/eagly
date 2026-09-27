@@ -116,6 +116,33 @@ const double kFilterControlHeight = 30.0;
 /// Corner radius of the filter row's controls; pills are fully rounded.
 const double kFilterControlRadius = 8.0;
 
+/// Height of a filter pill, which sits inside the filter field.
+const double kFilterPillHeight = 24.0;
+
+/// A small outlined keyboard shortcut, e.g. `⌘F`, shown in an idle control.
+class FilterKeyHint extends StatelessWidget {
+  const FilterKeyHint({super.key, required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(right: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 10.5, color: colors.onSurfaceVariant),
+      ),
+    );
+  }
+}
+
 /// The fill, border and label style every filter row control shares, so the
 /// search field and the Filter / Level buttons read as one family.
 class FilterControlStyle {

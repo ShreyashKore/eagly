@@ -348,15 +348,9 @@ class LogController extends FeatureController {
     classicFilter.setPackageFilter(packageName);
   }
 
-  /// ⌘L: puts the user into the filter — the inline field, or the classic
-  /// bar's "Filter by…" menu.
-  void activateFilterInput() {
-    if (filterViewMode == LogFilterViewMode.classic) {
-      classicFilter.openFilterMenu();
-      return;
-    }
-    focusFilterInputs();
-  }
+  /// ⌘L: puts the caret in the active bar's filter field (in the pill bar,
+  /// that also opens its "Filter by…" menu).
+  void activateFilterInput() => focusFilterInputs();
 
   void focusFilterInputs() {
     WidgetsBinding.instance.addPostFrameCallback((_) {

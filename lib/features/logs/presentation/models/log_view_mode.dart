@@ -10,7 +10,7 @@ enum LogFilterViewMode {
   String get description => switch (this) {
     LogFilterViewMode.classic =>
       'Filter pills: pick a field, how it matches (contains, is, regex — or '
-          'the opposite) and a value.',
+          'the opposite) and a value — or type tag:Auth and press Space.',
     LogFilterViewMode.inline =>
       'One Logcat-style field with smart suggestions such as level:error or tag:Auth.',
   };

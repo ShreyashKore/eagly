@@ -51,10 +51,7 @@ void main() {
             width: 1000,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClassicFilterBar(controller: controller),
-                ClassicFilterPills(controller: controller),
-              ],
+              children: [ClassicFilterBar(controller: controller)],
             ),
           ),
         ),
@@ -66,12 +63,16 @@ void main() {
   Finder fieldWithHint(String hint) => find.byWidgetPredicate(
     (widget) => widget is TextField && widget.decoration?.hintText == hint,
   );
-  final menuField = fieldWithHint('Filter by… (try a package or tag)');
   final editorField = fieldWithHint('Type a value…');
   Finder pill(String text) => find.text(text, findRichText: true);
 
+  /// The bar's type-to-filter field.
+  final filterField = find.byWidgetPredicate(
+    (widget) => widget is TextField && widget.groupId != EditableText,
+  );
+
   Future<void> openFilterMenu(WidgetTester tester) async {
-    await tester.tap(find.text('Filter'));
+    await tester.tap(filterField);
     await tester.pumpAndSettle();
   }
 
@@ -80,6 +81,9 @@ void main() {
     await tester.tap(find.text(field));
     await tester.pumpAndSettle();
   }
+
+  String composed(LogFilters filters) =>
+      LogFilters.compose(filters, defaultLevel: LogLevel.verbose, isIos: false);
 
   testWidgets('typing in the Filter menu offers known values as filters', (
     WidgetTester tester,
@@ -92,7 +96,7 @@ void main() {
 
     await pumpClassicFilterBar(tester, controller: controller);
     await openFilterMenu(tester);
-    await tester.enterText(menuField, 'payments');
+    await tester.enterText(filterField, 'payments');
     await tester.pumpAndSettle();
 
     expect(pill('Message contains payments'), findsOneWidget);
@@ -103,7 +107,11 @@ void main() {
     await tester.tap(suggestion);
     await tester.pumpAndSettle();
 
-    expect(menuField, findsNothing, reason: 'picking closes the menu');
+    expect(
+      pill('Message contains payments'),
+      findsNothing,
+      reason: 'picking closes the menu',
+    );
     expect(pill('Package contains io.sample.payments'), findsOneWidget);
     final term = emitted!.packageTerms.single;
     expect(term.value, 'io.sample.payments');
@@ -122,7 +130,7 @@ void main() {
 
     await pumpClassicFilterBar(tester, controller: controller);
     await openFilterMenu(tester);
-    await tester.enterText(menuField, 'timeout');
+    await tester.enterText(filterField, 'timeout');
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
@@ -130,6 +138,108 @@ void main() {
     // Message is first, so one ↓ lands on Package.
     expect(pill('Package contains timeout'), findsOneWidget);
     expect(emitted!.packageTerms.single.value, 'timeout');
+  });
+
+  testWidgets('typed key:value tokens become pills without the menu', (
+    WidgetTester tester,
+  ) async {
+    LogFilters? emitted;
+    final controller = buildController(
+      onStateChanged: (state) => emitted = state,
+    );
+    addTearDown(controller.dispose);
+
+    await pumpClassicFilterBar(tester, controller: controller);
+    await openFilterMenu(tester);
+
+    // A space after a complete token commits it and clears the field.
+    await tester.enterText(filterField, 'tag:Auth ');
+    await tester.pumpAndSettle();
+    expect(pill('Tag contains Auth'), findsOneWidget);
+    expect(tester.widget<TextField>(filterField).controller!.text, isEmpty);
+
+    // ↵ commits the highlighted row: exactly the typed filter.
+    await tester.enterText(filterField, '-message~:^noise');
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(pill('Message does not match regex ^noise'), findsOneWidget);
+
+    await tester.enterText(filterField, 'level:e');
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(composed(emitted!), 'level:error tag:Auth -message~:^noise');
+    expect(controller.inputFocusNode.hasFocus, isTrue, reason: 'keep typing');
+  });
+
+  testWidgets('pasted filter text applies as one row', (
+    WidgetTester tester,
+  ) async {
+    LogFilters? emitted;
+    final controller = buildController(
+      onStateChanged: (state) => emitted = state,
+    );
+    addTearDown(controller.dispose);
+
+    await pumpClassicFilterBar(tester, controller: controller);
+    await openFilterMenu(tester);
+    await tester.enterText(filterField, 'package=:com.x -tag:Chatty crash');
+    await tester.pumpAndSettle();
+
+    await tester.tap(pill('Add 3 filters  package=:com.x -tag:Chatty crash'));
+    await tester.pumpAndSettle();
+
+    expect(pill('Package is com.x'), findsOneWidget);
+    expect(pill('Tag does not contain Chatty'), findsOneWidget);
+    expect(pill('Any field contains crash'), findsOneWidget);
+    expect(composed(emitted!), 'package=:com.x -tag:Chatty crash');
+  });
+
+  testWidgets('typing part of a key offers to complete it', (
+    WidgetTester tester,
+  ) async {
+    LogFilters? emitted;
+    final controller = buildController(
+      onStateChanged: (state) => emitted = state,
+    );
+    addTearDown(controller.dispose);
+
+    await pumpClassicFilterBar(tester, controller: controller);
+    await openFilterMenu(tester);
+    await tester.enterText(filterField, 'ta');
+    await tester.pumpAndSettle();
+
+    await tester.tap(pill('tag:  filter by Tag'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(filterField).controller!.text, 'tag:');
+
+    // With the key typed, the field's known values are offered.
+    await tester.tap(pill('Tag contains AuthService'));
+    await tester.pumpAndSettle();
+    expect(composed(emitted!), 'tag:AuthService');
+  });
+
+  testWidgets('Backspace in the empty field marks, then removes, a pill', (
+    WidgetTester tester,
+  ) async {
+    final controller = buildController();
+    addTearDown(controller.dispose);
+
+    await pumpClassicFilterBar(tester, controller: controller);
+    controller.applyTyped('tag:Auth pid:12');
+    await openFilterMenu(tester);
+    expect(controller.conditions, hasLength(2));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+    await tester.pumpAndSettle();
+    expect(controller.conditions, hasLength(2), reason: 'first press marks');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+    await tester.pumpAndSettle();
+    expect(pill('PID / TID contains 12'), findsNothing);
+    expect(pill('Tag contains Auth'), findsOneWidget);
   });
 
   testWidgets('a pill can be switched to a negated regex', (

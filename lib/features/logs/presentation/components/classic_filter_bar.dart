@@ -1,7 +1,11 @@
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../presentation/components/anchored_popover.dart';
+import '../../../../presentation/theme/app_theme.dart';
 import '../../../../presentation/theme/log_level_presentation.dart';
 import '../../data/models/filter_condition.dart';
 import '../../data/models/log_filters.dart';
@@ -13,11 +17,18 @@ export 'filter_bar_shared.dart' show filterInputDecoration, kFilterFieldHeight;
 export 'log_filter_controller.dart'
     show ClassicFilterController, LogFilterSuggestions;
 
-/// The classic filter bar's controls, Notion style: a **Filter** button whose
-/// menu adds filters (type to get "Message contains …" and friends) and a
-/// **Level** button. The filters it adds show in [ClassicFilterPills], which
-/// the host lays out on its own row underneath. Fully driven by a
-/// [ClassicFilterController]; it owns no filter state.
+/// The classic filter bar: one type-to-filter field that holds the active
+/// filters as pills, then a **Level** button.
+///
+/// Two ways in, one result:
+/// * click the field and pick a field from its "Filter by…" menu — the new
+///   pill opens its editor (field, operator, value);
+/// * or just type: `tag:Auth`, `-message:noise`, `pid~:^12`, `level:e`,
+///   `age:5m`. Space or ↵ turns each token into a pill, and plain text + ↵
+///   adds the highlighted "Message contains …". Backspace in the empty field
+///   marks the last pill, a second Backspace removes it.
+///
+/// Fully driven by a [ClassicFilterController]; it owns no filter state.
 class ClassicFilterBar extends StatelessWidget {
   const ClassicFilterBar({super.key, required this.controller});
 
@@ -28,96 +39,13 @@ class ClassicFilterBar extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) => Row(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _FilterMenuButton(controller: controller),
+          Expanded(child: _FilterField(controller: controller)),
           const SizedBox(width: 6),
           _LevelButton(controller: controller),
         ],
       ),
-    );
-  }
-}
-
-/// The classic bar's active filters as rounded pills, plus "Clear filters".
-/// Builds nothing while there are none.
-class ClassicFilterPills extends StatelessWidget {
-  const ClassicFilterPills({super.key, required this.controller});
-
-  final ClassicFilterController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) => _buildPills(context),
-    );
-  }
-
-  Widget _buildPills(BuildContext context) {
-    if (!controller.hasPills) return const SizedBox(width: double.infinity);
-    final isIos = controller.isIos;
-    final maxAge = controller.maxAge;
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        if (controller.showsAgePill)
-          _FilterPill(
-            key: const ValueKey('age-pill'),
-            icon: Icons.schedule,
-            fieldLabel: 'Age',
-            operatorLabel: 'within last',
-            value: maxAge == null ? '' : formatMaxAge(maxAge),
-            openOnMount: controller.takePendingEditor(
-              ClassicFilterController.ageConditionId,
-            ),
-            onRemove: () {
-              controller.setMaxAge(null);
-              controller.commitCondition(
-                ClassicFilterController.ageConditionId,
-              );
-            },
-            onEditorClosed: () => controller.commitCondition(
-              ClassicFilterController.ageConditionId,
-            ),
-            editorBuilder: (context, close) => _AgeEditor(
-              controller: controller,
-              onDone: close,
-              onRemove: () {
-                close();
-                controller.setMaxAge(null);
-              },
-            ),
-          ),
-        for (final condition in controller.conditions)
-          _FilterPill(
-            key: ValueKey(condition.id),
-            icon: _fieldIcon(condition.field),
-            fieldLabel: condition.field.label(isIos: isIos),
-            operatorLabel: condition.operator.label,
-            value: condition.value.trim(),
-            negated: condition.operator.negate,
-            error: condition.toTerm()?.hasInvalidRegex ?? false
-                ? 'Invalid regular expression — this filter matches '
-                      '${condition.operator.negate ? 'every' : 'no'} line.'
-                : null,
-            openOnMount: controller.takePendingEditor(condition.id),
-            onRemove: () => controller.removeCondition(condition.id),
-            onEditorClosed: () => controller.commitCondition(condition.id),
-            editorBuilder: (context, close) => _ConditionEditor(
-              controller: controller,
-              conditionId: condition.id,
-              onDone: close,
-              onRemove: () {
-                close();
-                controller.removeCondition(condition.id);
-              },
-            ),
-          ),
-        _ClearButton(onPressed: controller.clearConditions),
-      ],
     );
   }
 }
@@ -130,8 +58,6 @@ IconData _fieldIcon(FilterConditionField field) => switch (field) {
   FilterConditionField.anyField => Icons.manage_search,
 };
 
-// ── Filter button + "Filter by…" menu ────────────────────────────────────────
-
 /// The fields in the order the menu offers them — most-used first, so a bare
 /// ↵ after typing filters the message.
 const List<FilterConditionField> _menuFieldOrder = [
@@ -142,233 +68,214 @@ const List<FilterConditionField> _menuFieldOrder = [
   FilterConditionField.anyField,
 ];
 
-class _FilterMenuButton extends StatefulWidget {
-  const _FilterMenuButton({required this.controller});
+/// The pill field a typed `key:` fills in; level and age have no pill field.
+FilterConditionField? _fieldForKey(InlineFilterKey key) => switch (key) {
+  InlineFilterKey.message => FilterConditionField.message,
+  InlineFilterKey.packageName => FilterConditionField.packageName,
+  InlineFilterKey.pidTid => FilterConditionField.pidTid,
+  InlineFilterKey.tag => FilterConditionField.tag,
+  InlineFilterKey.level || InlineFilterKey.age => null,
+};
+
+/// Recent and known values for [field] that contain [query] (all of them when
+/// it is blank), word-boundary matches first.
+List<String> _suggestedValues(
+  ClassicFilterController controller,
+  FilterConditionField field,
+  String query, {
+  int limit = 6,
+}) {
+  final sources = controller.suggestions;
+  final values = deduplicateFilterValues(switch (field) {
+    FilterConditionField.packageName => [
+      ...sources.recentPackageFilters(),
+      ...sources.knownPackageFilters(),
+    ],
+    FilterConditionField.tag => sources.recentTagFilters(),
+    FilterConditionField.pidTid => sources.recentPidTidFilters(),
+    FilterConditionField.message ||
+    FilterConditionField.anyField => sources.recentMessageFilters(),
+  });
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return values.take(limit).toList();
+  final preferred = <String>[];
+  final secondary = <String>[];
+  for (final value in values) {
+    final normalized = value.toLowerCase();
+    if (normalized == q || !normalized.contains(q)) continue;
+    (filterBoundaryMatch(normalized, q) ? preferred : secondary).add(value);
+  }
+  return [...preferred, ...secondary].take(limit).toList();
+}
+
+String get _filterShortcutLabel =>
+    defaultTargetPlatform == TargetPlatform.macOS ? '⌘L' : 'Ctrl+L';
+
+// ── The field ────────────────────────────────────────────────────────────────
+
+class _FilterField extends StatefulWidget {
+  const _FilterField({required this.controller});
 
   final ClassicFilterController controller;
 
   @override
-  State<_FilterMenuButton> createState() => _FilterMenuButtonState();
+  State<_FilterField> createState() => _FilterFieldState();
 }
 
-class _FilterMenuButtonState extends State<_FilterMenuButton> {
-  final PopoverController _popover = PopoverController();
+class _FilterFieldState extends State<_FilterField> {
+  final TextEditingController _text = TextEditingController();
+  final ValueNotifier<int> _highlight = ValueNotifier(0);
+  final PopoverController _menu = PopoverController();
+
+  /// Shared by the menu and the text field, so a click in the menu keeps the
+  /// caret in the field.
+  final Object _tapGroup = Object();
+  bool _focused = false;
+  bool _hovered = false;
+
+  /// Set by a Backspace in the empty field: the last pill shows as marked,
+  /// and a second Backspace removes it.
+  bool _removalArmed = false;
+
+  ClassicFilterController get _controller => widget.controller;
+  FocusNode get _focusNode => _controller.inputFocusNode;
 
   @override
   void initState() {
     super.initState();
-    widget.controller.filterMenuRequests.addListener(_popover.open);
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant _FilterField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.inputFocusNode.removeListener(_handleFocusChange);
+      _focusNode.addListener(_handleFocusChange);
+    }
   }
 
   @override
   void dispose() {
-    widget.controller.filterMenuRequests.removeListener(_popover.open);
-    _popover.dispose();
+    _focusNode.removeListener(_handleFocusChange);
+    _text.dispose();
+    _highlight.dispose();
+    _menu.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final count = widget.controller.activeFilterCount;
-    final colors = Theme.of(context).colorScheme;
-    return AnchoredPopover(
-      controller: _popover,
-      width: 300,
-      popoverBuilder: (context) =>
-          _FilterByMenu(controller: widget.controller, onDone: _popover.close),
-      child: FilterControlButton(
-        focusNode: widget.controller.filterButtonFocusNode,
-        icon: Icons.filter_list_rounded,
-        label: const Text('Filter'),
-        active: count > 0,
-        tooltip: 'Hide lines that don’t match (⌘L)',
-        trailing: count == 0
-            ? null
-            : Container(
-                constraints: const BoxConstraints(minWidth: 18),
-                height: 18,
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: colors.primary,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Text(
-                  '$count',
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: colors.onPrimary,
-                  ),
-                ),
-              ),
-        onPressed: _popover.toggle,
-      ),
-    );
+  void _handleFocusChange() {
+    final focused = _focusNode.hasFocus;
+    setState(() {
+      _focused = focused;
+      _removalArmed = false;
+    });
+    focused ? _menu.open() : _menu.close();
   }
-}
 
-/// One selectable row in the "Filter by…" menu.
-class _MenuOption {
-  const _MenuOption({
-    required this.icon,
-    required this.label,
-    required this.onSelected,
-  });
+  void _openMenu() {
+    _focusNode.requestFocus();
+    _menu.open();
+  }
 
-  final IconData icon;
-  final InlineSpan label;
-  final VoidCallback onSelected;
-}
+  void _onChanged(String value) {
+    if (_removalArmed) setState(() => _removalArmed = false);
+    // A space straight after a complete `key:value` commits it, so tokens can
+    // be typed one after another.
+    if (value.endsWith(' ') && _isCommittableToken(value)) {
+      _commitTyped(value);
+      return;
+    }
+    _highlight.value = 0;
+    _menu.open();
+  }
 
-/// The Filter button's menu: a "Filter by…" field over a list of fields. With
-/// text typed, each field becomes a ready "Field contains ‘text’" filter, and
-/// matching recent / known values are offered under it. ↑↓ and ↵ work.
-class _FilterByMenu extends StatefulWidget {
-  const _FilterByMenu({required this.controller, required this.onDone});
+  static bool _isCommittableToken(String value) {
+    if ('"'.allMatches(value).length.isOdd) return false; // Still quoting.
+    final tokens = tokenizeFilterText(value);
+    return tokens.length == 1 && parseKeyedFilterToken(tokens.single) != null;
+  }
 
-  final ClassicFilterController controller;
-  final VoidCallback onDone;
+  void _commitTyped(String text) {
+    _controller.applyTyped(text);
+    _clearText();
+    _menu.close();
+  }
 
-  @override
-  State<_FilterByMenu> createState() => _FilterByMenuState();
-}
-
-class _FilterByMenuState extends State<_FilterByMenu> {
-  final TextEditingController _query = TextEditingController();
-  int _highlighted = 0;
-
-  ClassicFilterController get _controller => widget.controller;
-
-  @override
-  void dispose() {
-    _query.dispose();
-    super.dispose();
+  void _clearText() {
+    _text.clear();
+    _highlight.value = 0;
   }
 
   void _select(_MenuOption option) {
-    widget.onDone();
-    option.onSelected();
+    final insert = option.insertText;
+    if (insert != null) {
+      _text.value = TextEditingValue(
+        text: insert,
+        selection: TextSelection.collapsed(offset: insert.length),
+      );
+      _highlight.value = 0;
+      _focusNode.requestFocus();
+      return;
+    }
+    _clearText();
+    _menu.close();
+    // A new draft pill opens its editor, which takes the focus from here.
+    option.onSelected?.call();
   }
 
-  /// The menu as sections of options; the flattened order is keyboard order.
-  List<(String, List<_MenuOption>)> _sections(BuildContext context) {
-    final isIos = _controller.isIos;
-    final query = _query.text.trim();
-    final colors = Theme.of(context).colorScheme;
-    final valueStyle = TextStyle(
-      fontWeight: FontWeight.w600,
-      color: colors.onSurface,
-    );
-    final mutedStyle = TextStyle(color: colors.onSurfaceVariant);
-
-    if (query.isEmpty) {
-      return [
-        (
-          'Filter by',
-          [
-            for (final field in _menuFieldOrder)
-              _MenuOption(
-                icon: _fieldIcon(field),
-                label: TextSpan(text: field.label(isIos: isIos)),
-                onSelected: () => _controller.addCondition(field),
-              ),
-            if (!_controller.showsAgePill)
-              _MenuOption(
-                icon: Icons.schedule,
-                label: const TextSpan(text: 'Age'),
-                onSelected: _controller.addAgeCondition,
-              ),
-          ],
-        ),
-      ];
-    }
-
-    InlineSpan contains(String field, String value) => TextSpan(
-      children: [
-        TextSpan(text: field),
-        TextSpan(text: ' contains ', style: mutedStyle),
-        TextSpan(text: value, style: valueStyle),
-      ],
-    );
-
-    final age = parseMaxAge(query);
-    final suggestions = <_MenuOption>[];
-    void suggest(FilterConditionField field, Iterable<String> values) {
-      final q = query.toLowerCase();
-      for (final value in deduplicateFilterValues(values)) {
-        final normalized = value.toLowerCase();
-        if (normalized == q || !normalized.contains(q)) continue;
-        suggestions.add(
-          _MenuOption(
-            icon: _fieldIcon(field),
-            label: contains(field.label(isIos: isIos), value),
-            onSelected: () => _controller.addConditionWithValue(field, value),
-          ),
-        );
-      }
-    }
-
-    final sources = _controller.suggestions;
-    suggest(FilterConditionField.packageName, [
-      ...sources.recentPackageFilters(),
-      ...sources.knownPackageFilters(),
-    ]);
-    suggest(FilterConditionField.tag, sources.recentTagFilters());
-    suggest(FilterConditionField.message, sources.recentMessageFilters());
-
-    return [
-      (
-        'Add filter',
-        [
-          for (final field in _menuFieldOrder)
-            _MenuOption(
-              icon: _fieldIcon(field),
-              label: contains(field.label(isIos: isIos), query),
-              onSelected: () => _controller.addConditionWithValue(field, query),
-            ),
-          if (age != null && !_controller.showsAgePill)
-            _MenuOption(
-              icon: Icons.schedule,
-              label: TextSpan(
-                children: [
-                  const TextSpan(text: 'Age'),
-                  TextSpan(text: ' within last ', style: mutedStyle),
-                  TextSpan(text: formatMaxAge(age), style: valueStyle),
-                ],
-              ),
-              onSelected: () => _controller.setMaxAge(age),
-            ),
-        ],
-      ),
-      if (suggestions.isNotEmpty) ('Suggestions', suggestions.take(6).toList()),
-    ];
-  }
-
-  /// Keyboard order: every section's options, flattened.
   List<_MenuOption> _options(BuildContext context) => [
-    for (final (_, items) in _sections(context)) ...items,
+    for (final (_, items) in _menuSections(context, _controller, _text.text))
+      ...items,
   ];
 
   KeyEventResult _onKey(BuildContext context, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
-    // Built from the live query, not the last frame's list: a fast
+    final key = event.logicalKey;
+
+    if (key == LogicalKeyboardKey.backspace && _text.text.isEmpty) {
+      // Held down, Backspace stops at the pills rather than eating them.
+      if (event is KeyRepeatEvent || _controller.lastPillId == null) {
+        return KeyEventResult.handled;
+      }
+      if (_removalArmed) _controller.removeLastPill();
+      setState(() => _removalArmed = !_removalArmed);
+      return KeyEventResult.handled;
+    }
+    if (_removalArmed) setState(() => _removalArmed = false);
+
+    if (key == LogicalKeyboardKey.escape) {
+      if (_text.text.isNotEmpty) {
+        _clearText();
+      } else if (_menu.isOpen) {
+        _menu.close();
+      } else {
+        _focusNode.unfocus();
+      }
+      return KeyEventResult.handled;
+    }
+
+    // Built from the live text, not the last frame's menu: a fast
     // type-then-↵ lands before the rebuild.
     final options = _options(context);
-    final key = event.logicalKey;
     if (key == LogicalKeyboardKey.arrowDown ||
         key == LogicalKeyboardKey.arrowUp) {
-      if (options.isEmpty) return KeyEventResult.handled;
-      final step = key == LogicalKeyboardKey.arrowDown ? 1 : -1;
-      setState(() => _highlighted = (_highlighted + step) % options.length);
+      if (!_menu.isOpen) {
+        _menu.open();
+      } else if (options.isNotEmpty) {
+        final step = key == LogicalKeyboardKey.arrowDown ? 1 : -1;
+        _highlight.value = (_highlight.value + step) % options.length;
+      }
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter) {
-      if (options.isNotEmpty) {
-        _select(options[_highlighted.clamp(0, options.length - 1)]);
+      if (_menu.isOpen && options.isNotEmpty) {
+        _select(options[_highlight.value.clamp(0, options.length - 1)]);
+      } else if (_text.text.trim().isNotEmpty) {
+        _commitTyped(_text.text);
       }
       return KeyEventResult.handled;
     }
@@ -377,65 +284,640 @@ class _FilterByMenuState extends State<_FilterByMenu> {
 
   @override
   Widget build(BuildContext context) {
-    final sections = _sections(context);
-    final options = [for (final (_, items) in sections) ...items];
-    final highlighted = options.isEmpty
-        ? -1
-        : _highlighted.clamp(0, options.length - 1);
-    var index = 0;
+    final style = FilterControlStyle.of(context);
+    final colors = Theme.of(context).colorScheme;
+    final controller = _controller;
+    final hasPills = controller.hasPills;
+    final input = _buildInput(context, style, hasPills: hasPills);
+    final borderWidth = _focused ? 1.5 : 1.0;
 
+    return AnchoredPopover(
+      controller: _menu,
+      width: 360,
+      tapGroupId: _tapGroup,
+      popoverBuilder: (context) => ListenableBuilder(
+        listenable: Listenable.merge([_text, _highlight, controller]),
+        builder: (context, _) {
+          final sections = _menuSections(context, controller, _text.text);
+          final count = sections.fold(0, (n, section) => n + section.$2.length);
+          return _FilterMenu(
+            sections: sections,
+            highlighted: count == 0 ? -1 : _highlight.value.clamp(0, count - 1),
+            isIos: controller.isIos,
+            hasQuery: _text.text.trim().isNotEmpty,
+            onHover: (index) => _highlight.value = index,
+            onSelect: _select,
+          );
+        },
+      ),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.text,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: _openMenu,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOutCubic,
+            constraints: const BoxConstraints(minHeight: kFilterControlHeight),
+            // Lines are pill-high; the padding makes up the rest of the
+            // row's height, less the (focus-thickened) border.
+            padding: EdgeInsets.fromLTRB(
+              10,
+              _verticalInset - borderWidth,
+              3,
+              _verticalInset - borderWidth,
+            ),
+            decoration: BoxDecoration(
+              color: style.fill(hovered: _hovered && !_focused),
+              borderRadius: BorderRadius.circular(kFilterControlRadius),
+              border: Border.all(
+                color: style.border(focused: _focused, active: hasPills),
+                width: borderWidth,
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: kFilterPillHeight,
+                  child: Icon(
+                    Icons.filter_list_rounded,
+                    size: 15,
+                    color: hasPills ? colors.primary : style.icon,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: hasPills
+                      ? LayoutBuilder(
+                          builder: (context, constraints) => Wrap(
+                            spacing: 4,
+                            runSpacing: 3,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              ..._buildPills(
+                                context,
+                                controller,
+                                armedId: _removalArmed
+                                    ? controller.lastPillId
+                                    : null,
+                              ),
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minWidth: math.min(120, constraints.maxWidth),
+                                  maxWidth: constraints.maxWidth,
+                                ),
+                                child: IntrinsicWidth(child: input),
+                              ),
+                            ],
+                          ),
+                        )
+                      : input,
+                ),
+                if (!hasPills && !_focused)
+                  SizedBox(
+                    height: kFilterPillHeight,
+                    child: Center(
+                      child: FilterKeyHint(label: _filterShortcutLabel),
+                    ),
+                  )
+                else if (hasPills)
+                  IconButton(
+                    tooltip: 'Clear filters',
+                    onPressed: controller.clearConditions,
+                    icon: const Icon(Icons.close, size: 15),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 24,
+                      height: 24,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Border plus padding above (and below) a pill-high line, so one line of
+  /// the field is exactly as tall as the row's other controls.
+  static const double _verticalInset =
+      (kFilterControlHeight - kFilterPillHeight) / 2;
+
+  Widget _buildInput(
+    BuildContext context,
+    FilterControlStyle style, {
+    required bool hasPills,
+  }) {
+    final tagKey = _controller.isIos ? 'category' : 'tag';
+    return Focus(
+      onKeyEvent: (node, event) => _onKey(context, event),
+      skipTraversal: true,
+      child: SizedBox(
+        height: kFilterPillHeight,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: TextField(
+            controller: _text,
+            focusNode: _focusNode,
+            groupId: _tapGroup,
+            style: style.label,
+            cursorHeight: 14,
+            onTap: _menu.open,
+            decoration: InputDecoration(
+              hintText: hasPills
+                  ? 'Add filter…'
+                  : 'Filter logs — type text, or $tagKey:Auth  -message:noise  '
+                        'level:e',
+              hintStyle: style.hint,
+              hintMaxLines: 1,
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+            onChanged: _onChanged,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The active filters as pills — the age limit first, then one per condition.
+List<Widget> _buildPills(
+  BuildContext context,
+  ClassicFilterController controller, {
+  int? armedId,
+}) {
+  final isIos = controller.isIos;
+  final maxAge = controller.maxAge;
+  return [
+    if (controller.showsAgePill)
+      _FilterPill(
+        key: const ValueKey('age-pill'),
+        icon: Icons.schedule,
+        fieldLabel: 'Age',
+        operatorLabel: 'within last',
+        value: maxAge == null ? '' : formatMaxAge(maxAge),
+        armed: armedId == ClassicFilterController.ageConditionId,
+        openOnMount: controller.takePendingEditor(
+          ClassicFilterController.ageConditionId,
+        ),
+        onRemove: () {
+          controller.setMaxAge(null);
+          controller.commitCondition(ClassicFilterController.ageConditionId);
+        },
+        onEditorClosed: () =>
+            controller.commitCondition(ClassicFilterController.ageConditionId),
+        editorBuilder: (context, close) => _AgeEditor(
+          controller: controller,
+          onDone: close,
+          onRemove: () {
+            close();
+            controller.setMaxAge(null);
+          },
+        ),
+      ),
+    for (final condition in controller.conditions)
+      _FilterPill(
+        key: ValueKey(condition.id),
+        icon: _fieldIcon(condition.field),
+        fieldLabel: condition.field.label(isIos: isIos),
+        operatorLabel: condition.operator.label,
+        value: condition.value.trim(),
+        negated: condition.operator.negate,
+        armed: armedId == condition.id,
+        error: condition.toTerm()?.hasInvalidRegex ?? false
+            ? 'Invalid regular expression — this filter matches '
+                  '${condition.operator.negate ? 'every' : 'no'} line.'
+            : null,
+        openOnMount: controller.takePendingEditor(condition.id),
+        onRemove: () => controller.removeCondition(condition.id),
+        onEditorClosed: () => controller.commitCondition(condition.id),
+        editorBuilder: (context, close) => _ConditionEditor(
+          controller: controller,
+          conditionId: condition.id,
+          onDone: close,
+          onRemove: () {
+            close();
+            controller.removeCondition(condition.id);
+          },
+        ),
+      ),
+  ];
+}
+
+// ── The "Filter by…" menu ────────────────────────────────────────────────────
+
+/// One selectable row in the menu: it either runs [onSelected] (adding or
+/// applying something) or, with [insertText], completes the typed text.
+class _MenuOption {
+  const _MenuOption({
+    required this.icon,
+    required this.label,
+    this.onSelected,
+    this.insertText,
+  });
+
+  final IconData icon;
+  final InlineSpan label;
+  final VoidCallback? onSelected;
+  final String? insertText;
+}
+
+/// The menu's sections for [rawQuery], the field's current text; flattened,
+/// their options are the keyboard order.
+List<(String, List<_MenuOption>)> _menuSections(
+  BuildContext context,
+  ClassicFilterController controller,
+  String rawQuery,
+) {
+  final isIos = controller.isIos;
+  final colors = Theme.of(context).colorScheme;
+  final valueStyle = TextStyle(
+    fontWeight: FontWeight.w600,
+    color: colors.onSurface,
+  );
+  final mutedStyle = TextStyle(color: colors.onSurfaceVariant);
+  final negatedStyle = TextStyle(
+    color: colors.error,
+    fontWeight: FontWeight.w600,
+  );
+  InlineSpan phrase(String field, String operator, String value, bool neg) =>
+      TextSpan(
+        children: [
+          TextSpan(text: field),
+          TextSpan(text: ' $operator ', style: neg ? negatedStyle : mutedStyle),
+          TextSpan(text: value, style: valueStyle),
+        ],
+      );
+  InlineSpan condition(
+    FilterConditionField field,
+    FilterOperator operator,
+    String value,
+  ) =>
+      phrase(field.label(isIos: isIos), operator.label, value, operator.negate);
+
+  final query = rawQuery.trim();
+  if (query.isEmpty) {
+    return [
+      (
+        'Filter by',
+        [
+          for (final field in _menuFieldOrder)
+            _MenuOption(
+              icon: _fieldIcon(field),
+              label: TextSpan(text: field.label(isIos: isIos)),
+              onSelected: () => controller.addCondition(field),
+            ),
+          if (!controller.showsAgePill)
+            _MenuOption(
+              icon: Icons.schedule,
+              label: const TextSpan(text: 'Age'),
+              onSelected: controller.addAgeCondition,
+            ),
+        ],
+      ),
+    ];
+  }
+
+  final tokens = tokenizeFilterText(query);
+
+  // One `key:value` being typed: offer exactly that filter, and values for it.
+  if (tokens.length == 1) {
+    final token = parseKeyedFilterToken(tokens.single, allowEmptyValue: true);
+    if (token != null) {
+      final value = token.value;
+      switch (token.key) {
+        case InlineFilterKey.level:
+          final q = value.toLowerCase();
+          final levels = isIos ? LogLevel.iosValues : LogLevel.androidValues;
+          return [
+            (
+              'Level',
+              [
+                for (final level in levels)
+                  if (q.isEmpty ||
+                      level.label.toLowerCase().startsWith(q) ||
+                      level.code.toLowerCase().startsWith(q) ||
+                      level.androidCode.toLowerCase() == q)
+                    _MenuOption(
+                      icon: Icons.signal_cellular_alt_rounded,
+                      label: phrase(
+                        'Level',
+                        'is',
+                        '${level.label} and above',
+                        false,
+                      ),
+                      onSelected: () => controller.setLevel(level),
+                    ),
+              ],
+            ),
+          ];
+        case InlineFilterKey.age:
+          final age = parseMaxAge(value);
+          final presets = age == null
+              ? const [
+                  Duration(minutes: 1),
+                  Duration(minutes: 5),
+                  Duration(minutes: 15),
+                  Duration(hours: 1),
+                ]
+              : [age];
+          return [
+            (
+              'Age',
+              [
+                for (final preset in presets)
+                  _MenuOption(
+                    icon: Icons.schedule,
+                    label: phrase(
+                      'Age',
+                      'within last',
+                      formatMaxAge(preset),
+                      false,
+                    ),
+                    onSelected: () => controller.setMaxAge(preset),
+                  ),
+              ],
+            ),
+          ];
+        case InlineFilterKey.message:
+        case InlineFilterKey.packageName:
+        case InlineFilterKey.pidTid:
+        case InlineFilterKey.tag:
+          final field = _fieldForKey(token.key)!;
+          final operator = FilterOperator.of(token.mode, negate: token.negate);
+          final suggestions = _suggestedValues(controller, field, value);
+          return [
+            if (value.isNotEmpty)
+              (
+                'Add filter',
+                [
+                  _MenuOption(
+                    icon: _fieldIcon(field),
+                    label: condition(field, operator, value),
+                    onSelected: () => controller.addConditionWithValue(
+                      field,
+                      value,
+                      operator: operator,
+                    ),
+                  ),
+                ],
+              ),
+            if (suggestions.isNotEmpty)
+              (
+                'Suggestions',
+                [
+                  for (final suggestion in suggestions)
+                    _MenuOption(
+                      icon: _fieldIcon(field),
+                      label: condition(field, operator, suggestion),
+                      onSelected: () => controller.addConditionWithValue(
+                        field,
+                        suggestion,
+                        operator: operator,
+                      ),
+                    ),
+                ],
+              ),
+          ];
+      }
+    }
+  }
+
+  // Several tokens, some keyed: one row applies them all.
+  if (tokens.any((token) => parseKeyedFilterToken(token) != null)) {
+    return [
+      (
+        'Add filters',
+        [
+          _MenuOption(
+            icon: Icons.filter_list_rounded,
+            label: TextSpan(
+              children: [
+                TextSpan(text: 'Add ${tokens.length} filters  '),
+                TextSpan(text: query, style: mutedStyle),
+              ],
+            ),
+            onSelected: () => controller.applyTyped(query),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  // Plain text: "<field> contains <text>" for every field, a leading `-`
+  // making it "does not contain".
+  final negate =
+      tokens.length == 1 && query.length > 1 && query.startsWith('-');
+  final text = negate ? query.substring(1) : query;
+  final contains = FilterOperator.of(FilterMatchMode.contains, negate: negate);
+  final age = parseMaxAge(query);
+
+  final suggestions = <_MenuOption>[];
+  for (final field in const [
+    FilterConditionField.packageName,
+    FilterConditionField.tag,
+    FilterConditionField.message,
+  ]) {
+    for (final value in _suggestedValues(controller, field, text)) {
+      suggestions.add(
+        _MenuOption(
+          icon: _fieldIcon(field),
+          label: condition(field, contains, value),
+          onSelected: () => controller.addConditionWithValue(
+            field,
+            value,
+            operator: contains,
+          ),
+        ),
+      );
+    }
+  }
+
+  // `ta` → `tag:` — the keys, for anyone learning the syntax.
+  final keyPrefix = (negate ? text : query).toLowerCase();
+  final keys = tokens.length == 1 && !query.contains(':')
+      ? [
+          for (final (key, label) in [
+            ('message', 'Message'),
+            ('package', 'Package'),
+            (isIos ? 'category' : 'tag', isIos ? 'Category' : 'Tag'),
+            ('pid', 'PID / TID'),
+            ('level', 'Level'),
+            ('age', 'Age'),
+          ])
+            if (key.startsWith(keyPrefix) && key != keyPrefix)
+              _MenuOption(
+                icon: Icons.keyboard_outlined,
+                label: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '${negate ? '-' : ''}$key:',
+                      style: valueStyle,
+                    ),
+                    TextSpan(text: '  filter by $label', style: mutedStyle),
+                  ],
+                ),
+                insertText: '${negate ? '-' : ''}$key:',
+              ),
+        ]
+      : const <_MenuOption>[];
+
+  return [
+    (
+      'Add filter',
+      [
+        for (final field in _menuFieldOrder)
+          if (!negate || field.operators.contains(contains))
+            _MenuOption(
+              icon: _fieldIcon(field),
+              label: condition(field, contains, text),
+              onSelected: () => controller.addConditionWithValue(
+                field,
+                text,
+                operator: contains,
+              ),
+            ),
+        if (age != null && !controller.showsAgePill)
+          _MenuOption(
+            icon: Icons.schedule,
+            label: phrase('Age', 'within last', formatMaxAge(age), false),
+            onSelected: () => controller.setMaxAge(age),
+          ),
+      ],
+    ),
+    if (suggestions.isNotEmpty) ('Suggestions', suggestions.take(6).toList()),
+    if (keys.isNotEmpty) ('Keys', keys),
+  ];
+}
+
+class _FilterMenu extends StatelessWidget {
+  const _FilterMenu({
+    required this.sections,
+    required this.highlighted,
+    required this.isIos,
+    required this.hasQuery,
+    required this.onHover,
+    required this.onSelect,
+  });
+
+  final List<(String, List<_MenuOption>)> sections;
+  final int highlighted;
+  final bool isIos;
+  final bool hasQuery;
+  final ValueChanged<int> onHover;
+  final ValueChanged<_MenuOption> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    var index = 0;
+    for (final (title, items) in sections) {
+      rows.add(_MenuSectionLabel(title));
+      for (final option in items) {
+        final i = index++;
+        rows.add(
+          _MenuRow(
+            icon: option.icon,
+            highlighted: i == highlighted,
+            trailing: i == highlighted ? const _EnterHint() : null,
+            onHover: () => onHover(i),
+            onTap: () => onSelect(option),
+            child: Text.rich(
+              option.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        );
+      }
+    }
+    if (rows.isEmpty) {
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+          child: Text(
+            'Type a value, then press ↵',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      );
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-          child: Focus(
-            onKeyEvent: (node, event) => _onKey(context, event),
-            skipTraversal: true,
-            child: TextField(
-              controller: _query,
-              autofocus: true,
-              style: const TextStyle(fontSize: 13),
-              decoration: _cardInputDecoration(
-                context,
-                hintText: 'Filter by… (try a package or tag)',
-                prefixIcon: Icons.search,
-              ),
-              onChanged: (_) => setState(() => _highlighted = 0),
-            ),
-          ),
-        ),
         Flexible(
           child: ListView(
             shrinkWrap: true,
-            padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
-            children: [
-              for (final (title, items) in sections) ...[
-                _MenuSectionLabel(title),
-                for (final option in items)
-                  Builder(
-                    builder: (context) {
-                      final i = index++;
-                      return _MenuRow(
-                        icon: option.icon,
-                        highlighted: i == highlighted,
-                        trailing: i == highlighted ? const _EnterHint() : null,
-                        onHover: () => setState(() => _highlighted = i),
-                        onTap: () => _select(option),
-                        child: Text.rich(
-                          option.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ],
+            padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
+            children: rows,
           ),
         ),
+        Divider(
+          height: 1,
+          color: Theme.of(
+            context,
+          ).colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+        _SyntaxHint(isIos: isIos),
       ],
+    );
+  }
+}
+
+/// The menu's footer: the typed syntax, so the shortcut is one glance away.
+class _SyntaxHint extends StatelessWidget {
+  const _SyntaxHint({required this.isIos});
+
+  final bool isIos;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final tag = isIos ? 'category' : 'tag';
+    final muted = TextStyle(fontSize: 11, color: colors.onSurfaceVariant);
+    Widget code(String text) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: context.eaglyTheme.monoStyle.copyWith(
+          fontSize: 11,
+          color: colors.onSurface,
+        ),
+      ),
+    );
+    Widget item(String syntax, String meaning) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        code(syntax),
+        const SizedBox(width: 4),
+        Text(meaning, style: muted),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 6,
+        children: [
+          item('$tag:Auth', 'contains'),
+          item('-$tag:', 'not'),
+          item('$tag=:', 'is'),
+          item('$tag~:', 'regex'),
+          item('level:e', 'level'),
+          item('age:5m', 'age'),
+        ],
+      ),
     );
   }
 }
@@ -543,6 +1025,7 @@ class _FilterPill extends StatefulWidget {
     required this.onEditorClosed,
     required this.editorBuilder,
     this.negated = false,
+    this.armed = false,
     this.error,
     this.openOnMount = false,
   });
@@ -554,6 +1037,9 @@ class _FilterPill extends StatefulWidget {
   /// Blank while the pill is a draft.
   final String value;
   final bool negated;
+
+  /// Marked by a first Backspace in the filter field: the next one removes it.
+  final bool armed;
 
   /// Why the pill doesn't filter the way it reads, if it doesn't.
   final String? error;
@@ -604,6 +1090,7 @@ class _FilterPillState extends State<_FilterPill> {
   Widget _buildPill(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final isOpen = _popover.isOpen;
+    final lit = isOpen || widget.armed;
     final error = widget.error;
     final isDraft = widget.value.isEmpty;
     final accent = error != null ? colors.error : colors.primary;
@@ -612,23 +1099,30 @@ class _FilterPillState extends State<_FilterPill> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: Material(
-        color: accent.withValues(alpha: _hovered || isOpen ? 0.16 : 0.10),
+        color: accent.withValues(
+          alpha: widget.armed
+              ? 0.24
+              : _hovered || isOpen
+              ? 0.16
+              : 0.10,
+        ),
         shape: StadiumBorder(
           side: BorderSide(
-            color: accent.withValues(alpha: isOpen ? 0.9 : 0.35),
+            color: accent.withValues(alpha: lit ? 0.9 : 0.35),
+            width: widget.armed ? 1.5 : 1,
           ),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: _popover.toggle,
           child: SizedBox(
-            height: kFilterControlHeight,
+            height: kFilterPillHeight,
             child: Padding(
-              padding: const EdgeInsets.only(left: 10, right: 4),
+              padding: const EdgeInsets.only(left: 9, right: 3),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(widget.icon, size: 14, color: accent),
+                  Icon(widget.icon, size: 13, color: accent),
                   const SizedBox(width: 6),
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 280),
@@ -666,24 +1160,24 @@ class _FilterPillState extends State<_FilterPill> {
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12.5),
+                      style: const TextStyle(fontSize: 12),
                     ),
                   ),
                   const SizedBox(width: 2),
                   SizedBox(
-                    width: 22,
-                    height: 22,
+                    width: 20,
+                    height: 20,
                     child: _hovered
                         ? IconButton(
                             tooltip: 'Remove filter',
                             onPressed: widget.onRemove,
-                            icon: const Icon(Icons.close, size: 14),
+                            icon: const Icon(Icons.close, size: 13),
                             padding: EdgeInsets.zero,
                             visualDensity: VisualDensity.compact,
                           )
                         : Icon(
                             Icons.expand_more,
-                            size: 16,
+                            size: 15,
                             color: colors.onSurfaceVariant,
                           ),
                   ),
@@ -695,32 +1189,6 @@ class _FilterPillState extends State<_FilterPill> {
       ),
     );
     return error == null ? pill : Tooltip(message: error, child: pill);
-  }
-}
-
-class _ClearButton extends StatelessWidget {
-  const _ClearButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: kFilterControlHeight,
-      child: TextButton(
-        onPressed: onPressed,
-        style: TextButton.styleFrom(
-          foregroundColor: colors.onSurfaceVariant,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          shape: const StadiumBorder(),
-          textStyle: Theme.of(
-            context,
-          ).textTheme.labelLarge?.copyWith(fontSize: 12.5),
-        ),
-        child: const Text('Clear filters'),
-      ),
-    );
   }
 }
 
@@ -764,32 +1232,6 @@ class _ConditionEditorState extends State<_ConditionEditor> {
     super.dispose();
   }
 
-  List<String> _suggestions(FilterConditionField field) {
-    final sources = widget.controller.suggestions;
-    final values = deduplicateFilterValues(switch (field) {
-      FilterConditionField.packageName => [
-        ...sources.recentPackageFilters(),
-        ...sources.knownPackageFilters(),
-      ],
-      FilterConditionField.tag => sources.recentTagFilters(),
-      FilterConditionField.pidTid => sources.recentPidTidFilters(),
-      FilterConditionField.message ||
-      FilterConditionField.anyField => sources.recentMessageFilters(),
-    });
-    final query = _text.text.trim().toLowerCase();
-    if (query.isEmpty) return values.take(6).toList();
-    final preferred = <String>[];
-    final secondary = <String>[];
-    for (final value in values) {
-      final normalized = value.toLowerCase();
-      if (normalized == query || !normalized.contains(query)) continue;
-      (filterBoundaryMatch(normalized, query) ? preferred : secondary).add(
-        value,
-      );
-    }
-    return [...preferred, ...secondary].take(6).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -809,7 +1251,7 @@ class _ConditionEditorState extends State<_ConditionEditor> {
     final invalidRegex = condition.toTerm()?.hasInvalidRegex ?? false;
     final suggestions = _choosingOperator
         ? const <String>[]
-        : _suggestions(field);
+        : _suggestedValues(widget.controller, field, _text.text);
 
     return Column(
       mainAxisSize: MainAxisSize.min,

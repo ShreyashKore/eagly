@@ -7,11 +7,11 @@ import 'filter_bar_shared.dart';
 import 'inline_filter_bar.dart';
 import 'log_search_field.dart';
 
-/// The rows above the log list. The first puts **Search** (highlight and step
-/// through matches) beside the filter controls (hide what doesn't match), so
-/// neither is buried; the filter half is the pill bar's Filter / Level buttons
-/// or the inline `key:value` field, cross-faded when the trailing toggle
-/// switches modes. In pill mode the active filters get a row of their own.
+/// The row above the log list: the filter on the left (hide what doesn't
+/// match), **Search** on the right (highlight and step through matches), and
+/// the mode toggle at the end. The filter is the pill bar's type-to-filter
+/// field — which holds the active pills — or the inline `key:value` field,
+/// cross-faded when the toggle switches modes.
 ///
 /// The search field stays outside the cross-fade: it shares
 /// [LogController.searchFocusNode], which two fading copies can't both hold.
@@ -29,59 +29,38 @@ class LogFilterArea extends StatelessWidget {
         : 0.0;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 2, 8, 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: EdgeInsets.only(top: inset),
-                child: LogSearchField(controller: controller),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              layoutBuilder: (current, previous) => Stack(
+                alignment: Alignment.topLeft,
+                children: [...previous, ?current],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  switchInCurve: Curves.easeOut,
-                  switchOutCurve: Curves.easeIn,
-                  layoutBuilder: (current, previous) => Stack(
-                    alignment: Alignment.topLeft,
-                    children: [...previous, ?current],
-                  ),
-                  child: isInline
-                      ? InlineFilterBar(
-                          key: const ValueKey('inline-filter-bar'),
-                          controller: controller.inlineFilter,
-                        )
-                      : Align(
-                          key: const ValueKey('classic-filter-bar'),
-                          alignment: Alignment.topLeft,
-                          child: ClassicFilterBar(
-                            controller: controller.classicFilter,
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Padding(
-                padding: EdgeInsets.only(top: inset),
-                child: _ModeToggle(controller: controller, isInline: isInline),
-              ),
-            ],
-          ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 150),
-            alignment: Alignment.topLeft,
-            child: isInline || !controller.classicFilter.hasPills
-                ? const SizedBox(width: double.infinity)
-                : Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: ClassicFilterPills(
+              child: isInline
+                  ? InlineFilterBar(
+                      key: const ValueKey('inline-filter-bar'),
+                      controller: controller.inlineFilter,
+                    )
+                  : ClassicFilterBar(
+                      key: const ValueKey('classic-filter-bar'),
                       controller: controller.classicFilter,
                     ),
-                  ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Padding(
+            padding: EdgeInsets.only(top: inset),
+            child: LogSearchField(controller: controller),
+          ),
+          const SizedBox(width: 4),
+          Padding(
+            padding: EdgeInsets.only(top: inset),
+            child: _ModeToggle(controller: controller, isInline: isInline),
           ),
         ],
       ),
