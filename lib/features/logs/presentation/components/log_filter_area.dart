@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../log_controller.dart';
-import 'classic_filter_bar.dart';
+import 'log_filter_bar.dart';
 import 'log_search_field.dart';
 
 /// The row above the log list: the filter on the left (hide what doesn't
@@ -64,7 +64,7 @@ class _LogFilterAreaState extends State<LogFilterArea> {
         const SizedBox(height: 6),
         Row(
           children: [
-            ClassicLevelButton(controller: _controller.classicFilter),
+            LogLevelButton(controller: _controller.filter),
             const SizedBox(width: 6),
             Expanded(
               child: LogSearchField(
@@ -79,9 +79,9 @@ class _LogFilterAreaState extends State<LogFilterArea> {
     );
   }
 
-  Widget _buildFilter({required bool showLevel}) => ClassicFilterBar(
+  Widget _buildFilter({required bool showLevel}) => LogFilterBar(
     key: _filterKey,
-    controller: _controller.classicFilter,
+    controller: _controller.filter,
     showLevel: showLevel,
   );
 }

@@ -2,7 +2,7 @@ import 'package:eagly/features/logs/data/models/log_filters.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/presentation/theme/log_level_presentation.dart';
-import 'package:eagly/features/logs/presentation/components/classic_filter_bar.dart';
+import 'package:eagly/features/logs/presentation/components/log_filter_bar.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,7 +15,7 @@ void main() {
     GoogleFonts.config.allowRuntimeFetching = false;
   });
 
-  ClassicFilterController buildController({
+  LogFilterController buildController({
     List<String> recentPackageFilters = const ['com.example.auth'],
     List<String> knownPackageFilters = const [
       'com.example.auth',
@@ -24,7 +24,7 @@ void main() {
     ],
     ValueChanged<LogFilters>? onStateChanged,
   }) {
-    return ClassicFilterController(
+    return LogFilterController(
       initialState: LogFilters.empty(LogLevel.verbose),
       isIos: false,
       onStateChanged: onStateChanged ?? (_) {},
@@ -38,9 +38,9 @@ void main() {
     );
   }
 
-  Future<void> pumpClassicFilterBar(
+  Future<void> pumpFilterBar(
     WidgetTester tester, {
-    required ClassicFilterController controller,
+    required LogFilterController controller,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -51,7 +51,7 @@ void main() {
             width: 1000,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [ClassicFilterBar(controller: controller)],
+              children: [LogFilterBar(controller: controller)],
             ),
           ),
         ),
@@ -115,7 +115,7 @@ void main() {
     );
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     await openFilterMenu(tester);
     await tester.enterText(filterField, 'payments');
     await tester.pumpAndSettle();
@@ -149,7 +149,7 @@ void main() {
     );
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     await openFilterMenu(tester);
     await tester.enterText(filterField, 'timeout');
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
@@ -167,7 +167,7 @@ void main() {
     final controller = buildController();
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     await openFilterMenu(tester);
 
     expect(controller.inputFocusNode.hasFocus, isTrue);
@@ -183,7 +183,7 @@ void main() {
     );
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     await openFilterMenu(tester);
 
     // A space after a complete token commits it and clears the field.
@@ -214,7 +214,7 @@ void main() {
     final controller = buildController();
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     controller.applyTyped('-tag:Chatty');
     await tester.pumpAndSettle();
 
@@ -239,7 +239,7 @@ void main() {
     );
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     await openFilterMenu(tester);
     await tester.enterText(filterField, 'package=:com.x -tag:Chatty crash');
     await tester.pumpAndSettle();
@@ -262,7 +262,7 @@ void main() {
     );
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     await openFilterMenu(tester);
     await tester.enterText(filterField, 'ta');
     await tester.pumpAndSettle();
@@ -283,7 +283,7 @@ void main() {
     final controller = buildController();
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     controller.applyTyped('tag:Auth pid:12');
     await openFilterMenu(tester);
     expect(controller.conditions, hasLength(2));
@@ -307,7 +307,7 @@ void main() {
     );
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     await addField(tester, 'Tag');
 
     expect(editorField, findsOneWidget, reason: 'a new pill opens its editor');
@@ -340,7 +340,7 @@ void main() {
     );
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     await addField(tester, 'Message');
     expect(controller.conditions, hasLength(1));
 
@@ -360,7 +360,7 @@ void main() {
     final controller = buildController();
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     await addField(tester, 'Message');
     await tester.enterText(editorField, 'auth');
     await tester.pump();
@@ -397,7 +397,7 @@ void main() {
     final controller = buildController();
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     await addField(tester, 'Message');
     await tester.tap(editorField, buttons: kSecondaryButton);
     await tester.pumpAndSettle();
@@ -418,7 +418,7 @@ void main() {
     final controller = buildController();
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     await addField(tester, 'Package');
 
     controller.setLevel(LogLevel.error);
@@ -435,7 +435,7 @@ void main() {
     );
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     await addField(tester, 'Age');
     await tester.tap(find.text('15m'));
     await tester.pumpAndSettle();
@@ -453,7 +453,7 @@ void main() {
     );
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
     await tester.tap(find.text('Level'));
     await tester.pumpAndSettle();
 
@@ -474,7 +474,7 @@ void main() {
     );
     addTearDown(controller.dispose);
 
-    await pumpClassicFilterBar(tester, controller: controller);
+    await pumpFilterBar(tester, controller: controller);
 
     const inline =
         'age:5m package=:com.x pid:12 -tag~:^Chat message:hello '

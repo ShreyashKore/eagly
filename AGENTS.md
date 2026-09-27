@@ -129,8 +129,8 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `key:value` bar and its mode toggle / Settings choice are gone; don't bring back a second
   one.
 - **Log filter bar:** it edits one `LogFilters` (per-field `FilterTerm` lists — each
-  term has a match mode and negation, all ANDed — plus level and age). `ClassicFilterBar` /
-  `ClassicFilterController` hold one `FilterCondition` pill per term — typed bare words
+  term has a match mode and negation, all ANDed — plus level and age). `LogFilterBar` /
+  `LogFilterController` hold one `FilterCondition` pill per term — typed bare words
   are *any-field* terms and become "Any field" pills, never message pills. A pill with a
   blank value is a draft and contributes no term. The pills live inside one type-to-filter
   field serving both audiences: focusing it opens a "Filter by…" menu (pick a field, get a

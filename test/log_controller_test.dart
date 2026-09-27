@@ -497,7 +497,7 @@ void main() {
       // A bare word searches every field, so it is an "Any field" pill.
       expect(
         [
-          for (final condition in log.classicFilter.conditions)
+          for (final condition in log.filter.conditions)
             (condition.field, condition.operator, condition.value),
         ],
         [

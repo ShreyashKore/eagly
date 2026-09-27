@@ -63,11 +63,11 @@ class LogController extends FeatureController {
     final suggestions = LogFilterSuggestions(
       recentMessageFilters: () => _recentFilters.message,
       recentPackageFilters: () => _recentFilters.package,
-      knownPackageFilters: () => knownInlinePackageFilters,
+      knownPackageFilters: () => knownPackageFilters,
       recentPidTidFilters: () => _recentFilters.pidTid,
       recentTagFilters: () => _recentFilters.tag,
     );
-    classicFilter = ClassicFilterController(
+    filter = LogFilterController(
       initialState: initialState,
       suggestions: suggestions,
       onStateChanged: _applyFilterConfig,
@@ -104,7 +104,7 @@ class LogController extends FeatureController {
 
   /// The filter bar's pills, focus and debounce. It emits updated
   /// [LogFilters] state through [_applyFilterConfig].
-  late final ClassicFilterController classicFilter;
+  late final LogFilterController filter;
 
   LogBuffer<LogEntry> _logsBuffer;
   final List<LogEntry> _pendingLogs = [];
@@ -136,10 +136,10 @@ class LogController extends FeatureController {
   var logcatState = LogcatState.stopped;
 
   final RecentFilterValues _recentFilters = RecentFilterValues();
-  List<String> _knownInlinePackageFilters = const [];
-  int _knownInlinePackageFingerprintLength = -1;
-  int? _knownInlinePackageFingerprintFirstId;
-  int? _knownInlinePackageFingerprintLastId;
+  List<String> _knownPackageFilters = const [];
+  int _knownPackageFingerprintLength = -1;
+  int? _knownPackageFingerprintFirstId;
+  int? _knownPackageFingerprintLastId;
 
   var _searchBarVisible = false;
   var _inlineSearch = const TextSearchConfig();
@@ -238,14 +238,14 @@ class LogController extends FeatureController {
   @visibleForTesting
   RecentFilterValues get recentFilters => _recentFilters;
 
-  List<String> get knownInlinePackageFilters {
+  List<String> get knownPackageFilters {
     final storedLogs = logs;
     final firstId = storedLogs.firstOrNull?.id;
     final lastId = storedLogs.lastOrNull?.id;
-    if (_knownInlinePackageFingerprintLength == storedLogs.length &&
-        _knownInlinePackageFingerprintFirstId == firstId &&
-        _knownInlinePackageFingerprintLastId == lastId) {
-      return List.unmodifiable(_knownInlinePackageFilters);
+    if (_knownPackageFingerprintLength == storedLogs.length &&
+        _knownPackageFingerprintFirstId == firstId &&
+        _knownPackageFingerprintLastId == lastId) {
+      return List.unmodifiable(_knownPackageFilters);
     }
 
     final counts = <String, int>{};
@@ -262,11 +262,11 @@ class LogController extends FeatureController {
         return left.toLowerCase().compareTo(right.toLowerCase());
       });
 
-    _knownInlinePackageFilters = sortedValues;
-    _knownInlinePackageFingerprintLength = storedLogs.length;
-    _knownInlinePackageFingerprintFirstId = firstId;
-    _knownInlinePackageFingerprintLastId = lastId;
-    return List.unmodifiable(_knownInlinePackageFilters);
+    _knownPackageFilters = sortedValues;
+    _knownPackageFingerprintLength = storedLogs.length;
+    _knownPackageFingerprintFirstId = firstId;
+    _knownPackageFingerprintLastId = lastId;
+    return List.unmodifiable(_knownPackageFilters);
   }
 
   bool get wrapText => _settings.wrapText;
@@ -328,7 +328,7 @@ class LogController extends FeatureController {
   /// immediately — used by the
   /// Apps feature's "View logs" action to jump straight to one app's lines.
   void applyPackageFilter(String packageName) {
-    classicFilter.setPackageFilter(packageName);
+    filter.setPackageFilter(packageName);
   }
 
   /// ⌘L: puts the caret in the filter field, which also opens its "Filter
@@ -338,7 +338,7 @@ class LogController extends FeatureController {
   void focusFilterInputs() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_disposed) return;
-      classicFilter.focusPrimaryField();
+      filter.focusPrimaryField();
     });
   }
 
@@ -555,7 +555,7 @@ class LogController extends FeatureController {
       isIos: isIosLogContext,
     );
     final cleared = LogFilters.empty(defaultLevel);
-    classicFilter.updateState(cleared);
+    filter.updateState(cleared);
     _settings = _settings.copyWith(selectedLogLevel: defaultLevel);
     _appliedFilters = cleared;
     _syncLogBufferFilter();
@@ -570,11 +570,11 @@ class LogController extends FeatureController {
   /// programmatically (tests / external callers).
   @visibleForTesting
   void applyFilters(LogFilters configuration) {
-    classicFilter.updateState(configuration);
+    filter.updateState(configuration);
     _applyFilterConfig(configuration);
   }
 
-  void setSelectedLogLevel(LogLevel level) => classicFilter.setLevel(level);
+  void setSelectedLogLevel(LogLevel level) => filter.setLevel(level);
 
   void toggleWrapText() {
     _logViewerRevision++;
@@ -1535,7 +1535,7 @@ class LogController extends FeatureController {
     _pendingLogsMemoryBytes = 0;
     scrollController.dispose();
     searchFocusNode.dispose();
-    classicFilter.dispose();
+    filter.dispose();
     super.dispose();
   }
 }

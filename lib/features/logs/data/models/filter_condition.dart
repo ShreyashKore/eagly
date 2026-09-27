@@ -80,7 +80,7 @@ enum FilterOperator {
       values.firstWhere((op) => op.mode == mode && op.negate == negate);
 }
 
-/// One classic-bar filter pill. A pill whose [value] is still blank is a draft:
+/// One filter pill. A pill whose [value] is still blank is a draft:
 /// it is shown while being edited but contributes no [FilterTerm].
 class FilterCondition {
   const FilterCondition({

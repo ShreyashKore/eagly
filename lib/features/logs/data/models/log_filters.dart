@@ -1,6 +1,6 @@
 import 'package:eagly/features/logs/data/models/log_level.dart';
 
-enum InlineFilterKey { message, packageName, pidTid, tag, level, age }
+enum FilterKey { message, packageName, pidTid, tag, level, age }
 
 /// How a [FilterTerm]'s value is compared against a candidate string. Typed
 /// syntax (`[-]key[=|~]:value`) selects [exact] (`=`) or [regex] (`~`); a
@@ -50,7 +50,7 @@ class FilterTerm {
     FilterMatchMode.regex => _regExp?.hasMatch(candidate) ?? false,
   };
 
-  /// Serializes back to inline syntax under [key] (e.g. `-tag~:value`). The
+  /// Serializes back to typed syntax under [key] (e.g. `-tag~:value`). The
   /// caller passes an already display-adjusted key.
   String toToken(String key) {
     final negation = negate ? '-' : '';
@@ -93,7 +93,7 @@ class LogFilters {
   final LogLevel level;
 
   /// When set, only entries whose timestamp is no older than this duration
-  /// (relative to now) match. Parsed from the inline `age:` key (e.g. `1h`).
+  /// (relative to now) match. Parsed from the typed `age:` key (e.g. `1h`).
   final Duration? maxAge;
 
   /// An empty filter that only constrains by [level].
@@ -180,13 +180,13 @@ class LogFilters {
     String rawText, {
     required LogLevel fallbackLevel,
     required bool isIosLogContext,
-  }) => _parseInlineFilters(
+  }) => _parseFilters(
     rawText,
     fallbackLevel: fallbackLevel,
     isIosLogContext: isIosLogContext,
   );
 
-  /// Serializes [state] into inline `[-]key[=|~]:value` syntax, the inverse of
+  /// Serializes [state] into typed `[-]key[=|~]:value` syntax, the inverse of
   /// [parse]. The `level` token is emitted only when it differs from
   /// [defaultLevel]; raw terms are emitted as bare words. On iOS the tag key is
   /// surfaced as `category:`, as iOS names the column.
@@ -279,7 +279,7 @@ RegExp? _tryCompileRegExp(String pattern) {
   }
 }
 
-/// Quotes a filter value for inline serialization when it contains whitespace or
+/// Quotes a filter value for typed serialization when it contains whitespace or
 /// a double quote, escaping embedded quotes. Plain values pass through as-is.
 String _quoteFilterValue(String value) {
   final trimmed = value.trim();
@@ -300,7 +300,7 @@ String _plainValues(List<FilterTerm> terms) => terms
     .map((term) => term.value)
     .join(' ');
 
-LogFilters _parseInlineFilters(
+LogFilters _parseFilters(
   String rawText, {
   required LogLevel fallbackLevel,
   required bool isIosLogContext,
@@ -321,7 +321,7 @@ LogFilters _parseInlineFilters(
     if (parsed == null) {
       // Not a recognised keyed filter → the whole token is a raw contains term.
       // Bare words (including a leading '-') are always literal.
-      final rawValue = _normalizeInlineFilterValue(trimmedToken);
+      final rawValue = _normalizeFilterValue(trimmedToken);
       if (rawValue.isNotEmpty) rawTerms.add(FilterTerm(rawValue));
       continue;
     }
@@ -332,20 +332,20 @@ LogFilters _parseInlineFilters(
       negate: parsed.negate,
     );
     switch (parsed.key) {
-      case InlineFilterKey.message:
+      case FilterKey.message:
         messageTerms.add(term);
-      case InlineFilterKey.packageName:
+      case FilterKey.packageName:
         packageTerms.add(term);
-      case InlineFilterKey.pidTid:
+      case FilterKey.pidTid:
         pidTidTerms.add(term);
-      case InlineFilterKey.tag:
+      case FilterKey.tag:
         tagTerms.add(term);
-      case InlineFilterKey.level:
+      case FilterKey.level:
         // Level is a hierarchy threshold; operators/negation don't apply.
         parsedLevel = LogLevel.fromStored(
           parsed.value,
         ).normalizeSelectionForPlatform(isIos: isIosLogContext);
-      case InlineFilterKey.age:
+      case FilterKey.age:
         final parsedAge = parseMaxAge(parsed.value);
         if (parsedAge != null) parsedMaxAge = parsedAge;
     }
@@ -362,12 +362,12 @@ LogFilters _parseInlineFilters(
   );
 }
 
-/// The key, value, match mode, and negation extracted from a single inline
+/// The key, value, match mode, and negation extracted from a single typed
 /// token shaped `[-]key[=|~]:value`.
 class KeyedFilterToken {
   const KeyedFilterToken(this.key, this.value, this.mode, this.negate);
 
-  final InlineFilterKey key;
+  final FilterKey key;
   final String value;
   final FilterMatchMode mode;
   final bool negate;
@@ -405,25 +405,25 @@ KeyedFilterToken? parseKeyedFilterToken(
     keyText = keyText.substring(0, keyText.length - 1);
   }
 
-  final key = _canonicalInlineFilterKey(keyText);
-  final value = _normalizeInlineFilterValue(rawValue);
+  final key = _canonicalFilterKey(keyText);
+  final value = _normalizeFilterValue(rawValue);
   if (key == null || (value.isEmpty && !allowEmptyValue)) return null;
   return KeyedFilterToken(key, value, mode, negate);
 }
 
-InlineFilterKey? _canonicalInlineFilterKey(String rawKey) {
+FilterKey? _canonicalFilterKey(String rawKey) {
   return switch (rawKey.trim().toLowerCase()) {
-    'message' || 'msg' || 'text' => InlineFilterKey.message,
-    'package' || 'pkg' || 'app' || 'process' => InlineFilterKey.packageName,
-    'pid' || 'tid' || 'thread' || 'pidtid' => InlineFilterKey.pidTid,
-    'tag' || 'category' => InlineFilterKey.tag,
-    'level' || 'lvl' || 'priority' => InlineFilterKey.level,
-    'age' || 'maxage' || 'since' => InlineFilterKey.age,
+    'message' || 'msg' || 'text' => FilterKey.message,
+    'package' || 'pkg' || 'app' || 'process' => FilterKey.packageName,
+    'pid' || 'tid' || 'thread' || 'pidtid' => FilterKey.pidTid,
+    'tag' || 'category' => FilterKey.tag,
+    'level' || 'lvl' || 'priority' => FilterKey.level,
+    'age' || 'maxage' || 'since' => FilterKey.age,
     _ => null,
   };
 }
 
-String _normalizeInlineFilterValue(String rawValue) {
+String _normalizeFilterValue(String rawValue) {
   var normalized = rawValue.trim();
   if (normalized.length >= 2 &&
       normalized.startsWith('"') &&
@@ -433,7 +433,7 @@ String _normalizeInlineFilterValue(String rawValue) {
   return normalized.replaceAll(r'\"', '"').trim();
 }
 
-/// Splits inline filter text into tokens at whitespace outside double quotes.
+/// Splits typed filter text into tokens at whitespace outside double quotes.
 List<String> tokenizeFilterText(String rawText) {
   final tokens = <String>[];
   final buffer = StringBuffer();

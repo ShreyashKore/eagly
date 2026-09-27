@@ -15,9 +15,9 @@ import 'log_filter_controller.dart';
 
 export 'filter_bar_shared.dart' show filterInputDecoration, kFilterFieldHeight;
 export 'log_filter_controller.dart'
-    show ClassicFilterController, LogFilterSuggestions;
+    show LogFilterController, LogFilterSuggestions;
 
-/// The classic filter bar: one type-to-filter field that holds the active
+/// The log filter bar: one type-to-filter field that holds the active
 /// filters as pills, then a **Level** button.
 ///
 /// Two ways in, one result:
@@ -28,17 +28,17 @@ export 'log_filter_controller.dart'
 ///   adds the highlighted "Message contains …". Backspace in the empty field
 ///   marks the last pill, a second Backspace removes it.
 ///
-/// Fully driven by a [ClassicFilterController]; it owns no filter state.
-class ClassicFilterBar extends StatelessWidget {
-  const ClassicFilterBar({
+/// Fully driven by a [LogFilterController]; it owns no filter state.
+class LogFilterBar extends StatelessWidget {
+  const LogFilterBar({
     super.key,
     required this.controller,
     this.showLevel = true,
   });
 
-  final ClassicFilterController controller;
+  final LogFilterController controller;
 
-  /// False when the host lays the [ClassicLevelButton] out elsewhere — the
+  /// False when the host lays the [LogLevelButton] out elsewhere — the
   /// stacked narrow-window layout puts it beside search.
   final bool showLevel;
 
@@ -60,12 +60,12 @@ class ClassicFilterBar extends StatelessWidget {
   }
 }
 
-/// The classic bar's **Level** button on its own, for a host that places it
+/// The filter bar's **Level** button on its own, for a host that places it
 /// apart from the filter field.
-class ClassicLevelButton extends StatelessWidget {
-  const ClassicLevelButton({super.key, required this.controller});
+class LogLevelButton extends StatelessWidget {
+  const LogLevelButton({super.key, required this.controller});
 
-  final ClassicFilterController controller;
+  final LogFilterController controller;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -93,18 +93,18 @@ const List<FilterConditionField> _menuFieldOrder = [
 ];
 
 /// The pill field a typed `key:` fills in; level and age have no pill field.
-FilterConditionField? _fieldForKey(InlineFilterKey key) => switch (key) {
-  InlineFilterKey.message => FilterConditionField.message,
-  InlineFilterKey.packageName => FilterConditionField.packageName,
-  InlineFilterKey.pidTid => FilterConditionField.pidTid,
-  InlineFilterKey.tag => FilterConditionField.tag,
-  InlineFilterKey.level || InlineFilterKey.age => null,
+FilterConditionField? _fieldForKey(FilterKey key) => switch (key) {
+  FilterKey.message => FilterConditionField.message,
+  FilterKey.packageName => FilterConditionField.packageName,
+  FilterKey.pidTid => FilterConditionField.pidTid,
+  FilterKey.tag => FilterConditionField.tag,
+  FilterKey.level || FilterKey.age => null,
 };
 
 /// Recent and known values for [field] that contain [query] (all of them when
 /// it is blank), word-boundary matches first.
 List<String> _suggestedValues(
-  ClassicFilterController controller,
+  LogFilterController controller,
   FilterConditionField field,
   String query, {
   int limit = 6,
@@ -140,7 +140,7 @@ String get _filterShortcutLabel =>
 class _FilterField extends StatefulWidget {
   const _FilterField({required this.controller});
 
-  final ClassicFilterController controller;
+  final LogFilterController controller;
 
   @override
   State<_FilterField> createState() => _FilterFieldState();
@@ -161,7 +161,7 @@ class _FilterFieldState extends State<_FilterField> {
   /// and a second Backspace removes it.
   bool _removalArmed = false;
 
-  ClassicFilterController get _controller => widget.controller;
+  LogFilterController get _controller => widget.controller;
   FocusNode get _focusNode => _controller.inputFocusNode;
 
   @override
@@ -495,7 +495,7 @@ class _ClearFiltersButton extends StatelessWidget {
 /// The active filters as pills — the age limit first, then one per condition.
 List<Widget> _buildPills(
   BuildContext context,
-  ClassicFilterController controller, {
+  LogFilterController controller, {
   int? armedId,
 }) {
   final isIos = controller.isIos;
@@ -510,16 +510,16 @@ List<Widget> _buildPills(
             ? 'Age within last …'
             : 'Age within last ${formatMaxAge(maxAge)}',
         value: maxAge == null ? '' : formatMaxAge(maxAge),
-        armed: armedId == ClassicFilterController.ageConditionId,
+        armed: armedId == LogFilterController.ageConditionId,
         openOnMount: controller.takePendingEditor(
-          ClassicFilterController.ageConditionId,
+          LogFilterController.ageConditionId,
         ),
         onRemove: () {
           controller.setMaxAge(null);
-          controller.commitCondition(ClassicFilterController.ageConditionId);
+          controller.commitCondition(LogFilterController.ageConditionId);
         },
         onEditorClosed: () =>
-            controller.commitCondition(ClassicFilterController.ageConditionId),
+            controller.commitCondition(LogFilterController.ageConditionId),
         editorBuilder: (context, close) => _AgeEditor(
           controller: controller,
           onDone: close,
@@ -583,7 +583,7 @@ class _MenuOption {
 /// their options are the keyboard order.
 List<(String, List<_MenuOption>)> _menuSections(
   BuildContext context,
-  ClassicFilterController controller,
+  LogFilterController controller,
   String rawQuery,
 ) {
   final isIos = controller.isIos;
@@ -643,7 +643,7 @@ List<(String, List<_MenuOption>)> _menuSections(
     if (token != null) {
       final value = token.value;
       switch (token.key) {
-        case InlineFilterKey.level:
+        case FilterKey.level:
           final q = value.toLowerCase();
           final levels = isIos ? LogLevel.iosValues : LogLevel.androidValues;
           return [
@@ -668,7 +668,7 @@ List<(String, List<_MenuOption>)> _menuSections(
               ],
             ),
           ];
-        case InlineFilterKey.age:
+        case FilterKey.age:
           final age = parseMaxAge(value);
           final presets = age == null
               ? const [
@@ -696,10 +696,10 @@ List<(String, List<_MenuOption>)> _menuSections(
               ],
             ),
           ];
-        case InlineFilterKey.message:
-        case InlineFilterKey.packageName:
-        case InlineFilterKey.pidTid:
-        case InlineFilterKey.tag:
+        case FilterKey.message:
+        case FilterKey.packageName:
+        case FilterKey.pidTid:
+        case FilterKey.tag:
           final field = _fieldForKey(token.key)!;
           final operator = FilterOperator.of(token.mode, negate: token.negate);
           final suggestions = _suggestedValues(controller, field, value);
@@ -978,7 +978,7 @@ class _SyntaxHint extends StatelessWidget {
 class _LevelButton extends StatefulWidget {
   const _LevelButton({required this.controller});
 
-  final ClassicFilterController controller;
+  final LogFilterController controller;
 
   @override
   State<_LevelButton> createState() => _LevelButtonState();
@@ -1295,7 +1295,7 @@ class _ConditionEditor extends StatefulWidget {
     required this.onRemove,
   });
 
-  final ClassicFilterController controller;
+  final LogFilterController controller;
   final int conditionId;
   final VoidCallback onDone;
   final VoidCallback onRemove;
@@ -1452,7 +1452,7 @@ class _AgeEditor extends StatefulWidget {
     required this.onRemove,
   });
 
-  final ClassicFilterController controller;
+  final LogFilterController controller;
   final VoidCallback onDone;
   final VoidCallback onRemove;
 

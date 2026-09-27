@@ -33,24 +33,25 @@ class LogFilterSuggestions {
   );
 }
 
-/// The filter pipeline under [ClassicFilterController].
+/// Drives the log filter bar: a level threshold plus a list of
+/// [FilterCondition] pills — each a field, an operator (contains, is, matches
+/// regex, or any of those negated) and a value — and an optional age pill.
 ///
-/// Holds the current filter state as a [LogFilters], the suggestion sources,
-/// the platform context, and the debounce→emit pipeline. The owner seeds the
-/// initial state and receives updated state via [onStateChanged]; it can push
-/// external changes back in with [updateState] (which never re-emits, avoiding
-/// feedback loops).
-///
-/// The subclass owns the bar's widgets' state and translates between it and
-/// [LogFilters].
-abstract class LogFilterController extends ChangeNotifier {
+/// The pills are the source of truth; [state] is rebuilt from them on every
+/// edit, and external state is split back into one pill per term by
+/// [_syncPills]. The owner seeds the initial state and receives
+/// updated state via [onStateChanged]; it can push external changes back in
+/// with [updateState] (which never re-emits, avoiding feedback loops).
+class LogFilterController extends ChangeNotifier {
   LogFilterController({
     required LogFilters initialState,
     required this.suggestions,
     required this.onStateChanged,
     required this.isIos,
     this.debounce = const Duration(milliseconds: 300),
-  }) : _state = initialState;
+  }) : _state = initialState {
+    _syncPills();
+  }
 
   /// Suggestion sources, pulled lazily while building suggestions.
   final LogFilterSuggestions suggestions;
@@ -73,39 +74,13 @@ abstract class LogFilterController extends ChangeNotifier {
       LogLevel.defaultSelectionForPlatform(isIos: isIos);
 
   Timer? _debounceTimer;
-  bool _suppressEmit = false;
   bool _disposed = false;
 
-  // ── Subclass hooks ─────────────────────────────────────────────────────────
+  // ── Emitting ───────────────────────────────────────────────────────────────
 
-  /// Writes [state] into the subclass's text controllers. Always invoked inside
-  /// [runSuppressed] so field listeners don't echo it back as a user edit.
-  @protected
-  void writeStateToFields();
-
-  /// Requests focus for the bar's primary field and selects its contents.
-  void focusPrimaryField();
-
-  // ── Shared machinery ───────────────────────────────────────────────────────
-
-  /// True while [writeStateToFields] is mutating controllers; subclass field
-  /// listeners must ignore change events during this window.
-  @protected
-  bool get isSuppressed => _suppressEmit;
-
-  /// Runs [action] with field listeners suppressed and pending debounce cleared.
-  @protected
-  void runSuppressed(VoidCallback action) {
-    _suppressEmit = true;
-    _debounceTimer?.cancel();
-    action();
-    _suppressEmit = false;
-  }
-
-  /// Called by subclasses when the user edits a field. Records [next] and emits
-  /// it — debounced by default, or immediately when [immediate] is set.
-  @protected
-  void emitUserState(LogFilters next, {bool immediate = false}) {
+  /// Records a user edit's [next] state and emits it — debounced by default,
+  /// or immediately when [immediate] is set.
+  void _emitUserState(LogFilters next, {bool immediate = false}) {
     _state = next;
     _debounceTimer?.cancel();
     if (immediate) {
@@ -135,7 +110,7 @@ abstract class LogFilterController extends ChangeNotifier {
   void setLevel(LogLevel level) {
     if (level == _state.level) return;
     _state = _state.copyWith(level: level);
-    runSuppressed(writeStateToFields);
+    _syncPills();
     notifyListeners();
     _debounceTimer?.cancel();
     _emit();
@@ -145,37 +120,9 @@ abstract class LogFilterController extends ChangeNotifier {
   /// elsewhere) without re-emitting.
   void updateState(LogFilters next) {
     _state = next;
-    runSuppressed(writeStateToFields);
-    notifyListeners();
-  }
-
-  @protected
-  void seedFields() => runSuppressed(writeStateToFields);
-
-  @override
-  void dispose() {
-    _disposed = true;
     _debounceTimer?.cancel();
-    super.dispose();
-  }
-}
-
-/// Drives the classic filter bar: a level threshold plus a list of
-/// [FilterCondition] pills — each a field, an operator (contains, is, matches
-/// regex, or any of those negated) and a value — and an optional age pill.
-///
-/// The pills are the source of truth; [state] is rebuilt from them on every
-/// edit, and external state is split back into one pill per term by
-/// [writeStateToFields].
-class ClassicFilterController extends LogFilterController {
-  ClassicFilterController({
-    required super.initialState,
-    required super.suggestions,
-    required super.onStateChanged,
-    required super.isIos,
-    super.debounce,
-  }) {
-    seedFields();
+    _syncPills();
+    notifyListeners();
   }
 
   /// Focus for the bar's type-to-filter field, the bar's primary control
@@ -247,7 +194,7 @@ class ClassicFilterController extends LogFilterController {
   void _setConditions(List<FilterCondition> next, {bool immediate = true}) {
     _conditions = List.unmodifiable(next);
     notifyListeners();
-    emitUserState(_buildState(), immediate: immediate);
+    _emitUserState(_buildState(), immediate: immediate);
   }
 
   // ── Pill editing ───────────────────────────────────────────────────────────
@@ -328,7 +275,7 @@ class ClassicFilterController extends LogFilterController {
   /// Sets (or, with null, removes) the age limit. Applied immediately.
   void setMaxAge(Duration? maxAge) {
     if (maxAge == state.maxAge) return;
-    emitUserState(
+    _emitUserState(
       _buildState(maxAge: maxAge, keepMaxAge: false),
       immediate: true,
     );
@@ -339,7 +286,7 @@ class ClassicFilterController extends LogFilterController {
   void clearConditions() {
     _conditions = const [];
     _ageDraft = false;
-    emitUserState(_buildState(keepMaxAge: false), immediate: true);
+    _emitUserState(_buildState(keepMaxAge: false), immediate: true);
     notifyListeners();
   }
 
@@ -355,7 +302,7 @@ class ClassicFilterController extends LogFilterController {
     );
     _conditions = List.unmodifiable([..._conditions, ..._pillsFor(parsed)]);
     final maxAge = parsed.maxAge ?? state.maxAge;
-    emitUserState(
+    _emitUserState(
       _buildState(
         maxAge: maxAge,
         keepMaxAge: false,
@@ -406,8 +353,8 @@ class ClassicFilterController extends LogFilterController {
     isIos: isIos,
   );
 
-  @override
-  void writeStateToFields() {
+  /// Splits [state] into pills, unless the pills already say the same.
+  void _syncPills() {
     if (_termsKey(_buildState()) == _termsKey(state)) return;
     _conditions = List.unmodifiable(_pillsFor(state));
   }
@@ -434,11 +381,13 @@ class ClassicFilterController extends LogFilterController {
     ];
   }
 
-  @override
+  /// Focuses the type-to-filter field, which opens its menu.
   void focusPrimaryField() => inputFocusNode.requestFocus();
 
   @override
   void dispose() {
+    _disposed = true;
+    _debounceTimer?.cancel();
     inputFocusNode.dispose();
     super.dispose();
   }
