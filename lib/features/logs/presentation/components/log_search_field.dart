@@ -17,8 +17,8 @@ class LogSearchField extends StatefulWidget {
 
   final LogController controller;
 
-  static const double collapsedWidth = 220;
-  static const double expandedWidth = 340;
+  static const double collapsedWidth = 240;
+  static const double expandedWidth = 380;
 
   @override
   State<LogSearchField> createState() => _LogSearchFieldState();
@@ -144,7 +144,7 @@ class _LogSearchFieldState extends State<LogSearchField> {
               curve: Curves.easeOutCubic,
               width: width,
               height: kFilterControlHeight,
-              padding: const EdgeInsets.only(left: 10, right: 4),
+              padding: const EdgeInsets.only(left: 12, right: 6),
               decoration: BoxDecoration(
                 color: style.fill(hovered: _hovered && !_focused),
                 borderRadius: BorderRadius.circular(kFilterControlRadius),
@@ -155,8 +155,8 @@ class _LogSearchFieldState extends State<LogSearchField> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.search, size: 15, color: style.icon),
-                  const SizedBox(width: 6),
+                  Icon(Icons.search, size: 16, color: style.icon),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Focus(
                       onKeyEvent: _onKey,
@@ -226,7 +226,7 @@ class _LogSearchFieldState extends State<LogSearchField> {
                 ? 'No results'
                 : '${_log.searchCurrentMatch + 1}/$matches',
             style: TextStyle(
-              fontSize: 11.5,
+              fontSize: 12,
               fontFeatures: const [FontFeature.tabularFigures()],
               color: hasError
                   ? colors.error
@@ -279,8 +279,8 @@ class _OptionToggle extends StatelessWidget {
         borderRadius: BorderRadius.circular(5),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          width: 24,
-          height: 22,
+          width: 28,
+          height: 26,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: value ? colors.primary.withValues(alpha: 0.16) : null,
@@ -289,7 +289,7 @@ class _OptionToggle extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               color: value ? colors.primary : colors.onSurfaceVariant,
             ),
@@ -316,10 +316,10 @@ class _IconAction extends StatelessWidget {
     return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
-      icon: Icon(icon, size: 16),
+      icon: Icon(icon, size: 18),
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints.tightFor(width: 24, height: 24),
+      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
     );
   }
 }

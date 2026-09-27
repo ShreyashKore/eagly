@@ -4,7 +4,7 @@ import '../../log_constants.dart';
 import '../../data/models/log_level.dart';
 
 // Consistent height for all filter bar input fields.
-const double kFilterFieldHeight = 36.0;
+const double kFilterFieldHeight = 38.0;
 
 /// Standard [InputDecoration] used across all filter bar fields.
 InputDecoration filterInputDecoration(
@@ -20,18 +20,22 @@ InputDecoration filterInputDecoration(
     labelText: labelText,
     labelStyle: const TextStyle(fontSize: 12),
     hintText: hintText,
-    hintStyle: const TextStyle(fontSize: 12),
+    hintStyle: const TextStyle(fontSize: 13, height: kFilterTextHeight),
     isDense: true,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    // Fills the field's height around one line of [kFilterTextHeight] text.
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: 10,
+      vertical: (kFilterFieldHeight - 13 * kFilterTextHeight) / 2,
+    ),
     border: inputBorder(Colors.transparent),
     enabledBorder: inputBorder(Colors.transparent),
     focusedBorder: inputBorder(colorScheme.primary),
     filled: true,
     fillColor: colorScheme.surfaceContainerHighest,
     prefixIconConstraints: prefixIcon != null
-        ? const BoxConstraints(minHeight: 28, minWidth: 28)
+        ? const BoxConstraints(minHeight: 32, minWidth: 34)
         : null,
-    prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 14) : null,
+    prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 16) : null,
   );
 }
 
@@ -66,7 +70,7 @@ class LogLevelDropdown extends StatelessWidget {
         isDense: true,
         decoration: filterInputDecoration(context, labelText: 'Level'),
         style: TextStyle(
-          fontSize: 12,
+          fontSize: 13,
           color: Theme.of(context).colorScheme.onSurface,
         ),
         items: buildLogLevelDropdownItems(
@@ -110,14 +114,17 @@ List<String> deduplicateFilterValues(Iterable<String> values) {
 
 // ── Filter row controls ──────────────────────────────────────────────────────
 
-/// Height of the filter row's rounded controls (search, Filter, Level).
-const double kFilterControlHeight = 30.0;
+/// Height of the filter row's rounded controls (search, filter, Level).
+const double kFilterControlHeight = 38.0;
+
+/// Line height of the filter inputs' 13px text, as a multiple of its size.
+const double kFilterTextHeight = 1.25;
 
 /// Corner radius of the filter row's controls; pills are fully rounded.
 const double kFilterControlRadius = 8.0;
 
 /// Height of a filter pill, which sits inside the filter field.
-const double kFilterPillHeight = 24.0;
+const double kFilterPillHeight = 28.0;
 
 /// A small outlined keyboard shortcut, e.g. `⌘F`, shown in an idle control.
 class FilterKeyHint extends StatelessWidget {
@@ -137,7 +144,7 @@ class FilterKeyHint extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 10.5, color: colors.onSurfaceVariant),
+        style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
       ),
     );
   }
@@ -162,7 +169,7 @@ class FilterControlStyle {
       : _colors.outlineVariant.withValues(alpha: 0.55);
 
   TextStyle? get label => _theme.textTheme.labelLarge?.copyWith(
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: FontWeight.w500,
     color: _colors.onSurface,
   );
@@ -226,12 +233,12 @@ class _FilterControlButtonState extends State<FilterControlButton> {
         child: SizedBox(
           height: kFilterControlHeight,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(widget.icon, size: 15, color: style.icon),
-                const SizedBox(width: 6),
+                Icon(widget.icon, size: 16, color: style.icon),
+                const SizedBox(width: 8),
                 DefaultTextStyle.merge(style: style.label, child: widget.label),
                 if (widget.trailing != null) ...[
                   const SizedBox(width: 6),

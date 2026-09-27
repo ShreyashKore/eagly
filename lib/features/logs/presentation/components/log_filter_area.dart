@@ -28,7 +28,7 @@ class LogFilterArea extends StatelessWidget {
         ? (kFilterFieldHeight - kFilterControlHeight) / 2
         : 0.0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 2, 8, 8),
+      padding: const EdgeInsets.fromLTRB(12, 4, 8, 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -83,7 +83,7 @@ class _ModeToggle extends StatelessWidget {
       onPressed: () => controller.setFilterViewMode(
         isInline ? LogFilterViewMode.classic : LogFilterViewMode.inline,
       ),
-      icon: Icon(isInline ? Icons.view_agenda_outlined : Icons.code, size: 17),
+      icon: Icon(isInline ? Icons.view_agenda_outlined : Icons.code, size: 18),
       visualDensity: VisualDensity.compact,
       constraints: const BoxConstraints.tightFor(
         width: kFilterControlHeight,

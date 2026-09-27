@@ -323,9 +323,9 @@ class _FilterFieldState extends State<_FilterField> {
             // Lines are pill-high; the padding makes up the rest of the
             // row's height, less the (focus-thickened) border.
             padding: EdgeInsets.fromLTRB(
-              10,
+              12,
               _verticalInset - borderWidth,
-              3,
+              5,
               _verticalInset - borderWidth,
             ),
             decoration: BoxDecoration(
@@ -343,17 +343,17 @@ class _FilterFieldState extends State<_FilterField> {
                   height: kFilterPillHeight,
                   child: Icon(
                     Icons.filter_list_rounded,
-                    size: 15,
+                    size: 16,
                     color: hasPills ? colors.primary : style.icon,
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Expanded(
                   child: hasPills
                       ? LayoutBuilder(
                           builder: (context, constraints) => Wrap(
-                            spacing: 4,
-                            runSpacing: 3,
+                            spacing: 5,
+                            runSpacing: 4,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               ..._buildPills(
@@ -386,12 +386,12 @@ class _FilterFieldState extends State<_FilterField> {
                   IconButton(
                     tooltip: 'Clear filters',
                     onPressed: controller.clearConditions,
-                    icon: const Icon(Icons.close, size: 15),
+                    icon: const Icon(Icons.close, size: 16),
                     padding: EdgeInsets.zero,
                     visualDensity: VisualDensity.compact,
                     constraints: const BoxConstraints.tightFor(
-                      width: 24,
-                      height: 24,
+                      width: 28,
+                      height: 28,
                     ),
                   ),
               ],
@@ -1118,11 +1118,11 @@ class _FilterPillState extends State<_FilterPill> {
           child: SizedBox(
             height: kFilterPillHeight,
             child: Padding(
-              padding: const EdgeInsets.only(left: 9, right: 3),
+              padding: const EdgeInsets.only(left: 11, right: 4),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(widget.icon, size: 13, color: accent),
+                  Icon(widget.icon, size: 14, color: accent),
                   const SizedBox(width: 6),
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 280),
@@ -1160,18 +1160,18 @@ class _FilterPillState extends State<_FilterPill> {
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12),
+                      style: const TextStyle(fontSize: 12.5),
                     ),
                   ),
                   const SizedBox(width: 2),
                   SizedBox(
-                    width: 20,
-                    height: 20,
+                    width: 22,
+                    height: 22,
                     child: _hovered
                         ? IconButton(
                             tooltip: 'Remove filter',
                             onPressed: widget.onRemove,
-                            icon: const Icon(Icons.close, size: 13),
+                            icon: const Icon(Icons.close, size: 14),
                             padding: EdgeInsets.zero,
                             visualDensity: VisualDensity.compact,
                           )
@@ -1620,8 +1620,8 @@ class _MenuRowState extends State<_MenuRow> {
         onTap: widget.onTap,
         behavior: HitTestBehavior.opaque,
         child: Container(
-          height: 30,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
             color: lit ? colors.onSurface.withValues(alpha: 0.07) : null,
             borderRadius: BorderRadius.circular(6),
@@ -1634,7 +1634,7 @@ class _MenuRowState extends State<_MenuRow> {
               ],
               Expanded(
                 child: DefaultTextStyle.merge(
-                  style: TextStyle(fontSize: 12.5, color: colors.onSurface),
+                  style: TextStyle(fontSize: 13, color: colors.onSurface),
                   child: widget.child,
                 ),
               ),
@@ -1725,7 +1725,7 @@ InputDecoration _cardInputDecoration(
     hintStyle: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
     errorText: errorText,
     errorStyle: const TextStyle(fontSize: 11),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
     prefixIcon: prefixIcon == null
         ? null
         : Icon(prefixIcon, size: 16, color: colors.onSurfaceVariant),
