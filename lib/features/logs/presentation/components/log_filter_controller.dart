@@ -160,14 +160,13 @@ abstract class LogFilterController extends ChangeNotifier {
   }
 }
 
-/// Drives the classic filter bar: a level dropdown, a quick message field, and
-/// a list of [FilterCondition] pills — each a field, an operator (contains,
-/// is, matches regex, or any of those negated) and a value.
+/// Drives the classic filter bar: a level threshold plus a list of
+/// [FilterCondition] pills — each a field, an operator (contains, is, matches
+/// regex, or any of those negated) and a value — and an optional age pill.
 ///
-/// The pills are the source of truth for everything the quick field doesn't
-/// hold; [state] is rebuilt from them on every edit. External state is split
-/// back into pills by [writeStateToFields]: the first plain message term goes
-/// to the quick field, every other term becomes a pill.
+/// The pills are the source of truth; [state] is rebuilt from them on every
+/// edit, and external state is split back into one pill per term by
+/// [writeStateToFields].
 class ClassicFilterController extends LogFilterController {
   ClassicFilterController({
     required super.initialState,
@@ -177,12 +176,13 @@ class ClassicFilterController extends LogFilterController {
     super.debounce,
   }) {
     seedFields();
-    messageController.addListener(_handleFieldChanged);
   }
 
-  /// The quick "message contains" field.
-  final TextEditingController messageController = TextEditingController();
-  final FocusNode messageFocusNode = FocusNode();
+  /// Focus for the bar's "Filter" button, the bar's primary control.
+  final FocusNode filterButtonFocusNode = FocusNode();
+
+  /// Bumped to ask the bar to open its "Filter by…" menu (⌘L).
+  final ValueNotifier<int> filterMenuRequests = ValueNotifier(0);
 
   List<FilterCondition> _conditions = const [];
   List<FilterCondition> get conditions => _conditions;
@@ -202,35 +202,29 @@ class ClassicFilterController extends LogFilterController {
   /// Whether the age pill is shown: a limit is set, or one is being chosen.
   bool get showsAgePill => _ageDraft || maxAge != null;
 
+  /// Whether any pill (draft or not) is on show.
+  bool get hasPills => _conditions.isNotEmpty || showsAgePill;
+
   /// Number of active pills (drafts excluded, age included), for the badge on
-  /// the add-filter button.
+  /// the Filter button.
   int get activeFilterCount =>
       _conditions.where((condition) => !condition.isDraft).length +
       (maxAge == null ? 0 : 1);
 
   /// Whether the pill [id] should open its editor as soon as it builds. True
-  /// once, for the pill [addCondition] just created.
+  /// once, for the pill [addCondition] / [addAgeCondition] just created.
   bool takePendingEditor(int id) {
     if (_pendingEditorId != id) return false;
     _pendingEditorId = null;
     return true;
   }
 
-  void _handleFieldChanged() {
-    if (isSuppressed) return;
-    emitUserState(_buildState());
-  }
+  void openFilterMenu() => filterMenuRequests.value++;
 
-  LogFilters _buildState() {
+  LogFilters _buildState({Duration? maxAge, bool keepMaxAge = true}) {
     final terms = {
       for (final field in FilterConditionField.values) field: <FilterTerm>[],
     };
-    final quick = messageController.text.trim();
-    // The quick term goes first so that splitting this state back into pills
-    // hands the same value back to the quick field.
-    if (quick.isNotEmpty) {
-      terms[FilterConditionField.message]!.add(FilterTerm(quick));
-    }
     for (final condition in _conditions) {
       final term = condition.toTerm();
       if (term != null) terms[condition.field]!.add(term);
@@ -242,7 +236,7 @@ class ClassicFilterController extends LogFilterController {
       packageTerms: terms[FilterConditionField.packageName]!,
       pidTidTerms: terms[FilterConditionField.pidTid]!,
       tagTerms: terms[FilterConditionField.tag]!,
-      maxAge: state.maxAge,
+      maxAge: keepMaxAge ? state.maxAge : maxAge,
     );
   }
 
@@ -262,6 +256,25 @@ class ClassicFilterController extends LogFilterController {
     _pendingEditorId = condition.id;
     notifyListeners();
     return condition;
+  }
+
+  /// Adds a complete pill and applies it at once — the "Filter by…" menu's
+  /// "Tag contains auth" rows.
+  void addConditionWithValue(
+    FilterConditionField field,
+    String value, {
+    FilterOperator operator = FilterOperator.contains,
+  }) {
+    if (value.trim().isEmpty) return;
+    _setConditions([
+      ..._conditions,
+      FilterCondition(
+        id: _nextConditionId++,
+        field: field,
+        operator: operator,
+        value: value.trim(),
+      ),
+    ]);
   }
 
   /// Changes pill [id]'s operator and/or value. A value edit is debounced like
@@ -311,31 +324,18 @@ class ClassicFilterController extends LogFilterController {
   /// Sets (or, with null, removes) the age limit. Applied immediately.
   void setMaxAge(Duration? maxAge) {
     if (maxAge == state.maxAge) return;
-    final next = _buildState();
     emitUserState(
-      LogFilters.fromTerms(
-        level: next.level,
-        messageTerms: next.messageTerms,
-        rawTerms: next.rawTerms,
-        packageTerms: next.packageTerms,
-        pidTidTerms: next.pidTidTerms,
-        tagTerms: next.tagTerms,
-        maxAge: maxAge,
-      ),
+      _buildState(maxAge: maxAge, keepMaxAge: false),
       immediate: true,
     );
     notifyListeners();
   }
 
-  /// Removes every pill and the age limit; the level and quick field stay.
+  /// Removes every pill and the age limit; the level stays.
   void clearConditions() {
     _conditions = const [];
     _ageDraft = false;
-    final next = _buildState();
-    emitUserState(
-      LogFilters.fromTerms(level: next.level, messageTerms: next.messageTerms),
-      immediate: true,
-    );
+    emitUserState(_buildState(keepMaxAge: false), immediate: true);
     notifyListeners();
   }
 
@@ -353,31 +353,6 @@ class ClassicFilterController extends LogFilterController {
     ]);
   }
 
-  // ── Quick message field ────────────────────────────────────────────────────
-
-  void _setText(TextEditingController controller, String value) {
-    if (controller.text == value) return;
-    controller.value = TextEditingValue(
-      text: value,
-      selection: TextSelection.collapsed(offset: value.length),
-    );
-  }
-
-  /// Applies a suggestion chosen for the quick field: sets it and emits at once.
-  void selectMessageSuggestion(String value) {
-    runSuppressed(() => _setText(messageController, value));
-    emitUserState(_buildState(), immediate: true);
-  }
-
-  /// Programmatic quick-field input (tests / external callers). Debounced emit.
-  void setMessageFromInput(String value) {
-    if (messageController.text == value) {
-      _handleFieldChanged();
-      return;
-    }
-    _setText(messageController, value);
-  }
-
   // ── State ⇄ pills ──────────────────────────────────────────────────────────
 
   /// Everything but the level, for telling whether [state] says something the
@@ -393,13 +368,6 @@ class ClassicFilterController extends LogFilterController {
   void writeStateToFields() {
     if (_termsKey(_buildState()) == _termsKey(state)) return;
 
-    final messageTerms = [...state.messageTerms];
-    final quickIndex = messageTerms.indexWhere(
-      (term) => term.mode == FilterMatchMode.contains && !term.negate,
-    );
-    final quick = quickIndex < 0 ? '' : messageTerms.removeAt(quickIndex).value;
-    _setText(messageController, quick);
-
     FilterCondition pill(FilterConditionField field, FilterTerm term) =>
         FilterCondition(
           id: _nextConditionId++,
@@ -413,26 +381,20 @@ class ClassicFilterController extends LogFilterController {
       for (final term in state.tagTerms) pill(FilterConditionField.tag, term),
       for (final term in state.pidTidTerms)
         pill(FilterConditionField.pidTid, term),
-      for (final term in messageTerms) pill(FilterConditionField.message, term),
+      for (final term in state.messageTerms)
+        pill(FilterConditionField.message, term),
       for (final term in state.rawTerms)
         pill(FilterConditionField.anyField, term),
     ]);
   }
 
   @override
-  void focusPrimaryField() {
-    messageFocusNode.requestFocus();
-    messageController.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: messageController.text.length,
-    );
-  }
+  void focusPrimaryField() => filterButtonFocusNode.requestFocus();
 
   @override
   void dispose() {
-    messageController.removeListener(_handleFieldChanged);
-    messageController.dispose();
-    messageFocusNode.dispose();
+    filterButtonFocusNode.dispose();
+    filterMenuRequests.dispose();
     super.dispose();
   }
 }

@@ -100,6 +100,9 @@ class LogController extends FeatureController {
 
   final ScrollController scrollController = ScrollController();
 
+  /// Focus for the filter row's search field, so ⌘F can jump into it.
+  final FocusNode searchFocusNode = FocusNode();
+
   double paneWidth = 600;
 
   void setPaneWidth(double value) {
@@ -343,6 +346,16 @@ class LogController extends FeatureController {
   /// Apps feature's "View logs" action to jump straight to one app's lines.
   void applyPackageFilter(String packageName) {
     classicFilter.setPackageFilter(packageName);
+  }
+
+  /// ⌘L: puts the user into the filter — the inline field, or the classic
+  /// bar's "Filter by…" menu.
+  void activateFilterInput() {
+    if (filterViewMode == LogFilterViewMode.classic) {
+      classicFilter.openFilterMenu();
+      return;
+    }
+    focusFilterInputs();
   }
 
   void focusFilterInputs() {
@@ -685,6 +698,11 @@ class LogController extends FeatureController {
       _searchBarVisible = true;
       _notify();
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_disposed && !searchFocusNode.hasFocus) {
+        searchFocusNode.requestFocus();
+      }
+    });
   }
 
   void closeSearchBar() {
@@ -1571,6 +1589,7 @@ class LogController extends FeatureController {
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
     scrollController.dispose();
+    searchFocusNode.dispose();
     classicFilter.dispose();
     inlineFilter.dispose();
     super.dispose();

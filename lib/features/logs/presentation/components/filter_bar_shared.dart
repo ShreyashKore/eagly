@@ -107,3 +107,117 @@ List<String> deduplicateFilterValues(Iterable<String> values) {
   }
   return result;
 }
+
+// ── Filter row controls ──────────────────────────────────────────────────────
+
+/// Height of the filter row's rounded controls (search, Filter, Level).
+const double kFilterControlHeight = 30.0;
+
+/// Corner radius of the filter row's controls; pills are fully rounded.
+const double kFilterControlRadius = 8.0;
+
+/// The fill, border and label style every filter row control shares, so the
+/// search field and the Filter / Level buttons read as one family.
+class FilterControlStyle {
+  FilterControlStyle.of(BuildContext context) : _theme = Theme.of(context);
+
+  final ThemeData _theme;
+
+  ColorScheme get _colors => _theme.colorScheme;
+
+  Color fill({bool hovered = false}) =>
+      hovered ? _colors.surfaceContainerHighest : _colors.surfaceContainerHigh;
+
+  Color border({bool focused = false, bool active = false}) => focused
+      ? _colors.primary
+      : active
+      ? _colors.primary.withValues(alpha: 0.45)
+      : _colors.outlineVariant.withValues(alpha: 0.55);
+
+  TextStyle? get label => _theme.textTheme.labelLarge?.copyWith(
+    fontSize: 12.5,
+    fontWeight: FontWeight.w500,
+    color: _colors.onSurface,
+  );
+
+  TextStyle? get hint => label?.copyWith(
+    color: _colors.onSurfaceVariant,
+    fontWeight: FontWeight.w400,
+  );
+
+  Color get icon => _colors.onSurfaceVariant;
+}
+
+/// A rounded, filled, icon-and-label button in the filter row.
+class FilterControlButton extends StatefulWidget {
+  const FilterControlButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.trailing,
+    this.active = false,
+    this.focusNode,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final Widget label;
+  final Widget? trailing;
+  final VoidCallback onPressed;
+
+  /// Tints the border — the control currently has something applied.
+  final bool active;
+  final FocusNode? focusNode;
+  final String? tooltip;
+
+  @override
+  State<FilterControlButton> createState() => _FilterControlButtonState();
+}
+
+class _FilterControlButtonState extends State<FilterControlButton> {
+  bool _hovered = false;
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = FilterControlStyle.of(context);
+    Widget button = Material(
+      color: style.fill(hovered: _hovered),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(kFilterControlRadius),
+        side: BorderSide(
+          color: style.border(focused: _focused, active: widget.active),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        focusNode: widget.focusNode,
+        onTap: widget.onPressed,
+        onHover: (value) => setState(() => _hovered = value),
+        onFocusChange: (value) => setState(() => _focused = value),
+        child: SizedBox(
+          height: kFilterControlHeight,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(widget.icon, size: 15, color: style.icon),
+                const SizedBox(width: 6),
+                DefaultTextStyle.merge(style: style.label, child: widget.label),
+                if (widget.trailing != null) ...[
+                  const SizedBox(width: 6),
+                  widget.trailing!,
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final tooltip = widget.tooltip;
+    if (tooltip != null) button = Tooltip(message: tooltip, child: button);
+    return button;
+  }
+}

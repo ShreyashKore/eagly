@@ -5,17 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import 'data/models/log_entry.dart';
-import 'presentation/models/log_view_mode.dart';
 import '../../session/device_session_controller.dart';
 import '../../presentation/theme/app_theme.dart';
 import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/feature_view.dart';
-import '../../presentation/components/text_search_bar.dart';
 import 'presentation/components/log_viewer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/log_feedback.dart';
-import 'presentation/components/classic_filter_bar.dart';
-import 'presentation/components/inline_filter_bar.dart';
+import 'presentation/components/log_filter_area.dart';
 import 'presentation/components/scroll_to_end_button.dart';
 import 'presentation/components/log_status_bar.dart';
 import 'presentation/components/toolbar.dart';
@@ -208,47 +205,8 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
     );
   }
 
-  Widget _buildFilterArea(BuildContext context, LogController controller) {
-    final isInline = controller.filterViewMode == LogFilterViewMode.inline;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          IconButton(
-            tooltip: isInline
-                ? 'Inline filter mode active. Switch to classic fields.'
-                : 'Classic filter mode active. Switch to inline filter.',
-            onPressed: () {
-              controller.setFilterViewMode(
-                isInline ? LogFilterViewMode.classic : LogFilterViewMode.inline,
-              );
-            },
-            icon: Icon(
-              isInline ? Icons.filter_alt_outlined : Icons.filter_list_rounded,
-            ),
-          ),
-          const Gap(4),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              switchInCurve: Curves.easeOut,
-              switchOutCurve: Curves.easeIn,
-              child: isInline
-                  ? InlineFilterBar(
-                      key: const ValueKey('inline-filter-bar'),
-                      controller: controller.inlineFilter,
-                    )
-                  : ClassicFilterBar(
-                      key: const ValueKey('classic-filter-bar'),
-                      controller: controller.classicFilter,
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildFilterArea(BuildContext context, LogController controller) =>
+      LogFilterArea(controller: controller);
 
   Widget _buildViewerArea(BuildContext context, LogController controller) {
     final filtered = controller.filteredLogs;
@@ -368,28 +326,6 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
                   ),
                 ),
               ),
-            ),
-          ),
-        if (controller.searchBarVisible)
-          Positioned(
-            top: 24,
-            right: 12,
-            child: TextSearchBar(
-              search: controller.inlineSearch,
-              hintText: 'Search in logs...',
-              hasError: controller.inlineSearchHasError,
-              errorText: controller.inlineSearchErrorText,
-              onSearchChanged: controller.updateInlineSearch,
-              onSearchOptionsChanged: (search) =>
-                  controller.updateInlineSearch(search, applyImmediately: true),
-              onNext: controller.onSearchNext,
-              onPrevious: controller.onSearchPrev,
-              onClose: controller.closeSearchBar,
-              totalMatches: matches.length,
-              currentMatch: matches.isEmpty
-                  ? 0
-                  : controller.searchCurrentMatch + 1,
-              width: 500,
             ),
           ),
         ListenableBuilder(

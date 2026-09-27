@@ -498,9 +498,7 @@ void main() {
       expect(log.selectedLogLevel, LogLevel.error);
       expect(log.filteredLogs, hasLength(1));
       expect(log.filteredLogs.single.level, 'E');
-      // A bare word searches every field, so it is an "Any field" pill rather
-      // than the message-only quick field.
-      expect(log.classicFilter.messageController.text, isEmpty);
+      // A bare word searches every field, so it is an "Any field" pill.
       expect(
         [
           for (final condition in log.classicFilter.conditions)

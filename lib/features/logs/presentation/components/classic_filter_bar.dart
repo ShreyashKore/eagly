@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../presentation/components/anchored_popover.dart';
+import '../../../../presentation/theme/log_level_presentation.dart';
 import '../../data/models/filter_condition.dart';
 import '../../data/models/log_filters.dart';
+import '../../data/models/log_level.dart';
 import 'filter_bar_shared.dart';
 import 'log_filter_controller.dart';
 
@@ -10,9 +13,10 @@ export 'filter_bar_shared.dart' show filterInputDecoration, kFilterFieldHeight;
 export 'log_filter_controller.dart'
     show ClassicFilterController, LogFilterSuggestions;
 
-/// The classic filter bar: a level dropdown, a quick message field and an
-/// "Add filter" menu on top, with the active filter pills wrapping underneath.
-/// Clicking a pill opens its editor (operator + value). Fully driven by a
+/// The classic filter bar's controls, Notion style: a **Filter** button whose
+/// menu adds filters (type to get "Message contains …" and friends) and a
+/// **Level** button. The filters it adds show in [ClassicFilterPills], which
+/// the host lays out on its own row underneath. Fully driven by a
 /// [ClassicFilterController]; it owns no filter state.
 class ClassicFilterBar extends StatelessWidget {
   const ClassicFilterBar({super.key, required this.controller});
@@ -23,84 +27,35 @@ class ClassicFilterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: controller,
-      builder: (context, _) => Column(
+      builder: (context, _) => Row(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildTopRow(context),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 150),
-            alignment: Alignment.topLeft,
-            child: _hasPills
-                ? Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: _buildPills(context),
-                  )
-                : const SizedBox(width: double.infinity),
-          ),
+          _FilterMenuButton(controller: controller),
+          const SizedBox(width: 6),
+          _LevelButton(controller: controller),
         ],
       ),
     );
   }
+}
 
-  bool get _hasPills =>
-      controller.conditions.isNotEmpty || controller.showsAgePill;
+/// The classic bar's active filters as rounded pills, plus "Clear filters".
+/// Builds nothing while there are none.
+class ClassicFilterPills extends StatelessWidget {
+  const ClassicFilterPills({super.key, required this.controller});
 
-  Widget _buildTopRow(BuildContext context) {
-    final isIos = controller.isIos;
-    return Row(
-      spacing: 8,
-      children: [
-        SizedBox(
-          width: 150,
-          child: LogLevelDropdown(
-            selectedLogLevel: controller.selectedLevel,
-            onLogLevelChanged: (level) {
-              if (level != null) controller.setLevel(level);
-            },
-            isIos: isIos,
-          ),
-        ),
-        Expanded(
-          child: _RecentFilterField(
-            controller: controller.messageController,
-            focusNode: controller.messageFocusNode,
-            onSuggestionSelected: controller.selectMessageSuggestion,
-            onSubmitted: (_) => controller.applyNow(),
-            recentValues: controller.suggestions.recentMessageFilters(),
-            labelText: 'Message',
-            hintText: 'Filter message text…',
-            prefixIcon: Icons.message_outlined,
-          ),
-        ),
-        _AddFilterMenu(
-          controller: controller,
-          builder: (context, onPressed) {
-            final count = controller.activeFilterCount;
-            return SizedBox(
-              height: kFilterFieldHeight,
-              child: TextButton.icon(
-                onPressed: onPressed,
-                style: TextButton.styleFrom(
-                  backgroundColor: Theme.of(
-                    context,
-                  ).colorScheme.surfaceContainerHighest,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  textStyle: _buttonTextStyle(context),
-                ),
-                icon: const Icon(Icons.filter_list_rounded, size: 16),
-                label: Text(count == 0 ? 'Filter' : 'Filter · $count'),
-              ),
-            );
-          },
-        ),
-      ],
+  final ClassicFilterController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) => _buildPills(context),
     );
   }
 
   Widget _buildPills(BuildContext context) {
+    if (!controller.hasPills) return const SizedBox(width: double.infinity);
     final isIos = controller.isIos;
     final maxAge = controller.maxAge;
     return Wrap(
@@ -161,99 +116,413 @@ class ClassicFilterBar extends StatelessWidget {
               },
             ),
           ),
-        _AddFilterMenu(
-          controller: controller,
-          builder: (context, onPressed) => _PillButton(
-            icon: Icons.add,
-            label: 'Add filter',
-            onPressed: onPressed,
-          ),
-        ),
-        _PillButton(
-          icon: Icons.clear_all,
-          label: 'Clear',
-          onPressed: controller.clearConditions,
-        ),
+        _ClearButton(onPressed: controller.clearConditions),
       ],
     );
   }
 }
-
-/// The theme's button label at the bar's 12px size. A button's `textStyle`
-/// replaces the theme's rather than merging with it, so a bare `TextStyle`
-/// would drop the app font.
-TextStyle? _buttonTextStyle(BuildContext context) =>
-    Theme.of(context).textTheme.labelLarge?.copyWith(fontSize: 12);
 
 IconData _fieldIcon(FilterConditionField field) => switch (field) {
   FilterConditionField.packageName => Icons.apps_outlined,
   FilterConditionField.tag => Icons.sell_outlined,
   FilterConditionField.pidTid => Icons.numbers,
-  FilterConditionField.message => Icons.message_outlined,
+  FilterConditionField.message => Icons.notes_rounded,
   FilterConditionField.anyField => Icons.manage_search,
 };
 
-// ── Add-filter menu ──────────────────────────────────────────────────────────
+// ── Filter button + "Filter by…" menu ────────────────────────────────────────
 
-/// A menu of the fields a pill can filter on; picking one adds an empty pill
-/// and opens its editor. [builder] draws the button that opens it.
-class _AddFilterMenu extends StatelessWidget {
-  const _AddFilterMenu({required this.controller, required this.builder});
+/// The fields in the order the menu offers them — most-used first, so a bare
+/// ↵ after typing filters the message.
+const List<FilterConditionField> _menuFieldOrder = [
+  FilterConditionField.message,
+  FilterConditionField.packageName,
+  FilterConditionField.tag,
+  FilterConditionField.pidTid,
+  FilterConditionField.anyField,
+];
+
+class _FilterMenuButton extends StatefulWidget {
+  const _FilterMenuButton({required this.controller});
 
   final ClassicFilterController controller;
-  final Widget Function(BuildContext context, VoidCallback onPressed) builder;
+
+  @override
+  State<_FilterMenuButton> createState() => _FilterMenuButtonState();
+}
+
+class _FilterMenuButtonState extends State<_FilterMenuButton> {
+  final PopoverController _popover = PopoverController();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.filterMenuRequests.addListener(_popover.open);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.filterMenuRequests.removeListener(_popover.open);
+    _popover.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isIos = controller.isIos;
-    return MenuAnchor(
-      menuChildren: [
-        for (final field in FilterConditionField.values)
-          MenuItemButton(
-            leadingIcon: Icon(_fieldIcon(field), size: 16),
-            onPressed: () => controller.addCondition(field),
-            child: Text(field.label(isIos: isIos)),
-          ),
-        const Divider(height: 8),
-        MenuItemButton(
-          leadingIcon: const Icon(Icons.schedule, size: 16),
-          // One age limit at most; edit the existing pill instead.
-          onPressed: controller.showsAgePill
-              ? null
-              : controller.addAgeCondition,
-          child: const Text('Age'),
-        ),
-      ],
-      builder: (context, menu, _) =>
-          builder(context, () => menu.isOpen ? menu.close() : menu.open()),
+    final count = widget.controller.activeFilterCount;
+    final colors = Theme.of(context).colorScheme;
+    return AnchoredPopover(
+      controller: _popover,
+      width: 300,
+      popoverBuilder: (context) =>
+          _FilterByMenu(controller: widget.controller, onDone: _popover.close),
+      child: FilterControlButton(
+        focusNode: widget.controller.filterButtonFocusNode,
+        icon: Icons.filter_list_rounded,
+        label: const Text('Filter'),
+        active: count > 0,
+        tooltip: 'Hide lines that don’t match (⌘L)',
+        trailing: count == 0
+            ? null
+            : Container(
+                constraints: const BoxConstraints(minWidth: 18),
+                height: 18,
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colors.primary,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: colors.onPrimary,
+                  ),
+                ),
+              ),
+        onPressed: _popover.toggle,
+      ),
     );
   }
 }
 
-class _PillButton extends StatelessWidget {
-  const _PillButton({
+/// One selectable row in the "Filter by…" menu.
+class _MenuOption {
+  const _MenuOption({
     required this.icon,
     required this.label,
-    required this.onPressed,
+    required this.onSelected,
   });
 
   final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
+  final InlineSpan label;
+  final VoidCallback onSelected;
+}
+
+/// The Filter button's menu: a "Filter by…" field over a list of fields. With
+/// text typed, each field becomes a ready "Field contains ‘text’" filter, and
+/// matching recent / known values are offered under it. ↑↓ and ↵ work.
+class _FilterByMenu extends StatefulWidget {
+  const _FilterByMenu({required this.controller, required this.onDone});
+
+  final ClassicFilterController controller;
+  final VoidCallback onDone;
+
+  @override
+  State<_FilterByMenu> createState() => _FilterByMenuState();
+}
+
+class _FilterByMenuState extends State<_FilterByMenu> {
+  final TextEditingController _query = TextEditingController();
+  int _highlighted = 0;
+
+  ClassicFilterController get _controller => widget.controller;
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  void _select(_MenuOption option) {
+    widget.onDone();
+    option.onSelected();
+  }
+
+  /// The menu as sections of options; the flattened order is keyboard order.
+  List<(String, List<_MenuOption>)> _sections(BuildContext context) {
+    final isIos = _controller.isIos;
+    final query = _query.text.trim();
+    final colors = Theme.of(context).colorScheme;
+    final valueStyle = TextStyle(
+      fontWeight: FontWeight.w600,
+      color: colors.onSurface,
+    );
+    final mutedStyle = TextStyle(color: colors.onSurfaceVariant);
+
+    if (query.isEmpty) {
+      return [
+        (
+          'Filter by',
+          [
+            for (final field in _menuFieldOrder)
+              _MenuOption(
+                icon: _fieldIcon(field),
+                label: TextSpan(text: field.label(isIos: isIos)),
+                onSelected: () => _controller.addCondition(field),
+              ),
+            if (!_controller.showsAgePill)
+              _MenuOption(
+                icon: Icons.schedule,
+                label: const TextSpan(text: 'Age'),
+                onSelected: _controller.addAgeCondition,
+              ),
+          ],
+        ),
+      ];
+    }
+
+    InlineSpan contains(String field, String value) => TextSpan(
+      children: [
+        TextSpan(text: field),
+        TextSpan(text: ' contains ', style: mutedStyle),
+        TextSpan(text: value, style: valueStyle),
+      ],
+    );
+
+    final age = parseMaxAge(query);
+    final suggestions = <_MenuOption>[];
+    void suggest(FilterConditionField field, Iterable<String> values) {
+      final q = query.toLowerCase();
+      for (final value in deduplicateFilterValues(values)) {
+        final normalized = value.toLowerCase();
+        if (normalized == q || !normalized.contains(q)) continue;
+        suggestions.add(
+          _MenuOption(
+            icon: _fieldIcon(field),
+            label: contains(field.label(isIos: isIos), value),
+            onSelected: () => _controller.addConditionWithValue(field, value),
+          ),
+        );
+      }
+    }
+
+    final sources = _controller.suggestions;
+    suggest(FilterConditionField.packageName, [
+      ...sources.recentPackageFilters(),
+      ...sources.knownPackageFilters(),
+    ]);
+    suggest(FilterConditionField.tag, sources.recentTagFilters());
+    suggest(FilterConditionField.message, sources.recentMessageFilters());
+
+    return [
+      (
+        'Add filter',
+        [
+          for (final field in _menuFieldOrder)
+            _MenuOption(
+              icon: _fieldIcon(field),
+              label: contains(field.label(isIos: isIos), query),
+              onSelected: () => _controller.addConditionWithValue(field, query),
+            ),
+          if (age != null && !_controller.showsAgePill)
+            _MenuOption(
+              icon: Icons.schedule,
+              label: TextSpan(
+                children: [
+                  const TextSpan(text: 'Age'),
+                  TextSpan(text: ' within last ', style: mutedStyle),
+                  TextSpan(text: formatMaxAge(age), style: valueStyle),
+                ],
+              ),
+              onSelected: () => _controller.setMaxAge(age),
+            ),
+        ],
+      ),
+      if (suggestions.isNotEmpty) ('Suggestions', suggestions.take(6).toList()),
+    ];
+  }
+
+  /// Keyboard order: every section's options, flattened.
+  List<_MenuOption> _options(BuildContext context) => [
+    for (final (_, items) in _sections(context)) ...items,
+  ];
+
+  KeyEventResult _onKey(BuildContext context, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    // Built from the live query, not the last frame's list: a fast
+    // type-then-↵ lands before the rebuild.
+    final options = _options(context);
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.arrowUp) {
+      if (options.isEmpty) return KeyEventResult.handled;
+      final step = key == LogicalKeyboardKey.arrowDown ? 1 : -1;
+      setState(() => _highlighted = (_highlighted + step) % options.length);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      if (options.isNotEmpty) {
+        _select(options[_highlighted.clamp(0, options.length - 1)]);
+      }
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: _kPillHeight,
-      child: TextButton.icon(
-        onPressed: onPressed,
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          textStyle: _buttonTextStyle(context),
-          visualDensity: VisualDensity.compact,
+    final sections = _sections(context);
+    final options = [for (final (_, items) in sections) ...items];
+    final highlighted = options.isEmpty
+        ? -1
+        : _highlighted.clamp(0, options.length - 1);
+    var index = 0;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+          child: Focus(
+            onKeyEvent: (node, event) => _onKey(context, event),
+            skipTraversal: true,
+            child: TextField(
+              controller: _query,
+              autofocus: true,
+              style: const TextStyle(fontSize: 13),
+              decoration: _cardInputDecoration(
+                context,
+                hintText: 'Filter by… (try a package or tag)',
+                prefixIcon: Icons.search,
+              ),
+              onChanged: (_) => setState(() => _highlighted = 0),
+            ),
+          ),
         ),
-        icon: Icon(icon, size: 14),
-        label: Text(label),
+        Flexible(
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+            children: [
+              for (final (title, items) in sections) ...[
+                _MenuSectionLabel(title),
+                for (final option in items)
+                  Builder(
+                    builder: (context) {
+                      final i = index++;
+                      return _MenuRow(
+                        icon: option.icon,
+                        highlighted: i == highlighted,
+                        trailing: i == highlighted ? const _EnterHint() : null,
+                        onHover: () => setState(() => _highlighted = i),
+                        onTap: () => _select(option),
+                        child: Text.rich(
+                          option.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Level button ─────────────────────────────────────────────────────────────
+
+class _LevelButton extends StatefulWidget {
+  const _LevelButton({required this.controller});
+
+  final ClassicFilterController controller;
+
+  @override
+  State<_LevelButton> createState() => _LevelButtonState();
+}
+
+class _LevelButtonState extends State<_LevelButton> {
+  final PopoverController _popover = PopoverController();
+
+  @override
+  void dispose() {
+    _popover.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = widget.controller;
+    final isIos = controller.isIos;
+    final level = controller.selectedLevel.normalizeSelectionForPlatform(
+      isIos: isIos,
+    );
+    final style = FilterControlStyle.of(context);
+    final levels = isIos ? LogLevel.iosValues : LogLevel.androidValues;
+    return AnchoredPopover(
+      controller: _popover,
+      width: 220,
+      popoverBuilder: (context) => Padding(
+        padding: const EdgeInsets.all(6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _MenuSectionLabel('Show this level and above'),
+            for (final option in levels)
+              _MenuRow(
+                highlighted: option == level,
+                trailing: option == level
+                    ? Icon(
+                        Icons.check,
+                        size: 15,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
+                onTap: () {
+                  _popover.close();
+                  controller.setLevel(option);
+                },
+                child: LogLevelLabel(
+                  level: option,
+                  isIos: isIos,
+                  includeValueInLabel: true,
+                  compact: true,
+                  textStyle: const TextStyle(fontSize: 12.5),
+                ),
+              ),
+          ],
+        ),
+      ),
+      child: FilterControlButton(
+        icon: Icons.signal_cellular_alt_rounded,
+        active: level != controller.defaultLevel,
+        tooltip: 'Minimum log level',
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Level', style: style.hint),
+            const SizedBox(width: 6),
+            LogLevelLabel(
+              level: level,
+              isIos: isIos,
+              compact: true,
+              textStyle: style.label,
+            ),
+          ],
+        ),
+        trailing: Icon(Icons.expand_more, size: 16, color: style.icon),
+        onPressed: _popover.toggle,
       ),
     );
   }
@@ -261,12 +530,8 @@ class _PillButton extends StatelessWidget {
 
 // ── Pill ─────────────────────────────────────────────────────────────────────
 
-const double _kPillHeight = 28;
-const double _kEditorWidth = 320;
-
-/// One filter as a pill ("Tag is not Chatty ×") that opens [editorBuilder] in
-/// a popover below it when clicked. The popover closes on Escape or a click
-/// outside it, then reports [onEditorClosed].
+/// One active filter as a rounded pill ("Tag is not Chatty"); clicking it
+/// opens [editorBuilder] in a popover underneath.
 class _FilterPill extends StatefulWidget {
   const _FilterPill({
     super.key,
@@ -302,175 +567,128 @@ class _FilterPill extends StatefulWidget {
 }
 
 class _FilterPillState extends State<_FilterPill> {
-  final OverlayPortalController _portal = OverlayPortalController();
-  final LayerLink _link = LayerLink();
-
-  /// Taps on the pill and on its popover are one region, so clicking the pill
-  /// while the popover is open toggles it rather than counting as "outside".
-  final Object _tapGroup = Object();
-
-  /// Anchors the popover to the pill's right edge when it would otherwise run
-  /// off the right side of the window.
-  bool _alignRight = false;
+  final PopoverController _popover = PopoverController();
+  bool _hovered = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.openOnMount) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _open();
-      });
-    }
-  }
-
-  void _open() {
-    if (_portal.isShowing) return;
-    final box = context.findRenderObject() as RenderBox?;
-    final windowWidth = MediaQuery.sizeOf(context).width;
-    final left = box?.localToGlobal(Offset.zero).dx ?? 0;
-    setState(() {
-      _alignRight = left + _kEditorWidth > windowWidth - 8;
-      _portal.show();
-    });
-  }
-
-  void _close() {
-    if (!_portal.isShowing) return;
-    setState(_portal.hide);
-    widget.onEditorClosed();
+    // Open before listening: a listener's setState can't run in initState.
+    if (widget.openOnMount) _popover.open();
+    _popover.addListener(_rebuild);
   }
 
   @override
-  Widget build(BuildContext context) {
-    return CompositedTransformTarget(
-      link: _link,
-      child: TapRegion(
-        groupId: _tapGroup,
-        child: OverlayPortal(
-          controller: _portal,
-          overlayChildBuilder: _buildPopover,
-          child: _buildPill(context),
-        ),
-      ),
-    );
+  void dispose() {
+    _popover.removeListener(_rebuild);
+    _popover.dispose();
+    super.dispose();
   }
 
-  Widget _buildPopover(BuildContext context) {
-    final anchor = _alignRight ? Alignment.topRight : Alignment.topLeft;
-    return Positioned(
-      width: _kEditorWidth,
-      child: CompositedTransformFollower(
-        link: _link,
-        showWhenUnlinked: false,
-        targetAnchor: _alignRight
-            ? Alignment.bottomRight
-            : Alignment.bottomLeft,
-        followerAnchor: anchor,
-        offset: const Offset(0, 4),
-        child: TapRegion(
-          groupId: _tapGroup,
-          onTapOutside: (_) => _close(),
-          child: CallbackShortcuts(
-            bindings: {
-              const SingleActivator(LogicalKeyboardKey.escape): _close,
-            },
-            child: FocusScope(
-              child: Material(
-                elevation: 6,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: widget.editorBuilder(context, _close),
-                ),
-              ),
-            ),
-          ),
-        ),
+  void _rebuild() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnchoredPopover(
+      controller: _popover,
+      width: 300,
+      onClosed: widget.onEditorClosed,
+      popoverBuilder: (context) => Padding(
+        padding: const EdgeInsets.all(12),
+        child: widget.editorBuilder(context, _popover.close),
       ),
+      child: _buildPill(context),
     );
   }
 
   Widget _buildPill(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isOpen = _portal.isShowing;
+    final colors = Theme.of(context).colorScheme;
+    final isOpen = _popover.isOpen;
     final error = widget.error;
-    final borderColor = isOpen
-        ? colorScheme.primary
-        : error != null
-        ? colorScheme.error
-        : Colors.transparent;
     final isDraft = widget.value.isEmpty;
+    final accent = error != null ? colors.error : colors.primary;
 
-    final pill = Material(
-      color: colorScheme.surfaceContainerHighest,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-        side: BorderSide(color: borderColor, width: 1.5),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: isOpen ? _close : _open,
-        child: SizedBox(
-          height: _kPillHeight,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 8, right: 2),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  widget.icon,
-                  size: 14,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 6),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 280),
-                  child: Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: widget.fieldLabel,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        TextSpan(
-                          text: ' ${widget.operatorLabel} ',
-                          style: TextStyle(
-                            color: widget.negated
-                                ? colorScheme.error
-                                : colorScheme.onSurfaceVariant,
-                            fontWeight: widget.negated
-                                ? FontWeight.w600
-                                : FontWeight.normal,
+    final pill = MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Material(
+        color: accent.withValues(alpha: _hovered || isOpen ? 0.16 : 0.10),
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: accent.withValues(alpha: isOpen ? 0.9 : 0.35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _popover.toggle,
+          child: SizedBox(
+            height: kFilterControlHeight,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 10, right: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(widget.icon, size: 14, color: accent),
+                  const SizedBox(width: 6),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 280),
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: widget.fieldLabel,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: accent,
+                            ),
                           ),
-                        ),
-                        TextSpan(
-                          text: isDraft ? '…' : widget.value,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            color: isDraft
-                                ? colorScheme.onSurfaceVariant
-                                : colorScheme.onSurface,
+                          TextSpan(
+                            text: ' ${widget.operatorLabel} ',
+                            style: TextStyle(
+                              color: widget.negated
+                                  ? colors.error
+                                  : colors.onSurfaceVariant,
+                              fontWeight: widget.negated
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                            ),
                           ),
-                        ),
-                      ],
+                          TextSpan(
+                            text: isDraft ? '…' : widget.value,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: isDraft
+                                  ? colors.onSurfaceVariant
+                                  : colors.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12.5),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12),
                   ),
-                ),
-                IconButton(
-                  tooltip: 'Remove filter',
-                  onPressed: widget.onRemove,
-                  icon: const Icon(Icons.close, size: 14),
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 24,
-                    height: 24,
+                  const SizedBox(width: 2),
+                  SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: _hovered
+                        ? IconButton(
+                            tooltip: 'Remove filter',
+                            onPressed: widget.onRemove,
+                            icon: const Icon(Icons.close, size: 14),
+                            padding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.compact,
+                          )
+                        : Icon(
+                            Icons.expand_more,
+                            size: 16,
+                            color: colors.onSurfaceVariant,
+                          ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -480,53 +698,37 @@ class _FilterPillState extends State<_FilterPill> {
   }
 }
 
-// ── Editors ──────────────────────────────────────────────────────────────────
+class _ClearButton extends StatelessWidget {
+  const _ClearButton({required this.onPressed});
 
-/// The header every pill editor shares: the field's name and a delete button.
-class _EditorHeader extends StatelessWidget {
-  const _EditorHeader({
-    required this.icon,
-    required this.label,
-    required this.onRemove,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onRemove;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            label,
-            style: theme.textTheme.titleSmall?.copyWith(fontSize: 13),
-          ),
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: kFilterControlHeight,
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          foregroundColor: colors.onSurfaceVariant,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          shape: const StadiumBorder(),
+          textStyle: Theme.of(
+            context,
+          ).textTheme.labelLarge?.copyWith(fontSize: 12.5),
         ),
-        IconButton(
-          tooltip: 'Delete filter',
-          onPressed: onRemove,
-          icon: const Icon(Icons.delete_outline, size: 16),
-          visualDensity: VisualDensity.compact,
-        ),
-      ],
+        child: const Text('Clear filters'),
+      ),
     );
   }
 }
 
-ButtonStyle _segmentStyle(BuildContext context) => SegmentedButton.styleFrom(
-  visualDensity: VisualDensity.compact,
-  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-  textStyle: _buttonTextStyle(context),
-);
+// ── Editors ──────────────────────────────────────────────────────────────────
 
-/// Edits one [FilterCondition]: how it matches (contains / is / regex),
-/// whether it keeps or hides what matches, and the value — with recent and
-/// known values for that field offered underneath.
+/// Edits one [FilterCondition]: "Package  contains ▾  🗑" over the value
+/// field. The operator opens as a list inside the card (popovers don't nest);
+/// otherwise the card lists recent and known values for the field.
 class _ConditionEditor extends StatefulWidget {
   const _ConditionEditor({
     required this.controller,
@@ -548,6 +750,8 @@ class _ConditionEditorState extends State<_ConditionEditor> {
   late final TextEditingController _text = TextEditingController(
     text: _condition?.value ?? '',
   );
+  final FocusNode _textFocus = FocusNode();
+  bool _choosingOperator = false;
 
   FilterCondition? get _condition => widget.controller.conditions
       .where((condition) => condition.id == widget.conditionId)
@@ -556,6 +760,7 @@ class _ConditionEditorState extends State<_ConditionEditor> {
   @override
   void dispose() {
     _text.dispose();
+    _textFocus.dispose();
     super.dispose();
   }
 
@@ -572,7 +777,7 @@ class _ConditionEditorState extends State<_ConditionEditor> {
       FilterConditionField.anyField => sources.recentMessageFilters(),
     });
     final query = _text.text.trim().toLowerCase();
-    if (query.isEmpty) return values.take(8).toList();
+    if (query.isEmpty) return values.take(6).toList();
     final preferred = <String>[];
     final secondary = <String>[];
     for (final value in values) {
@@ -582,18 +787,7 @@ class _ConditionEditorState extends State<_ConditionEditor> {
         value,
       );
     }
-    return [...preferred, ...secondary].take(8).toList();
-  }
-
-  void _setOperator(
-    FilterCondition condition,
-    FilterMatchMode mode,
-    bool negate,
-  ) {
-    widget.controller.updateCondition(
-      condition.id,
-      operator: FilterOperator.of(mode, negate: negate),
-    );
+    return [...preferred, ...secondary].take(6).toList();
   }
 
   @override
@@ -611,9 +805,11 @@ class _ConditionEditorState extends State<_ConditionEditor> {
   Widget _buildEditor(BuildContext context, FilterCondition condition) {
     final field = condition.field;
     final operator = condition.operator;
-    final hasOperators = field.operators.length > 1;
-    final suggestions = _suggestions(field);
+    final canChooseOperator = field.operators.length > 1;
     final invalidRegex = condition.toTerm()?.hasInvalidRegex ?? false;
+    final suggestions = _choosingOperator
+        ? const <String>[]
+        : _suggestions(field);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -623,108 +819,92 @@ class _ConditionEditorState extends State<_ConditionEditor> {
           icon: _fieldIcon(field),
           label: field.label(isIos: widget.controller.isIos),
           onRemove: widget.onRemove,
+          operator: _OperatorButton(
+            label: operator.label,
+            negated: operator.negate,
+            open: _choosingOperator,
+            onPressed: canChooseOperator
+                ? () => setState(() => _choosingOperator = !_choosingOperator)
+                : null,
+          ),
         ),
-        const SizedBox(height: 8),
-        if (hasOperators) ...[
-          SegmentedButton<FilterMatchMode>(
-            style: _segmentStyle(context),
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(
-                value: FilterMatchMode.contains,
-                label: Text('Contains'),
+        const SizedBox(height: 10),
+        if (_choosingOperator)
+          for (final option in field.operators)
+            _MenuRow(
+              highlighted: option == operator,
+              trailing: option == operator
+                  ? Icon(
+                      Icons.check,
+                      size: 15,
+                      color: Theme.of(context).colorScheme.primary,
+                    )
+                  : null,
+              onTap: () {
+                widget.controller.updateCondition(
+                  condition.id,
+                  operator: option,
+                );
+                setState(() => _choosingOperator = false);
+                _textFocus.requestFocus();
+              },
+              child: Text(
+                option.label,
+                style: TextStyle(
+                  color: option.negate
+                      ? Theme.of(context).colorScheme.error
+                      : null,
+                ),
               ),
-              ButtonSegment(value: FilterMatchMode.exact, label: Text('Is')),
-              ButtonSegment(value: FilterMatchMode.regex, label: Text('Regex')),
-            ],
-            selected: {operator.mode},
-            onSelectionChanged: (selection) =>
-                _setOperator(condition, selection.single, operator.negate),
-          ),
-          const SizedBox(height: 6),
-          SegmentedButton<bool>(
-            style: _segmentStyle(context),
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(
-                value: false,
-                icon: Icon(Icons.visibility_outlined, size: 14),
-                label: Text('Show matches'),
-              ),
-              ButtonSegment(
-                value: true,
-                icon: Icon(Icons.visibility_off_outlined, size: 14),
-                label: Text('Hide matches'),
-              ),
-            ],
-            selected: {operator.negate},
-            onSelectionChanged: (selection) =>
-                _setOperator(condition, operator.mode, selection.single),
-          ),
-          const SizedBox(height: 10),
-        ],
-        TextField(
-          controller: _text,
-          autofocus: true,
-          style: const TextStyle(fontSize: 12),
-          decoration:
-              filterInputDecoration(
-                context,
-                hintText: switch (operator.mode) {
-                  FilterMatchMode.contains => 'Text to look for…',
-                  FilterMatchMode.exact => 'Whole value…',
-                  FilterMatchMode.regex => 'Regular expression…',
-                },
-              ).copyWith(
-                errorText: invalidRegex ? 'Invalid regular expression' : null,
-                errorStyle: const TextStyle(fontSize: 11),
-              ),
-          onChanged: (value) =>
-              widget.controller.updateCondition(condition.id, value: value),
-          onSubmitted: (_) => widget.onDone(),
-        ),
-        if (!hasOperators) ...[
-          const SizedBox(height: 6),
-          Text(
-            'Matches text anywhere in the line.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-        if (suggestions.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 200),
-            child: ListView(
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              children: [
-                for (final suggestion in suggestions)
-                  InkWell(
-                    borderRadius: BorderRadius.circular(4),
-                    onTap: () {
-                      _text.text = suggestion;
-                      widget.controller.updateCondition(
-                        condition.id,
-                        value: suggestion,
-                      );
-                      widget.onDone();
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 7,
-                      ),
-                      child: Text(
-                        suggestion,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ),
-              ],
+            )
+        else ...[
+          TextField(
+            controller: _text,
+            focusNode: _textFocus,
+            autofocus: true,
+            style: const TextStyle(fontSize: 13),
+            decoration: _cardInputDecoration(
+              context,
+              hintText: switch (operator.mode) {
+                FilterMatchMode.contains => 'Type a value…',
+                FilterMatchMode.exact => 'The whole value…',
+                FilterMatchMode.regex => 'A regular expression…',
+              },
+              errorText: invalidRegex ? 'Invalid regular expression' : null,
             ),
+            onChanged: (value) {
+              setState(() {});
+              widget.controller.updateCondition(condition.id, value: value);
+            },
+            onSubmitted: (_) => widget.onDone(),
           ),
+          if (!canChooseOperator) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Matches text anywhere in the line.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+          if (suggestions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            const _MenuSectionLabel('Suggestions'),
+            for (final suggestion in suggestions)
+              _MenuRow(
+                onTap: () {
+                  _text.text = suggestion;
+                  widget.controller.updateCondition(
+                    condition.id,
+                    value: suggestion,
+                  );
+                  widget.onDone();
+                },
+                child: Text(
+                  suggestion,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
         ],
       ],
     );
@@ -783,6 +963,7 @@ class _AgeEditorState extends State<_AgeEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return ListenableBuilder(
       listenable: widget.controller,
       builder: (context, _) {
@@ -793,21 +974,26 @@ class _AgeEditorState extends State<_AgeEditor> {
           children: [
             _EditorHeader(
               icon: Icons.schedule,
-              label: 'Age — only lines from the last…',
+              label: 'Age',
               onRemove: widget.onRemove,
+              operator: Text(
+                'within last',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 6,
               runSpacing: 6,
               children: [
                 for (final preset in _AgeEditor.presets)
-                  ChoiceChip(
-                    label: Text(formatMaxAge(preset)),
-                    labelStyle: const TextStyle(fontSize: 12),
-                    visualDensity: VisualDensity.compact,
+                  _PresetChip(
+                    label: formatMaxAge(preset),
                     selected: current == preset,
-                    onSelected: (_) {
+                    onPressed: () {
                       widget.controller.setMaxAge(preset);
                       widget.onDone();
                     },
@@ -818,17 +1004,12 @@ class _AgeEditorState extends State<_AgeEditor> {
             TextField(
               controller: _text,
               autofocus: true,
-              style: const TextStyle(fontSize: 12),
-              decoration:
-                  filterInputDecoration(
-                    context,
-                    hintText: 'Custom, e.g. 1h30m — press Enter',
-                  ).copyWith(
-                    errorText: _invalid
-                        ? 'Use s, m, h, d — e.g. 90s, 2h'
-                        : null,
-                    errorStyle: const TextStyle(fontSize: 11),
-                  ),
+              style: const TextStyle(fontSize: 13),
+              decoration: _cardInputDecoration(
+                context,
+                hintText: 'Custom, e.g. 1h30m, then ↵',
+                errorText: _invalid ? 'Use s, m, h or d — e.g. 90s, 2h' : null,
+              ),
               onSubmitted: _submitCustom,
             ),
           ],
@@ -838,114 +1019,279 @@ class _AgeEditorState extends State<_AgeEditor> {
   }
 }
 
-// ── Quick message field ──────────────────────────────────────────────────────
+// ── Card building blocks ─────────────────────────────────────────────────────
 
-class _RecentFilterField extends StatelessWidget {
-  const _RecentFilterField({
-    required this.controller,
-    required this.focusNode,
-    required this.onSuggestionSelected,
-    required this.onSubmitted,
-    required this.recentValues,
-    required this.labelText,
-    required this.hintText,
-    required this.prefixIcon,
+/// Icon, field name, operator and a delete button — the top line of every
+/// pill editor.
+class _EditorHeader extends StatelessWidget {
+  const _EditorHeader({
+    required this.icon,
+    required this.label,
+    required this.operator,
+    required this.onRemove,
   });
 
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final ValueChanged<String> onSuggestionSelected;
-  final ValueChanged<String> onSubmitted;
-  final List<String> recentValues;
-  final String labelText;
-  final String hintText;
-  final IconData prefixIcon;
-
-  List<String> _matchingOptions(String query) {
-    final q = query.trim().toLowerCase();
-    if (q.isEmpty) return recentValues.toList(growable: false);
-
-    final preferredMatches = <String>[];
-    final secondaryMatches = <String>[];
-    for (final option in recentValues) {
-      final normalized = option.toLowerCase();
-      if (!normalized.contains(q)) continue;
-      final bucket = filterBoundaryMatch(normalized, q)
-          ? preferredMatches
-          : secondaryMatches;
-      bucket.add(option);
-    }
-
-    return [...preferredMatches, ...secondaryMatches];
-  }
+  final IconData icon;
+  final String label;
+  final Widget operator;
+  final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: kFilterFieldHeight,
-      child: RawAutocomplete<String>(
-        textEditingController: controller,
-        focusNode: focusNode,
-        optionsBuilder: (textEditingValue) =>
-            _matchingOptions(textEditingValue.text),
-        onSelected: onSuggestionSelected,
-        fieldViewBuilder:
-            (context, fieldController, fieldFocusNode, onFieldSubmitted) {
-              return TextField(
-                controller: fieldController,
-                focusNode: fieldFocusNode,
-                style: const TextStyle(fontSize: 12),
-                decoration: filterInputDecoration(
-                  context,
-                  labelText: labelText,
-                  hintText: hintText,
-                  prefixIcon: prefixIcon,
-                ),
-                onSubmitted: (value) {
-                  onSubmitted(value);
-                  onFieldSubmitted();
-                },
-              );
-            },
-        optionsViewBuilder: (context, onSelected, options) {
-          return Align(
-            alignment: Alignment.topLeft,
-            child: Material(
-              elevation: 4,
-              borderRadius: BorderRadius.circular(8),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxHeight: 220,
-                  maxWidth: 320,
-                ),
-                child: ListView.builder(
-                  padding: EdgeInsets.zero,
-                  shrinkWrap: true,
-                  itemCount: options.length,
-                  itemBuilder: (context, index) {
-                    final option = options.elementAt(index);
-                    return InkWell(
-                      onTap: () => onSelected(option),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        child: Text(
-                          option,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                    );
-                  },
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: colors.onSurfaceVariant),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(width: 4),
+        Flexible(child: operator),
+        const Spacer(),
+        IconButton(
+          tooltip: 'Delete filter',
+          onPressed: onRemove,
+          icon: const Icon(Icons.delete_outline, size: 16),
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+          padding: EdgeInsets.zero,
+        ),
+      ],
+    );
+  }
+}
+
+/// The "contains ▾" control in an editor header.
+class _OperatorButton extends StatelessWidget {
+  const _OperatorButton({
+    required this.label,
+    required this.negated,
+    required this.open,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool negated;
+  final bool open;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final color = negated ? colors.error : colors.onSurfaceVariant;
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: open ? colors.surfaceContainerHighest : null,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: color,
+                  fontWeight: negated ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
             ),
-          );
-        },
+            if (onPressed != null)
+              Icon(
+                open ? Icons.expand_less : Icons.expand_more,
+                size: 16,
+                color: color,
+              ),
+          ],
+        ),
       ),
     );
   }
+}
+
+class _MenuSectionLabel extends StatelessWidget {
+  const _MenuSectionLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+/// A rounded, hover-highlighted row in a popover list.
+class _MenuRow extends StatefulWidget {
+  const _MenuRow({
+    required this.child,
+    required this.onTap,
+    this.icon,
+    this.trailing,
+    this.highlighted = false,
+    this.onHover,
+  });
+
+  final Widget child;
+  final VoidCallback onTap;
+  final IconData? icon;
+  final Widget? trailing;
+  final bool highlighted;
+  final VoidCallback? onHover;
+
+  @override
+  State<_MenuRow> createState() => _MenuRowState();
+}
+
+class _MenuRowState extends State<_MenuRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final lit = widget.highlighted || _hovered;
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() => _hovered = true);
+        widget.onHover?.call();
+      },
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: lit ? colors.onSurface.withValues(alpha: 0.07) : null,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              if (widget.icon != null) ...[
+                Icon(widget.icon, size: 16, color: colors.onSurfaceVariant),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: DefaultTextStyle.merge(
+                  style: TextStyle(fontSize: 12.5, color: colors.onSurface),
+                  child: widget.child,
+                ),
+              ),
+              if (widget.trailing != null) widget.trailing!,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EnterHint extends StatelessWidget {
+  const _EnterHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Icon(
+      Icons.keyboard_return,
+      size: 14,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    );
+  }
+}
+
+class _PresetChip extends StatelessWidget {
+  const _PresetChip({
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: selected
+          ? colors.primary.withValues(alpha: 0.16)
+          : colors.surfaceContainerHigh,
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: selected
+              ? colors.primary.withValues(alpha: 0.6)
+              : colors.outlineVariant.withValues(alpha: 0.55),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              color: selected ? colors.primary : colors.onSurface,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A rounded, filled text field for popover cards.
+InputDecoration _cardInputDecoration(
+  BuildContext context, {
+  String? hintText,
+  String? errorText,
+  IconData? prefixIcon,
+}) {
+  final colors = Theme.of(context).colorScheme;
+  OutlineInputBorder border(Color color, [double width = 1]) =>
+      OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kFilterControlRadius),
+        borderSide: BorderSide(color: color, width: width),
+      );
+  return InputDecoration(
+    isDense: true,
+    filled: true,
+    fillColor: colors.surfaceContainerHigh,
+    hintText: hintText,
+    hintStyle: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
+    errorText: errorText,
+    errorStyle: const TextStyle(fontSize: 11),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+    prefixIcon: prefixIcon == null
+        ? null
+        : Icon(prefixIcon, size: 16, color: colors.onSurfaceVariant),
+    prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 20),
+    border: border(colors.outlineVariant.withValues(alpha: 0.6)),
+    enabledBorder: border(colors.outlineVariant.withValues(alpha: 0.6)),
+    focusedBorder: border(colors.primary, 1.5),
+    errorBorder: border(colors.error),
+    focusedErrorBorder: border(colors.error, 1.5),
+  );
 }
