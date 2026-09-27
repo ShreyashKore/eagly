@@ -37,6 +37,10 @@ class PopoverController extends ChangeNotifier {
 ///
 /// Popovers are not nested: a click inside a second popover would count as
 /// outside the first. Choices inside a card are shown inline instead.
+///
+/// Text fields in the card or the anchor take [textContextMenuBuilder] as
+/// their `contextMenuBuilder`, or a click in their right-click menu closes the
+/// card.
 class AnchoredPopover extends StatefulWidget {
   const AnchoredPopover({
     super.key,
@@ -59,8 +63,44 @@ class AnchoredPopover extends StatefulWidget {
   /// take the field's focus.
   final Object? tapGroupId;
 
+  /// A text field `contextMenuBuilder` for fields in a card or its anchor.
+  ///
+  /// The default right-click menu sits in the root overlay, outside every
+  /// [TapRegion] but the text field one, so choosing Paste in it counted as a
+  /// click outside the card and closed it. This puts the menu in the field's
+  /// group and the enclosing card's group too.
+  static Widget textContextMenuBuilder(
+    BuildContext context,
+    EditableTextState editableTextState,
+  ) {
+    Widget menu = AdaptiveTextSelectionToolbar.editableText(
+      editableTextState: editableTextState,
+    );
+    final groups = {
+      editableTextState.widget.groupId,
+      ?editableTextState.context
+          .getInheritedWidgetOfExactType<_PopoverTapGroup>()
+          ?.groupId,
+    };
+    for (final group in groups) {
+      menu = TapRegion(groupId: group, child: menu);
+    }
+    return menu;
+  }
+
   @override
   State<AnchoredPopover> createState() => _AnchoredPopoverState();
+}
+
+/// Tells [AnchoredPopover.textContextMenuBuilder] which card a field is in.
+class _PopoverTapGroup extends InheritedWidget {
+  const _PopoverTapGroup({required this.groupId, required super.child});
+
+  final Object groupId;
+
+  @override
+  bool updateShouldNotify(_PopoverTapGroup oldWidget) =>
+      groupId != oldWidget.groupId;
 }
 
 class _AnchoredPopoverState extends State<AnchoredPopover> {
@@ -159,7 +199,10 @@ class _AnchoredPopoverState extends State<AnchoredPopover> {
                   ),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: widget.popoverBuilder(context),
+                child: _PopoverTapGroup(
+                  groupId: _tapGroup,
+                  child: Builder(builder: widget.popoverBuilder),
+                ),
               ),
             ),
           ),

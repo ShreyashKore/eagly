@@ -375,6 +375,43 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // The right-click menu sits in the root overlay; choosing Paste in it used
+  // to count as a click outside the pill editor and close it.
+  testWidgets('pasting from the right-click menu keeps the pill editor open', (
+    WidgetTester tester,
+  ) async {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async => switch (call.method) {
+        'Clipboard.getData' => {'text': 'AuthService'},
+        'Clipboard.hasStrings' => {'value': true},
+        _ => null,
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    final controller = buildController();
+    addTearDown(controller.dispose);
+
+    await pumpClassicFilterBar(tester, controller: controller);
+    await addField(tester, 'Message');
+    await tester.tap(editorField, buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Paste'));
+    await tester.pumpAndSettle();
+
+    expect(editorField, findsOneWidget);
+    expect(
+      tester.widget<TextField>(editorField).controller!.text,
+      'AuthService',
+    );
+    await tester.pump(const Duration(seconds: 1)); // Let the value debounce.
+  });
+
   testWidgets('changing the level keeps an open draft pill', (
     WidgetTester tester,
   ) async {

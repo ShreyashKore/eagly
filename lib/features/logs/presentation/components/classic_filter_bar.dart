@@ -445,6 +445,7 @@ class _FilterFieldState extends State<_FilterField> {
             controller: _text,
             focusNode: _focusNode,
             groupId: _tapGroup,
+            contextMenuBuilder: AnchoredPopover.textContextMenuBuilder,
             style: style.label,
             cursorHeight: 14,
             onTap: _menu.open,
@@ -1393,6 +1394,7 @@ class _ConditionEditorState extends State<_ConditionEditor> {
             controller: _text,
             focusNode: _textFocus,
             autofocus: true,
+            contextMenuBuilder: AnchoredPopover.textContextMenuBuilder,
             style: const TextStyle(fontSize: 13),
             decoration: _cardInputDecoration(
               context,
@@ -1535,6 +1537,7 @@ class _AgeEditorState extends State<_AgeEditor> {
             TextField(
               controller: _text,
               autofocus: true,
+              contextMenuBuilder: AnchoredPopover.textContextMenuBuilder,
               style: const TextStyle(fontSize: 13),
               decoration: _cardInputDecoration(
                 context,
