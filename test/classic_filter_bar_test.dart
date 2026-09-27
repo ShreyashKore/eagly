@@ -82,6 +82,20 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  // The control draws the border; the field inside must not add the theme's
+  // enabled / focused border or fill as a second box.
+  void expectBareDecoration(WidgetTester tester, Finder field) {
+    final decoration = tester
+        .widget<InputDecorator>(
+          find.descendant(of: field, matching: find.byType(InputDecorator)),
+        )
+        .decoration;
+    expect(decoration.filled, isFalse);
+    expect(decoration.border, InputBorder.none);
+    expect(decoration.enabledBorder, InputBorder.none);
+    expect(decoration.focusedBorder, InputBorder.none);
+  }
+
   String composed(LogFilters filters) =>
       LogFilters.compose(filters, defaultLevel: LogLevel.verbose, isIos: false);
 
@@ -138,6 +152,19 @@ void main() {
     // Message is first, so one ↓ lands on Package.
     expect(pill('Package contains timeout'), findsOneWidget);
     expect(emitted!.packageTerms.single.value, 'timeout');
+  });
+
+  testWidgets('the focused filter field draws no inner border', (
+    WidgetTester tester,
+  ) async {
+    final controller = buildController();
+    addTearDown(controller.dispose);
+
+    await pumpClassicFilterBar(tester, controller: controller);
+    await openFilterMenu(tester);
+
+    expect(controller.inputFocusNode.hasFocus, isTrue);
+    expectBareDecoration(tester, filterField);
   });
 
   testWidgets('typed key:value tokens become pills without the menu', (

@@ -126,6 +126,27 @@ const double kFilterControlRadius = 8.0;
 /// Height of a filter pill, which sits inside the filter field.
 const double kFilterPillHeight = 28.0;
 
+/// Decoration for a text field that sits inside a filter row control, which
+/// draws the border and fill itself: every border state, the theme's fill
+/// and its padding are turned off, so the focused field shows no second box.
+InputDecoration bareFilterInputDecoration({
+  String? hintText,
+  TextStyle? hintStyle,
+}) => InputDecoration(
+  hintText: hintText,
+  hintStyle: hintStyle,
+  hintMaxLines: 1,
+  isDense: true,
+  filled: false,
+  contentPadding: EdgeInsets.zero,
+  border: InputBorder.none,
+  enabledBorder: InputBorder.none,
+  focusedBorder: InputBorder.none,
+  disabledBorder: InputBorder.none,
+  errorBorder: InputBorder.none,
+  focusedErrorBorder: InputBorder.none,
+);
+
 /// A small outlined keyboard shortcut, e.g. `⌘F`, shown in an idle control.
 class FilterKeyHint extends StatelessWidget {
   const FilterKeyHint({super.key, required this.label});

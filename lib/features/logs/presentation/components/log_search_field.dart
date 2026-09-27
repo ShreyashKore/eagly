@@ -166,12 +166,9 @@ class _LogSearchFieldState extends State<LogSearchField> {
                         focusNode: _focusNode,
                         style: style.label,
                         cursorHeight: 14,
-                        decoration: InputDecoration(
+                        decoration: bareFilterInputDecoration(
                           hintText: 'Search logs',
                           hintStyle: style.hint,
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
                         ),
                         onChanged: _onChanged,
                       ),

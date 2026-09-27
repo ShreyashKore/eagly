@@ -75,6 +75,30 @@ void main() {
     return log;
   }
 
+  // The control draws the border; the field inside must not add the theme's
+  // enabled / focused border or fill as a second box.
+  void expectBareDecoration(WidgetTester tester, Finder field) {
+    final decoration = tester
+        .widget<InputDecorator>(
+          find.descendant(of: field, matching: find.byType(InputDecorator)),
+        )
+        .decoration;
+    expect(decoration.filled, isFalse);
+    expect(decoration.border, InputBorder.none);
+    expect(decoration.enabledBorder, InputBorder.none);
+    expect(decoration.focusedBorder, InputBorder.none);
+  }
+
+  testWidgets('the focused search field draws no inner border', (
+    WidgetTester tester,
+  ) async {
+    final log = await pumpSearchField(tester);
+    log.searchFocusNode.requestFocus();
+    await tester.pumpAndSettle();
+
+    expectBareDecoration(tester, find.byType(TextField));
+  });
+
   testWidgets('typing searches, shows the count, and Escape clears it', (
     WidgetTester tester,
   ) async {

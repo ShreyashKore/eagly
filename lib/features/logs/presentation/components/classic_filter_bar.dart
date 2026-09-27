@@ -383,17 +383,7 @@ class _FilterFieldState extends State<_FilterField> {
                     ),
                   )
                 else if (hasPills)
-                  IconButton(
-                    tooltip: 'Clear filters',
-                    onPressed: controller.clearConditions,
-                    icon: const Icon(Icons.close, size: 16),
-                    padding: EdgeInsets.zero,
-                    visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints.tightFor(
-                      width: 28,
-                      height: 28,
-                    ),
-                  ),
+                  _ClearFiltersButton(onPressed: controller.clearConditions),
               ],
             ),
           ),
@@ -427,18 +417,42 @@ class _FilterFieldState extends State<_FilterField> {
             style: style.label,
             cursorHeight: 14,
             onTap: _menu.open,
-            decoration: InputDecoration(
+            decoration: bareFilterInputDecoration(
               hintText: hasPills
                   ? 'Add filter…'
                   : 'Filter logs — type text, or $tagKey:Auth  -message:noise  '
                         'level:e',
               hintStyle: style.hint,
-              hintMaxLines: 1,
-              border: InputBorder.none,
-              isDense: true,
-              contentPadding: EdgeInsets.zero,
             ),
             onChanged: _onChanged,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The field's "Clear filters" ×, exactly one pill line high. An [IconButton]
+/// won't do: Material 3 keeps its minimum size over tight constraints, which
+/// stretched the field and pushed the × off its line.
+class _ClearFiltersButton extends StatelessWidget {
+  const _ClearFiltersButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Clear filters',
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: SizedBox.square(
+          dimension: kFilterPillHeight,
+          child: Icon(
+            Icons.close,
+            size: 16,
+            color: FilterControlStyle.of(context).icon,
           ),
         ),
       ),
