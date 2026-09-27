@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../log_constants.dart';
-import '../../data/models/log_level.dart';
-
 // Consistent height for all filter bar input fields.
 const double kFilterFieldHeight = 38.0;
 
@@ -37,56 +34,6 @@ InputDecoration filterInputDecoration(
         : null,
     prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 16) : null,
   );
-}
-
-/// A level picker [DropdownButtonFormField] used in both filter bars.
-class LogLevelDropdown extends StatelessWidget {
-  const LogLevelDropdown({
-    super.key,
-    required this.selectedLogLevel,
-    required this.onLogLevelChanged,
-    required this.isIos,
-    this.width,
-    this.height = kFilterFieldHeight,
-  });
-
-  final LogLevel selectedLogLevel;
-  final ValueChanged<LogLevel?> onLogLevelChanged;
-  final bool isIos;
-
-  /// Fixed width. When `null` the widget expands to fill available space.
-  final double? width;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    Widget dropdown = SizedBox(
-      height: height,
-      child: DropdownButtonFormField<LogLevel>(
-        initialValue: selectedLogLevel.normalizeSelectionForPlatform(
-          isIos: isIos,
-        ),
-        isExpanded: true,
-        isDense: true,
-        decoration: filterInputDecoration(context, labelText: 'Level'),
-        style: TextStyle(
-          fontSize: 13,
-          color: Theme.of(context).colorScheme.onSurface,
-        ),
-        items: buildLogLevelDropdownItems(
-          context: context,
-          includeValueInLabel: true,
-          isIos: isIos,
-        ),
-        onChanged: onLogLevelChanged,
-      ),
-    );
-
-    if (width != null) {
-      dropdown = SizedBox(width: width, child: dropdown);
-    }
-    return dropdown;
-  }
 }
 
 /// Returns `true` when [query] matches [candidate] at a word/segment boundary.

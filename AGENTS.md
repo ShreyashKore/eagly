@@ -124,24 +124,26 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
 - **Log filter row:** `LogFilterArea` puts the filter on the left and the always-visible
   search (`LogSearchField`: highlight and step through matches, hides nothing) on the right,
   so neither is buried; the toolbar has no search button and there is no floating search
-  box. ⌘F focuses search through `LogController.searchFocusNode`, which is why the field
-  sits *outside* the mode cross-fade — two fading copies can't share one focus node. ⌘L
-  focuses the active bar's filter field (`LogController.activateFilterInput`).
-- **Log filter bars:** both bars edit one `LogFilters` (per-field `FilterTerm` lists — each
-  term has a match mode and negation, all ANDed — plus level and age); `LogController` mirrors
-  every emit into the other bar, so switching modes is lossless. The classic ("pills") bar
-  (`ClassicFilterController`) holds one `FilterCondition` pill per term — inline bare words
+  box. ⌘F focuses search through `LogController.searchFocusNode`; ⌘L focuses the filter
+  field (`LogController.activateFilterInput`). There is one filter bar — the inline
+  `key:value` bar and its mode toggle / Settings choice are gone; don't bring back a second
+  one.
+- **Log filter bar:** it edits one `LogFilters` (per-field `FilterTerm` lists — each
+  term has a match mode and negation, all ANDed — plus level and age). `ClassicFilterBar` /
+  `ClassicFilterController` hold one `FilterCondition` pill per term — typed bare words
   are *any-field* terms and become "Any field" pills, never message pills. A pill with a
   blank value is a draft and contributes no term. The pills live inside one type-to-filter
   field serving both audiences: focusing it opens a "Filter by…" menu (pick a field, get a
-  draft pill and its editor), and typed inline syntax (`tag:Auth`, `-message~:^x`, `level:e`)
-  becomes pills on Space / ↵ through `applyTyped` — the inline parser's rules, so both bars
-  read text the same way. Its popovers are `AnchoredPopover`s, which
+  draft pill and its editor), and typed syntax (`tag:Auth`, `-message~:^x`, `level:e`)
+  becomes pills on Space / ↵ through `applyTyped` (`LogFilters.parse`). Its popovers are
+  `AnchoredPopover`s, which
   don't nest (a click in a second one counts as outside the first), so choices inside a card
   — the operator list — open inline rather than as a menu. `AnchoredPopover` positions its
   card with `OverlayPortal.overlayChildLayoutBuilder`; don't reach for
   `CompositedTransformFollower` for overlays — a `Tooltip` (or anything else on the layout
-  builder) inside a follower asserts and paints Flutter's red error box.
+  builder) inside a follower asserts and paints Flutter's red error box. Text fields in a
+  card or its anchor pass `AnchoredPopover.textContextMenuBuilder`, or Paste in their
+  right-click menu closes the card.
 - **Multiple log tabs** per device via `LogSessionManager` (first live tab is permanent;
   extra live + imported tabs allowed).
 - **Screen captures:** screenshots and `screenrecord` videos taken from the mirror pane

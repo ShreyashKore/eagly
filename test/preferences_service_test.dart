@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
-import 'package:eagly/features/logs/presentation/models/log_view_mode.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,14 +13,9 @@ void main() {
 
   test('selectedLogLevel defaults to verbose', () {
     expect(PreferencesService.selectedLogLevel, LogLevel.verbose);
-    expect(PreferencesService.filterViewMode, LogFilterViewMode.classic);
     expect(
       PreferencesService.defaultTabSettings.selectedLogLevel,
       LogLevel.verbose,
-    );
-    expect(
-      PreferencesService.defaultTabSettings.filterViewMode,
-      LogFilterViewMode.classic,
     );
   });
 
@@ -36,12 +30,12 @@ void main() {
     },
   );
 
-  test('filterViewMode setter persists the canonical preference key', () async {
-    PreferencesService.filterViewMode = LogFilterViewMode.inline;
+  test('init drops the retired filter style setting', () async {
+    SharedPreferences.setMockInitialValues({'filterViewMode': 'inline'});
+    await PreferencesService.init();
 
     final prefs = await SharedPreferences.getInstance();
-    expect(PreferencesService.filterViewMode, LogFilterViewMode.inline);
-    expect(prefs.getString('filterViewMode'), LogFilterViewMode.inline.name);
+    expect(prefs.containsKey('filterViewMode'), isFalse);
   });
 
   group('recent log files', () {

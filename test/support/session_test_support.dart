@@ -9,7 +9,6 @@ import 'package:eagly/features/logs/data/models/log_column.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/features/logs/data/models/log_tab_settings.dart';
-import 'package:eagly/features/logs/presentation/models/log_view_mode.dart';
 import 'package:eagly/features/terminal/data/terminal_line.dart';
 import 'package:eagly/features/terminal/data/terminal_process.dart';
 import 'package:eagly/features/terminal/data/terminal_tools.dart';
@@ -24,15 +23,11 @@ import 'package:eagly/services/ios/ios_device_service.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
 import 'package:eagly/services/tools/tool_process_runner.dart';
 
-LogTabSettings testSettings({
-  int logLinesLimit = 50000,
-  LogFilterViewMode filterViewMode = LogFilterViewMode.classic,
-}) {
+LogTabSettings testSettings({int logLinesLimit = 50000}) {
   return LogTabSettings(
     wrapText: false,
     autoScroll: true,
     selectedLogLevel: LogLevel.verbose,
-    filterViewMode: filterViewMode,
     logLinesLimit: logLinesLimit,
     hiddenColumns: const {},
     columnWidths: {

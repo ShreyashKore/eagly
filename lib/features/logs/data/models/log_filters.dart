@@ -2,9 +2,9 @@ import 'package:eagly/features/logs/data/models/log_level.dart';
 
 enum InlineFilterKey { message, packageName, pidTid, tag, level, age }
 
-/// How a [FilterTerm]'s value is compared against a candidate string. The
-/// inline bar's advanced syntax (`[-]key[=|~]:value`) selects [exact] (`=`) or
-/// [regex] (`~`); the classic bar's filter pills pick one from a menu.
+/// How a [FilterTerm]'s value is compared against a candidate string. Typed
+/// syntax (`[-]key[=|~]:value`) selects [exact] (`=`) or [regex] (`~`); a
+/// filter pill's editor picks one from a list.
 enum FilterMatchMode { contains, exact, regex }
 
 /// A single filter value, how it should be matched, and whether the result is
@@ -189,7 +189,7 @@ class LogFilters {
   /// Serializes [state] into inline `[-]key[=|~]:value` syntax, the inverse of
   /// [parse]. The `level` token is emitted only when it differs from
   /// [defaultLevel]; raw terms are emitted as bare words. On iOS the tag key is
-  /// surfaced as `category:` to match the inline bar's display.
+  /// surfaced as `category:`, as iOS names the column.
   static String compose(
     LogFilters state, {
     required LogLevel defaultLevel,

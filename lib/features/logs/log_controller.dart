@@ -14,7 +14,6 @@ import 'data/models/log_entry.dart';
 import 'data/models/log_filters.dart';
 import 'data/models/log_level.dart';
 import 'data/models/log_tab_settings.dart';
-import 'presentation/models/log_view_mode.dart';
 import 'services/filter_utils.dart';
 import 'services/pid_package_index.dart';
 import 'services/log_file_service.dart';
@@ -71,14 +70,7 @@ class LogController extends FeatureController {
     classicFilter = ClassicFilterController(
       initialState: initialState,
       suggestions: suggestions,
-      onStateChanged: (state) =>
-          _applyFilterState(state, source: classicFilter),
-      isIos: isIosLogContext,
-    );
-    inlineFilter = InlineFilterController(
-      initialState: initialState,
-      suggestions: suggestions,
-      onStateChanged: (state) => _applyFilterState(state, source: inlineFilter),
+      onStateChanged: _applyFilterConfig,
       isIos: isIosLogContext,
     );
     _syncLogBufferFilter();
@@ -110,12 +102,9 @@ class LogController extends FeatureController {
     notifyListeners();
   }
 
-  /// The two filter bars are each fully owned by their own controller (text
-  /// controllers, focus nodes, debounce). Both emit updated [LogFilters] state
-  /// through [_applyFilterState]; the sibling is kept in sync so switching modes
-  /// preserves the filter.
+  /// The filter bar's pills, focus and debounce. It emits updated
+  /// [LogFilters] state through [_applyFilterConfig].
   late final ClassicFilterController classicFilter;
-  late final InlineFilterController inlineFilter;
 
   LogBuffer<LogEntry> _logsBuffer;
   final List<LogEntry> _pendingLogs = [];
@@ -283,7 +272,6 @@ class LogController extends FeatureController {
   bool get wrapText => _settings.wrapText;
   bool get autoScroll => _settings.autoScroll;
   LogLevel get selectedLogLevel => _settings.selectedLogLevel;
-  LogFilterViewMode get filterViewMode => _settings.filterViewMode;
   int get logLinesLimit => _settings.logLinesLimit;
   Set<String> get hiddenColumns => _settings.hiddenColumns;
   Map<String, double> get columnWidths => _settings.columnWidths;
@@ -336,26 +324,21 @@ class LogController extends FeatureController {
     _notify();
   }
 
-  LogFilterController get _activeFilterController => switch (filterViewMode) {
-    LogFilterViewMode.inline => inlineFilter,
-    LogFilterViewMode.classic => classicFilter,
-  };
-
   /// Sets the package/process filter to [packageName] and applies it
-  /// immediately, regardless of which filter bar is active — used by the
+  /// immediately — used by the
   /// Apps feature's "View logs" action to jump straight to one app's lines.
   void applyPackageFilter(String packageName) {
     classicFilter.setPackageFilter(packageName);
   }
 
-  /// ⌘L: puts the caret in the active bar's filter field (in the pill bar,
-  /// that also opens its "Filter by…" menu).
+  /// ⌘L: puts the caret in the filter field, which also opens its "Filter
+  /// by…" menu.
   void activateFilterInput() => focusFilterInputs();
 
   void focusFilterInputs() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_disposed) return;
-      _activeFilterController.focusPrimaryField();
+      classicFilter.focusPrimaryField();
     });
   }
 
@@ -573,7 +556,6 @@ class LogController extends FeatureController {
     );
     final cleared = LogFilters.empty(defaultLevel);
     classicFilter.updateState(cleared);
-    inlineFilter.updateState(cleared);
     _settings = _settings.copyWith(selectedLogLevel: defaultLevel);
     _appliedFilters = cleared;
     _syncLogBufferFilter();
@@ -582,33 +564,17 @@ class LogController extends FeatureController {
     _notify();
   }
 
-  /// Applies a complete filter [configuration], updating both filter bars and
+  /// Applies a complete filter [configuration], updating the filter bar and
   /// the active filter. Interactive edits normally flow through the filter
   /// controllers; this is the single entry point for driving filters
   /// programmatically (tests / external callers).
   @visibleForTesting
   void applyFilters(LogFilters configuration) {
     classicFilter.updateState(configuration);
-    inlineFilter.updateState(configuration);
     _applyFilterConfig(configuration);
   }
 
-  void setSelectedLogLevel(LogLevel level) =>
-      _activeFilterController.setLevel(level);
-
-  void setFilterViewMode(LogFilterViewMode mode) {
-    if (mode == filterViewMode) return;
-    // Carry the current (possibly un-applied) draft into the bar that is about
-    // to become visible so both surfaces show the same filter. This does not
-    // apply the filter — that still waits for submit / debounce.
-    final target = switch (mode) {
-      LogFilterViewMode.inline => inlineFilter,
-      LogFilterViewMode.classic => classicFilter,
-    };
-    target.updateState(_activeFilterController.state);
-    _updateSettings(_settings.copyWith(filterViewMode: mode));
-    focusFilterInputs();
-  }
+  void setSelectedLogLevel(LogLevel level) => classicFilter.setLevel(level);
 
   void toggleWrapText() {
     _logViewerRevision++;
@@ -864,21 +830,6 @@ class LogController extends FeatureController {
       _invalidateSearchMatches();
       _notify();
     });
-  }
-
-  /// Applies filter state emitted by one of the filter controllers. Keeps the
-  /// sibling controller in sync so switching filter modes preserves the filter,
-  /// then applies the configuration.
-  void _applyFilterState(
-    LogFilters state, {
-    required LogFilterController source,
-  }) {
-    // Mirror into the other bar (the emitting one already holds this state).
-    final sibling = identical(source, inlineFilter)
-        ? classicFilter
-        : inlineFilter;
-    sibling.updateState(state);
-    _applyFilterConfig(state);
   }
 
   /// Records the applied terms/level, schedules recording of recent values, and
@@ -1585,7 +1536,6 @@ class LogController extends FeatureController {
     scrollController.dispose();
     searchFocusNode.dispose();
     classicFilter.dispose();
-    inlineFilter.dispose();
     super.dispose();
   }
 }

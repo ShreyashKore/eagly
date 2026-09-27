@@ -33,7 +33,7 @@ class LogFilterSuggestions {
   );
 }
 
-/// Shared controller for the log filter bars (classic + inline).
+/// The filter pipeline under [ClassicFilterController].
 ///
 /// Holds the current filter state as a [LogFilters], the suggestion sources,
 /// the platform context, and the debounce→emit pipeline. The owner seeds the
@@ -41,8 +41,8 @@ class LogFilterSuggestions {
 /// external changes back in with [updateState] (which never re-emits, avoiding
 /// feedback loops).
 ///
-/// Subclasses own the concrete text controllers / focus nodes for their layout
-/// and translate between those widgets and [LogFilters].
+/// The subclass owns the bar's widgets' state and translates between it and
+/// [LogFilters].
 abstract class LogFilterController extends ChangeNotifier {
   LogFilterController({
     required LogFilters initialState,
@@ -141,8 +141,8 @@ abstract class LogFilterController extends ChangeNotifier {
     _emit();
   }
 
-  /// Reflects external filter state (a mode switch, a reset, or the sibling
-  /// bar's edit) without re-emitting.
+  /// Reflects external filter state (a reset, or filters applied from
+  /// elsewhere) without re-emitting.
   void updateState(LogFilters next) {
     _state = next;
     runSuppressed(writeStateToFields);
@@ -345,8 +345,8 @@ class ClassicFilterController extends LogFilterController {
 
   /// Applies typed filter syntax at once: every `[-]key[=|~]:value` token
   /// becomes a pill (or sets the level / age limit), and bare words become
-  /// "Any field" pills — the inline bar's rules, so typing `tag:Auth
-  /// -message:noise` here builds the same filter.
+  /// "Any field" pills — [LogFilters.parse]'s rules, so typing `tag:Auth
+  /// -message:noise` builds the filter it reads as.
   void applyTyped(String text) {
     final parsed = LogFilters.parse(
       text,
@@ -442,350 +442,4 @@ class ClassicFilterController extends LogFilterController {
     inputFocusNode.dispose();
     super.dispose();
   }
-}
-
-/// Drives the inline filter bar: a single Logcat-style `key:value` field plus a
-/// level dropdown.
-class InlineFilterController extends LogFilterController {
-  InlineFilterController({
-    required super.initialState,
-    required super.suggestions,
-    required super.onStateChanged,
-    required super.isIos,
-    String? initialText,
-    super.debounce,
-  }) {
-    // Seed with the field text at creation so the controller's default (empty)
-    // selection is preserved — the field only recomputes suggestions once the
-    // caret actually moves into it.
-    textController = InlineFilterTextController(
-      text: initialText ?? _composeText(state),
-    );
-    textController.addListener(_handleTextChanged);
-  }
-
-  late final InlineFilterTextController textController;
-  final FocusNode focusNode = FocusNode();
-
-  void _handleTextChanged() {
-    if (isSuppressed) return;
-    emitUserState(_parse());
-  }
-
-  LogFilters _parse() => LogFilters.parse(
-    textController.text,
-    fallbackLevel: defaultLevel,
-    isIosLogContext: isIos,
-  );
-
-  String _composeText(LogFilters state) =>
-      LogFilters.compose(state, defaultLevel: defaultLevel, isIos: isIos);
-
-  /// Programmatic text input (tests / external callers). Debounced emit.
-  void setTextFromInput(String text) {
-    if (textController.text == text) {
-      _handleTextChanged();
-      return;
-    }
-    textController.value = TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
-    );
-  }
-
-  /// Replaces the text from a user-selected suggestion. Emits immediately for a
-  /// complete `key:value` ([applyImmediately]); a bare key stub (`level:`) is
-  /// inserted without emitting — it waits for the user to supply a value.
-  void applySuggestionText(
-    String text, {
-    required TextSelection selection,
-    required bool applyImmediately,
-  }) {
-    runSuppressed(
-      () => textController.value = TextEditingValue(
-        text: text,
-        selection: selection,
-      ),
-    );
-    if (applyImmediately) {
-      emitUserState(_parse(), immediate: true);
-    }
-  }
-
-  @override
-  void writeStateToFields() {
-    final text = _composeText(state);
-    if (textController.text == text) return;
-    textController.value = TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
-    );
-  }
-
-  @override
-  void focusPrimaryField() {
-    focusNode.requestFocus();
-    textController.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: textController.text.length,
-    );
-  }
-
-  @override
-  void dispose() {
-    textController.removeListener(_handleTextChanged);
-    textController.dispose();
-    focusNode.dispose();
-    super.dispose();
-  }
-}
-
-/// A [TextEditingController] that syntax-highlights recognised `key:value`
-/// tokens inside the inline filter field.
-class InlineFilterTextController extends TextEditingController {
-  InlineFilterTextController({super.text});
-
-  static const Set<String> _knownAliases = {
-    'package',
-    'pkg',
-    'app',
-    'process',
-    'tag',
-    'category',
-    'message',
-    'msg',
-    'text',
-    'pid',
-    'tid',
-    'thread',
-    'pidtid',
-    'level',
-    'lvl',
-    'priority',
-    'age',
-    'maxage',
-    'since',
-  };
-
-  static bool isKnownKeyValueToken(String token) {
-    final colonIndex = token.indexOf(':');
-    if (colonIndex <= 0 || colonIndex == token.length - 1) return false;
-    var key = token.substring(0, colonIndex).trim().toLowerCase();
-    // Peel the advanced-syntax decorations: a leading `-` (negation) and a
-    // trailing `=`/`~` (exact/regex) still resolve to a known key.
-    if (key.startsWith('-')) key = key.substring(1);
-    if (key.endsWith('=') || key.endsWith('~')) {
-      key = key.substring(0, key.length - 1);
-    }
-    return _knownAliases.contains(key);
-  }
-
-  @override
-  TextSpan buildTextSpan({
-    required BuildContext context,
-    TextStyle? style,
-    required bool withComposing,
-  }) {
-    final baseStyle = style ?? DefaultTextStyle.of(context).style;
-    final theme = Theme.of(context);
-    final textValue = text;
-    final tokens = InlineFilterEditContext.scanTokens(textValue);
-    if (tokens.isEmpty) {
-      return TextSpan(text: textValue, style: baseStyle);
-    }
-
-    // Token pills paint an opaque background as part of the text run itself,
-    // which is drawn *after* (and so on top of) RenderEditable's own
-    // selection-highlight background. Left alone, that hides the native
-    // selection color wherever a pill sits. We work around it by pre-slicing
-    // any pill text that overlaps the current selection and swapping in the
-    // selection color for that slice, so selecting through a pill still
-    // reads as selected.
-    final selectionColor = _effectiveSelectionColor(context);
-
-    final children = <InlineSpan>[];
-    var cursor = 0;
-    for (final token in tokens) {
-      if (cursor < token.start) {
-        children.add(
-          TextSpan(
-            text: textValue.substring(cursor, token.start),
-            style: baseStyle,
-          ),
-        );
-      }
-
-      final tokenText = token.text;
-      if (isKnownKeyValueToken(tokenText)) {
-        final colonIndex = tokenText.indexOf(':');
-        final keyText = tokenText.substring(0, colonIndex + 1);
-        final valueText = tokenText.substring(colonIndex + 1);
-        final backgroundColor = theme.colorScheme.primaryContainer.withValues(
-          alpha: 0.9,
-        );
-        final keyStyle = baseStyle.copyWith(
-          backgroundColor: backgroundColor,
-          color: theme.colorScheme.onPrimaryContainer,
-          fontWeight: FontWeight.w700,
-        );
-        final valueStyle = baseStyle.copyWith(
-          backgroundColor: backgroundColor,
-          color: theme.colorScheme.onPrimaryContainer,
-          fontWeight: FontWeight.w500,
-        );
-        children.add(
-          TextSpan(
-            children: [
-              ..._selectionAwareSpans(
-                text: keyText,
-                start: token.start,
-                style: keyStyle,
-                selectionColor: selectionColor,
-              ),
-              ..._selectionAwareSpans(
-                text: valueText,
-                start: token.start + colonIndex + 1,
-                style: valueStyle,
-                selectionColor: selectionColor,
-              ),
-            ],
-          ),
-        );
-      } else {
-        children.add(TextSpan(text: tokenText, style: baseStyle));
-      }
-      cursor = token.end;
-    }
-
-    if (cursor < textValue.length) {
-      children.add(
-        TextSpan(text: textValue.substring(cursor), style: baseStyle),
-      );
-    }
-
-    return TextSpan(style: baseStyle, children: children);
-  }
-
-  /// Splits [text] (which starts at absolute offset [start] within the field)
-  /// around the current selection, if any, so the sub-range that's actually
-  /// selected can be painted with [selectionColor] instead of [style]'s own
-  /// background.
-  List<TextSpan> _selectionAwareSpans({
-    required String text,
-    required int start,
-    required TextStyle style,
-    required Color? selectionColor,
-  }) {
-    final end = start + text.length;
-    final sel = selection;
-    if (selectionColor == null ||
-        !sel.isValid ||
-        sel.isCollapsed ||
-        sel.end <= start ||
-        sel.start >= end) {
-      return [TextSpan(text: text, style: style)];
-    }
-
-    final selStart = sel.start.clamp(start, end);
-    final selEnd = sel.end.clamp(start, end);
-    final spans = <TextSpan>[];
-    if (selStart > start) {
-      spans.add(
-        TextSpan(text: text.substring(0, selStart - start), style: style),
-      );
-    }
-    spans.add(
-      TextSpan(
-        text: text.substring(selStart - start, selEnd - start),
-        style: style.copyWith(backgroundColor: selectionColor),
-      ),
-    );
-    if (selEnd < end) {
-      spans.add(TextSpan(text: text.substring(selEnd - start), style: style));
-    }
-    return spans;
-  }
-
-  Color? _effectiveSelectionColor(BuildContext context) {
-    return TextSelectionTheme.of(context).selectionColor ??
-        Theme.of(context).colorScheme.primary.withValues(alpha: 0.40);
-  }
-}
-
-/// The token under the cursor plus the cursor offset, used to decide which
-/// suggestions to surface as the user types.
-class InlineFilterEditContext {
-  const InlineFilterEditContext({
-    required this.activeToken,
-    required this.cursorOffset,
-  });
-
-  final InlineFilterToken activeToken;
-  final int cursorOffset;
-
-  static InlineFilterEditContext fromEditingValue(TextEditingValue value) {
-    final text = value.text;
-    final cursor = value.selection.isValid
-        ? value.selection.extentOffset.clamp(0, text.length)
-        : text.length;
-    final tokens = scanTokens(text);
-    final activeToken = tokens.firstWhere(
-      (token) => cursor >= token.start && cursor <= token.end,
-      orElse: () => InlineFilterToken(start: cursor, end: cursor, text: ''),
-    );
-    return InlineFilterEditContext(
-      activeToken: activeToken,
-      cursorOffset: cursor,
-    );
-  }
-
-  static List<InlineFilterToken> scanTokens(String text) {
-    final tokens = <InlineFilterToken>[];
-    var start = -1;
-    var inQuotes = false;
-    for (var index = 0; index < text.length; index++) {
-      final char = text[index];
-      if (char == '"') {
-        inQuotes = !inQuotes;
-      }
-      if (!inQuotes && char.trim().isEmpty) {
-        if (start >= 0) {
-          tokens.add(
-            InlineFilterToken(
-              start: start,
-              end: index,
-              text: text.substring(start, index),
-            ),
-          );
-          start = -1;
-        }
-        continue;
-      }
-      if (start < 0) {
-        start = index;
-      }
-    }
-    if (start >= 0) {
-      tokens.add(
-        InlineFilterToken(
-          start: start,
-          end: text.length,
-          text: text.substring(start),
-        ),
-      );
-    }
-    return tokens;
-  }
-}
-
-class InlineFilterToken {
-  const InlineFilterToken({
-    required this.start,
-    required this.end,
-    required this.text,
-  });
-
-  final int start;
-  final int end;
-  final String text;
 }

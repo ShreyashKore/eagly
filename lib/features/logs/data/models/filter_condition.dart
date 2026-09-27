@@ -1,7 +1,7 @@
 import 'log_filters.dart';
 
-/// The log column a classic-bar filter pill constrains. [anyField] is the
-/// inline bar's bare word: a substring match over the whole searchable line.
+/// The log column a filter pill constrains. [anyField] is a typed bare word:
+/// a substring match over the whole searchable line.
 enum FilterConditionField {
   packageName,
   tag,
