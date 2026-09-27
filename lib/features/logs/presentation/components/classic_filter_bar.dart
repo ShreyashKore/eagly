@@ -1142,8 +1142,8 @@ class _FilterPillState extends State<_FilterPill> {
           alpha: widget.armed
               ? 0.24
               : _hovered || isOpen
-              ? 0.17
-              : 0.11,
+              ? 0.20
+              : 0.14,
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(kFilterControlRadius - 1),
