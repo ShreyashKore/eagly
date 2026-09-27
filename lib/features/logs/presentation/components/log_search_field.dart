@@ -13,9 +13,17 @@ import 'filter_bar_shared.dart';
 /// show the match-case / whole-word / regex toggles, the match count and
 /// previous / next. Escape (or ×) clears it.
 class LogSearchField extends StatefulWidget {
-  const LogSearchField({super.key, required this.controller});
+  const LogSearchField({
+    super.key,
+    required this.controller,
+    this.fillWidth = false,
+  });
 
   final LogController controller;
+
+  /// Take all the width offered instead of the collapsed / expanded widths —
+  /// for a row of its own in the stacked narrow-window layout.
+  final bool fillWidth;
 
   static const double collapsedWidth = 240;
   static const double expandedWidth = 380;
@@ -128,11 +136,12 @@ class _LogSearchFieldState extends State<LogSearchField> {
         final maxWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : LogSearchField.expandedWidth;
-        final width =
-            (expanded
-                    ? LogSearchField.expandedWidth
-                    : LogSearchField.collapsedWidth)
-                .clamp(0.0, maxWidth);
+        final width = widget.fillWidth
+            ? maxWidth
+            : (expanded
+                      ? LogSearchField.expandedWidth
+                      : LogSearchField.collapsedWidth)
+                  .clamp(0.0, maxWidth);
         return MouseRegion(
           cursor: SystemMouseCursors.text,
           onEnter: (_) => setState(() => _hovered = true),

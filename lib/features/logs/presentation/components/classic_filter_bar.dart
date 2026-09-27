@@ -30,9 +30,17 @@ export 'log_filter_controller.dart'
 ///
 /// Fully driven by a [ClassicFilterController]; it owns no filter state.
 class ClassicFilterBar extends StatelessWidget {
-  const ClassicFilterBar({super.key, required this.controller});
+  const ClassicFilterBar({
+    super.key,
+    required this.controller,
+    this.showLevel = true,
+  });
 
   final ClassicFilterController controller;
+
+  /// False when the host lays the [ClassicLevelButton] out elsewhere — the
+  /// stacked narrow-window layout puts it beside search.
+  final bool showLevel;
 
   @override
   Widget build(BuildContext context) {
@@ -42,12 +50,28 @@ class ClassicFilterBar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(child: _FilterField(controller: controller)),
-          const SizedBox(width: 6),
-          _LevelButton(controller: controller),
+          if (showLevel) ...[
+            const SizedBox(width: 6),
+            _LevelButton(controller: controller),
+          ],
         ],
       ),
     );
   }
+}
+
+/// The classic bar's **Level** button on its own, for a host that places it
+/// apart from the filter field.
+class ClassicLevelButton extends StatelessWidget {
+  const ClassicLevelButton({super.key, required this.controller});
+
+  final ClassicFilterController controller;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller,
+    builder: (context, _) => _LevelButton(controller: controller),
+  );
 }
 
 IconData _fieldIcon(FilterConditionField field) => switch (field) {
