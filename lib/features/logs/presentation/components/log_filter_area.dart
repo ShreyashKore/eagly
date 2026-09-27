@@ -26,7 +26,7 @@ class LogFilterArea extends StatefulWidget {
   final LogController controller;
 
   /// Below this width the filter and the Level / Search controls stack.
-  static const double stackBelowWidth = 760;
+  static const double stackBelowWidth = 1050;
 
   @override
   State<LogFilterArea> createState() => _LogFilterAreaState();
