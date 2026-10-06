@@ -19,7 +19,9 @@ void main(List<String> args) async {
   await initIosBackend();
   await PreferencesService.init();
   await EaglyInfoService.init();
-  await _configureDesktopWindow(recordMode: RecordMode.isRequested(args));
+  final recordMode = RecordMode.isRequested(args);
+  if (recordMode) RecordMode.useStandInIds();
+  await _configureDesktopWindow(recordMode: recordMode);
   await SentryFlutter.init((options) {
     options.dsn =
         'https://ae4a6b39a9a2ca819748de8112255cb6@o4511675750416384.ingest.us.sentry.io/4511675759984640';

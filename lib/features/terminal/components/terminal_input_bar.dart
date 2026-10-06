@@ -221,9 +221,9 @@ class _PromptLabel extends StatelessWidget {
 
     return Tooltip(
       message: isPinned
-          ? 'Pinned to ${device.displayName} (${device.id}) — `use auto` to '
-                'follow this tab\'s device'
-          : '${device.displayName} (${device.id})',
+          ? 'Pinned to ${device.displayName} (${device.shownId}) — `use auto` '
+                'to follow this tab\'s device'
+          : '${device.displayName} (${device.shownId})',
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

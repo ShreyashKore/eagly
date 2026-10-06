@@ -72,11 +72,21 @@ class SectionCard extends StatelessWidget {
 /// One label/value pair rendered stacked — label above, value below — which
 /// packs far denser than a two-column row at desktop widths.
 class SpecItem {
-  const SpecItem(this.label, this.value, {this.copyable = false, this.mono});
+  const SpecItem(
+    this.label,
+    this.value, {
+    bool copyable = false,
+    this.copyValue,
+    this.mono,
+  }) : copyable = copyable || copyValue != null;
 
   final String label;
   final String value;
   final bool copyable;
+
+  /// What the copy button puts on the clipboard when it differs from the
+  /// [value] shown — the real id behind a record-mode stand-in.
+  final String? copyValue;
 
   /// Defaults to [copyable] (ids/serials read better in monospace).
   final bool? mono;
@@ -151,7 +161,11 @@ class _SpecTile extends StatelessWidget {
             Expanded(
               child: SelectableText(item.value, maxLines: 1, style: valueStyle),
             ),
-            if (item.copyable) CopyButton(value: item.value, label: item.label),
+            if (item.copyable)
+              CopyButton(
+                value: item.copyValue ?? item.value,
+                label: item.label,
+              ),
           ],
         ),
       ],

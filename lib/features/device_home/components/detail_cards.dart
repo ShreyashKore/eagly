@@ -108,8 +108,16 @@ class HardwareCard extends StatelessWidget {
       if (identity.cpuArchitecture != null)
         SpecItem('CPU', identity.cpuArchitecture!),
       if (device is AndroidDevice && device.serialNumber != null)
-        SpecItem('Serial', device.serialNumber!, copyable: true),
-      SpecItem(isIos ? 'UDID' : 'Device ID', device.id, copyable: true),
+        SpecItem(
+          'Serial',
+          Device.presentId(device.serialNumber!),
+          copyValue: device.serialNumber,
+        ),
+      SpecItem(
+        isIos ? 'UDID' : 'Device ID',
+        device.shownId,
+        copyValue: device.id,
+      ),
     ];
 
     return SectionCard(

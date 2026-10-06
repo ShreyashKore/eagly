@@ -11,7 +11,7 @@ This repo pins Flutter via **fvm** (`.fvmrc` → 3.47.0). Always prefix with `fv
 
 ```bash
 fvm flutter run -d macos        # run (also: windows / linux)
-fvm flutter run -d macos -a --record-mode   # 1920×1200 locked, centred window for product videos (lib/utils/record_mode.dart)
+fvm flutter run -d macos -a --record-mode   # product videos: 1920×1200 locked, centred window; stand-in serials/UDIDs (lib/utils/record_mode.dart)
 fvm flutter test                # all tests
 fvm flutter test test/log_controller_test.dart
 fvm flutter analyze lib test    # lints (flutter_lints; clean except 1 known deprecation)

@@ -91,7 +91,7 @@ class DeviceLabel extends StatelessWidget {
         ),
         if (showStatus)
           Text(
-            '${device.id} · ${device.statusLabel}',
+            '${device.shownId} · ${device.statusLabel}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelSmall?.copyWith(

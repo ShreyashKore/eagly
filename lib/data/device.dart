@@ -90,6 +90,15 @@ sealed class Device {
     };
   }
 
+  /// How a device identifier — serial, UDID, wireless address — appears in
+  /// anything shown to the user. Verbatim, except under `--record-mode`, which
+  /// swaps in stand-ins (`RecordMode.useStandInIds`). Display only: an id
+  /// handed to a tool is always the real [id].
+  static String Function(String id) presentId = _verbatim;
+
+  /// [id] as the user should see it; see [presentId].
+  String get shownId => presentId(id);
+
   ({String primary, String? secondary}) get displayLabel;
 
   String get displayName;
@@ -189,7 +198,7 @@ final class AndroidDevice extends Device {
   ({String primary, String? secondary}) get displayLabel {
     if (isWireless) {
       final label = _androidPrimaryLabel;
-      final hint = _wirelessShortId;
+      final hint = Device.presentId(_wirelessShortId);
       if (label != null) {
         // Brand/model as primary; short wireless ID as disambiguating secondary.
         return (primary: label, secondary: hint);
@@ -197,7 +206,7 @@ final class AndroidDevice extends Device {
       return (primary: hint, secondary: null);
     }
     return (
-      primary: _subString(id, 10),
+      primary: _subString(shownId, 10),
       secondary: _androidPrimaryLabel ?? _normalizedValue(name),
     );
   }
@@ -218,16 +227,16 @@ final class AndroidDevice extends Device {
           _normalizedValue(name) ??
           _normalizedValue(model) ??
           _normalizedValue(brand) ??
-          _wirelessShortId;
+          Device.presentId(_wirelessShortId);
     }
     if (primary != null && _isDistinctFrom(primary, name)) {
-      return '$primary ($id)';
+      return '$primary ($shownId)';
     }
     return primary ??
         _normalizedValue(name) ??
         _normalizedValue(model) ??
         _normalizedValue(brand) ??
-        id;
+        shownId;
   }
 
   /// A short, human-readable identifier derived from the wireless ADB device
@@ -281,7 +290,7 @@ final class IosDevice extends Device {
         _normalizedValue(name) ??
         _normalizedValue(model) ??
         _normalizedValue(brand) ??
-        id;
+        shownId;
     final secondary = _normalizedValue(model);
     return (
       primary: primary,
@@ -298,7 +307,7 @@ final class IosDevice extends Device {
           ? '$normalizedModel ($normalizedName)'
           : normalizedModel;
     }
-    return normalizedModel ?? normalizedName ?? id;
+    return normalizedModel ?? normalizedName ?? shownId;
   }
 }
 
@@ -330,6 +339,8 @@ Device _buildDevice({
     ),
   };
 }
+
+String _verbatim(String id) => id;
 
 String? _normalizedValue(String? value) {
   if (value == null) {
