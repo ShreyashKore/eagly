@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../data/device.dart';
 import '../../../session/device_session_controller.dart';
 import '../../../presentation/components/device_presentation.dart';
 import 'connection_dot.dart';
@@ -15,6 +16,7 @@ class DeviceTab extends StatefulWidget {
   const DeviceTab({
     super.key,
     required this.session,
+    this.disambiguate = false,
     required this.selected,
     required this.animateIn,
     required this.onSelect,
@@ -32,6 +34,10 @@ class DeviceTab extends StatefulWidget {
 
   final DeviceSessionController session;
 
+  /// Whether another tab shows the same name. Only matters under
+  /// [Device.shortNames], whose tabs show the label's secondary part — the
+  /// serial — just to tell such tabs apart; otherwise it always shows.
+  final bool disambiguate;
   final bool selected;
 
   /// When true the tab plays a snappy entrance and, shortly after, a one-shot
@@ -155,6 +161,8 @@ class _DeviceTabState extends State<DeviceTab> with TickerProviderStateMixin {
                               Expanded(
                                 child: DeviceSelectionLabel(
                                   device: device,
+                                  showSecondary:
+                                      !Device.shortNames || widget.disambiguate,
                                   textStyle: theme.textTheme.bodyMedium,
                                   secondaryTextStyle:
                                       theme.textTheme.labelSmall,

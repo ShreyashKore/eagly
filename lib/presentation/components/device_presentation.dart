@@ -142,11 +142,15 @@ class DeviceSelectionLabel extends StatelessWidget {
     this.iconColor,
     this.maxWidth,
     this.iconSize,
+    this.showSecondary = true,
   });
 
   final Device device;
   final TextStyle? textStyle;
   final TextStyle? secondaryTextStyle;
+
+  /// Whether to show the label's secondary part (see [Device.displayLabel]).
+  final bool showSecondary;
   final Color? iconColor;
   final double? maxWidth;
   final double? iconSize;
@@ -176,7 +180,7 @@ class DeviceSelectionLabel extends StatelessWidget {
             style: primaryStyle,
           ),
         ),
-        if (label.secondary != null)
+        if (showSecondary && label.secondary != null)
           Flexible(
             child: Text(
               label.secondary!,

@@ -55,10 +55,13 @@ void main() {
     });
 
     group('once in use', () {
-      setUp(RecordMode.useStandInIds);
-      tearDown(() => Device.presentId = (id) => id);
+      setUp(RecordMode.anonymizeDevices);
+      tearDown(() {
+        Device.presentId = (id) => id;
+        Device.shortNames = false;
+      });
 
-      test('reach every label but never the id tools get', () {
+      test('name a device by brand and model; the id tools get is real', () {
         final device = Device.android(
           'RZCW1186VXZ',
           'device',
@@ -70,8 +73,30 @@ void main() {
 
         expect(device.id, 'RZCW1186VXZ');
         expect(device.shownId, fake);
-        expect(device.displayName, 'Samsung Galaxy S21 ($fake)');
-        expect(device.displayLabel.primary, '${fake.substring(0, 10)}...');
+        expect(device.displayName, 'Samsung Galaxy S21');
+        expect(device.displayLabel.primary, 'Samsung Galaxy S21');
+        expect(
+          device.displayLabel.secondary,
+          fake,
+          reason: 'shown only when two tabs would read the same',
+        );
+      });
+
+      test('keep an iPhone\'s owner-given name off screen', () {
+        final device = Device.ios(
+          '00008140-001564CA3493801C',
+          'device',
+          name: 'Shreyash’s iPhone',
+          model: 'iPhone 16 Pro Max',
+        );
+
+        expect(device.displayName, 'iPhone 16 Pro Max');
+        expect(device.displayLabel.primary, 'iPhone 16 Pro Max');
+        expect(
+          device.displayLabel.secondary,
+          standIn('00008140-001564CA3493801C'),
+          reason: 'the stand-in UDID tells two of one model apart',
+        );
       });
 
       test('reach a wireless device\'s serial', () {

@@ -4,6 +4,7 @@ import 'package:eagly/features/home_screen/components/device_tab_strip.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/services/devices_repository.dart';
 import 'package:eagly/services/preferences_service.dart';
+import 'package:eagly/session/device_session_controller.dart';
 import 'package:eagly/session/device_session_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,38 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'support/session_test_support.dart';
 
 void main() {
+  DeviceSessionController tab(Device device) {
+    final session = DeviceSessionController(
+      device: device,
+      service: FakeSessionService(device),
+    );
+    addTearDown(session.dispose);
+    return session;
+  }
+
+  group('DeviceTabStrip.ambiguousLabels', () {
+    // Only record mode's short names can collide.
+    setUp(() => Device.shortNames = true);
+    tearDown(() => Device.shortNames = false);
+
+    test('different models need nothing more than their name', () {
+      final tabs = [
+        tab(Device.android('RZCW1186VXZ', 'device', brand: 'Samsung')),
+        tab(Device.ios('00008140-001564CA3493801C', 'device', model: 'iPhone')),
+      ];
+      expect(DeviceTabStrip.ambiguousLabels(tabs), isEmpty);
+    });
+
+    test('two of one model are flagged so both add their serial', () {
+      final tabs = [
+        tab(Device.android('A1', 'device', brand: 'Google', model: 'Pixel 8')),
+        tab(Device.android('B2', 'device', brand: 'Google', model: 'Pixel 8')),
+        tab(Device.android('C3', 'device', brand: 'Google', model: 'Pixel 9')),
+      ];
+      expect(DeviceTabStrip.ambiguousLabels(tabs), {'Google Pixel 8'});
+    });
+  });
+
   group('DeviceTabStrip.fitTabWidths', () {
     const fit = DeviceTabStrip.fitTabWidths;
 

@@ -20,7 +20,7 @@ void main(List<String> args) async {
   await PreferencesService.init();
   await EaglyInfoService.init();
   final recordMode = RecordMode.isRequested(args);
-  if (recordMode) RecordMode.useStandInIds();
+  if (recordMode) RecordMode.anonymizeDevices();
   await _configureDesktopWindow(recordMode: recordMode);
   await SentryFlutter.init((options) {
     options.dsn =

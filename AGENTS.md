@@ -128,6 +128,12 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   stream EOF (no cheap liveness probe).
 - **Device statuses:** Android is connected only when `adb` status == `device` (offline/
   unauthorized ⇒ disconnected). iOS presence in `idevice_id -l` ⇒ connected.
+- **Device labels:** anything that *shows* an id goes through `shownId` / `Device.presentId`,
+  never raw `id`; tools and copy buttons keep the real `id`. Under `--record-mode`
+  (`RecordMode.anonymizeDevices`) `presentId` returns a stable stand-in and `Device.shortNames`
+  names devices by brand and model alone — no serial, no owner-given name — in tabs, titles and
+  messages; a tab then adds its serial only when another would read the same
+  (`DeviceTabStrip.ambiguousLabels`). Outside record mode labels are unchanged.
 - **Hidden columns persist across tabs and launches** unless the user opts out
   (`PreferencesService.rememberHiddenColumns`, default on; toggled from the column popup's
   last row and in Settings). The write happens in `LogViewer`'s popup handler, not in

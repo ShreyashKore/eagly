@@ -4,6 +4,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+import '../../../data/device.dart';
+import '../../../session/device_session_controller.dart';
 import '../../../session/device_session_manager.dart';
 import 'device_tab.dart';
 
@@ -44,6 +46,21 @@ class DeviceTabStrip extends StatefulWidget {
     return [for (final width in widths) math.min(width, cap)];
   }
 
+  /// Labels that more than one open device tab would show, so those tabs add
+  /// what tells them apart — needed under [Device.shortNames], where tabs
+  /// otherwise show the model alone.
+  @visibleForTesting
+  static Set<String> ambiguousLabels(Iterable<DeviceSessionController> tabs) {
+    final seen = <String>{};
+    final ambiguous = <String>{};
+    for (final tab in tabs) {
+      if (tab.isImportedWorkspace) continue;
+      final label = tab.device.displayLabel.primary;
+      if (!seen.add(label)) ambiguous.add(label);
+    }
+    return ambiguous;
+  }
+
   @override
   State<DeviceTabStrip> createState() => _DeviceTabStripState();
 }
@@ -81,7 +98,12 @@ class _DeviceTabStripState extends State<DeviceTabStrip> {
     final manager = widget.manager;
     return ListenableBuilder(
       listenable: manager,
-      builder: (context, _) => _buildTabs(manager),
+      // Each session too: a device's label can change after its tab opens
+      // (adb describes it a moment later), and that can make two tabs match.
+      builder: (context, _) => ListenableBuilder(
+        listenable: Listenable.merge(manager.sessions),
+        builder: (context, _) => _buildTabs(manager),
+      ),
     );
   }
 
@@ -99,6 +121,8 @@ class _DeviceTabStripState extends State<DeviceTabStrip> {
     }
     _firstBuild = false;
 
+    final ambiguous = DeviceTabStrip.ambiguousLabels(sessions);
+
     return LayoutBuilder(
       builder: (context, constraints) => Listener(
         onPointerSignal: _onPointerSignal,
@@ -112,6 +136,9 @@ class _DeviceTabStripState extends State<DeviceTabStrip> {
                 DeviceTab(
                   key: ValueKey(session.id),
                   session: session,
+                  disambiguate: ambiguous.contains(
+                    session.device.displayLabel.primary,
+                  ),
                   selected: manager.selectedId == session.id,
                   animateIn: freshIds.contains(session.id),
                   onSelect: () => manager.select(session.id),

@@ -7,11 +7,13 @@ import '../data/device.dart';
 
 /// Developer-only launch mode for recording product videos: `--record-mode`
 /// pins the window to a fixed, centred [windowSize] so every take is framed
-/// identically, and shows believable stand-ins for device serials and UDIDs
-/// so a video never carries the real ones.
+/// identically, and keeps real devices anonymous and tidy: believable
+/// stand-ins for serials and UDIDs, and devices named by brand and model
+/// alone — no ids, no owner-given names.
 ///
 /// Everything recording-specific lives here; removing the feature means
-/// deleting this file, its call sites in `main.dart` and `Device.presentId`.
+/// deleting this file, its call sites in `main.dart`, and the
+/// `Device.presentId` / `Device.shortNames` seams.
 abstract final class RecordMode {
   /// Command-line flag that turns record mode on.
   static const flag = '--record-mode';
@@ -32,11 +34,15 @@ abstract final class RecordMode {
     await windowManager.center();
   }
 
-  // ── Stand-in device ids ───────────────────────────────────────────────
+  // ── Anonymous devices ─────────────────────────────────────────────────
 
-  /// Shows every device identifier as its [standInId] from now on. Display
-  /// only — tools keep getting the real id.
-  static void useStandInIds() => Device.presentId = standInId;
+  /// From now on, shows every device identifier as its [standInId] and
+  /// names devices by brand and model alone. Display only — tools keep
+  /// getting the real id.
+  static void anonymizeDevices() {
+    Device.presentId = standInId;
+    Device.shortNames = true;
+  }
 
   /// A fake that looks like [id]: same length, letters for letters and
   /// digits for digits, and stable — the same device gets the same stand-in
