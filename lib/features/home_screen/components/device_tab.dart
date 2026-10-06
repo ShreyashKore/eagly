@@ -22,7 +22,16 @@ class DeviceTab extends StatefulWidget {
     required this.onClose,
   });
 
+  /// A tab is as wide as its label needs, up to [maxWidth] — twice the
+  /// widest a tab used to be (a 160 px label plus its dot, icon and close
+  /// button). When the strip runs out of room the widest tabs shrink first,
+  /// down to [minWidth]; past that it scrolls. The strip decides the width
+  /// (`DeviceTabStrip.fitTabWidths`); the tab fills whatever it is given.
+  static const double minWidth = 140;
+  static const double maxWidth = 508;
+
   final DeviceSessionController session;
+
   final bool selected;
 
   /// When true the tab plays a snappy entrance and, shortly after, a one-shot
@@ -137,19 +146,20 @@ class _DeviceTabState extends State<DeviceTab> with TickerProviderStateMixin {
                           ),
                         ),
                         child: Row(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
                             if (isWorkspace)
-                              WorkspaceLabel(theme: theme)
+                              Expanded(child: WorkspaceLabel(theme: theme))
                             else ...[
                               ConnectionDot(connected: device.isConnected),
                               const Gap(6),
-                              DeviceSelectionLabel(
-                                device: device,
-                                maxWidth: 160,
-                                textStyle: theme.textTheme.bodyMedium,
-                                secondaryTextStyle: theme.textTheme.labelSmall,
-                                iconSize: 16,
+                              Expanded(
+                                child: DeviceSelectionLabel(
+                                  device: device,
+                                  textStyle: theme.textTheme.bodyMedium,
+                                  secondaryTextStyle:
+                                      theme.textTheme.labelSmall,
+                                  iconSize: 16,
+                                ),
                               ),
                             ],
                             if (onClose != null) ...[
