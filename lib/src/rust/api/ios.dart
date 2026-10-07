@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `afc_client`, `connect_usbmuxd`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_syslog_session`, `installation_proxy`, `is_crash_report`, `is_network`, `join_afc_path`, `open_session`, `provider_for`, `read_afc_file`, `register_syslog_session`, `status`, `string_value`, `upload_recursive`
+// These functions are ignored because they are not marked as `pub`: `afc_client`, `basename`, `claim_syslog_session`, `connect_usbmuxd`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_syslog_session`, `format_os_trace_log`, `installation_proxy`, `is_crash_report`, `is_network`, `join_afc_path`, `open_session`, `provider_for`, `read_afc_file`, `status`, `string_value`, `upload_recursive`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
 /// Lists every device usbmuxd knows about.
@@ -33,15 +33,16 @@ Future<IosDeviceSummary> describeIosDevice({required String udid}) =>
 Future<IosDeviceDomains> readIosDeviceDomains({required String udid}) =>
     RustLib.instance.api.crateApiIosReadIosDeviceDomains(udid: udid);
 
-/// Streams the device's syslog until [`stop_ios_syslog`] is called with the
+/// Streams the device's logs until [`stop_ios_syslog`] is called with the
 /// same `session_id`, the device goes away, or Dart drops the stream.
 ///
-/// Emits one string per syslog-relay record, raw. A record is one whole
-/// message, so it can contain newlines: the relay delimits records with
-/// `\n\0`, unlike `idevicesyslog`, which prints each line of a message
-/// separately. The Dart side splits records itself because the parser that
-/// turns them into log entries (`\M-` meta-escapes, header parsing) is shared
-/// with the CLI backend.
+/// Backed by `os_trace_relay` (`OsTraceRelayClient`), the same service
+/// `idevicesyslog` reads: unlike the legacy `syslog_relay` it carries Info and
+/// Debug messages, sub-second timestamps, and a clean process name instead of
+/// the device hostname. Each record is formatted into the text line the shared
+/// [`IosSyslogParser`] expects (see [`format_os_trace_log`]) and emitted as one
+/// string; a whole message may span lines, and Dart splits records with
+/// `parseLogRecords` rather than the CLI's line-by-line `parseLogLines`.
 ///
 /// Connecting happens before the stream starts, so a device that refuses the
 /// service raises an error the caller can show — the CLI path could only infer
@@ -54,8 +55,13 @@ Stream<String> startIosSyslog({
   sessionId: sessionId,
 );
 
-/// Stops the stream started under `session_id`. Idempotent, and a no-op for a
-/// stream that already ended on its own.
+/// Stops the stream started under `session_id`. Idempotent.
+///
+/// Bridge calls run concurrently, so this can overtake the
+/// [`start_ios_syslog`] it follows. With nothing registered yet it leaves a
+/// cancelled token behind for that start to claim and give up on — which is
+/// also why Dart only calls this for a stream that has not already ended: a
+/// stop with no start to follow would leave that token behind for good.
 Future<void> stopIosSyslog({required String sessionId}) =>
     RustLib.instance.api.crateApiIosStopIosSyslog(sessionId: sessionId);
 
@@ -64,6 +70,10 @@ Future<void> stopIosSyslog({required String sessionId}) =>
 /// Only user apps, matching what `ideviceinstaller` reports — so everything
 /// returned is uninstallable. Ordering and capping are presentation concerns
 /// and are applied above, identically for both backends.
+///
+/// Uses `Browse`, as `ideviceinstaller` does, rather than the client's
+/// `get_apps` (`Lookup`): that returns a `HashMap`, whose iteration order is
+/// randomized per process, and the device-home card takes the first few.
 Future<List<IosAppInfo>> listIosApps({required String udid}) =>
     RustLib.instance.api.crateApiIosListIosApps(udid: udid);
 

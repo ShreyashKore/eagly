@@ -15,7 +15,7 @@ Where they conflict, the earlier one wins.
                       raw output             parser + driver                    per-tab
 Android   adb logcat -v long ─ lines ──► parseLogLines(LogcatParser)     ─┐
 iOS CLI   idevicesyslog ────── lines ──► parseLogLines(IosSyslogParser)  ─┼─► Stream<LogEntry> ─► LogController
-iOS Rust  syslog_relay ───── records ──► parseLogRecords(IosSyslogParser)─┘    (ToolStreamSession)   queue → 300 ms flush → LogBuffer
+iOS Rust  os_trace_relay ──── records ──► parseLogRecords(IosSyslogParser)─┘    (ToolStreamSession)   queue → 300 ms flush → LogBuffer
 ```
 
 | Piece | File |
@@ -119,14 +119,16 @@ Sep 26 23:11:50.009491 appleh16camerad(libEmbeddedSystemAUs.dylib)[136] <Debug>:
   `[disconnected:<udid>]` if the device drops mid-stream. They are not device lines: each one
   ends the entry before it (so it can't be glued onto that message) and is dropped.
 
-### iOS via Rust: the `syslog_relay` service
+### iOS via Rust: the `os_trace_relay` service
 
-`start_ios_syslog` uses the `idevice` crate's `SyslogRelayClient`, which splits the device's
-output on `\n\0`. Each string it sends to Dart is therefore one **complete message**, embedded
-newlines included:
+`start_ios_syslog` uses the `idevice` crate's `OsTraceRelayClient` — the same service
+`idevicesyslog` reads — and formats each structured record into the same header line the CLI
+prints (`format_os_trace_log` in `rust/src/api/ios.rs`), so the Dart side is identical to the
+CLI's: one header line per message plus bare continuation lines for the rest of it. Each string
+sent to Dart is one **complete message**, embedded newlines included:
 
 ```
-Sep 26 23:13:41 Shreyashs-iPhone softwareupdateservicesd(MobileSoftwareUpdate)[243] <Notice>: … state:{\n    ActionText = "…";\n}
+Sep 26 23:13:41.123456 softwareupdateservicesd(MobileSoftwareUpdate)[243] <Notice>: … state:{\n    ActionText = "…";\n}
 ```
 
 Feeding that to a line parser was the bug fixed in `8b63d95`: the header regex doesn't match
@@ -135,8 +137,9 @@ its timestamp and PID. `parseLogRecords` splits each record on `\n`, feeds the p
 flushes at the record boundary — the one place where the end of an entry is known for certain.
 So the Rust path needs no idle timer, has no flush latency and cannot split an entry.
 
-This service also differs from the CLI's in ways that are **not** fixed yet; see
-[Rust iOS: gaps to close](#rust-ios-gaps-to-close).
+The record carries a clean process name and microsecond timestamp, so unlike the legacy
+`syslog_relay` there is no hostname to strip and no missing level — see
+[Rust iOS: gaps closed](#rust-ios-gaps-closed).
 
 ## The parser contract (`LogLineParser`)
 
@@ -284,25 +287,25 @@ platform-tools/macos/idevicesyslog | head -50
 - A Rust relay record without a header would be filed under the previous entry's header as a
   separate row. None seen in the device runs (tens of thousands of records).
 
-## Rust iOS: gaps to close
+## Rust iOS: gaps closed
 
-Found on hardware (iOS 26.7 and 27.0) and **not fixed** — these are the next work, since the
-Rust backend is the one that stays:
+Found on hardware (iOS 26.7 and 27.0) against the legacy `syslog_relay`, and closed by moving
+`start_ios_syslog` to `os_trace_relay`:
 
-1. **Debug and Info messages are missing.** `syslog_relay` only carries Notice, Error and
+1. **Debug and Info messages were missing.** `syslog_relay` only carries Notice, Error and
    Fault. Measured over 10 s on iOS 27: `idevicesyslog` (os_trace_relay) 334,127 lines,
    `idevicesyslog --syslog-relay` 53,782 — about 80–85% of messages are Debug or Info.
-2. **No sub-second timestamps.** `Sep 26 23:36:32` becomes `23:36:32.000`, so everything in
-   a second sorts by arrival only.
-3. **Wrong process and package names.** Relay records keep the device's hostname after the
-   timestamp (`… 23:36:32 Shreyashs-iPhone backboardd(QuartzCore)[75] …`); the CLI strips it.
-   `IosSyslogParser` takes it as part of the process label, giving
-   `processName = "Shreyashs-iPhone backboardd(QuartzCore)"` and
-   `packageName = "Shreyashs-iPhone backboardd"`, which breaks package filtering.
+   `os_trace_relay` carries every level.
+2. **No sub-second timestamps.** `Sep 26 23:36:32` became `23:36:32.000`, so everything in
+   a second sorted by arrival only. `os_trace_relay` records carry a microsecond timestamp,
+   formatted as `%b %e %H:%M:%S.%06u`.
+3. **Wrong process and package names.** Relay records kept the device's hostname after the
+   timestamp (`… 23:36:32 Shreyashs-iPhone backboardd(QuartzCore)[75] …`); `IosSyslogParser`
+   took it as part of the process label, giving `processName = "Shreyashs-iPhone
+   backboardd(QuartzCore)"` and breaking package filtering. `os_trace_relay` returns a clean
+   `filename`/`image_name` pair, formatted as `process(image)` with no hostname.
 
-The likely fix for all three is the `idevice` crate's `os_trace_relay` service
-(`OsTraceRelayClient`): the same source the CLI uses, and it returns **structured** logs
-(`pid`, `timestamp`, `level`, `filename`, `message`, `label`). Mapping those straight to
-`LogEntry` would drop text parsing from the Rust path entirely — no header regex, no
-multi-line framing, no hostname. Verify the result with the device check above, and compare
-level counts with `idevicesyslog` while it still ships.
+`format_os_trace_log` renders each record into the exact text `idevicesyslog` would print, so
+the parser — and everything downstream — is unchanged. The switch is **not yet re-verified on
+hardware**: re-run the device check below and compare level counts with `idevicesyslog` while it
+still ships.

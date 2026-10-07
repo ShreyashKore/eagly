@@ -73,7 +73,7 @@ EAGLY_IOS_BACKEND=rust fvm flutter run -d macos
 | Surface | libimobiledevice | Rust | State |
 | --- | --- | --- | --- |
 | Discovery (`idevice_id`, `ideviceinfo`) | `IdeviceIdTool`, `IdeviceInfoTool` | `list_ios_devices`, `describe_ios_device` | both, **unverified on hardware** |
-| Syslog streaming | `IdeviceSyslogTool` | `start_ios_syslog`, `stop_ios_syslog` | both, **verified on hardware (iOS 26.7, 27.0) — Rust has gaps, see below** |
+| Syslog streaming | `IdeviceSyslogTool` | `start_ios_syslog`, `stop_ios_syslog` | both, **Rust reads `os_trace_relay` — unverified on hardware since the switch** |
 | Extended device info | `IdeviceInfoTool.readDeviceDomains` | `read_ios_device_domains` | both, **unverified on hardware** |
 | App install / list / uninstall | `IdeviceInstallerTool` | `list_ios_apps`, `install_ios_app`, `uninstall_ios_app` | both, **unverified on hardware** |
 | Crash reports | `IdeviceCrashReportTool` | `pull_ios_crash_reports` | both, **unverified on hardware** |
@@ -83,20 +83,23 @@ EAGLY_IOS_BACKEND=rust fvm flutter run -d macos
 ### Syslog: what hardware showed
 
 Both backends stream without losing, splitting or reordering lines — checked against the raw
-output on an iPhone (iOS 26.7 and 27.0) with `test/device/log_stream_integrity_test.dart`. But
-the Rust side reads a different device service from the CLI, with three gaps that block making
-it the default:
+output on an iPhone (iOS 26.7 and 27.0) with `test/device/log_stream_integrity_test.dart`.
+`start_ios_syslog` originally read the legacy `syslog_relay`, which had three gaps versus
+`idevicesyslog`:
 
 - **`syslog_relay` has no Debug or Info messages** — roughly 80–85% of what `idevicesyslog`
   shows, which reads `os_trace_relay`.
 - **No sub-second timestamps.**
-- **Its records keep the device hostname**, so process and package names come out as
-  `Shreyashs-iPhone backboardd`, which breaks package filtering.
+- **Its records keep the device hostname**, so process and package names came out as
+  `Shreyashs-iPhone backboardd`, which broke package filtering.
 
-Moving `start_ios_syslog` to the crate's `os_trace_relay` (`OsTraceRelayClient`, structured
-logs) likely fixes all three. Relay records are whole messages, embedded newlines included, and
-go through `parseLogRecords`, not the CLI's line-by-line `parseLogLines`. Details, numbers and
-the device check: **docs/LOG_STREAMING.md**.
+`start_ios_syslog` now reads `os_trace_relay` (`OsTraceRelayClient`) and formats each record
+into the same line `idevicesyslog` prints (`format_os_trace_log`), so all three gaps are gone:
+Info/Debug levels, `%b %e %H:%M:%S.%06u` timestamps, and a clean `process(image)` label with no
+hostname. Relay records are whole messages, embedded newlines included, and go through
+`parseLogRecords`, not the CLI's line-by-line `parseLogLines`. The switch is **not yet
+re-verified on hardware** — re-run `test/device/log_stream_integrity_test.dart` against a device
+before declaring it done. Details, numbers and the device check: **docs/LOG_STREAMING.md**.
 
 ## Working on the Rust side
 
