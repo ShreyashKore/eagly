@@ -185,6 +185,10 @@ class FakeSessionService extends DeviceSessionRepository {
   final List<bool> listAppsIncludeSystemAppsRequests = [];
   Uint8List? iconToReturn;
 
+  /// When set, [fetchAppIcon] waits on this before resolving — lets tests hold
+  /// icon fetches in flight to observe concurrency/priority ordering.
+  Completer<void>? iconGate;
+
   @override
   Future<List<AppInfo>> listApps({bool includeSystemApps = false}) async {
     listAppsIncludeSystemAppsRequests.add(includeSystemApps);
@@ -223,6 +227,8 @@ class FakeSessionService extends DeviceSessionRepository {
   @override
   Future<Uint8List?> fetchAppIcon(String packageName) async {
     iconFetchRequests.add(packageName);
+    final gate = iconGate;
+    if (gate != null) await gate.future;
     return iconToReturn;
   }
 

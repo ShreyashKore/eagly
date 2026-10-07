@@ -1,22 +1,48 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/apps/apps_controller.dart';
 import 'package:eagly/features/apps/data/app_info.dart';
 import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
+import 'package:eagly/services/app_icon_cache.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/session_test_support.dart';
+
+/// In-memory [AppIconCache] so icon tests never touch the real filesystem.
+class FakeAppIconCache implements AppIconCache {
+  final Map<String, Uint8List?> memory = {};
+  final List<String> storedPackages = [];
+
+  void seed(String packageName, Uint8List bytes) => memory[packageName] = bytes;
+
+  @override
+  Future<Uint8List?> load(String packageName) async {
+    if (memory.containsKey(packageName)) return memory[packageName];
+    memory[packageName] = null;
+    return null;
+  }
+
+  @override
+  Future<void> store(String packageName, Uint8List bytes) async {
+    memory[packageName] = bytes;
+    storedPackages.add(packageName);
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late FakeSessionService service;
   late Device device;
+  late FakeAppIconCache iconCache;
   DeviceSessionController? session;
+  AppsController? controller;
 
   setUpAll(() async {
     SharedPreferences.setMockInitialValues({});
@@ -34,11 +60,17 @@ void main() {
           model: 'Pixel 8',
         );
     service = FakeSessionService(device);
+    iconCache = FakeAppIconCache();
     session = DeviceSessionController(device: device, service: service);
-    return session!.appsController;
+    controller = AppsController(session!, iconCache: iconCache);
+    return controller!;
   }
 
   tearDown(() {
+    AppsController.iconRetryBaseDelay = const Duration(seconds: 2);
+    AppsController.iconRetryMaxDelay = const Duration(minutes: 2);
+    controller?.dispose();
+    controller = null;
     session?.dispose();
     session = null;
   });
@@ -178,17 +210,115 @@ void main() {
     },
   );
 
-  test('ensureIconLoaded caches the icon and fetches only once', () async {
-    final controller = createController();
-    service.iconToReturn = Uint8List.fromList([1, 2, 3]);
+  test('ensureIconLoaded fetches the icon once and caches it', () {
+    fakeAsync((async) {
+      final controller = createController();
+      service.iconToReturn = Uint8List.fromList([1, 2, 3]);
+      const app = AppInfo(packageName: 'com.example.a', appName: 'Alpha');
 
-    controller.ensureIconLoaded('com.example.a');
-    await Future<void>.delayed(Duration.zero);
-    controller.ensureIconLoaded('com.example.a');
-    await Future<void>.delayed(Duration.zero);
+      controller.ensureIconLoaded(app);
+      async.elapse(Duration.zero);
+      controller.ensureIconLoaded(app);
+      async.elapse(Duration.zero);
 
-    expect(service.iconFetchRequests, ['com.example.a']);
-    expect(controller.iconFor('com.example.a'), [1, 2, 3]);
+      expect(service.iconFetchRequests, ['com.example.a']);
+      expect(controller.iconFor('com.example.a'), [1, 2, 3]);
+      expect(iconCache.storedPackages, ['com.example.a']);
+    });
+  });
+
+  test('shows the cached icon while the fresh fetch is in flight', () {
+    fakeAsync((async) {
+      final controller = createController();
+      const app = AppInfo(packageName: 'com.example.a', appName: 'Alpha');
+      iconCache.seed('com.example.a', Uint8List.fromList([9]));
+      service.iconToReturn = Uint8List.fromList([7]);
+      service.iconGate = Completer<void>();
+
+      controller.ensureIconLoaded(app);
+
+      // Let the disk-cache load land (a microtask) with the fetch still held.
+      async.flushMicrotasks();
+      expect(controller.iconFor('com.example.a'), [9]);
+      expect(service.iconFetchRequests, ['com.example.a']);
+
+      service.iconGate!.complete();
+      async.elapse(Duration.zero);
+      expect(controller.iconFor('com.example.a'), [7]);
+      expect(iconCache.storedPackages, ['com.example.a']);
+    });
+  });
+
+  test('keeps the cached icon when the fresh fetch fails', () {
+    fakeAsync((async) {
+      AppsController.iconRetryBaseDelay = const Duration(seconds: 10);
+      final controller = createController();
+      const app = AppInfo(packageName: 'com.example.a', appName: 'Alpha');
+      final cached = Uint8List.fromList([9]);
+      iconCache.seed('com.example.a', cached);
+      service.iconToReturn = null;
+
+      controller.ensureIconLoaded(app);
+      async.elapse(const Duration(milliseconds: 1));
+
+      expect(controller.iconFor('com.example.a'), cached);
+    });
+  });
+
+  test('retries a failed fetch with backoff then gives up', () {
+    fakeAsync((async) {
+      AppsController.iconRetryBaseDelay = const Duration(milliseconds: 1);
+      AppsController.iconRetryMaxDelay = const Duration(milliseconds: 4);
+      final controller = createController();
+      service.iconToReturn = null;
+      const app = AppInfo(packageName: 'com.example.a', appName: 'Alpha');
+
+      controller.ensureIconLoaded(app);
+      async.elapse(const Duration(seconds: 1));
+
+      expect(service.iconFetchRequests, List.filled(5, 'com.example.a'));
+      expect(controller.iconFor('com.example.a'), isNull);
+    });
+  });
+
+  test('fetches newly updated apps before the rest of the queue', () {
+    fakeAsync((async) {
+      final controller = createController();
+      service.iconToReturn = Uint8List.fromList([1]);
+      service.iconGate = Completer<void>();
+
+      final base = DateTime(2026, 1, 1);
+      AppInfo app(String name, Duration age) =>
+          AppInfo(packageName: name, updateTime: base.add(age));
+
+      // Four apps fill the concurrency slots in request order; the remaining
+      // two queue, and the more recently updated of them must go first.
+      controller.ensureIconLoaded(app('com.low1', const Duration(minutes: 1)));
+      controller.ensureIconLoaded(app('com.low2', const Duration(minutes: 2)));
+      controller.ensureIconLoaded(app('com.low3', const Duration(minutes: 3)));
+      controller.ensureIconLoaded(app('com.low4', const Duration(minutes: 4)));
+      controller.ensureIconLoaded(app('com.mid', const Duration(minutes: 5)));
+      controller.ensureIconLoaded(app('com.high', const Duration(minutes: 6)));
+
+      expect(service.iconFetchRequests, [
+        'com.low1',
+        'com.low2',
+        'com.low3',
+        'com.low4',
+      ]);
+
+      service.iconGate!.complete();
+      async.elapse(Duration.zero);
+
+      expect(service.iconFetchRequests, [
+        'com.low1',
+        'com.low2',
+        'com.low3',
+        'com.low4',
+        'com.high',
+        'com.mid',
+      ]);
+    });
   });
 
   test('setShowSystemApps forwards the filter to the repository', () async {

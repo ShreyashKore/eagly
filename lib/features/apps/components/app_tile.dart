@@ -38,16 +38,18 @@ class _AppTileState extends State<AppTile> {
     // fetch on iOS so every tile doesn't churn through the icon queue for
     // nothing.
     if (widget.controller.device is AndroidDevice) {
-      widget.controller.ensureIconLoaded(widget.app.packageName);
+      widget.controller.ensureIconLoaded(widget.app);
     }
   }
 
   @override
   void didUpdateWidget(covariant AppTile oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.app.packageName != oldWidget.app.packageName &&
-        widget.controller.device is AndroidDevice) {
-      widget.controller.ensureIconLoaded(widget.app.packageName);
+    // A refresh replaces the app list with new instances; hand the new one to
+    // the controller so an updated/reinstalled app re-enters the fetch queue.
+    if (widget.controller.device is AndroidDevice &&
+        !identical(widget.app, oldWidget.app)) {
+      widget.controller.ensureIconLoaded(widget.app);
     }
   }
 
