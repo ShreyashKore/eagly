@@ -143,9 +143,20 @@ pub(crate) fn route(udid: &str) -> Option<TunnelRoute> {
 }
 
 fn prune(state: &mut State) {
-    state
-        .tunnels
-        .retain(|_, tunnel| !tunnel.dead.is_cancelled());
+    state.tunnels.retain(|udid, tunnel| {
+        let alive = !tunnel.dead.is_cancelled();
+        if !alive {
+            trace(format!("tunnel to {udid} closed"));
+        }
+        alive
+    });
+}
+
+/// One line on stderr per connection event. `flutter run` shows the app's
+/// stderr, which is where wireless problems are diagnosed — none of this
+/// reaches the UI, where a phone simply does or does not appear.
+fn trace(message: String) {
+    eprintln!("[ios_wireless] {message}");
 }
 
 /// One resolved `_remotepairing._tcp` advertisement.
@@ -158,6 +169,8 @@ struct Advertisement {
 
 async fn run(mut events: tokio::sync::mpsc::UnboundedReceiver<ServiceEvent>) {
     let mut adverts: HashMap<String, Advertisement> = HashMap::new();
+    // Devices drop out of mDNS and come back all the time; trace each once.
+    let mut traced: HashSet<String> = HashSet::new();
     let mut tick = tokio::time::interval(TICK);
 
     loop {
@@ -175,6 +188,12 @@ async fn run(mut events: tokio::sync::mpsc::UnboundedReceiver<ServiceEvent>) {
                             .to_string(),
                         addresses: dial_order(service.addresses.iter(), service.port),
                     };
+                    if traced.insert(service.fullname.clone()) {
+                        trace(format!(
+                            "found {} at {:?}",
+                            service.fullname, advert.addresses
+                        ));
+                    }
                     adverts.insert(service.fullname.clone(), advert);
                 }
                 Some(ServiceEvent::ServiceRemoved(_, fullname)) => {
@@ -222,6 +241,10 @@ fn connect_matching(adverts: &HashMap<String, Advertisement>) {
         }
 
         state.connecting.insert(record.udid.clone());
+        trace(format!(
+            "connecting to {} ({})",
+            record.udid, advert.identifier
+        ));
         tokio::spawn(attempt(record.clone(), advert.clone()));
     }
 }
@@ -243,16 +266,22 @@ async fn attempt(record: DeviceRecord, advert: Advertisement) {
     state.connecting.remove(&record.udid);
     match result {
         Ok((udid, tunnel)) => {
+            trace(format!("tunnel up to {udid}"));
             state.backoff.remove(&record.udid);
             state.tunnels.insert(udid, tunnel);
         }
-        Err(_) => {
+        Err(error) => {
             let delay = state
                 .backoff
                 .get(&record.udid)
                 .map_or(MIN_BACKOFF, |(_, previous)| {
                     (*previous * 2).min(MAX_BACKOFF)
                 });
+            trace(format!(
+                "connecting to {} failed, retrying in {}s: {error}",
+                record.udid,
+                delay.as_secs()
+            ));
             state
                 .backoff
                 .insert(record.udid.clone(), (Instant::now() + delay, delay));
