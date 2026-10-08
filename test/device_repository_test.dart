@@ -221,6 +221,28 @@ void main() {
     },
   );
 
+  test(
+    'an iOS device is wireless while the listing says so, cached or not',
+    () async {
+      iosDevicesService.deviceIds = const ['ios-1'];
+      iosDevicesService.infos['ios-1'] = const IosDeviceInfo(
+        deviceId: 'ios-1',
+        status: 'device',
+        deviceName: 'QA iPhone',
+      );
+      iosDevicesService.networkDeviceIdsValue = {'ios-1'};
+      await repository.refreshDevices(force: true);
+      expect(repository.devices.single.isWireless, isTrue);
+
+      // Plugged in: the cached description is reused, the transport is not.
+      iosDevicesService.networkDeviceIdsValue = {};
+      await repository.refreshDevices(force: true);
+      expect(repository.devices.single.isWireless, isFalse);
+      expect(repository.devices.single.name, 'QA iPhone');
+      expect(iosDevicesService.describeCalls['ios-1'], 1);
+    },
+  );
+
   group('unreachableIosDevices', () {
     const iPhone = AppleUsbDevice(
       serial: '00008030001A2C3E0E38802E',
@@ -314,6 +336,7 @@ class _FakeAdbTool() extends AdbTool {
 class _FakeIosDeviceService implements IosDeviceService {
   List<String> deviceIds = const [];
   bool usbmuxdUnavailableValue = false;
+  Set<String> networkDeviceIdsValue = {};
   final Map<String, IosDeviceInfo> infos = {};
   final Map<String, int> describeCalls = {};
   final Map<String, IosDeviceDomains> domains = {};
@@ -334,4 +357,7 @@ class _FakeIosDeviceService implements IosDeviceService {
 
   @override
   bool get usbmuxdUnavailable => usbmuxdUnavailableValue;
+
+  @override
+  Set<String> get networkDeviceIds => networkDeviceIdsValue;
 }

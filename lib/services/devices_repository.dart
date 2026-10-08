@@ -232,7 +232,15 @@ class DevicesRepository._({
     final unreachableIosDevices = iosSupportUnavailable
         ? _appleUsbProbe?.listConnected() ?? const <AppleUsbDevice>[]
         : const <AppleUsbDevice>[];
-    final iosDevices = await Future.wait(iosDeviceIds.map(_resolveIosDevice));
+    final iosNetworkIds = _iosDeviceService.networkDeviceIds;
+    // Transport is per listing, not per description: the same UDID can move
+    // between a cable and Wi-Fi while its cached description stays valid.
+    final iosDevices = [
+      for (final device in await Future.wait(
+        iosDeviceIds.map(_resolveIosDevice),
+      ))
+        device.copyWith(isWireless: iosNetworkIds.contains(device.id)),
+    ];
     final nextDevices = _mergeDevices([...deduplicatedAndroid, ...iosDevices]);
 
     _logger.info(
@@ -284,8 +292,9 @@ class DevicesRepository._({
       // An Android device that appears in `adb devices` but is not in the
       // `device` (online) state — e.g. `offline` or `unauthorized` — cannot
       // stream logs, so treat it as disconnected even though it is listed.
-      // iOS devices are only reported while physically attached, so their
-      // presence implies a usable connection regardless of pairing/lock state.
+      // iOS devices are only reported while reachable — attached, or over a
+      // Wi-Fi tunnel — so their presence implies a usable connection
+      // regardless of pairing/lock state.
       final isOnline = device is! AndroidDevice || device.status == 'device';
       merged.add(
         device.copyWith(

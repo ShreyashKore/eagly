@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 747805250;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1298008834;
 
 // Section: executor
 
@@ -1228,6 +1228,43 @@ fn wire__crate__api__ios__start_ios_syslog_impl(
         },
     )
 }
+fn wire__crate__api__ios__start_ios_wireless_discovery_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "start_ios_wireless_discovery",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_storage_dir = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::ios::IosError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::ios::start_ios_wireless_discovery(api_storage_dir).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__ios__start_ios_wireless_pairing_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2143,34 +2180,40 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         31 => wire__crate__api__ios__start_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__ios__start_ios_wireless_pairing_impl(
+        32 => wire__crate__api__ios__start_ios_wireless_discovery_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        33 => {
+        33 => wire__crate__api__ios__start_ios_wireless_pairing_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        34 => {
             wire__crate__api__ios_app_control__stop_ios_app_impl(port, ptr, rust_vec_len, data_len)
         }
-        34 => wire__crate__api__ios_mirror__stop_ios_input_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__ios_network__stop_ios_port_forward_impl(
+        35 => wire__crate__api__ios_mirror__stop_ios_input_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__ios_network__stop_ios_port_forward_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__crate__api__ios_mirror__stop_ios_screenshot_stream_impl(
+        37 => wire__crate__api__ios_mirror__stop_ios_screenshot_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => wire__crate__api__ios__stop_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
-        38 => {
+        38 => wire__crate__api__ios__stop_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
+        39 => {
             wire__crate__api__ios__stop_ios_wireless_pairing_impl(port, ptr, rust_vec_len, data_len)
         }
-        39 => wire__crate__api__ios__uninstall_ios_app_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__ios__upload_ios_path_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__ios__uninstall_ios_app_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__ios__upload_ios_path_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

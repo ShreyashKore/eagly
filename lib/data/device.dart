@@ -20,6 +20,7 @@ sealed class const Device._(
     String? name,
     DevicePlatform platform = DevicePlatform.android,
     DeviceConnectionState connectionState = DeviceConnectionState.connected,
+    bool isWireless = false,
   }) {
     return _buildDevice(
       platform: platform,
@@ -29,6 +30,7 @@ sealed class const Device._(
       model: model,
       name: name,
       connectionState: connectionState,
+      isWireless: isWireless,
     );
   }
 
@@ -57,6 +59,7 @@ sealed class const Device._(
     String? model,
     String? name,
     DeviceConnectionState connectionState = DeviceConnectionState.connected,
+    bool isWireless = false,
   }) {
     return IosDevice(
       id,
@@ -65,10 +68,14 @@ sealed class const Device._(
       model: model,
       name: name,
       connectionState: connectionState,
+      isWireless: isWireless,
     );
   }
 
   DevicePlatform get platform;
+
+  /// True when the device is reached over the network rather than a cable.
+  bool get isWireless;
 
   bool get isConnected => connectionState == DeviceConnectionState.connected;
   bool get isDisconnected => !isConnected;
@@ -115,6 +122,7 @@ sealed class const Device._(
     String? name,
     DevicePlatform? platform,
     DeviceConnectionState? connectionState,
+    bool? isWireless,
   }) {
     return _buildDevice(
       platform: platform ?? this.platform,
@@ -124,12 +132,13 @@ sealed class const Device._(
       model: model ?? this.model,
       name: name ?? this.name,
       connectionState: connectionState ?? this.connectionState,
+      isWireless: isWireless ?? this.isWireless,
     );
   }
 
   @override
   String toString() {
-    return 'Device(id: $id, status: $status, brand: $brand, model: $model, name: $name, platform: $platform, connectionState: $connectionState)';
+    return 'Device(id: $id, status: $status, brand: $brand, model: $model, name: $name, platform: $platform, connectionState: $connectionState, isWireless: $isWireless)';
   }
 
   @override
@@ -143,12 +152,21 @@ sealed class const Device._(
         other.model == model &&
         other.name == name &&
         other.platform == platform &&
-        other.connectionState == connectionState;
+        other.connectionState == connectionState &&
+        other.isWireless == isWireless;
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, status, brand, model, name, platform, connectionState);
+  int get hashCode => Object.hash(
+    id,
+    status,
+    brand,
+    model,
+    name,
+    platform,
+    connectionState,
+    isWireless,
+  );
 }
 
 final class const AndroidDevice(
@@ -174,6 +192,8 @@ final class const AndroidDevice(
   DevicePlatform get platform => DevicePlatform.android;
 
   /// True when this device is connected over Wi-Fi (TCP/IP or mDNS ADB TLS).
+  /// Derived from the serial, which is how adb names a wireless device.
+  @override
   bool get isWireless {
     if (RegExp(r'^\d+\.\d+\.\d+\.\d+:\d+$').hasMatch(id)) return true;
     if (id.contains('._adb-tls-')) return true;
@@ -189,6 +209,9 @@ final class const AndroidDevice(
     String? name,
     DevicePlatform? platform,
     DeviceConnectionState? connectionState,
+    // Accepted for the override's sake; an Android device's transport is
+    // read off its serial, see [isWireless].
+    bool? isWireless,
     String? serialNumber,
     String? marketName,
   }) {
@@ -315,6 +338,11 @@ final class const IosDevice(
   super.model,
   super.name,
   super.connectionState,
+
+  /// Reached over the network — a remote-pairing tunnel or usbmuxd's Wi-Fi
+  /// sync — rather than USB. Unlike Android, a UDID says nothing about the
+  /// transport, so discovery sets this from the listing.
+  @override final bool isWireless = false,
 }) extends Device {
   this : super._();
 
@@ -364,6 +392,7 @@ Device _buildDevice({
   String? model,
   String? name,
   DeviceConnectionState connectionState = DeviceConnectionState.connected,
+  bool isWireless = false,
 }) {
   return switch (platform) {
     DevicePlatform.android => AndroidDevice(
@@ -381,6 +410,7 @@ Device _buildDevice({
       model: model,
       name: name,
       connectionState: connectionState,
+      isWireless: isWireless,
     ),
   };
 }

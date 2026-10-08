@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../data/device.dart';
 import '../../../presentation/components/delayed_reveal.dart';
 import '../../../presentation/components/hint_note.dart';
 import '../../../presentation/theme/app_theme.dart';
@@ -215,11 +216,20 @@ class _PairedCard extends StatelessWidget {
               ),
               if (label.isNotEmpty)
                 Text(
-                  udid,
+                  // Shown, so it goes through record mode's stand-ins.
+                  Device.presentId(udid),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+              const Gap(6),
+              Text(
+                'Whenever it is on this Wi-Fi network, Eagly connects to it '
+                'and it joins the device list — no cable needed.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
             ],
           ),
         ),

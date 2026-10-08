@@ -41,9 +41,9 @@ DeviceInfo buildIosDeviceInfo(IosDevice device, IosDeviceDomains domains) {
     ),
     battery: _battery(domains.battery),
     storage: _storage(domains.diskUsage),
-    // iOS devices in this app are only ever seen over USB (no wireless
-    // idevice support), so this is a known constant, not a guess.
-    connectivity: const DeviceConnectivityInfo(usbConnected: true),
+    // Known from discovery rather than lockdownd: a wireless device is one
+    // reached over a remote-pairing tunnel or usbmuxd's Wi-Fi sync.
+    connectivity: DeviceConnectivityInfo(usbConnected: !device.isWireless),
     cellular: DeviceCellularInfo(simState: root['SIMStatus']),
     developerState: DeviceDeveloperStateInfo(
       debuggingReady: device.status == 'device',

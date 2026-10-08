@@ -411,4 +411,7 @@ class _FakeWirelessIosDeviceService implements IosDeviceService {
 
   @override
   bool get usbmuxdUnavailable => false;
+
+  @override
+  Set<String> get networkDeviceIds => const {};
 }
