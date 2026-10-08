@@ -4,6 +4,9 @@
 use chrono::{Local, TimeZone};
 use idevice::provider::IdeviceProvider;
 use idevice::provider::UsbmuxdProvider;
+use idevice::remote_pairing::{
+    PairableHost, PairableHostInfo, RpPairingFile, RpPairingSocket, PAIRABLE_HOST_SERVICE_TYPE,
+};
 use idevice::services::afc::opcode::AfcFopenMode;
 use idevice::services::afc::AfcClient;
 use idevice::services::crashreportcopymobile::CrashReportCopyMobileClient;
@@ -13,10 +16,14 @@ use idevice::services::os_trace_relay::{LogLevel, OsTraceLog, OsTraceRelayClient
 use idevice::services::springboardservices::SpringBoardServicesClient;
 use idevice::usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdConnection, UsbmuxdDevice};
 use idevice::{IdeviceError, IdeviceService};
+use mdns_sd::{ServiceDaemon, ServiceInfo};
 use plist::Value;
 use std::collections::HashMap;
+use std::net::Ipv4Addr;
+use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
 use crate::frb_generated::StreamSink;
@@ -478,6 +485,258 @@ fn forget_syslog_session(session_id: &str) {
         .lock()
         .expect("syslog session registry poisoned")
         .remove(session_id);
+}
+
+// ── Wireless (remote) pairing ────────────────────────────────────────────
+
+/// One progress event from an in-flight iOS wireless pairing.
+///
+/// `kind` is `"listening"`, `"pin"`, `"paired"` or `"error"`; the remaining
+/// fields are populated per kind so Dart can render each stage without a
+/// separate event type.
+pub struct IosWirelessPairEvent {
+    /// `"listening"`, `"pin"`, `"paired"` or `"error"`.
+    pub kind: String,
+    /// The 6-digit setup code to show the user, present on `"pin"`.
+    pub pin: Option<String>,
+    pub device_name: Option<String>,
+    pub device_model: Option<String>,
+    pub device_udid: Option<String>,
+    pub message: Option<String>,
+}
+
+/// Cancellation tokens for in-flight wireless pairings, keyed by the same
+/// caller-supplied session-id pattern as [`SYSLOG_SESSIONS`].
+static PAIRING_SESSIONS: LazyLock<Mutex<HashMap<String, CancellationToken>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Files under `storage_dir` that persist this host's remote-pairing identity.
+const HOST_IDENTITY_FILE: &str = "remote_pairing_host.plist";
+const HOST_ALT_IRK_FILE: &str = "remote_pairing_host_alt_irk";
+
+/// Starts the iOS 27+ "pairable host" flow: advertise ourselves over mDNS
+/// (`_remotepairing-pairable-host._tcp`) and pair a device that connects to us.
+///
+/// This is the iOS counterpart to wireless ADB pairing — the *device* browses
+/// for hosts and drives the rppairing conversation, and we show the user the
+/// 6-digit setup code produced mid-handshake. The stream emits an
+/// [`IosWirelessPairEvent`] per stage; [`stop_ios_wireless_pairing`] cancels by
+/// `session_id`.
+///
+/// `storage_dir` is where the host identity (signing keys + mDNS identity) and
+/// the resulting pairing record are persisted, so an already-paired device
+/// recognises this host again across launches.
+pub async fn start_ios_wireless_pairing(
+    sink: StreamSink<IosWirelessPairEvent>,
+    host_name: String,
+    host_model: String,
+    port: u16,
+    storage_dir: String,
+    session_id: String,
+) -> Result<(), IosError> {
+    let listener = TcpListener::bind((Ipv4Addr::UNSPECIFIED, port))
+        .await
+        .map_err(|error| IosError::Other(format!("failed to bind pairing listener: {error}")))?;
+    let port = listener
+        .local_addr()
+        .map(|address| address.port())
+        .map_err(|error| IosError::Other(format!("failed to read pairing port: {error}")))?;
+
+    let HostIdentity {
+        mut pairing_file,
+        alt_irk,
+    } = load_or_create_host_identity(&storage_dir, &host_name, &host_model);
+    let host_info = PairableHostInfo {
+        name: host_name,
+        model: host_model,
+        alt_irk,
+        ..Default::default()
+    };
+
+    let mdns = ServiceDaemon::new()
+        .map_err(|error| IosError::Other(format!("failed to start mDNS daemon: {error}")))?;
+    // Raises the hostname length limit so the generated `.local.` name fits.
+    let _ = mdns.set_service_name_len_max(30);
+
+    let service_identifier = pairing_file.identifier.clone();
+    let txt = host_info.mdns_txt_records(&service_identifier);
+    let properties: Vec<(&str, &str)> = txt
+        .iter()
+        .map(|(key, value)| (key.as_str(), value.as_str()))
+        .collect();
+    let hostname = format!("eagly-{}.local.", &service_identifier[..8]);
+    let service_info = ServiceInfo::new(
+        PAIRABLE_HOST_SERVICE_TYPE,
+        &service_identifier,
+        &hostname,
+        "",
+        port,
+        &properties[..],
+    )
+    .map_err(|error| IosError::Other(format!("failed to build mDNS service: {error}")))?
+    .enable_addr_auto();
+    mdns.register(service_info)
+        .map_err(|error| IosError::Other(format!("failed to advertise mDNS service: {error}")))?;
+
+    let token = CancellationToken::new();
+    register_pairing_session(&session_id, token.clone());
+
+    let _ = sink.add(IosWirelessPairEvent {
+        kind: "listening".to_string(),
+        pin: None,
+        device_name: None,
+        device_model: None,
+        device_udid: None,
+        message: None,
+    });
+
+    tokio::spawn(async move {
+        // Wait for a device, but bail out immediately on cancellation.
+        let stream = tokio::select! {
+            biased;
+            _ = token.cancelled() => {
+                let _ = mdns.shutdown();
+                forget_pairing_session(&session_id);
+                return;
+            }
+            accepted = listener.accept() => match accepted {
+                Ok((stream, _)) => stream,
+                Err(error) => {
+                    let _ = sink.add(IosWirelessPairEvent {
+                        kind: "error".to_string(),
+                        pin: None,
+                        device_name: None,
+                        device_model: None,
+                        device_udid: None,
+                        message: Some(format!("listening for the device failed: {error}")),
+                    });
+                    let _ = mdns.shutdown();
+                    forget_pairing_session(&session_id);
+                    return;
+                }
+            },
+        };
+
+        // One device per session: stop advertising as soon as one connects so a
+        // second device cannot hijack the pairing.
+        let _ = mdns.shutdown();
+
+        let socket = RpPairingSocket::new_device(stream);
+        let mut host = PairableHost::new(socket, host_info);
+
+        let peer = host
+            .accept(&mut pairing_file, |pin| {
+                let event = IosWirelessPairEvent {
+                    kind: "pin".to_string(),
+                    pin: Some(pin),
+                    device_name: None,
+                    device_model: None,
+                    device_udid: None,
+                    message: None,
+                };
+                let sink = &sink;
+                async move {
+                    let _ = sink.add(event);
+                }
+            })
+            .await;
+
+        match peer {
+            Ok(peer) => {
+                persist_host_identity(&storage_dir, &pairing_file, alt_irk);
+                let _ = sink.add(IosWirelessPairEvent {
+                    kind: "paired".to_string(),
+                    pin: None,
+                    device_name: Some(peer.name),
+                    device_model: Some(peer.model),
+                    device_udid: Some(peer.remotepairing_udid),
+                    message: None,
+                });
+            }
+            Err(error) => {
+                let _ = sink.add(IosWirelessPairEvent {
+                    kind: "error".to_string(),
+                    pin: None,
+                    device_name: None,
+                    device_model: None,
+                    device_udid: None,
+                    message: Some(error.to_string()),
+                });
+            }
+        }
+
+        forget_pairing_session(&session_id);
+    });
+
+    Ok(())
+}
+
+/// Stops the pairing started under `session_id`. Idempotent, and a no-op for a
+/// pairing that already ended on its own.
+pub async fn stop_ios_wireless_pairing(session_id: String) {
+    let token = PAIRING_SESSIONS
+        .lock()
+        .expect("pairing session registry poisoned")
+        .remove(&session_id);
+
+    if let Some(token) = token {
+        token.cancel();
+    }
+}
+
+fn register_pairing_session(session_id: &str, token: CancellationToken) {
+    PAIRING_SESSIONS
+        .lock()
+        .expect("pairing session registry poisoned")
+        .insert(session_id.to_string(), token);
+}
+
+fn forget_pairing_session(session_id: &str) {
+    PAIRING_SESSIONS
+        .lock()
+        .expect("pairing session registry poisoned")
+        .remove(session_id);
+}
+
+/// The host's remote-pairing identity: our signing keypair/identifier plus the
+/// 16-byte mDNS identity key (`alt_irk`) a paired device uses to recognise us.
+struct HostIdentity {
+    pairing_file: RpPairingFile,
+    alt_irk: [u8; 16],
+}
+
+/// Loads the host identity from `storage_dir`, generating and persisting a
+/// fresh one on first run.
+fn load_or_create_host_identity(storage_dir: &str, name: &str, model: &str) -> HostIdentity {
+    let dir = PathBuf::from(storage_dir);
+    let pairing_path = dir.join(HOST_IDENTITY_FILE);
+    let irk_path = dir.join(HOST_ALT_IRK_FILE);
+
+    let pairing_file = std::fs::read(&pairing_path)
+        .ok()
+        .and_then(|bytes| RpPairingFile::from_bytes(&bytes).ok())
+        .unwrap_or_else(|| RpPairingFile::generate(name));
+
+    let alt_irk = std::fs::read(&irk_path)
+        .ok()
+        .and_then(|bytes| <[u8; 16]>::try_from(bytes.as_slice()).ok())
+        .unwrap_or_else(|| PairableHostInfo::generate(name, model).alt_irk);
+
+    persist_host_identity(storage_dir, &pairing_file, alt_irk);
+
+    HostIdentity {
+        pairing_file,
+        alt_irk,
+    }
+}
+
+/// Writes the host identity files, so an already-paired device keeps
+/// recognising this host across launches.
+fn persist_host_identity(storage_dir: &str, pairing_file: &RpPairingFile, alt_irk: [u8; 16]) {
+    let dir = PathBuf::from(storage_dir);
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(dir.join(HOST_IDENTITY_FILE), pairing_file.to_bytes());
+    let _ = std::fs::write(dir.join(HOST_ALT_IRK_FILE), alt_irk);
 }
 
 /// One installed app.
