@@ -73,7 +73,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1014809453;
+  int get rustContentHash => 747805250;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -228,6 +228,14 @@ abstract class RustLibApi extends BaseApi {
     required String sessionId,
   });
 
+  Stream<IosWirelessPairEvent> crateApiIosStartIosWirelessPairing({
+    required String hostName,
+    required String hostModel,
+    required int port,
+    required String storageDir,
+    required String sessionId,
+  });
+
   Future<int> crateApiIosAppControlStopIosApp({
     required String udid,
     required String bundleId,
@@ -242,6 +250,8 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<void> crateApiIosStopIosSyslog({required String sessionId});
+
+  Future<void> crateApiIosStopIosWirelessPairing({required String sessionId});
 
   Future<void> crateApiIosUninstallIosApp({
     required String udid,
@@ -1297,6 +1307,59 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Stream<IosWirelessPairEvent> crateApiIosStartIosWirelessPairing({
+    required String hostName,
+    required String hostModel,
+    required int port,
+    required String storageDir,
+    required String sessionId,
+  }) {
+    final sink = RustStreamSink<IosWirelessPairEvent>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_StreamSink_ios_wireless_pair_event_Sse(sink, serializer);
+            sse_encode_String(hostName, serializer);
+            sse_encode_String(hostModel, serializer);
+            sse_encode_u_16(port, serializer);
+            sse_encode_String(storageDir, serializer);
+            sse_encode_String(sessionId, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 32,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_ios_error,
+          ),
+          constMeta: kCrateApiIosStartIosWirelessPairingConstMeta,
+          argValues: [sink, hostName, hostModel, port, storageDir, sessionId],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiIosStartIosWirelessPairingConstMeta =>
+      const TaskConstMeta(
+        debugName: "start_ios_wireless_pairing",
+        argNames: [
+          "sink",
+          "hostName",
+          "hostModel",
+          "port",
+          "storageDir",
+          "sessionId",
+        ],
+      );
+
+  @override
   Future<int> crateApiIosAppControlStopIosApp({
     required String udid,
     required String bundleId,
@@ -1310,7 +1373,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1341,7 +1404,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1369,7 +1432,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1402,7 +1465,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1433,7 +1496,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1454,6 +1517,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<void> crateApiIosStopIosWirelessPairing({required String sessionId}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(sessionId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 38,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiIosStopIosWirelessPairingConstMeta,
+        argValues: [sessionId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosStopIosWirelessPairingConstMeta =>
+      const TaskConstMeta(
+        debugName: "stop_ios_wireless_pairing",
+        argNames: ["sessionId"],
+      );
+
+  @override
   Future<void> crateApiIosUninstallIosApp({
     required String udid,
     required String bundleId,
@@ -1467,7 +1561,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 39,
             port: port_,
           );
         },
@@ -1503,7 +1597,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 40,
             port: port_,
           );
         },
@@ -1540,6 +1634,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   RustStreamSink<String> dco_decode_StreamSink_String_Sse(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
+  @protected
+  RustStreamSink<IosWirelessPairEvent>
+  dco_decode_StreamSink_ios_wireless_pair_event_Sse(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     throw UnimplementedError();
   }
@@ -1733,6 +1834,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  IosWirelessPairEvent dco_decode_ios_wireless_pair_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return IosWirelessPairEvent(
+      kind: dco_decode_String(arr[0]),
+      pin: dco_decode_opt_String(arr[1]),
+      deviceName: dco_decode_opt_String(arr[2]),
+      deviceModel: dco_decode_opt_String(arr[3]),
+      deviceUdid: dco_decode_opt_String(arr[4]),
+      message: dco_decode_opt_String(arr[5]),
+    );
+  }
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_String).toList();
@@ -1856,6 +1973,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   RustStreamSink<String> sse_decode_StreamSink_String_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
+  RustStreamSink<IosWirelessPairEvent>
+  sse_decode_StreamSink_ios_wireless_pair_event_Sse(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -2075,6 +2201,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  IosWirelessPairEvent sse_decode_ios_wireless_pair_event(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_kind = sse_decode_String(deserializer);
+    var var_pin = sse_decode_opt_String(deserializer);
+    var var_deviceName = sse_decode_opt_String(deserializer);
+    var var_deviceModel = sse_decode_opt_String(deserializer);
+    var var_deviceUdid = sse_decode_opt_String(deserializer);
+    var var_message = sse_decode_opt_String(deserializer);
+    return IosWirelessPairEvent(
+      kind: var_kind,
+      pin: var_pin,
+      deviceName: var_deviceName,
+      deviceModel: var_deviceModel,
+      deviceUdid: var_deviceUdid,
+      message: var_message,
+    );
+  }
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -2275,6 +2422,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_StreamSink_ios_wireless_pair_event_Sse(
+    RustStreamSink<IosWirelessPairEvent> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_ios_wireless_pair_event,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_StreamSink_list_prim_u_8_strict_Sse(
     RustStreamSink<Uint8List> self,
     SseSerializer serializer,
@@ -2461,6 +2625,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_ios_wireless_pair_event(
+    IosWirelessPairEvent self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.kind, serializer);
+    sse_encode_opt_String(self.pin, serializer);
+    sse_encode_opt_String(self.deviceName, serializer);
+    sse_encode_opt_String(self.deviceModel, serializer);
+    sse_encode_opt_String(self.deviceUdid, serializer);
+    sse_encode_opt_String(self.message, serializer);
   }
 
   @protected

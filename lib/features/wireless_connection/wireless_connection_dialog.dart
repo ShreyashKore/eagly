@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
@@ -8,25 +10,32 @@ import '../../session/device_session_manager.dart';
 import '../../presentation/components/delayed_reveal.dart';
 import '../../presentation/components/eagly_dialog.dart';
 import '../../presentation/components/hint_note.dart';
+import '../../services/ios/ios_wireless_service.dart';
 import 'components/discovered_wireless_target.dart';
+import 'components/ios_wireless_pair_panel.dart';
 import 'components/wireless_discovery_card.dart';
 import 'components/wireless_feedback_banner.dart';
 import 'components/wireless_manual_section.dart';
 import 'components/wireless_qr_panel.dart';
 import 'components/wireless_selected_device_panel.dart';
+import 'ios_wireless_pairing_controller.dart';
 import 'wireless_connection_controller.dart';
 import '../../presentation/theme/app_theme.dart';
 
-/// Wireless ADB pairing dialog.
+/// Wireless pairing dialog: Android (ADB QR/Manual) and iPhone (remote pairing).
 ///
-/// Two panes only: "Pair a device" (QR code pinned on top, nearby devices
-/// scrolling beneath) and "Manual entry". The QR code and the nearby list were
-/// separate tabs once; they share a pane because they share a single mDNS scan,
-/// and because the code is what most users actually want to see first.
+/// A platform toggle picks the pane. Android keeps its two panes — "Pair a
+/// device" (QR code pinned on top, nearby devices scrolling beneath) and
+/// "Manual entry". iPhone advertises this computer as a pairable host and shows
+/// the 6-digit setup code once a device connects.
 class const WirelessConnectionDialog({
   super.key,
   required final DeviceSessionManager manager,
   required final ValueChanged<String> onShowSnackBar,
+
+  /// Optional pre-built iOS pairing controller, for tests; the dialog builds
+  /// its own (Rust-backed) one when omitted and owns disposal either way.
+  final IosWirelessPairingController? iosPairingController,
 }) extends StatefulWidget {
   @override
   State<WirelessConnectionDialog> createState() =>
@@ -50,8 +59,12 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     },
     onQrPairingCompleted: _handleQrPairingCompleted,
   );
+  late final iosController =
+      widget.iosPairingController ??
+      IosWirelessPairingController(service: createIosWirelessService());
 
   var _section = _WirelessDialogSection.pair;
+  var _platform = _WirelessPlatform.android;
   String? _selectedDiscoveryHost;
   String? _fallbackConnectHost;
   var _showManualConnectSection = false;
@@ -131,6 +144,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     // Required, not optional: the controller owns an unbounded scan loop that
     // would otherwise outlive the dialog. (It was never disposed before.)
     wirelessController.dispose();
+    iosController.dispose();
     _pairAddressController.dispose();
     _pairingCodeController.dispose();
     _connectAddressController.dispose();
@@ -209,6 +223,21 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
       wirelessController.beginPairing();
     } else {
       wirelessController.stopScanning();
+    }
+  }
+
+  void _onPlatformChanged(_WirelessPlatform next) {
+    if (next == _platform) return;
+    setState(() {
+      _platform = next;
+    });
+    if (next == _WirelessPlatform.ios) {
+      // Stop the ADB scan while the iOS pane is up, and advertise our host.
+      wirelessController.stopScanning();
+      unawaited(iosController.start());
+    } else {
+      // Stop advertising the host the moment the user leaves the iOS pane.
+      unawaited(iosController.stop());
     }
   }
 
@@ -578,10 +607,10 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([manager, wirelessController]),
+      animation: Listenable.merge([manager, wirelessController, iosController]),
       builder: (context, _) {
         return EaglyDialog(
-          title: 'Wireless ADB',
+          title: 'Wireless pairing',
           icon: Icons.wifi_tethering,
           width: 720,
           height: 580,
@@ -590,38 +619,29 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SegmentedButton<_WirelessDialogSection>(
+              SegmentedButton<_WirelessPlatform>(
                 segments: const [
-                  ButtonSegment<_WirelessDialogSection>(
-                    value: _WirelessDialogSection.pair,
-                    icon: Icon(Icons.wifi_tethering),
-                    label: Text('Pair a device'),
+                  ButtonSegment<_WirelessPlatform>(
+                    value: _WirelessPlatform.android,
+                    icon: Icon(Icons.android),
+                    label: Text('Android'),
                   ),
-                  ButtonSegment<_WirelessDialogSection>(
-                    value: _WirelessDialogSection.manual,
-                    icon: Icon(Icons.tune),
-                    label: Text('Manual entry'),
+                  ButtonSegment<_WirelessPlatform>(
+                    value: _WirelessPlatform.ios,
+                    icon: Icon(Icons.phone_iphone),
+                    label: Text('iPhone'),
                   ),
                 ],
-                selected: {_section},
+                selected: {_platform},
                 onSelectionChanged: (selection) {
-                  _onSectionChanged(selection.first);
+                  _onPlatformChanged(selection.first);
                 },
               ),
               const Gap(14),
-              WirelessFeedbackBanner(
-                message: wirelessController.wirelessMessage,
-                error: wirelessController.wirelessError,
-              ),
-              if (wirelessController.wirelessMessage != null ||
-                  wirelessController.wirelessError != null)
-                const Gap(14),
               Flexible(
-                child: switch (_section) {
-                  _WirelessDialogSection.pair => _buildPairPane(context),
-                  _WirelessDialogSection.manual => SingleChildScrollView(
-                    child: _buildManualEntryTab(context),
-                  ),
+                child: switch (_platform) {
+                  _WirelessPlatform.android => _buildAndroidPane(context),
+                  _WirelessPlatform.ios => _buildIosPane(context),
                 },
               ),
             ],
@@ -630,9 +650,73 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
       },
     );
   }
+
+  // ── Android pane ───────────────────────────────────────────────────────
+
+  Widget _buildAndroidPane(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SegmentedButton<_WirelessDialogSection>(
+          segments: const [
+            ButtonSegment<_WirelessDialogSection>(
+              value: _WirelessDialogSection.pair,
+              icon: Icon(Icons.wifi_tethering),
+              label: Text('Pair a device'),
+            ),
+            ButtonSegment<_WirelessDialogSection>(
+              value: _WirelessDialogSection.manual,
+              icon: Icon(Icons.tune),
+              label: Text('Manual entry'),
+            ),
+          ],
+          selected: {_section},
+          onSelectionChanged: (selection) {
+            _onSectionChanged(selection.first);
+          },
+        ),
+        const Gap(14),
+        WirelessFeedbackBanner(
+          message: wirelessController.wirelessMessage,
+          error: wirelessController.wirelessError,
+        ),
+        if (wirelessController.wirelessMessage != null ||
+            wirelessController.wirelessError != null)
+          const Gap(14),
+        Flexible(
+          child: switch (_section) {
+            _WirelessDialogSection.pair => _buildPairPane(context),
+            _WirelessDialogSection.manual => SingleChildScrollView(
+              child: _buildManualEntryTab(context),
+            ),
+          },
+        ),
+      ],
+    );
+  }
+
+  // ── iOS pane ───────────────────────────────────────────────────────────
+
+  Widget _buildIosPane(BuildContext context) {
+    return SingleChildScrollView(
+      child: IosWirelessPairPanel(
+        hostName: iosController.hostName,
+        waiting: iosController.isWaitingForDevice,
+        pin: iosController.pin,
+        deviceName: iosController.deviceName,
+        deviceModel: iosController.deviceModel,
+        deviceUdid: iosController.deviceUdid,
+        error: iosController.error,
+        onPairAgain: () => unawaited(iosController.restart()),
+      ),
+    );
+  }
 }
 
 enum _WirelessDialogSection { pair, manual }
+
+enum _WirelessPlatform { android, ios }
 
 /// Below this the QR card plus a usable device list no longer fit, so the pair
 /// pane scrolls as a whole instead of pinning the code.

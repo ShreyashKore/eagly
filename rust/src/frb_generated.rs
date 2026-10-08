@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1014809453;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 747805250;
 
 // Section: executor
 
@@ -1228,6 +1228,58 @@ fn wire__crate__api__ios__start_ios_syslog_impl(
         },
     )
 }
+fn wire__crate__api__ios__start_ios_wireless_pairing_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "start_ios_wireless_pairing",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_sink = <StreamSink<
+                crate::api::ios::IosWirelessPairEvent,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
+            let api_host_name = <String>::sse_decode(&mut deserializer);
+            let api_host_model = <String>::sse_decode(&mut deserializer);
+            let api_port = <u16>::sse_decode(&mut deserializer);
+            let api_storage_dir = <String>::sse_decode(&mut deserializer);
+            let api_session_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::ios::IosError>(
+                    (move || async move {
+                        let output_ok = crate::api::ios::start_ios_wireless_pairing(
+                            api_sink,
+                            api_host_name,
+                            api_host_model,
+                            api_port,
+                            api_storage_dir,
+                            api_session_id,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__ios_app_control__stop_ios_app_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1420,6 +1472,44 @@ fn wire__crate__api__ios__stop_ios_syslog_impl(
         },
     )
 }
+fn wire__crate__api__ios__stop_ios_wireless_pairing_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "stop_ios_wireless_pairing",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_session_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Ok::<_, ()>({
+                            crate::api::ios::stop_ios_wireless_pairing(api_session_id).await;
+                        })?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__ios__uninstall_ios_app_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1521,6 +1611,19 @@ impl SseDecode for std::collections::HashMap<String, String> {
 }
 
 impl SseDecode for StreamSink<String, flutter_rust_bridge::for_generated::SseCodec> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <String>::sse_decode(deserializer);
+        return StreamSink::deserialize(inner);
+    }
+}
+
+impl SseDecode
+    for StreamSink<
+        crate::api::ios::IosWirelessPairEvent,
+        flutter_rust_bridge::for_generated::SseCodec,
+    >
+{
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <String>::sse_decode(deserializer);
@@ -1775,6 +1878,26 @@ impl SseDecode for crate::api::ios_mirror::IosTouchPhase {
     }
 }
 
+impl SseDecode for crate::api::ios::IosWirelessPairEvent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_kind = <String>::sse_decode(deserializer);
+        let mut var_pin = <Option<String>>::sse_decode(deserializer);
+        let mut var_deviceName = <Option<String>>::sse_decode(deserializer);
+        let mut var_deviceModel = <Option<String>>::sse_decode(deserializer);
+        let mut var_deviceUdid = <Option<String>>::sse_decode(deserializer);
+        let mut var_message = <Option<String>>::sse_decode(deserializer);
+        return crate::api::ios::IosWirelessPairEvent {
+            kind: var_kind,
+            pin: var_pin,
+            device_name: var_deviceName,
+            device_model: var_deviceModel,
+            device_udid: var_deviceUdid,
+            message: var_message,
+        };
+    }
+}
+
 impl SseDecode for Vec<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2020,25 +2143,34 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         31 => wire__crate__api__ios__start_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
-        32 => {
+        32 => wire__crate__api__ios__start_ios_wireless_pairing_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        33 => {
             wire__crate__api__ios_app_control__stop_ios_app_impl(port, ptr, rust_vec_len, data_len)
         }
-        33 => wire__crate__api__ios_mirror__stop_ios_input_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__ios_network__stop_ios_port_forward_impl(
+        34 => wire__crate__api__ios_mirror__stop_ios_input_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__ios_network__stop_ios_port_forward_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        35 => wire__crate__api__ios_mirror__stop_ios_screenshot_stream_impl(
+        36 => wire__crate__api__ios_mirror__stop_ios_screenshot_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__crate__api__ios__stop_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__ios__uninstall_ios_app_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__ios__upload_ios_path_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__ios__stop_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
+        38 => {
+            wire__crate__api__ios__stop_ios_wireless_pairing_impl(port, ptr, rust_vec_len, data_len)
+        }
+        39 => wire__crate__api__ios__uninstall_ios_app_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__ios__upload_ios_path_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2323,6 +2455,31 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::ios_mirror::IosTouchPhase>
         self
     }
 }
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::ios::IosWirelessPairEvent {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.kind.into_into_dart().into_dart(),
+            self.pin.into_into_dart().into_dart(),
+            self.device_name.into_into_dart().into_dart(),
+            self.device_model.into_into_dart().into_dart(),
+            self.device_udid.into_into_dart().into_dart(),
+            self.message.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::ios::IosWirelessPairEvent
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::ios::IosWirelessPairEvent>
+    for crate::api::ios::IosWirelessPairEvent
+{
+    fn into_into_dart(self) -> crate::api::ios::IosWirelessPairEvent {
+        self
+    }
+}
 
 impl SseEncode for flutter_rust_bridge::for_generated::anyhow::Error {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -2339,6 +2496,18 @@ impl SseEncode for std::collections::HashMap<String, String> {
 }
 
 impl SseEncode for StreamSink<String, flutter_rust_bridge::for_generated::SseCodec> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        unimplemented!("")
+    }
+}
+
+impl SseEncode
+    for StreamSink<
+        crate::api::ios::IosWirelessPairEvent,
+        flutter_rust_bridge::for_generated::SseCodec,
+    >
+{
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         unimplemented!("")
@@ -2547,6 +2716,18 @@ impl SseEncode for crate::api::ios_mirror::IosTouchPhase {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::ios::IosWirelessPairEvent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.kind, serializer);
+        <Option<String>>::sse_encode(self.pin, serializer);
+        <Option<String>>::sse_encode(self.device_name, serializer);
+        <Option<String>>::sse_encode(self.device_model, serializer);
+        <Option<String>>::sse_encode(self.device_udid, serializer);
+        <Option<String>>::sse_encode(self.message, serializer);
     }
 }
 

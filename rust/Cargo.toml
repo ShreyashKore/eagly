@@ -17,10 +17,15 @@ idevice = { version = "=0.1.68", default-features = false, features = [
     "usbmuxd", "tcp", "pair", "syslog_relay", "installation_proxy", "crashreportcopymobile", "afc",
     "core_device_proxy", "tunnel_tcp_stack", "rsd", "core_device", "display_stream", "springboardservices",
     "house_arrest",
+    # `remote_pairing`: iPhone wireless pairing (api/ios.rs).
+    "remote_pairing",
 ] }
 plist = "1.8"
+# mDNS advertisement for the iOS pairable-host (remote pairing) flow.
+mdns-sd = "0.19"
 # `macros` for tokio::select!; FRB's own tokio brings only rt-multi-thread + sync. `net`, `time`
-# and `io-util` for the usbmux port forward (api/ios_network.rs).
+# and `io-util` for the usbmux port forward (api/ios_network.rs); `net` also for the iOS
+# pairing listener.
 tokio = { version = "1", features = ["macros", "fs", "net", "time", "io-util", "rt"] }
 tokio-util = { version = "0.7", default-features = false }
 # Session ids for the media stream that opens the iOS 27 input gate (api/ios_mirror.rs).

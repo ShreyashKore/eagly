@@ -35,6 +35,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustStreamSink<String> dco_decode_StreamSink_String_Sse(dynamic raw);
 
   @protected
+  RustStreamSink<IosWirelessPairEvent>
+  dco_decode_StreamSink_ios_wireless_pair_event_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<Uint8List> dco_decode_StreamSink_list_prim_u_8_strict_Sse(
     dynamic raw,
   );
@@ -89,6 +93,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   IosTouchPhase dco_decode_ios_touch_phase(dynamic raw);
+
+  @protected
+  IosWirelessPairEvent dco_decode_ios_wireless_pair_event(dynamic raw);
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
@@ -155,6 +162,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<IosWirelessPairEvent>
+  sse_decode_StreamSink_ios_wireless_pair_event_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RustStreamSink<Uint8List> sse_decode_StreamSink_list_prim_u_8_strict_Sse(
     SseDeserializer deserializer,
   );
@@ -211,6 +224,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   IosTouchPhase sse_decode_ios_touch_phase(SseDeserializer deserializer);
+
+  @protected
+  IosWirelessPairEvent sse_decode_ios_wireless_pair_event(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
@@ -292,6 +310,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_ios_wireless_pair_event_Sse(
+    RustStreamSink<IosWirelessPairEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_list_prim_u_8_strict_Sse(
     RustStreamSink<Uint8List> self,
     SseSerializer serializer,
@@ -368,6 +392,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ios_touch_phase(IosTouchPhase self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ios_wireless_pair_event(
+    IosWirelessPairEvent self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
