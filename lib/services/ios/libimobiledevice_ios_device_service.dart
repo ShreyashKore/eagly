@@ -30,4 +30,8 @@ class LibimobiledeviceIosDeviceService({
 
   @override
   bool get usbmuxdUnavailable => _ideviceIdTool.usbmuxdUnavailable;
+
+  /// `idevice_id -l` lists USB devices only.
+  @override
+  Set<String> get networkDeviceIds => const {};
 }

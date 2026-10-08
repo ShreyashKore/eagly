@@ -19,9 +19,7 @@ class const DevicePlatformIconWidget({
   @override
   Widget build(BuildContext context) {
     final icon = Icon(devicePlatformIcon(device), color: color, size: size);
-    final isWireless =
-        device is AndroidDevice && (device as AndroidDevice).isWireless;
-    if (!isWireless) return icon;
+    if (!device.isWireless) return icon;
 
     return SizedBox(
       width: size,

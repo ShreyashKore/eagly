@@ -9,16 +9,32 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `advertise_pairable_host`, `afc_client`, `basename`, `claim_syslog_session`, `connect_usbmuxd`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_pairing_session`, `forget_syslog_session`, `format_os_trace_log`, `installation_proxy`, `ios_app_bundle_path`, `is_crash_report`, `is_hidden_app`, `is_network`, `is_skippable_record_error`, `join_afc_path`, `load_or_create_host_identity`, `open_session`, `pair_event`, `pair_one_device`, `persist_device_record`, `persist_host_identity`, `provider_for`, `read_afc_file`, `register_pairing_session`, `status`, `string_value`, `upload_recursive`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Advertised`, `HostIdentity`
+// These functions are ignored because they are not marked as `pub`: `advertise_pairable_host`, `afc_client`, `basename`, `claim_syslog_session`, `connect_usbmuxd`, `connect`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_pairing_session`, `forget_syslog_session`, `format_os_trace_log`, `installation_proxy`, `ios_app_bundle_path`, `is_crash_report`, `is_hidden_app`, `is_network`, `is_network`, `is_skippable_record_error`, `join_afc_path`, `load_or_create_host_identity`, `lockdown`, `pair_event`, `pair_one_device`, `persist_host_identity`, `provider_for`, `read_afc_file`, `register_pairing_session`, `route_for`, `status`, `string_value`, `upload_recursive`, `usbmuxd_device`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Advertised`, `HostIdentity`, `Route`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
-/// Lists every device usbmuxd knows about.
+/// Lists every device usbmuxd knows about, plus wireless devices reached
+/// over a remote-pairing tunnel (see [`start_ios_wireless_discovery`]).
 ///
 /// Cheap by design — this is what the discovery poll calls. Only a failure to
-/// reach usbmuxd is an error; an empty list just means nothing is plugged in.
+/// reach usbmuxd is an error, and only while no tunnel is up; an empty list
+/// just means nothing is plugged in.
+///
+/// One entry per UDID. usbmuxd lists a device once per transport, and a
+/// device on USB may also have a tunnel; the USB entry wins either way.
 Future<List<IosDeviceHandle>> listIosDevices() =>
     RustLib.instance.api.crateApiIosListIosDevices();
+
+/// Starts looking for wireless devices paired through
+/// [`start_ios_wireless_pairing`], whose records live under `storage_dir`.
+///
+/// Each paired device that appears on the network gets a tunnel, after which
+/// [`list_ios_devices`] lists it and every per-device call here reaches it
+/// through the tunnel whenever usbmuxd does not know its UDID. Idempotent.
+Future<void> startIosWirelessDiscovery({required String storageDir}) => RustLib
+    .instance
+    .api
+    .crateApiIosStartIosWirelessDiscovery(storageDir: storageDir);
 
 /// Describes one device, opening a lockdown session to do it.
 ///
@@ -79,7 +95,7 @@ Future<void> stopIosSyslog({required String sessionId}) =>
 /// `storage_dir` is where the host identity (signing keys + mDNS identity) is
 /// persisted, so an already-paired device recognises this host again across
 /// launches, and where each paired device's record is kept (see
-/// [`persist_device_record`]).
+/// `ios_wireless::persist_device_record`).
 Stream<IosWirelessPairEvent> startIosWirelessPairing({
   required String hostName,
   required String hostModel,

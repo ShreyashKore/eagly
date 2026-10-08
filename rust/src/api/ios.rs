@@ -16,7 +16,7 @@ use idevice::services::lockdown::LockdownClient;
 use idevice::services::os_trace_relay::{LogLevel, OsTraceLog, OsTraceRelayClient};
 use idevice::services::springboardservices::SpringBoardServicesClient;
 use idevice::usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdConnection, UsbmuxdDevice};
-use idevice::{IdeviceError, IdeviceService};
+use idevice::{IdeviceError, IdeviceService, RsdService};
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 use plist::Value;
 use std::collections::HashMap;
@@ -117,21 +117,54 @@ impl From<IdeviceError> for IosError {
     }
 }
 
-/// Lists every device usbmuxd knows about.
+/// Lists every device usbmuxd knows about, plus wireless devices reached
+/// over a remote-pairing tunnel (see [`start_ios_wireless_discovery`]).
 ///
 /// Cheap by design — this is what the discovery poll calls. Only a failure to
-/// reach usbmuxd is an error; an empty list just means nothing is plugged in.
+/// reach usbmuxd is an error, and only while no tunnel is up; an empty list
+/// just means nothing is plugged in.
+///
+/// One entry per UDID. usbmuxd lists a device once per transport, and a
+/// device on USB may also have a tunnel; the USB entry wins either way.
 pub async fn list_ios_devices() -> Result<Vec<IosDeviceHandle>, IosError> {
-    let mut usbmuxd = connect_usbmuxd().await?;
-    let devices = usbmuxd.get_devices().await?;
+    let wireless = crate::ios_wireless::devices();
+    let devices = match connect_usbmuxd().await {
+        Ok(mut usbmuxd) => usbmuxd.get_devices().await?,
+        // The error drives the "install Apple Mobile Device Support" hint,
+        // which is wrong to show while a wireless device is working.
+        Err(error) if wireless.is_empty() => return Err(error),
+        Err(_) => Vec::new(),
+    };
 
-    Ok(devices
-        .iter()
-        .map(|device| IosDeviceHandle {
-            udid: device.udid.clone(),
-            is_network: is_network(device),
-        })
-        .collect())
+    let mut handles: Vec<IosDeviceHandle> = Vec::new();
+    for device in &devices {
+        match handles.iter_mut().find(|handle| handle.udid == device.udid) {
+            Some(handle) => handle.is_network &= is_network(device),
+            None => handles.push(IosDeviceHandle {
+                udid: device.udid.clone(),
+                is_network: is_network(device),
+            }),
+        }
+    }
+    for udid in wireless {
+        if !handles.iter().any(|handle| handle.udid == udid) {
+            handles.push(IosDeviceHandle {
+                udid,
+                is_network: true,
+            });
+        }
+    }
+    Ok(handles)
+}
+
+/// Starts looking for wireless devices paired through
+/// [`start_ios_wireless_pairing`], whose records live under `storage_dir`.
+///
+/// Each paired device that appears on the network gets a tunnel, after which
+/// [`list_ios_devices`] lists it and every per-device call here reaches it
+/// through the tunnel whenever usbmuxd does not know its UDID. Idempotent.
+pub async fn start_ios_wireless_discovery(storage_dir: String) -> Result<(), IosError> {
+    crate::ios_wireless::start(storage_dir).map_err(IosError::Other)
 }
 
 /// Describes one device, opening a lockdown session to do it.
@@ -141,10 +174,10 @@ pub async fn list_ios_devices() -> Result<Vec<IosDeviceHandle>, IosError> {
 /// only what they do not already know — one locked iPhone must never empty
 /// the device list.
 pub async fn describe_ios_device(udid: String) -> Result<IosDeviceSummary, IosError> {
-    let mut usbmuxd = connect_usbmuxd().await?;
-    let device = usbmuxd.get_device(&udid).await?;
+    let route = route_for(&udid).await?;
+    let is_network = route.is_network();
 
-    Ok(describe(&device)
+    Ok(describe(&udid, route)
         .await
         .unwrap_or_else(|error| IosDeviceSummary {
             udid,
@@ -154,7 +187,7 @@ pub async fn describe_ios_device(udid: String) -> Result<IosDeviceSummary, IosEr
             product_type: None,
             hardware_model: None,
             product_version: None,
-            is_network: is_network(&device),
+            is_network,
         }))
 }
 
@@ -190,9 +223,7 @@ pub struct IosDeviceDomains {
 /// session. The CLI path had to spawn `ideviceinfo` four times, each paying its
 /// own process start, connect and TLS handshake.
 pub async fn read_ios_device_domains(udid: String) -> Result<IosDeviceDomains, IosError> {
-    let mut usbmuxd = connect_usbmuxd().await?;
-    let device = usbmuxd.get_device(&udid).await?;
-    let mut lockdown = open_session(&device).await?;
+    let mut lockdown = route_for(&udid).await?.lockdown().await?;
 
     Ok(IosDeviceDomains {
         root: domain(&mut lockdown, None).await?,
@@ -245,36 +276,25 @@ fn flatten(values: &Value) -> HashMap<String, String> {
         .collect()
 }
 
-/// Connects to lockdownd and authenticates with the stored pairing record.
-async fn open_session(device: &UsbmuxdDevice) -> Result<LockdownClient, IosError> {
-    let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
-    let provider = device.to_provider(address, CLIENT_LABEL);
-
-    let mut lockdown = LockdownClient::connect(&provider).await?;
-    lockdown
-        .start_session(&provider.get_pairing_file().await?)
-        .await?;
-    Ok(lockdown)
-}
-
 /// Reads the lockdownd values for one device. Private, so flutter_rust_bridge
 /// leaves it alone and `?` stays usable for the fallible half of the listing.
-async fn describe(device: &UsbmuxdDevice) -> Result<IosDeviceSummary, IosError> {
-    let mut lockdown = open_session(device).await?;
+async fn describe(udid: &str, route: Route) -> Result<IosDeviceSummary, IosError> {
+    let is_network = route.is_network();
+    let mut lockdown = route.lockdown().await?;
 
     // `None` key means the whole root domain in one round trip, which is all
     // discovery needs. Per-domain queries (battery, storage) come later.
     let values = lockdown.get_value(None, None).await?;
 
     Ok(IosDeviceSummary {
-        udid: device.udid.clone(),
+        udid: udid.to_string(),
         status: "device".to_string(),
         name: string_value(&values, "DeviceName"),
         product_name: string_value(&values, "ProductName"),
         product_type: string_value(&values, "ProductType"),
         hardware_model: string_value(&values, "HardwareModel"),
         product_version: string_value(&values, "ProductVersion"),
-        is_network: is_network(device),
+        is_network,
     })
 }
 
@@ -328,9 +348,10 @@ pub async fn start_ios_syslog(
     // meantime has to find a token to cancel rather than a missing entry.
     let token = claim_syslog_session(&session_id);
     let connected = async {
-        let provider = provider_for(&udid).await?;
         Ok::<_, IosError>(
-            OsTraceRelayClient::connect(&provider)
+            route_for(&udid)
+                .await?
+                .connect::<OsTraceRelayClient>()
                 .await?
                 .start_trace(None)
                 .await?,
@@ -514,8 +535,6 @@ static PAIRING_SESSIONS: LazyLock<Mutex<HashMap<String, CancellationToken>>> =
 /// Files under `storage_dir` that persist this host's remote-pairing identity.
 const HOST_IDENTITY_FILE: &str = "remote_pairing_host.plist";
 const HOST_ALT_IRK_FILE: &str = "remote_pairing_host_alt_irk";
-/// Directory under `storage_dir` holding one pairing record per paired device.
-const DEVICE_RECORDS_DIR: &str = "remote_pairing_devices";
 
 /// Starts the iOS 27+ "pairable host" flow: advertise ourselves over mDNS
 /// (`_remotepairing-pairable-host._tcp`) and pair a device that connects to us.
@@ -529,7 +548,7 @@ const DEVICE_RECORDS_DIR: &str = "remote_pairing_devices";
 /// `storage_dir` is where the host identity (signing keys + mDNS identity) is
 /// persisted, so an already-paired device recognises this host again across
 /// launches, and where each paired device's record is kept (see
-/// [`persist_device_record`]).
+/// `ios_wireless::persist_device_record`).
 pub async fn start_ios_wireless_pairing(
     sink: StreamSink<IosWirelessPairEvent>,
     host_name: String,
@@ -579,7 +598,7 @@ pub async fn start_ios_wireless_pairing(
             // Stopped from Dart, which has already dropped the stream.
             None => {}
             Some(Ok(peer)) => {
-                persist_device_record(&storage_dir, &peer.remotepairing_udid, &pairing_file);
+                crate::ios_wireless::persist_device_record(&storage_dir, &peer, &pairing_file);
                 let _ = sink.add(IosWirelessPairEvent {
                     device_name: Some(peer.name),
                     device_model: Some(peer.model),
@@ -785,30 +804,6 @@ fn persist_host_identity(storage_dir: &str, pairing_file: &RpPairingFile, alt_ir
     let _ = std::fs::write(dir.join(HOST_ALT_IRK_FILE), alt_irk);
 }
 
-/// Writes the pairing record for one device — this host's keys plus that
-/// device's altIRK, which pair-setup leaves in `pairing_file` — to
-/// `remote_pairing_devices/<udid>.plist`.
-///
-/// One file per device because the host identity is shared across devices
-/// while the altIRK is not: a single record would be overwritten by the next
-/// pairing, losing the previous device's.
-fn persist_device_record(storage_dir: &str, udid: &str, pairing_file: &RpPairingFile) {
-    // The UDID comes off the wire; keep it from naming a path elsewhere.
-    let file_stem: String = udid
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
-        .collect();
-    if file_stem.is_empty() {
-        return;
-    }
-    let dir = PathBuf::from(storage_dir).join(DEVICE_RECORDS_DIR);
-    let _ = std::fs::create_dir_all(&dir);
-    let _ = std::fs::write(
-        dir.join(format!("{file_stem}.plist")),
-        pairing_file.to_bytes(),
-    );
-}
-
 /// One installed app.
 pub struct IosAppInfo {
     pub bundle_id: String,
@@ -911,15 +906,26 @@ fn is_hidden_app(values: &Value) -> bool {
 /// It also exposes a progress callback the CLI has no equivalent for; wiring it
 /// to a Dart stream is a UI change and is deliberately not part of this port.
 pub async fn install_ios_app(udid: String, package_path: String) -> Result<(), IosError> {
-    let provider = provider_for(&udid).await?;
-    idevice::utils::installation::install_package(&provider, &package_path, None).await?;
+    match route_for(&udid).await? {
+        Route::Usb { provider, .. } => {
+            idevice::utils::installation::install_package(&provider, &package_path, None).await?
+        }
+        Route::Tunnel(mut tunnel) => {
+            idevice::utils::installation::install_package_rsd(
+                &mut tunnel.adapter,
+                &mut tunnel.handshake,
+                &package_path,
+                None,
+            )
+            .await?
+        }
+    }
     Ok(())
 }
 
 /// Takes a bundle identifier, so unlike install it needs no staging.
 pub async fn uninstall_ios_app(udid: String, bundle_id: String) -> Result<(), IosError> {
-    let provider = provider_for(&udid).await?;
-    let mut client = InstallationProxyClient::connect(&provider).await?;
+    let mut client = installation_proxy(&udid).await?;
     client.uninstall(bundle_id, None).await?;
     Ok(())
 }
@@ -933,8 +939,7 @@ pub async fn uninstall_ios_app(udid: String, bundle_id: String) -> Result<(), Io
 /// tiles are built. A bundle ID that isn't installed still gets an icon (a
 /// placeholder), so ask only about listed apps.
 pub async fn fetch_ios_app_icon(udid: String, bundle_id: String) -> Result<Vec<u8>, IosError> {
-    let provider = provider_for(&udid).await?;
-    let mut springboard = SpringBoardServicesClient::connect(&provider).await?;
+    let mut springboard: SpringBoardServicesClient = route_for(&udid).await?.connect().await?;
     Ok(springboard.get_icon_pngdata(bundle_id).await?)
 }
 
@@ -951,8 +956,7 @@ pub(crate) async fn ios_app_bundle_path(udid: &str, bundle_id: &str) -> Result<S
 }
 
 async fn installation_proxy(udid: &str) -> Result<InstallationProxyClient, IosError> {
-    let provider = provider_for(udid).await?;
-    Ok(InstallationProxyClient::connect(&provider).await?)
+    route_for(udid).await?.connect().await
 }
 
 /// Copies crash reports off the device into `output_dir`, returning the paths
@@ -966,10 +970,10 @@ pub async fn pull_ios_crash_reports(
     udid: String,
     output_dir: String,
 ) -> Result<Vec<String>, IosError> {
-    let provider = provider_for(&udid).await?;
-
     // The service is an AFC endpoint rooted at the crash report directory.
-    let mut afc = CrashReportCopyMobileClient::connect(&provider)
+    let mut afc = route_for(&udid)
+        .await?
+        .connect::<CrashReportCopyMobileClient>()
         .await?
         .to_afc_client();
 
@@ -1228,15 +1232,99 @@ fn join_afc_path(parent: &str, name: &str) -> String {
 }
 
 async fn afc_client(udid: &str) -> Result<AfcClient, IosError> {
-    Ok(AfcClient::connect(&provider_for(udid).await?).await?)
+    route_for(udid).await?.connect().await
 }
 
-/// Resolves a UDID to a connection provider — every service starts here.
+/// How one device's services are reached.
+enum Route {
+    /// Through usbmuxd — over USB, or Wi-Fi sync when usbmuxd offers only that.
+    Usb {
+        provider: UsbmuxdProvider,
+        is_network: bool,
+    },
+    /// Through a remote-pairing tunnel to a wireless device.
+    Tunnel(crate::ios_wireless::TunnelRoute),
+}
+
+impl Route {
+    fn is_network(&self) -> bool {
+        match self {
+            Route::Usb { is_network, .. } => *is_network,
+            Route::Tunnel(_) => true,
+        }
+    }
+
+    /// Opens a service. Over the tunnel each one is its RSD `*.shim.remote`
+    /// counterpart, which speaks the same protocol once connected.
+    async fn connect<S: IdeviceService + RsdService>(self) -> Result<S, IosError> {
+        Ok(match self {
+            Route::Usb { provider, .. } => S::connect(&provider).await?,
+            Route::Tunnel(mut tunnel) => {
+                S::connect_rsd(&mut tunnel.adapter, &mut tunnel.handshake).await?
+            }
+        })
+    }
+
+    /// Opens lockdownd. usbmuxd's needs a session started from the stored
+    /// pairing record; the tunnel's trusted lockdown is authenticated already.
+    async fn lockdown(self) -> Result<LockdownClient, IosError> {
+        match self {
+            Route::Usb { provider, .. } => {
+                let mut lockdown = LockdownClient::connect(&provider).await?;
+                lockdown
+                    .start_session(&provider.get_pairing_file().await?)
+                    .await?;
+                Ok(lockdown)
+            }
+            route @ Route::Tunnel(_) => route.connect().await,
+        }
+    }
+}
+
+/// Resolves a UDID to a route — every per-device call starts here.
+///
+/// usbmuxd first, so a device on a cable keeps using it; the tunnel only when
+/// usbmuxd does not know the device (or is not running at all).
+async fn route_for(udid: &str) -> Result<Route, IosError> {
+    match usbmuxd_device(udid).await {
+        Ok(device) => {
+            let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
+            Ok(Route::Usb {
+                is_network: is_network(&device),
+                provider: device.to_provider(address, CLIENT_LABEL),
+            })
+        }
+        Err(error) => crate::ios_wireless::route(udid)
+            .map(Route::Tunnel)
+            .ok_or(error),
+    }
+}
+
+/// Resolves a UDID to a usbmuxd provider, for the services that only run
+/// over usbmuxd (the screen mirror, app control and the CoreDevice tunnel).
+/// A wireless-only device is not found here; see [`route_for`].
 pub(crate) async fn provider_for(udid: &str) -> Result<UsbmuxdProvider, IosError> {
-    let mut usbmuxd = connect_usbmuxd().await?;
-    let device = usbmuxd.get_device(udid).await?;
+    let device = usbmuxd_device(udid).await?;
     let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
     Ok(device.to_provider(address, CLIENT_LABEL))
+}
+
+/// Finds `udid` in usbmuxd's list. A device listed for both transports
+/// resolves to its USB entry; the crate's `get_device` would take whichever
+/// came first.
+async fn usbmuxd_device(udid: &str) -> Result<UsbmuxdDevice, IosError> {
+    let mut usbmuxd = connect_usbmuxd().await?;
+    let mut matches: Vec<UsbmuxdDevice> = usbmuxd
+        .get_devices()
+        .await?
+        .into_iter()
+        .filter(|device| device.udid == udid)
+        .collect();
+    matches.sort_by_key(is_network);
+    matches
+        .into_iter()
+        .next()
+        .ok_or_else(|| IosError::DeviceNotFound(format!("{udid} is not connected")))
 }
 
 #[cfg(test)]

@@ -26,6 +26,8 @@
 	<string>macOS offers a USB-connected iPhone's screen as a camera, so Eagly needs camera access to mirror it.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>$(PRODUCT_COPYRIGHT)</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Eagly finds and connects to iPhones you have paired over Wi-Fi on your local network.</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>

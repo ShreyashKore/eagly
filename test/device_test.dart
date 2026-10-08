@@ -40,6 +40,20 @@ void main() {
       );
       expect(device.statusLabel, 'disconnected');
     });
+
+    test('isWireless survives copyWith and counts toward equality', () {
+      final wired = Device.ios('ios-1', 'device');
+      final wireless = wired.copyWith(isWireless: true);
+
+      expect(wired.isWireless, isFalse);
+      expect(wireless.isWireless, isTrue);
+      expect(
+        wireless.copyWith(connectionState: DeviceConnectionState.disconnected),
+        isA<IosDevice>().having((d) => d.isWireless, 'isWireless', isTrue),
+      );
+      // A transport change alone must register as a device-list change.
+      expect(wireless, isNot(equals(wired)));
+    });
   });
 
   // ---------------------------------------------------------------------------

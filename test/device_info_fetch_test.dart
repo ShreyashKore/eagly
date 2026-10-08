@@ -252,14 +252,22 @@ Locale: en_US
 TimeZone: America/New_York
 ''';
 
-    Future<DeviceInfo> fetch({String status = 'device'}) async {
+    Future<DeviceInfo> fetch({
+      String status = 'device',
+      bool wireless = false,
+    }) async {
       final tool = _FakeIdeviceInfoTool({
         'default': defaultDomain,
         'com.apple.mobile.battery': batteryDomain,
         'com.apple.disk_usage': diskDomain,
         'com.apple.international': internationalDomain,
       });
-      final device = IosDevice('udid-1', status, model: 'iPhone 15 Pro');
+      final device = IosDevice(
+        'udid-1',
+        status,
+        model: 'iPhone 15 Pro',
+        isWireless: wireless,
+      );
       // Both backends share buildIosDeviceInfo, so these assertions cover the
       // Rust path's mapping too — only the domain-reading half differs.
       return buildIosDeviceInfo(
@@ -292,12 +300,20 @@ TimeZone: America/New_York
       expect(info.storage.usedBytes, 128000000000 - 32000000000);
     });
 
-    test('assumes USB connectivity and reports SIM state', () async {
-      final info = await fetch();
-      expect(info.connectivity.usbConnected, true);
-      expect(info.connectivity.wifiEnabled, isNull);
-      expect(info.cellular.simState, 'kCTSIMSupportSIMStatusReady');
-      expect(info.cellular.carrierName, isNull);
+    test(
+      'reports USB connectivity and SIM state for a cabled device',
+      () async {
+        final info = await fetch();
+        expect(info.connectivity.usbConnected, true);
+        expect(info.connectivity.wifiEnabled, isNull);
+        expect(info.cellular.simState, 'kCTSIMSupportSIMStatusReady');
+        expect(info.cellular.carrierName, isNull);
+      },
+    );
+
+    test('reports a wireless connection for a tunnelled device', () async {
+      final info = await fetch(wireless: true);
+      expect(info.connectivity.usbConnected, false);
     });
 
     test('maps device status to a pairing state label', () async {

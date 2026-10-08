@@ -17,7 +17,8 @@ idevice = { version = "=0.1.68", default-features = false, features = [
     "usbmuxd", "tcp", "pair", "syslog_relay", "installation_proxy", "crashreportcopymobile", "afc",
     "core_device_proxy", "tunnel_tcp_stack", "rsd", "core_device", "display_stream", "springboardservices",
     "house_arrest",
-    # `remote_pairing`: iPhone wireless pairing (api/ios.rs).
+    # `remote_pairing`: iPhone wireless pairing and the Wi-Fi tunnel (api/ios.rs,
+    # ios_wireless.rs), which also uses `rsd` and `tunnel_tcp_stack` above.
     "remote_pairing",
 ] }
 plist = "1.8"
@@ -28,6 +29,9 @@ mdns-sd = "0.19"
 # pairing listener.
 tokio = { version = "1", features = ["macros", "fs", "net", "time", "io-util", "rt"] }
 tokio-util = { version = "0.7", default-features = false }
+# TCP keepalive on the wireless iOS tunnel, so a device that leaves Wi-Fi
+# without closing the connection is noticed.
+socket2 = "0.6"
 # Session ids for the media stream that opens the iOS 27 input gate (api/ios_mirror.rs).
 uuid = { version = "1", features = ["v4"] }
 
