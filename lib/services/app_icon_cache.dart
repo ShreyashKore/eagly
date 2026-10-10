@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -10,6 +11,12 @@ import 'package:path_provider/path_provider.dart';
 /// directory, so the cache survives Eagly restarts and is shared across every
 /// device session: a package icon pulled from one device is reused for the same
 /// package on another, until a fresh fetch replaces it.
+///
+/// It also keeps each package's user-visible label (read from the same APK as
+/// the icon), so a package that was ever fetched shows its real name — and
+/// sorts by it — from the first frame of the next session. Labels are tiny and
+/// all needed at once, so they live in a single JSON file rather than one file
+/// per package.
 ///
 /// Purely cosmetic — every operation is best-effort and never throws, so a
 /// missing directory or a corrupt file can't disturb the Apps feature itself.
@@ -25,6 +32,11 @@ class AppIconCache {
   static const int maxEntries = 2000;
 
   static const String _subdir = 'app_icons';
+  static const String _labelsFile = 'app_labels.json';
+
+  /// How long label writes are coalesced before the JSON file is rewritten —
+  /// a first visit to the Apps pane resolves dozens of labels in a burst.
+  static const Duration _labelFlushDelay = Duration(seconds: 2);
 
   Directory? _dir;
   Future<Directory>? _dirFuture;
@@ -34,6 +46,10 @@ class AppIconCache {
   final Map<String, Uint8List?> _memory = {};
 
   int _storesSinceTrim = 0;
+
+  Map<String, String>? _labels;
+  Future<Map<String, String>>? _labelsFuture;
+  Timer? _labelFlushTimer;
 
   /// Loads a cached icon from disk (unless already in memory). Returns null
   /// when there is none, or when reading fails for any reason.
@@ -68,6 +84,58 @@ class AppIconCache {
     }
   }
 
+  /// The labels, once [loadLabels] has read them; null until then.
+  Map<String, String>? get cachedLabels => _labels;
+
+  /// Every cached label, keyed by package name. Read from disk once per
+  /// process; empty when there is no file or it can't be read.
+  Future<Map<String, String>> loadLabels() {
+    final existing = _labels;
+    if (existing != null) return Future.value(existing);
+    return _labelsFuture ??= _readLabels();
+  }
+
+  Future<Map<String, String>> _readLabels() async {
+    final labels = <String, String>{};
+    try {
+      final dir = await _ensureDir();
+      final file = File('${dir.path}${Platform.pathSeparator}$_labelsFile');
+      if (await file.exists()) {
+        final decoded = jsonDecode(await file.readAsString());
+        if (decoded is Map) {
+          decoded.forEach((key, value) {
+            if (key is String && value is String) labels[key] = value;
+          });
+        }
+      }
+    } catch (_) {
+      // Fall through to "no cached labels".
+    }
+    return _labels = labels;
+  }
+
+  /// Records [label] for [packageName]; the file is rewritten shortly after,
+  /// coalescing bursts. Never throws.
+  Future<void> storeLabel(String packageName, String label) async {
+    final labels = await loadLabels();
+    if (labels[packageName] == label) return;
+    labels[packageName] = label;
+    _labelFlushTimer?.cancel();
+    _labelFlushTimer = Timer(_labelFlushDelay, () => unawaited(_writeLabels()));
+  }
+
+  Future<void> _writeLabels() async {
+    final labels = _labels;
+    if (labels == null) return;
+    try {
+      final dir = await _ensureDir();
+      final file = File('${dir.path}${Platform.pathSeparator}$_labelsFile');
+      await file.writeAsString(jsonEncode(labels), flush: true);
+    } catch (_) {
+      // The in-memory map is enough for this session.
+    }
+  }
+
   Future<File> _fileFor(String packageName) async {
     final dir = await _ensureDir();
     final safe = packageName.replaceAll(RegExp(r'[\\/]'), '_');
@@ -95,7 +163,7 @@ class AppIconCache {
       final dir = await _ensureDir();
       final files = <({File file, DateTime modified})>[];
       for (final entity in await dir.list().toList()) {
-        if (entity is! File) continue;
+        if (entity is! File || !entity.path.endsWith('.png')) continue;
         try {
           files.add((file: entity, modified: (await entity.stat()).modified));
         } catch (_) {}

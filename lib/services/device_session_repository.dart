@@ -475,11 +475,15 @@ class DeviceSessionRepository {
     return _adbTool.openAppInfoSettings(_deviceId, packageName);
   }
 
-  /// Best-effort launcher icon for [packageName]: pulls its APK to a scratch
-  /// temp directory, extracts the icon via [ApkIconExtractor], then deletes
-  /// the pulled APK. Returns null on iOS (no icon extraction available) or
-  /// when extraction fails for any reason — never throws.
-  Future<Uint8List?> fetchAppIcon(String packageName) async {
+  /// Best-effort launcher icon and user-visible label for [packageName]:
+  /// pulls its APK to a scratch temp directory, extracts both via
+  /// [ApkIconExtractor], then deletes the pulled APK. Returns null on iOS (no
+  /// extraction available, and its installer already reports names) or when
+  /// the pull fails; either half is null when it can't be resolved — never
+  /// throws.
+  Future<({Uint8List? icon, String? label})?> fetchAppDetails(
+    String packageName,
+  ) async {
     if (device is! AndroidDevice) return null;
     File? localApk;
     try {
@@ -493,10 +497,10 @@ class DeviceSessionRepository {
       if (!await localApk.exists()) return null;
 
       final bytes = await localApk.readAsBytes();
-      return ApkIconExtractor.extractIconBytes(bytes);
+      return ApkIconExtractor.extractDetails(bytes);
     } catch (error) {
       _sessionLogger.error(
-        'Failed to fetch app icon for $packageName',
+        'Failed to fetch app details for $packageName',
         detail: error.toString(),
       );
       return null;

@@ -184,8 +184,9 @@ class FakeSessionService extends DeviceSessionRepository {
   final List<String> iconFetchRequests = [];
   final List<bool> listAppsIncludeSystemAppsRequests = [];
   Uint8List? iconToReturn;
+  Map<String, String> labelsToReturn = {};
 
-  /// When set, [fetchAppIcon] waits on this before resolving — lets tests hold
+  /// When set, [fetchAppDetails] waits on this before resolving — lets tests hold
   /// icon fetches in flight to observe concurrency/priority ordering.
   Completer<void>? iconGate;
 
@@ -225,11 +226,13 @@ class FakeSessionService extends DeviceSessionRepository {
   }
 
   @override
-  Future<Uint8List?> fetchAppIcon(String packageName) async {
+  Future<({Uint8List? icon, String? label})?> fetchAppDetails(
+    String packageName,
+  ) async {
     iconFetchRequests.add(packageName);
     final gate = iconGate;
     if (gate != null) await gate.future;
-    return iconToReturn;
+    return (icon: iconToReturn, label: labelsToReturn[packageName]);
   }
 
   // ── Device home feature ──────────────────────────────────────────────────

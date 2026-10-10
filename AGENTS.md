@@ -202,6 +202,13 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     would both act on one drop. `DeviceScreen`'s single target hit-tests for the zone under
     the pointer (`DropZone.at`, via `MetaData`) and hands it the drop — which is also why
     the screen-wide `DropOverlay` sits in an `IgnorePointer`.
+- **Apps pane names:** Android's package manager reports no app names, so the label is
+  read out of the same pulled APK as the icon (`ApkIconExtractor.extractDetails`, default
+  locale first) and cached across sessions by `AppIconCache` (`app_labels.json`). A label
+  that arrives mid-session renames the tile *without* re-sorting (tiles must not jump under
+  the cursor); the next refresh sorts by the new names. Grid/list mode and icon size are
+  global preferences, and the controller — not the view — owns the search text, so a
+  reopened pane re-seeds its field from it.
 - **Utilities feature:** a declarative catalog (`features/utilities/data/utility_catalog.dart`)
   of curated `adb` / `adb shell` commands with a libimobiledevice equivalent where one
   exists. Each `UtilityCommand` owns its label, params, confirmation text and a

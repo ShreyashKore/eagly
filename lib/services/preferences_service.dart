@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../features/apps/data/apps_view_options.dart';
 import '../features/logs/data/models/log_column.dart';
 import '../features/logs/data/models/log_level.dart';
 import '../features/logs/data/models/log_tab_settings.dart';
@@ -67,6 +68,8 @@ class PreferencesService {
   static const _keyCaptureDirectory = 'captureDirectory';
   static const _keyCaptureAskEveryTime = 'captureAskEveryTime';
   static const _keyAndroidSdkPath = 'androidSdkPath';
+  static const _keyAppsViewMode = 'appsViewMode';
+  static const _keyAppsIconSize = 'appsIconSize';
 
   /// Maximum number of recently opened log files retained for quick re-open.
   static const _maxRecentLogFiles = 10;
@@ -294,4 +297,16 @@ class PreferencesService {
       _ => null,
     };
   }
+
+  // --- Apps pane layout (shared by every device's Apps pane) ---
+
+  static AppsViewMode get appsViewMode =>
+      AppsViewMode.fromStored(_prefs.getString(_keyAppsViewMode));
+  static set appsViewMode(AppsViewMode v) =>
+      _prefs.setString(_keyAppsViewMode, v.name);
+
+  static AppIconSize get appsIconSize =>
+      AppIconSize.fromStored(_prefs.getString(_keyAppsIconSize));
+  static set appsIconSize(AppIconSize v) =>
+      _prefs.setString(_keyAppsIconSize, v.name);
 }

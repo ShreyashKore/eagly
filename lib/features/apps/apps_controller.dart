@@ -4,17 +4,23 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/device.dart';
 import '../../services/app_icon_cache.dart';
+import '../../services/preferences_service.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/utils.dart';
 import '../wireless_connection/data/wireless_debug_models.dart';
 import 'data/app_info.dart';
+import 'data/apps_view_options.dart';
 
 enum AppLoadState { idle, loading, ready, error }
 
 /// Per-device app-management feature. Owns the installed-app inventory,
-/// search/system-apps filters, per-app action busy state, and a small
-/// concurrency-limited icon cache (icons are fetched lazily, one per app
-/// tile, the first time that tile is built).
+/// search/system-apps filters, the (persisted) layout options, per-app action
+/// busy state, and a small concurrency-limited icon cache (icons are fetched
+/// lazily, one per app tile, the first time that tile is built).
+///
+/// Android's package manager doesn't report app names, so each icon fetch
+/// also reads the label out of the same pulled APK; labels are cached across
+/// sessions by [AppIconCache] and patched into [apps] as they arrive.
 ///
 /// Pane *visibility* lives on the owning [DeviceSessionController]; this
 /// controller only manages the feature's own data.
@@ -23,6 +29,9 @@ class AppsController extends FeatureController {
     : _iconStore = iconCache ?? AppIconCache.instance;
 
   static const int _maxConcurrentIconFetches = 4;
+
+  /// How many apps the pinned "recently installed" row shows at most.
+  static const int recentAppsLimit = 12;
 
   /// Maximum consecutive failed fetches before an app's icon is left alone for
   /// the rest of the session (its cached icon, if any, keeps showing).
@@ -44,6 +53,9 @@ class AppsController extends FeatureController {
   String _searchText = '';
   bool _showSystemApps = false;
   double paneWidth = 420;
+  AppsViewMode _viewMode = PreferencesService.appsViewMode;
+  AppIconSize _iconSize = PreferencesService.appsIconSize;
+  bool _recentExpanded = true;
 
   bool _busy = false;
   String? busyLabel;
@@ -93,6 +105,12 @@ class AppsController extends FeatureController {
   bool get isBusy => _busy;
   String get searchText => _searchText;
   bool get showSystemApps => _showSystemApps;
+  AppsViewMode get viewMode => _viewMode;
+  AppIconSize get iconSize => _iconSize;
+
+  /// Whether the pinned recently-installed row shows its apps or only its
+  /// header. Session-only, like [paneWidth].
+  bool get recentExpanded => _recentExpanded;
 
   /// Android exposes system apps via `pm list packages`; iOS's installer
   /// only ever lists user apps, so the toggle is meaningless there.
@@ -122,6 +140,19 @@ class AppsController extends FeatureController {
         .toList();
   }
 
+  /// The most recently installed or updated user apps, newest first, for the
+  /// row pinned above the inventory. Empty when the platform reports no
+  /// install times (iOS). System apps are left out: OTA and Play-system
+  /// updates would otherwise crowd out the apps the user actually installed.
+  List<AppInfo> get recentApps {
+    final dated =
+        _apps
+            .where((app) => !app.isSystemApp && app.lastChanged != null)
+            .toList()
+          ..sort((a, b) => b.lastChanged!.compareTo(a.lastChanged!));
+    return dated.take(recentAppsLimit).toList();
+  }
+
   bool isBusyWith(String packageName) => _busyPackages.contains(packageName);
   Uint8List? iconFor(String packageName) => _iconCache[packageName];
 
@@ -145,6 +176,11 @@ class AppsController extends FeatureController {
     }
     if (isLoading) return;
 
+    // Read the label cache alongside the (much slower) `listApps`, so it's
+    // usually ready by the time the list is — but never wait for it.
+    if (!_loadedOnce && device is AndroidDevice) {
+      unawaited(_iconStore.loadLabels().then((_) => _onLabelsLoaded()));
+    }
     _loadedOnce = true;
     loadState = AppLoadState.loading;
     error = null;
@@ -153,7 +189,7 @@ class AppsController extends FeatureController {
     try {
       final result = await service.listApps(includeSystemApps: _showSystemApps);
       if (_disposed) return;
-      _apps = result;
+      _apps = _applyCachedLabels(result);
       loadState = AppLoadState.ready;
       _notify();
     } catch (err) {
@@ -167,6 +203,40 @@ class AppsController extends FeatureController {
         unawaited(refresh());
       }
     }
+  }
+
+  /// Names Android apps from the label cache and re-sorts by that name. iOS
+  /// already reports names (and its own order), so it is left untouched, as
+  /// is everything while the cache is still being read.
+  List<AppInfo> _applyCachedLabels(List<AppInfo> apps) {
+    final labels = _iconStore.cachedLabels;
+    if (device is! AndroidDevice || labels == null) return apps;
+    return apps.map((app) {
+      final label = labels[app.packageName];
+      return app.appName == null && label != null
+          ? app.withAppName(label)
+          : app;
+    }).toList()..sort(
+      (a, b) =>
+          a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()),
+    );
+  }
+
+  /// The rare case where the inventory beat the label cache off the disk.
+  void _onLabelsLoaded() {
+    if (_disposed || _apps.isEmpty) return;
+    _apps = _applyCachedLabels(_apps);
+    _notify();
+  }
+
+  /// Patches a freshly read label into [apps] in place — deliberately without
+  /// re-sorting, so tiles don't jump around while the user is looking at
+  /// them; the next [refresh] sorts by the new names.
+  void _applyLabel(String package, String label) {
+    unawaited(_iconStore.storeLabel(package, label));
+    final index = _apps.indexWhere((app) => app.packageName == package);
+    if (index < 0 || _apps[index].appName == label) return;
+    _apps = List.of(_apps)..[index] = _apps[index].withAppName(label);
   }
 
   void setSearchText(String value) {
@@ -188,6 +258,25 @@ class AppsController extends FeatureController {
     } else {
       unawaited(refresh());
     }
+  }
+
+  void setViewMode(AppsViewMode mode) {
+    if (_viewMode == mode) return;
+    _viewMode = mode;
+    PreferencesService.appsViewMode = mode;
+    _notify();
+  }
+
+  void setIconSize(AppIconSize size) {
+    if (_iconSize == size) return;
+    _iconSize = size;
+    PreferencesService.appsIconSize = size;
+    _notify();
+  }
+
+  void toggleRecentExpanded() {
+    _recentExpanded = !_recentExpanded;
+    _notify();
   }
 
   void setPaneWidth(double width) {
@@ -349,15 +438,18 @@ class AppsController extends FeatureController {
 
   Future<void> _fetchIcon(String package) async {
     final signature = _iconPending[package];
-    Uint8List? bytes;
+    ({Uint8List? icon, String? label})? details;
     try {
-      bytes = await service.fetchAppIcon(package);
+      details = await service.fetchAppDetails(package);
     } catch (_) {
-      bytes = null;
+      details = null;
     }
     try {
       if (_disposed) return;
       _iconInFlight.remove(package);
+      final label = details?.label;
+      if (label != null) _applyLabel(package, label);
+      final bytes = details?.icon;
       if (bytes != null) {
         _iconPending.remove(package);
         _iconFailures.remove(package);
@@ -366,6 +458,7 @@ class AppsController extends FeatureController {
         unawaited(_iconStore.store(package, bytes));
         _notify();
       } else {
+        if (label != null) _notify();
         _handleIconFailure(package);
       }
     } finally {

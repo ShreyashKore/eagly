@@ -21,14 +21,21 @@ import 'package:collection/collection.dart';
 /// (malformed/unexpected chunk layout — real APKs vary a lot) is swallowed
 /// by returning null rather than throwing, so a bad icon never takes down
 /// the app list.
+///
+/// The same two parsers also yield the app's user-visible name
+/// ([extractDetails]): `android:label` on `<application>` is either a literal
+/// string or a reference into resources.arsc, resolved from the default
+/// (locale-less) configuration.
 class ApkIconExtractor {
   const ApkIconExtractor._();
 
+  static const int _androidAttrLabel = 0x01010001;
   static const int _androidAttrIcon = 0x01010002;
   static const int _androidAttrRoundIcon = 0x0101021c;
   static const int _androidAttrDrawable = 0x01010119;
 
   static const int _typeReference = 0x01;
+  static const int _typeString = 0x03;
 
   /// Below this size a "raster" icon is more likely a near-blank legacy
   /// placeholder (kept only for pre-API-26 compatibility) than real artwork,
@@ -37,23 +44,54 @@ class ApkIconExtractor {
 
   /// Returns the launcher icon's raw image bytes, or null when it can't be
   /// resolved (missing entries, unsupported vector-only icon, parse error).
-  static Uint8List? extractIconBytes(Uint8List apkBytes) {
+  static Uint8List? extractIconBytes(Uint8List apkBytes) =>
+      extractDetails(apkBytes).icon;
+
+  /// Launcher icon and app label in one pass over the APK. Either half is
+  /// null when it can't be resolved; never throws.
+  static ({Uint8List? icon, String? label}) extractDetails(Uint8List apkBytes) {
     try {
       final archive = ZipDecoder().decodeBytes(apkBytes, verify: false);
       final manifestBytes = _readEntry(archive, 'AndroidManifest.xml');
       final arscBytes = _readEntry(archive, 'resources.arsc');
-      if (manifestBytes == null || arscBytes == null) return null;
+      if (manifestBytes == null) return (icon: null, label: null);
 
-      final iconResId = _findApplicationIconResourceId(manifestBytes);
-      if (iconResId == null) return null;
+      final application = _AxmlParser.parseElements(
+        manifestBytes,
+      ).firstWhereOrNull((element) => element.name == 'application');
+      if (application == null) return (icon: null, label: null);
 
-      final table = _ResourceTable.parse(arscBytes);
-      if (table == null) return null;
-
-      return _resolveBestIconBytes(table, iconResId, archive);
+      final table = arscBytes == null ? null : _ResourceTable.parse(arscBytes);
+      final iconResId = _applicationIconResourceId(application);
+      Uint8List? icon;
+      if (table != null && iconResId != null) {
+        try {
+          icon = _resolveBestIconBytes(table, iconResId, archive);
+        } catch (_) {}
+      }
+      String? label;
+      try {
+        label = _resolveLabel(application, table);
+      } catch (_) {}
+      return (icon: icon, label: label);
     } catch (_) {
-      return null;
+      return (icon: null, label: null);
     }
+  }
+
+  static String? _resolveLabel(
+    _AxmlElement application,
+    _ResourceTable? table,
+  ) {
+    final value = application.attributesByResId[_androidAttrLabel];
+    if (value == null) return null;
+    final String? label = switch (value.dataType) {
+      _typeString => application.stringAt(value.data),
+      _typeReference => table?.resolveString(value.data),
+      _ => null,
+    };
+    final trimmed = label?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 
   static Uint8List? _resolveBestIconBytes(
@@ -109,15 +147,12 @@ class ApkIconExtractor {
     return file?.content;
   }
 
-  static int? _findApplicationIconResourceId(Uint8List manifestBytes) {
-    for (final element in _AxmlParser.parseElements(manifestBytes)) {
-      if (element.name != 'application') continue;
-      final icon = element.attributesByResId[_androidAttrIcon];
-      if (icon != null && icon.dataType == _typeReference) return icon.data;
-      final roundIcon = element.attributesByResId[_androidAttrRoundIcon];
-      if (roundIcon != null && roundIcon.dataType == _typeReference) {
-        return roundIcon.data;
-      }
+  static int? _applicationIconResourceId(_AxmlElement application) {
+    final icon = application.attributesByResId[_androidAttrIcon];
+    if (icon != null && icon.dataType == _typeReference) return icon.data;
+    final roundIcon = application.attributesByResId[_androidAttrRoundIcon];
+    if (roundIcon != null && roundIcon.dataType == _typeReference) {
+      return roundIcon.data;
     }
     return null;
   }
@@ -146,9 +181,13 @@ class _TypedValue {
 }
 
 class _AxmlElement {
-  const _AxmlElement(this.name, this.attributesByResId);
+  const _AxmlElement(this.name, this.attributesByResId, this._pool);
   final String name;
   final Map<int, _TypedValue> attributesByResId;
+  final _StringPool _pool;
+
+  /// Resolves a literal string attribute (whose data is a pool index).
+  String? stringAt(int index) => _pool.stringAt(index);
 }
 
 /// Minimal AXML walker: yields every start-element tag with its attributes
@@ -237,7 +276,7 @@ class _AxmlParser {
       }
     }
 
-    return _AxmlElement(name, attrsByResId);
+    return _AxmlElement(name, attrsByResId, pool);
   }
 }
 
@@ -390,6 +429,38 @@ class _ResourceTable {
     }
     return candidates;
   }
+
+  /// Resolves a string resource, preferring the default (locale-less)
+  /// configuration, then English, then whatever variant exists. Follows one
+  /// level of reference (`@string/a` → `@string/b`).
+  String? resolveString(int resourceId, {bool allowRecurse = true}) {
+    final packageId = (resourceId >> 24) & 0xFF;
+    final typeId = (resourceId >> 16) & 0xFF;
+    final entryId = resourceId & 0xFFFF;
+
+    final pkg = _packages.firstWhereOrNull((p) => p.id == packageId);
+    if (pkg == null) return null;
+
+    int rank(_ArscType type) => switch (type.language) {
+      '' => 0,
+      'en' => 1,
+      _ => 2,
+    };
+    final types = pkg.types.where((t) => t.id == typeId).toList()
+      ..sort((a, b) => rank(a).compareTo(rank(b)));
+    for (final type in types) {
+      final value = type.resolveEntryValue(entryId);
+      if (value == null) continue;
+      if (value.dataType == 0x03) {
+        final text = _globalStrings.stringAt(value.data);
+        if (text != null && text.trim().isNotEmpty) return text;
+      } else if (value.dataType == 0x01 && allowRecurse) {
+        final text = resolveString(value.data, allowRecurse: false);
+        if (text != null) return text;
+      }
+    }
+    return null;
+  }
 }
 
 class _ArscPackage {
@@ -427,6 +498,9 @@ class _ArscPackage {
 class _ArscType {
   final int id;
   final int density;
+
+  /// ISO-639 language of this config ('' for the default config).
+  final String language;
   final Uint8List _bytes;
   // Offset of the per-entry index/offset array (ResTable_type's `entries`
   // member for sparse/offset16, or the plain uint32 offset array), which
@@ -453,17 +527,28 @@ class _ArscType {
     final entriesStartRel = data.getUint32(chunkStart + 16, Endian.little);
 
     var density = 0;
+    var language = '';
     final configStart = chunkStart + 20;
     if (configStart + 4 <= bytes.length) {
       final configSize = data.getUint32(configStart, Endian.little);
       if (configSize >= 16 && configStart + 16 <= bytes.length) {
         density = data.getUint16(configStart + 14, Endian.little);
+        // ResTable_config.language: two ASCII chars, both 0 for the default
+        // config. (A set high bit means a packed 3-letter code — never 'en'.)
+        final first = data.getUint8(configStart + 8);
+        final second = data.getUint8(configStart + 9);
+        if (first != 0) {
+          language = (first & 0x80) != 0
+              ? '?'
+              : String.fromCharCodes([first, second]);
+        }
       }
     }
 
     return _ArscType(
       id,
       density,
+      language,
       bytes,
       chunkStart + headerSize,
       chunkStart + entriesStartRel,
@@ -476,6 +561,7 @@ class _ArscType {
   _ArscType(
     this.id,
     this.density,
+    this.language,
     this._bytes,
     this._offsetsStart,
     this._entriesStart,

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/apps/apps_controller.dart';
 import 'package:eagly/features/apps/data/app_info.dart';
+import 'package:eagly/features/apps/data/apps_view_options.dart';
 import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
 import 'package:eagly/services/app_icon_cache.dart';
 import 'package:eagly/services/preferences_service.dart';
@@ -32,6 +33,19 @@ class FakeAppIconCache implements AppIconCache {
   Future<void> store(String packageName, Uint8List bytes) async {
     memory[packageName] = bytes;
     storedPackages.add(packageName);
+  }
+
+  final Map<String, String> labels = {};
+
+  @override
+  Map<String, String>? get cachedLabels => labels;
+
+  @override
+  Future<Map<String, String>> loadLabels() async => labels;
+
+  @override
+  Future<void> storeLabel(String packageName, String label) async {
+    labels[packageName] = label;
   }
 }
 
@@ -348,5 +362,89 @@ void main() {
     expect(session!.logSessionManager.tabs.length, tabsBefore + 1);
     final tab = session!.logSessionManager.tabs.last;
     expect(tab.filter.conditions.single.value, 'com.example.a');
+  });
+
+  test(
+    'refresh names Android apps from the label cache and sorts by name',
+    () async {
+      final controller = createController();
+      iconCache.labels['com.zeta.mail'] = 'Aardvark Mail';
+      service.appsToReturn = const [
+        AppInfo(packageName: 'com.alpha.notes'),
+        AppInfo(packageName: 'com.zeta.mail'),
+      ];
+
+      await controller.refresh();
+
+      expect(controller.apps.map((a) => a.displayName), [
+        'Aardvark Mail',
+        'com.alpha.notes',
+      ]);
+    },
+  );
+
+  test('a fetched label renames the app in place and is cached', () {
+    fakeAsync((async) {
+      final controller = createController();
+      service.appsToReturn = const [
+        AppInfo(packageName: 'com.alpha.notes'),
+        AppInfo(packageName: 'com.zeta.mail'),
+      ];
+      unawaited(controller.refresh());
+      async.flushMicrotasks();
+      service.labelsToReturn = {'com.zeta.mail': 'Aardvark Mail'};
+
+      controller.ensureIconLoaded(controller.apps.last);
+      async.elapse(Duration.zero);
+
+      // Renamed but not re-sorted, so the tile doesn't jump under the cursor.
+      expect(controller.apps.map((a) => a.displayName), [
+        'com.alpha.notes',
+        'Aardvark Mail',
+      ]);
+      expect(iconCache.labels, {'com.zeta.mail': 'Aardvark Mail'});
+      controller.setSearchText('aardvark');
+      expect(controller.filteredApps.single.packageName, 'com.zeta.mail');
+    });
+  });
+
+  test('recentApps lists user apps by latest install or update', () async {
+    final controller = createController();
+    service.appsToReturn = [
+      AppInfo(packageName: 'old', installTime: DateTime(2026, 1, 1)),
+      AppInfo(
+        packageName: 'reinstalled',
+        installTime: DateTime(2025, 1, 1),
+        updateTime: DateTime(2026, 9, 1),
+      ),
+      AppInfo(packageName: 'new', installTime: DateTime(2026, 6, 1)),
+      AppInfo(
+        packageName: 'system',
+        isSystemApp: true,
+        installTime: DateTime(2026, 10, 1),
+      ),
+      const AppInfo(packageName: 'undated'),
+    ];
+    await controller.refresh();
+
+    expect(controller.recentApps.map((a) => a.packageName), [
+      'reinstalled',
+      'new',
+      'old',
+    ]);
+  });
+
+  test('view mode and icon size persist across controllers', () {
+    final first = createController();
+    first.setViewMode(AppsViewMode.list);
+    first.setIconSize(AppIconSize.large);
+
+    final second = AppsController(session!, iconCache: iconCache);
+    addTearDown(second.dispose);
+
+    expect(second.viewMode, AppsViewMode.list);
+    expect(second.iconSize, AppIconSize.large);
+    first.setViewMode(AppsViewMode.grid);
+    first.setIconSize(AppIconSize.medium);
   });
 }

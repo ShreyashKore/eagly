@@ -6,13 +6,16 @@ import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/overflow_toolbar.dart';
 import 'apps_controller.dart';
 import 'components/app_context_menu.dart';
+import 'components/app_list_row.dart';
 import 'components/app_tile.dart';
 import 'data/app_info.dart';
+import 'data/apps_view_options.dart';
 import '../../presentation/theme/app_theme.dart';
 
-/// Apps feature pane: lists installed apps as an icon grid with search and
-/// (Android) a system-apps toggle, and drives the per-app context menu
-/// actions. Owns the confirmation dialogs and snackbars for destructive
+/// Apps feature pane: lists installed apps as an icon grid or a detailed list
+/// (with a resizable icon), pins the most recently installed apps above them,
+/// offers search and (Android) a system-apps toggle, and drives the per-app
+/// context menu actions. Owns the confirmation dialogs and snackbars for destructive
 /// actions. [onClose] hides the pane (handled by the device screen).
 class AppsFeatureView extends FeatureView {
   const AppsFeatureView({
@@ -29,7 +32,22 @@ class AppsFeatureView extends FeatureView {
 
 class _AppsFeatureViewState extends State<AppsFeatureView> {
   AppsController get controller => widget.controller;
-  final TextEditingController _searchController = TextEditingController();
+
+  /// Seeded from the controller: the pane is rebuilt from scratch each time
+  /// it is reopened, but the controller (and so the active filter) outlives
+  /// it — an empty field over a filtered list would hide why apps are missing.
+  late final TextEditingController _searchController = TextEditingController(
+    text: controller.searchText,
+  );
+
+  @override
+  void didUpdateWidget(covariant AppsFeatureView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, controller) &&
+        _searchController.text != controller.searchText) {
+      _searchController.text = controller.searchText;
+    }
+  }
 
   @override
   void dispose() {
@@ -171,7 +189,7 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
         if (controller.apps.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }
-        return _buildGrid();
+        return _buildApps(context);
       case AppLoadState.error:
         return CenteredStateMessage(
           icon: Icons.apps_outlined,
@@ -194,38 +212,161 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
                 : 'This device has no apps to show.',
           );
         }
-        return _buildGrid();
+        return _buildApps(context);
     }
   }
 
-  Widget _buildGrid() {
+  /// The recently-installed row (pinned: it stays put while the inventory
+  /// under it scrolls) over the grid or list. The row steps aside while
+  /// searching, where it would only repeat matches.
+  Widget _buildApps(BuildContext context) {
+    final searching = controller.searchText.trim().isNotEmpty;
+    final recent = searching ? const <AppInfo>[] : controller.recentApps;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (recent.isNotEmpty) _buildRecentRow(context, recent),
+        Expanded(
+          child: switch (controller.viewMode) {
+            AppsViewMode.grid => _buildGrid(context),
+            AppsViewMode.list => _buildList(),
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentRow(BuildContext context, List<AppInfo> recent) {
+    final theme = Theme.of(context);
+    final iconSize = controller.iconSize.extent;
+    final tileWidth = iconSize + 40;
+    final tileHeight = appTileHeight(
+      context,
+      iconSize,
+      theme.textTheme.bodySmall,
+    );
+    final expanded = controller.recentExpanded;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: controller.toggleRecentExpanded,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 12, 4),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.schedule,
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const Gap(6),
+                  Expanded(
+                    child: Text(
+                      'Recently installed',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (expanded)
+            SizedBox(
+              height: tileHeight + 8,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                itemCount: recent.length,
+                itemBuilder: (context, index) {
+                  final app = recent[index];
+                  return SizedBox(
+                    width: tileWidth,
+                    child: _buildTile(context, app, iconSize),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGrid(BuildContext context) {
     final apps = controller.filteredApps;
+    final iconSize = controller.iconSize.extent;
     return GridView.builder(
       padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 92,
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: iconSize + 40,
         mainAxisSpacing: 8,
         crossAxisSpacing: 4,
-        childAspectRatio: 0.8,
+        mainAxisExtent: appTileHeight(
+          context,
+          iconSize,
+          Theme.of(context).textTheme.bodySmall,
+        ),
       ),
+      itemCount: apps.length,
+      itemBuilder: (context, index) =>
+          _buildTile(context, apps[index], iconSize),
+    );
+  }
+
+  Widget _buildTile(BuildContext context, AppInfo app, double iconSize) {
+    return AppTile(
+      key: ValueKey(app.packageName),
+      controller: controller,
+      app: app,
+      iconSize: iconSize,
+      onTap: controller.canLaunchApps ? () => _handleLaunch(app) : null,
+      onSecondaryTap: (position) => _showContextMenu(context, position, app),
+    );
+  }
+
+  Widget _buildList() {
+    final apps = controller.filteredApps;
+    final iconSize = controller.iconSize.extent;
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: apps.length,
       itemBuilder: (context, index) {
         final app = apps[index];
-        return AppTile(
+        return AppListRow(
           key: ValueKey(app.packageName),
           controller: controller,
           app: app,
+          iconSize: iconSize,
           onTap: controller.canLaunchApps ? () => _handleLaunch(app) : null,
-          onSecondaryTap: (position) => showAppContextMenu(
-            context,
-            position,
-            controller: controller,
-            app: app,
-            actions: _actions,
-            showSnackBar: _showSnackBar,
-          ),
+          onSecondaryTap: (position) =>
+              _showContextMenu(context, position, app),
         );
       },
+    );
+  }
+
+  void _showContextMenu(BuildContext context, Offset position, AppInfo app) {
+    showAppContextMenu(
+      context,
+      position,
+      controller: controller,
+      app: app,
+      actions: _actions,
+      showSnackBar: _showSnackBar,
     );
   }
 
@@ -314,8 +455,9 @@ class _Toolbar extends StatelessWidget {
           bottom: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
       ),
-      // The system-apps toggle collapses into the overflow menu (as a checked
-      // entry) before the search field is squeezed below its minimum.
+      // The layout options and the system-apps toggle collapse into the
+      // overflow menu before the search field is squeezed below its minimum
+      // (the system-apps switch first, as a checked entry).
       child: OverflowToolbar(
         spacing: 0,
         flexibleMinWidth: 140,
@@ -337,6 +479,8 @@ class _Toolbar extends StatelessWidget {
           ),
         ),
         actions: [
+          _viewModeAction(),
+          _iconSizeAction(context),
           if (controller.canShowSystemApps)
             ToolbarAction(
               icon: Icons.settings_applications_outlined,
@@ -355,6 +499,46 @@ class _Toolbar extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  ToolbarAction _viewModeAction() {
+    final isList = controller.viewMode == AppsViewMode.list;
+    return ToolbarAction(
+      icon: isList ? Icons.grid_view : Icons.view_list,
+      label: isList ? 'Grid view' : 'List view',
+      tooltip: isList ? 'Show as grid' : 'Show as list with details',
+      onPressed: () => controller.setViewMode(
+        isList ? AppsViewMode.grid : AppsViewMode.list,
+      ),
+    );
+  }
+
+  /// A size picker in the bar; in the overflow menu, where an action can't
+  /// open a submenu, the entry cycles to the next size instead.
+  ToolbarAction _iconSizeAction(BuildContext context) {
+    final current = controller.iconSize;
+    final next =
+        AppIconSize.values[(current.index + 1) % AppIconSize.values.length];
+    return ToolbarAction(
+      icon: Icons.photo_size_select_large,
+      label: 'Icon size: ${current.label}',
+      onPressed: () => controller.setIconSize(next),
+      barBuilder: (context, action) => PopupMenuButton<AppIconSize>(
+        tooltip: 'Icon size',
+        iconSize: 20,
+        icon: Icon(action.icon),
+        initialValue: current,
+        onSelected: controller.setIconSize,
+        itemBuilder: (context) => [
+          for (final size in AppIconSize.values)
+            CheckedPopupMenuItem(
+              value: size,
+              checked: size == current,
+              child: Text(size.label),
             ),
         ],
       ),
