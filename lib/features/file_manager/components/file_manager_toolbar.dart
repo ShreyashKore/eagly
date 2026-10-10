@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/components/app_icon_button.dart';
 import '../../../presentation/components/overflow_toolbar.dart';
 import '../file_manager_controller.dart';
 import '../../../presentation/theme/app_theme.dart';
@@ -48,33 +49,28 @@ class FileManagerToolbar extends StatelessWidget {
       child: OverflowToolbar(
         spacing: 0,
         leading: [
-          IconButton(
+          AppIconButton(
             tooltip: 'Back',
             iconSize: 20,
             onPressed: controller.canGoBack && !busy
                 ? controller.navigateBack
                 : null,
-            icon: const Icon(Icons.arrow_back),
+            icon: Icons.arrow_back,
           ),
-          IconButton(
+          AppIconButton(
             tooltip: 'Up one level',
             iconSize: 20,
             onPressed: controller.canGoUp && !busy
                 ? controller.navigateUp
                 : null,
-            icon: const Icon(Icons.arrow_upward),
+            icon: Icons.arrow_upward,
           ),
-          IconButton(
+          AppIconButton(
             tooltip: 'Refresh',
             iconSize: 20,
+            busy: controller.isLoading,
             onPressed: busy ? null : controller.refresh,
-            icon: controller.isLoading
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh),
+            icon: Icons.refresh,
           ),
         ],
         flexible: const SizedBox.shrink(),
@@ -118,11 +114,11 @@ class FileManagerToolbar extends StatelessWidget {
             ),
         ],
         trailing: [
-          IconButton(
+          AppIconButton(
             tooltip: 'Close files pane',
             iconSize: 20,
             onPressed: onClose,
-            icon: const Icon(Icons.close),
+            icon: Icons.close,
           ),
         ],
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import 'app_icon_button.dart';
 import '../theme/app_theme.dart';
 
 import 'overflow_toolbar.dart';
@@ -146,10 +147,11 @@ class FeatureViewHeader extends StatelessWidget {
         trailing: [
           ...trailing,
           if (onClose != null)
-            IconButton(
+            AppIconButton(
               tooltip: closeTooltip,
+              iconSize: 20,
               onPressed: onClose,
-              icon: const Icon(Icons.close),
+              icon: Icons.close,
             ),
         ],
       ),

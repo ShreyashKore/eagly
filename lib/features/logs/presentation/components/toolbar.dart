@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../../presentation/components/animation_utils.dart';
+import '../../../../presentation/components/app_icon_button.dart';
 import '../../../../presentation/components/overflow_toolbar.dart';
 import '../../log_controller.dart';
 import '../../log_session_manager.dart';
 import 'log_tab_strip.dart';
 import 'toolbar_divider.dart';
-import 'toolbar_icon_button.dart';
 
 /// Toolbar for the Logs feature: log-tab strip, capture controls
 /// (start/pause/clear), copy/row-selection, view toggles, export,
@@ -42,7 +42,8 @@ class Toolbar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
       child: OverflowToolbar(
-        actionBuilder: (context, action) => ToolbarIconButton(
+        actionBuilder: (context, action) => AppIconButton(
+          iconSize: 20,
           icon: action.icon,
           tooltip: action.tooltip ?? action.label,
           isActive: action.isActive,
@@ -55,7 +56,8 @@ class Toolbar extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ToolbarIconButton(
+                AppIconButton(
+                  iconSize: 20,
                   icon: c.isRunning
                       ? Icons.restart_alt_rounded
                       : Icons.play_arrow,
@@ -67,7 +69,8 @@ class Toolbar extends StatelessWidget {
                   onPressed: c.isConnected ? c.startLogcat : null,
                 ),
                 gap,
-                ToolbarIconButton(
+                AppIconButton(
+                  iconSize: 20,
                   icon: c.isPaused ? Icons.play_arrow : Icons.pause,
                   tooltip: c.isRunning
                       ? (c.isPaused ? 'Resume' : 'Pause')
@@ -76,7 +79,8 @@ class Toolbar extends StatelessWidget {
                   onPressed: c.isRunning ? c.togglePauseResume : null,
                 ),
                 gap,
-                ToolbarIconButton(
+                AppIconButton(
+                  iconSize: 20,
                   icon: Icons.delete_outline,
                   tooltip: c.logs.isNotEmpty
                       ? 'Clear logs'
@@ -164,7 +168,8 @@ class Toolbar extends StatelessWidget {
             children: [
               div,
               gap,
-              ToolbarIconButton(
+              AppIconButton(
+                iconSize: 20,
                 icon: Icons.close,
                 tooltip: 'Close logs pane',
                 onPressed: onClose,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../presentation/components/app_icon_button.dart';
 import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/feature_view.dart';
 import '../../presentation/theme/app_theme.dart';
@@ -350,12 +351,12 @@ class _SearchField extends StatelessWidget {
             prefixIcon: const Icon(Icons.search, size: 18),
             suffixIcon: onClear == null
                 ? null
-                : IconButton(
+                : AppIconButton(
                     tooltip: 'Clear search',
                     iconSize: 15,
-                    visualDensity: VisualDensity.compact,
+                    padding: 4,
                     onPressed: onClear,
-                    icon: const Icon(Icons.close),
+                    icon: Icons.close,
                   ),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),

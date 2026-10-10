@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'app_icon_button.dart';
 import '../../data/device.dart';
 import 'device_presentation.dart';
 import 'layout_constants.dart';
@@ -56,28 +57,22 @@ class AvailableDeviceCard extends StatelessWidget {
                 IosDevice() => Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
+                    AppIconButton(
                       tooltip: 'Install app',
-                      visualDensity: VisualDensity.compact,
                       onPressed: onInstallApp,
-                      icon: const Icon(
-                        Icons.app_registration_outlined,
-                        size: 18,
-                      ),
+                      icon: Icons.app_registration_outlined,
                     ),
-                    IconButton(
+                    AppIconButton(
                       tooltip: 'Copy UDID',
-                      visualDensity: VisualDensity.compact,
                       onPressed: _copyIosUdid,
-                      icon: const Icon(Icons.content_copy_outlined, size: 18),
+                      icon: Icons.content_copy_outlined,
                     ),
                   ],
                 ),
-                AndroidDevice() => IconButton(
+                AndroidDevice() => AppIconButton(
                   tooltip: 'Install app',
-                  visualDensity: VisualDensity.compact,
                   onPressed: onInstallApp,
-                  icon: const Icon(Icons.app_registration_outlined, size: 18),
+                  icon: Icons.app_registration_outlined,
                 ),
               },
             ],

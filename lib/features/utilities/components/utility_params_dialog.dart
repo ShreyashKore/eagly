@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../presentation/components/app_icon_button.dart';
 import '../../../data/device.dart';
 import '../../../presentation/components/eagly_dialog.dart';
 import '../../../presentation/theme/app_theme.dart';
@@ -302,12 +303,11 @@ class _SuggestionFieldState extends State<_SuggestionField> {
       controller: widget.controller,
       autofocus: widget.autofocus,
       decoration: widget.decoration.copyWith(
-        suffixIcon: IconButton(
+        suffixIcon: AppIconButton(
           tooltip: 'Suggestions',
           iconSize: 20,
-          visualDensity: VisualDensity.compact,
           onPressed: widget.param.options.isEmpty ? null : _openMenu,
-          icon: const Icon(Icons.arrow_drop_down),
+          icon: Icons.arrow_drop_down,
         ),
       ),
       onChanged: widget.onChanged,

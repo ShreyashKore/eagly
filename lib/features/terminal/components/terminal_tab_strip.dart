@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/components/app_icon_button.dart';
 import '../terminal_session_manager.dart';
 import 'terminal_tab_chip.dart';
 
@@ -47,25 +48,12 @@ class _TerminalTabStripState extends State<TerminalTabStrip> {
                 onTap: () => manager.selectTab(i),
                 onClose: manager.canClose(i) ? () => manager.closeTab(i) : null,
               ),
-            Tooltip(
-              message: 'New terminal tab',
-              child: IconButton(
-                onPressed: manager.addTab,
-                mouseCursor: SystemMouseCursors.click,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                icon: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 4,
-                  ),
-                  child: Icon(
-                    Icons.add,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
+            AppIconButton(
+              tooltip: 'New terminal tab',
+              onPressed: manager.addTab,
+              iconSize: 16,
+              padding: 4,
+              icon: Icons.add,
             ),
           ],
         ),

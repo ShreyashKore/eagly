@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../presentation/components/app_icon_button.dart';
 import '../../../data/device.dart';
 import '../../../session/device_session_controller.dart';
 import '../../../presentation/components/device_presentation.dart';
@@ -172,18 +173,12 @@ class _DeviceTabState extends State<DeviceTab> with TickerProviderStateMixin {
                             ],
                             if (onClose != null) ...[
                               const Gap(4),
-                              IconButton(
+                              AppIconButton(
                                 tooltip: 'Close tab',
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
-                                mouseCursor: SystemMouseCursors.click,
-                                constraints: const BoxConstraints(
-                                  minWidth: 28,
-                                  minHeight: 28,
-                                ),
                                 iconSize: 16,
+                                padding: 4,
                                 onPressed: onClose,
-                                icon: const Icon(Icons.close),
+                                icon: Icons.close,
                               ),
                             ] else
                               const Gap(6),

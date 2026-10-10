@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../presentation/components/app_icon_button.dart';
 import '../../data/device.dart';
 import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/eagly_dialog.dart';
@@ -230,17 +231,11 @@ class _EmulatorManagerDialogState extends State<EmulatorManagerDialog> {
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('New'),
               ),
-            IconButton(
+            AppIconButton(
               tooltip: 'Refresh',
-              onPressed: controller.isLoading
-                  ? null
-                  : () => unawaited(controller.refresh()),
-              icon: controller.isLoading
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.refresh_rounded),
+              busy: controller.isLoading,
+              onPressed: () => unawaited(controller.refresh()),
+              icon: Icons.refresh_rounded,
             ),
           ],
           child: Column(

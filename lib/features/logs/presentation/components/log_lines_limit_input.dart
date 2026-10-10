@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../presentation/components/app_icon_button.dart';
+
 class LogLinesLimitInput extends StatefulWidget {
   final void Function(bool) setEditingLogLinesLimit;
   final Function(int) submitLogLinesLimit;
@@ -56,13 +58,14 @@ class _LogLinesLimitInputState extends State<LogLinesLimitInput> {
         contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
         prefixText: 'Max lines: ',
         border: const OutlineInputBorder(),
-        suffix: IconButton(
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
+        suffix: AppIconButton(
+          tooltip: 'Apply',
+          iconSize: 14,
+          padding: 2,
           onPressed: () => widget.submitLogLinesLimit(
             int.tryParse(controller.text) ?? widget.logLinesLimit,
           ),
-          icon: const Icon(Icons.check, size: 14),
+          icon: Icons.check,
         ),
       ),
       onSubmitted: (value) => widget.submitLogLinesLimit(

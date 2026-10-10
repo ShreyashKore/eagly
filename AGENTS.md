@@ -354,6 +354,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   dividers, private helpers prefixed `_`, `unawaited(...)` for fire-and-forget futures.
 - Theme tokens come from the `EaglyTheme` extension: `context.eaglyTheme.<token>` (status
   colors, `warningColor`, `inlineNotice*`). Don't hardcode colors.
+- Icon-only buttons are `AppIconButton` (`presentation/components/app_icon_button.dart`),
+  never Material's `IconButton` — `test/app_icon_button_test.dart` fails on one in `lib/`.
+  Icons follow the app zoom, and `IconButton`'s theme-clamped box pushed a zoomed glyph
+  right and down; `AppIconButton` scales its box with the zoom and centres the icon, and
+  has the tooltip, focus ring, Enter/Space activation, `busy` and `isActive` built in.
 - Explanations for a user who looks stuck go in a `HintNote`
   (`presentation/components/hint_note.dart`) wrapped in a `DelayedReveal`
   (`presentation/components/delayed_reveal.dart`): the note is not built at all until the

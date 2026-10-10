@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../presentation/components/app_icon_button.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../log_controller.dart';
 import 'filter_bar_shared.dart';
@@ -319,13 +320,11 @@ class _IconAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
+    return AppIconButton(
       tooltip: tooltip,
       onPressed: onPressed,
-      icon: Icon(icon, size: 18),
-      padding: EdgeInsets.zero,
-      visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+      icon: icon,
+      padding: 5,
     );
   }
 }

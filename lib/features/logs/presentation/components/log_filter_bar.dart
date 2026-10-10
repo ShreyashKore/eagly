@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../presentation/components/anchored_popover.dart';
+import '../../../../presentation/components/app_icon_button.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../../../presentation/theme/log_level_presentation.dart';
 import '../../data/models/filter_condition.dart';
@@ -1584,13 +1585,11 @@ class _EditorHeader extends StatelessWidget {
         const SizedBox(width: 4),
         Flexible(child: operator),
         const Spacer(),
-        IconButton(
+        AppIconButton(
           tooltip: 'Delete filter',
           onPressed: onRemove,
-          icon: const Icon(Icons.delete_outline, size: 16),
-          visualDensity: VisualDensity.compact,
-          constraints: const BoxConstraints.tightFor(width: 28, height: 28),
-          padding: EdgeInsets.zero,
+          icon: Icons.delete_outline,
+          iconSize: 16,
         ),
       ],
     );

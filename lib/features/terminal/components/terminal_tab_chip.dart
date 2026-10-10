@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/components/app_icon_button.dart';
 import '../../../presentation/theme/app_theme.dart';
 
 /// A single chip in the terminal tab strip: label, a live dot while that tab
@@ -91,14 +92,13 @@ class TerminalTabChip extends StatelessWidget {
                 ),
                 if (onClose != null) ...[
                   const SizedBox(width: 10),
-                  IconButton(
+                  AppIconButton(
+                    tooltip: 'Close tab',
                     onPressed: onClose,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    icon: Icon(Icons.close, size: 12, color: fg),
+                    iconSize: 12,
+                    padding: 2,
+                    color: fg,
+                    icon: Icons.close,
                   ),
                 ] else
                   const SizedBox(width: 4),

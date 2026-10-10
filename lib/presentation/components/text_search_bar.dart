@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'app_icon_button.dart';
 import '../theme/app_theme.dart';
 import '../../utils/text_search_pattern.dart';
 
@@ -253,32 +254,29 @@ class _TextSearchBarState extends State<TextSearchBar> {
               const SizedBox(width: 2),
 
               // Previous match
-              IconButton(
+              AppIconButton(
                 iconSize: 16,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                padding: 4,
                 onPressed: widget.totalMatches > 0 ? widget.onPrevious : null,
-                icon: const Icon(Icons.keyboard_arrow_up),
+                icon: Icons.keyboard_arrow_up,
                 tooltip: 'Previous match',
               ),
 
               // Next match
-              IconButton(
+              AppIconButton(
                 iconSize: 16,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                padding: 4,
                 onPressed: widget.totalMatches > 0 ? widget.onNext : null,
-                icon: const Icon(Icons.keyboard_arrow_down),
+                icon: Icons.keyboard_arrow_down,
                 tooltip: 'Next match',
               ),
 
               // Close
-              IconButton(
+              AppIconButton(
                 iconSize: 16,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                padding: 4,
                 onPressed: widget.onClose,
-                icon: const Icon(Icons.close),
+                icon: Icons.close,
                 tooltip: widget.hasError && widget.errorText != null
                     ? 'Close search (Esc)\n${widget.errorText!}'
                     : 'Close search (Esc)',

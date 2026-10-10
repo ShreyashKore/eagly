@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/components/app_icon_button.dart';
+
 class HeaderAction extends StatelessWidget {
   const HeaderAction({
     super.key,
@@ -16,19 +18,17 @@ class HeaderAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
+    final icon = this.icon;
+    return AppIconButton(
       tooltip: tooltip,
       onPressed: onPressed,
-      mouseCursor: SystemMouseCursors.click,
-      icon: busy
-          ? const SizedBox.square(
-              dimension: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : icon is IconData
-          ? Icon(icon as IconData)
+      busy: busy,
+      iconSize: 20,
+      icon: icon is IconData ? icon : null,
+      child: icon is IconData
+          ? null
           : icon is Widget
-          ? icon as Widget
+          ? icon
           : const SizedBox.shrink(),
     );
   }

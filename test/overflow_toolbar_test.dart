@@ -49,7 +49,7 @@ void main() {
   testWidgets('collapses the trailing actions into the overflow menu', (
     tester,
   ) async {
-    await tester.pumpWidget(wrap(width: 260));
+    await tester.pumpWidget(wrap(width: 160));
 
     final visible = tester.widgetList(find.byIcon(Icons.star).hitTestable());
     expect(visible.length, lessThan(5));
@@ -130,7 +130,7 @@ void main() {
   });
 
   testWidgets('hidden actions are not hit-testable', (tester) async {
-    await tester.pumpWidget(wrap(width: 260));
+    await tester.pumpWidget(wrap(width: 160));
 
     // The last action is collapsed: its button is still in the tree but must
     // not receive taps.

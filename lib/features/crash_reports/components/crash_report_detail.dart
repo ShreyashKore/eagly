@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../presentation/components/app_icon_button.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../../../presentation/components/search_highlight.dart';
 import '../../../presentation/components/text_search_bar.dart';
@@ -88,7 +89,7 @@ class _CrashReportDetailState extends State<CrashReportDetail> {
                   ],
                 ),
               ),
-              IconButton(
+              AppIconButton(
                 tooltip: 'Copy report',
                 onPressed: body == null
                     ? null
@@ -100,7 +101,7 @@ class _CrashReportDetailState extends State<CrashReportDetail> {
                           ),
                         );
                       },
-                icon: const Icon(Icons.copy, size: 18),
+                icon: Icons.copy,
               ),
             ],
           ),
