@@ -137,10 +137,13 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
 - **Device model names:** iOS `ProductType`s map through `utils/apple_device_mapping.dart`;
   Android `brand`/`ro.product.device`/`ro.product.model` map to a marketing name ("Galaxy
   S23", not `SM-S911B`) through Google Play's supported-devices CSV
-  (`utils/android_device_mapping.dart`, cached in the app support dir, refreshed after 30
-  days). A device's own `ro.product.marketname` (`AndroidDevice.marketName`) wins over the
-  list, which is only consulted without one. The Android lookup never waits on the download: devices first show their raw
-  model, and `AndroidMarketingNames` notifies `DevicesRepository` to re-describe them when
+  (`utils/android_device_mapping.dart`, cached in the app support dir via write-then-rename,
+  refreshed after 30 days; a failed download retries on a timer, not on the next lookup).
+  Its parsing runs in `Isolate.run` from *static* helpers — a closure built in an instance
+  method captures `this`, whose timer and listeners can't cross isolates. A device's own
+  `ro.product.marketname` (`AndroidDevice.marketName`) wins over the list, which is only
+  consulted without one. The Android lookup never waits on the download: devices first
+  show their raw model, and `AndroidMarketingNames` notifies `DevicesRepository` to re-describe them when
   the list lands. `DevicesRepository.forTesting` has no lookup unless a test passes one.
 - **Hidden columns persist across tabs and launches** unless the user opts out
   (`PreferencesService.rememberHiddenColumns`, default on; toggled from the column popup's

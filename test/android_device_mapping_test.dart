@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/utils/android_device_mapping.dart';
@@ -65,5 +67,93 @@ void main() {
     ];
     expect(AndroidDeviceCatalog.decode(utf16le), _csv);
     expect(AndroidDeviceCatalog.decode(utf8.encode(_csv)), _csv);
+  });
+
+  group('AndroidMarketingNames', _loaderTests);
+}
+
+void _loaderTests() {
+  late HttpServer server;
+  late Directory cacheDirectory;
+  late int requests;
+  late int failuresLeft;
+  HttpOverrides? overrides;
+
+  setUp(() async {
+    // flutter_test stubs out HttpClient; these tests talk to a real (local)
+    // server.
+    overrides = HttpOverrides.current;
+    HttpOverrides.global = null;
+    requests = 0;
+    failuresLeft = 0;
+    cacheDirectory = await Directory.systemTemp.createTemp('eagly_android_');
+    server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((request) {
+      requests++;
+      if (failuresLeft > 0) {
+        failuresLeft--;
+        request.response.statusCode = 503;
+      } else {
+        request.response.add(utf8.encode(_csv));
+      }
+      request.response.close();
+    });
+    AndroidMarketingNames.retryDelay = const Duration(milliseconds: 50);
+  });
+
+  tearDown(() async {
+    HttpOverrides.global = overrides;
+    AndroidMarketingNames.retryDelay = const Duration(minutes: 10);
+    await server.close(force: true);
+    await cacheDirectory.delete(recursive: true);
+  });
+
+  AndroidMarketingNames names() {
+    final names = AndroidMarketingNames.forTesting(
+      url: Uri.parse('http://127.0.0.1:${server.port}/devices.csv'),
+      cacheDirectory: cacheDirectory,
+    );
+    addTearDown(names.dispose);
+    return names;
+  }
+
+  Future<void> changed(AndroidMarketingNames names) {
+    final done = Completer<void>();
+    names.addListener(() {
+      if (!done.isCompleted) done.complete();
+    });
+    return done.future.timeout(const Duration(seconds: 10));
+  }
+
+  test('a failed download retries on its own, then notifies', () async {
+    failuresLeft = 2;
+    final loader = names();
+    final arrived = changed(loader);
+
+    expect(await loader.lookup(model: 'SM-S911B'), isNull);
+    await arrived;
+
+    expect(requests, 3);
+    expect(await loader.lookup(model: 'SM-S911B'), 'Galaxy S23');
+  });
+
+  test('the list is cached whole and read back on the next launch', () async {
+    final first = names();
+    final arrived = changed(first);
+    await first.lookup(model: 'SM-S911B');
+    await arrived;
+
+    final files = cacheDirectory.listSync().map((f) => f.uri.pathSegments.last);
+    expect(files, ['android_supported_devices.csv']);
+    expect(
+      File(
+        '${cacheDirectory.path}/android_supported_devices.csv',
+      ).readAsStringSync(),
+      _csv,
+    );
+
+    final relaunched = names();
+    expect(await relaunched.lookup(model: 'SM-S911B'), 'Galaxy S23');
+    expect(requests, 1);
   });
 }

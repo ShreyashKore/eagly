@@ -19,10 +19,6 @@ const _cacheFileName = 'android_supported_devices.csv';
 /// land on the list every week, and a stale copy is still better than none.
 const _cacheMaxAge = Duration(days: 30);
 
-/// How long a failed download blocks the next attempt, so a machine without
-/// network access doesn't retry on every device that connects.
-const _failureBackoff = Duration(minutes: 10);
-
 const _downloadTimeout = Duration(seconds: 30);
 
 /// Marketing names for Android devices ("Galaxy S23" for `SM-S911B`), built
@@ -185,17 +181,38 @@ class _CatalogEntry {
 /// The list (~5 MB) is downloaded once and cached under the app support
 /// directory. A lookup never waits on the network: until a copy is on disk it
 /// answers null and starts the download, then notifies listeners once the list
-/// is in so callers can look again. A cached copy past [_cacheMaxAge] keeps
-/// answering while a fresh one downloads.
+/// is in so callers can look again. A failed download is retried every
+/// [retryDelay]. A cached copy past [_cacheMaxAge] keeps answering while a
+/// fresh one downloads.
 class AndroidMarketingNames extends ChangeNotifier {
-  AndroidMarketingNames._();
+  AndroidMarketingNames._(this._url, this._cacheDirectory);
 
-  static final AndroidMarketingNames instance = AndroidMarketingNames._();
+  /// Loads from [url] and caches in [cacheDirectory] instead of Google Play
+  /// and the app support directory.
+  @visibleForTesting
+  AndroidMarketingNames.forTesting({
+    required Uri url,
+    required Directory cacheDirectory,
+  }) : this._(url, () async => cacheDirectory);
+
+  static final AndroidMarketingNames instance = AndroidMarketingNames._(
+    Uri.parse(_supportedDevicesUrl),
+    getApplicationSupportDirectory,
+  );
+
+  /// How long after a failed download the next attempt starts. Retries run
+  /// on their own rather than waiting for a lookup, so a device described
+  /// while offline still gets its name once the network is back.
+  @visibleForTesting
+  static Duration retryDelay = const Duration(minutes: 10);
+
+  final Uri _url;
+  final Future<Directory> Function() _cacheDirectory;
 
   AndroidDeviceCatalog? _catalog;
   Future<void>? _diskLoad;
   Future<void>? _download;
-  DateTime? _lastFailureAt;
+  Timer? _retryTimer;
 
   /// The marketing name Google Play lists for a device, or null when it is
   /// not listed or the list isn't available yet.
@@ -208,12 +225,7 @@ class AndroidMarketingNames extends ChangeNotifier {
     try {
       final file = await _cacheFile();
       if (await file.exists()) {
-        final path = file.path;
-        final catalog = await Isolate.run(
-          () => AndroidDeviceCatalog.parse(
-            AndroidDeviceCatalog.decode(File(path).readAsBytesSync()),
-          ),
-        );
+        final catalog = await _parseFileInIsolate(file.path);
         if (!catalog.isEmpty) {
           _catalog = catalog;
           final age = DateTime.now().difference(await file.lastModified());
@@ -228,19 +240,14 @@ class AndroidMarketingNames extends ChangeNotifier {
   }
 
   void _startDownload(File cacheFile) {
-    final failedAt = _lastFailureAt;
-    if (_download != null ||
-        (failedAt != null &&
-            DateTime.now().difference(failedAt) < _failureBackoff)) {
-      return;
-    }
+    if (_download != null || (_retryTimer?.isActive ?? false)) return;
     _download = _downloadTo(cacheFile).whenComplete(() => _download = null);
   }
 
   Future<void> _downloadTo(File cacheFile) async {
     final client = HttpClient()..connectionTimeout = _downloadTimeout;
     try {
-      final request = await client.getUrl(Uri.parse(_supportedDevicesUrl));
+      final request = await client.getUrl(_url);
       final response = await request.close().timeout(_downloadTimeout);
       if (response.statusCode != 200) {
         throw HttpException('Supported devices list: ${response.statusCode}');
@@ -249,29 +256,58 @@ class AndroidMarketingNames extends ChangeNotifier {
           .fold<BytesBuilder>(BytesBuilder(copy: false), (b, d) => b..add(d))
           .timeout(_downloadTimeout)
           .then((builder) => builder.takeBytes());
-      final catalog = await Isolate.run(
-        () => AndroidDeviceCatalog.parse(AndroidDeviceCatalog.decode(data)),
-      );
+      final catalog = await _parseInIsolate(data);
       if (catalog.isEmpty) throw const FormatException('Empty device list');
       _catalog = catalog;
-      try {
-        await cacheFile.parent.create(recursive: true);
-        await cacheFile.writeAsBytes(data, flush: true);
-      } catch (_) {
-        // Ignore cache write errors.
-      }
+      await _writeCache(cacheFile, data);
       notifyListeners();
     } catch (_) {
-      _lastFailureAt = DateTime.now();
-      // The next lookup after the backoff tries again.
-      _diskLoad = null;
+      _retryTimer = Timer(retryDelay, () => _startDownload(cacheFile));
     } finally {
       client.close(force: true);
     }
   }
 
-  static Future<File> _cacheFile() async {
-    final support = await getApplicationSupportDirectory();
-    return File('${support.path}${Platform.pathSeparator}$_cacheFileName');
+  // Static so the isolate closures capture only their argument: one built in
+  // an instance method would also capture `this`, whose timer and listeners
+  // can't be sent to another isolate.
+  static Future<AndroidDeviceCatalog> _parseFileInIsolate(String path) =>
+      Isolate.run(
+        () => AndroidDeviceCatalog.parse(
+          AndroidDeviceCatalog.decode(File(path).readAsBytesSync()),
+        ),
+      );
+
+  static Future<AndroidDeviceCatalog> _parseInIsolate(List<int> data) =>
+      Isolate.run(
+        () => AndroidDeviceCatalog.parse(AndroidDeviceCatalog.decode(data)),
+      );
+
+  /// Writes [data] beside [cacheFile] and renames it into place, so a crash
+  /// mid-write leaves the previous copy (or none) rather than a truncated one
+  /// that would look fresh for [_cacheMaxAge].
+  static Future<void> _writeCache(File cacheFile, List<int> data) async {
+    final temp = File('${cacheFile.path}.download');
+    try {
+      await cacheFile.parent.create(recursive: true);
+      await temp.writeAsBytes(data, flush: true);
+      await temp.rename(cacheFile.path);
+    } catch (_) {
+      // Ignore cache write errors; the list is still in memory.
+      try {
+        if (await temp.exists()) await temp.delete();
+      } catch (_) {}
+    }
+  }
+
+  Future<File> _cacheFile() async {
+    final directory = await _cacheDirectory();
+    return File('${directory.path}${Platform.pathSeparator}$_cacheFileName');
+  }
+
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
   }
 }
