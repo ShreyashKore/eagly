@@ -9,6 +9,7 @@ class RailButton extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     this.enabled = true,
+    this.busy = false,
   });
 
   final IconData icon;
@@ -17,6 +18,10 @@ class RailButton extends StatelessWidget {
   final String tooltip;
   final VoidCallback? onTap;
   final bool enabled;
+
+  /// Spins a progress ring around the icon — for a long-running action the
+  /// button started, such as an app install.
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +52,32 @@ class RailButton extends StatelessWidget {
               width: double.infinity,
               child: Column(
                 children: [
-                  Icon(icon, size: 22, color: foreground),
+                  // The ring spills 3px into the padding, so a busy button
+                  // keeps its height and the rail doesn't shift.
+                  SizedBox.square(
+                    dimension: 22,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      clipBehavior: Clip.none,
+                      children: [
+                        if (busy)
+                          Positioned.fill(
+                            left: -3,
+                            top: -3,
+                            right: -3,
+                            bottom: -3,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.primary,
+                              backgroundColor: colorScheme.primary.withValues(
+                                alpha: 0.15,
+                              ),
+                            ),
+                          ),
+                        Icon(icon, size: busy ? 14 : 22, color: foreground),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   FittedBox(
                     child: Text(

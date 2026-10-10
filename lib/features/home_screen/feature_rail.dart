@@ -173,11 +173,12 @@ class FeatureRail extends StatelessWidget {
                                     onTap: session.toggleTerminal,
                                   ),
                                 RailButton(
-                                  icon: session.isInstallingApp
-                                      ? Icons.hourglass_top_rounded
-                                      : Icons.system_update_outlined,
-                                  label: 'Install',
+                                  icon: Icons.system_update_outlined,
+                                  label: session.isInstallingApp
+                                      ? 'Installing'
+                                      : 'Install',
                                   isActive: session.isInstallingApp,
+                                  busy: session.isInstallingApp,
                                   enabled: session.isConnected,
                                   tooltip: session.isInstallingApp
                                       ? (session.installingAppName == null

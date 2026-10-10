@@ -204,7 +204,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   dropped paths — installable bundles (`.apk` on Android / `.ipa` on iOS, classified by
   `AppInstallService.inferSupportedPlatform`) go to `installAppFromPath()`; everything else
   is copied onto the device via `FileManagerController.copyExternalFiles()`. Installs run
-  one-at-a-time behind a per-device guard.
+  one-at-a-time behind a per-device guard. While one runs, the rail's Install button spins
+  and `InstallProgressBanner` floats over the panes (app, device, elapsed time). The tools
+  report no percentage, so progress is indeterminate; `installStartedAt` lives on the
+  controller so the elapsed time survives switching tabs.
   - **Dropping onto the Files pane** copies into the folder it shows instead, and an
     installable for this device first asks *Install* or *Copy*; other-platform installables
     are copied there rather than rejected. The pane is a `DropZone`

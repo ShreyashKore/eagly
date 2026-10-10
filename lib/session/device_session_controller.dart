@@ -383,9 +383,14 @@ class DeviceSessionController extends ChangeNotifier {
   // ── App install (device-level) ──────────────────────────────────────────
   bool _isInstallingApp = false;
   String? _installingAppName;
+  DateTime? _installStartedAt;
 
   bool get isInstallingApp => _isInstallingApp;
   String? get installingAppName => _installingAppName;
+
+  /// When the running install began — kept here rather than in the progress
+  /// banner so its elapsed time survives switching device tabs.
+  DateTime? get installStartedAt => _installStartedAt;
 
   Future<AppInstallResult> installAppFromPicker() async {
     if (!isConnected) {
@@ -459,6 +464,7 @@ class DeviceSessionController extends ChangeNotifier {
 
     _isInstallingApp = true;
     _installingAppName = fileName;
+    _installStartedAt = DateTime.now();
     AppBreadcrumbs.action(
       'Installing $fileName on ${device.displayName}',
       category: 'install',
@@ -499,6 +505,7 @@ class DeviceSessionController extends ChangeNotifier {
     } finally {
       _isInstallingApp = false;
       _installingAppName = null;
+      _installStartedAt = null;
       _notify();
     }
   }

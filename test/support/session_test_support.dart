@@ -128,9 +128,14 @@ class FakeSessionService extends DeviceSessionRepository {
     recoverCount++;
   }
 
+  /// When set, [installApp] waits on it, so a test can look at the UI
+  /// while an install is still running.
+  Completer<void>? installGate;
+
   @override
   Future<DeviceCommandResult> installApp({required String filePath}) async {
     installRequests.add(filePath);
+    await installGate?.future;
     return installResult;
   }
 
