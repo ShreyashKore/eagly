@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/data/device.dart';
 import 'package:eagly/services/devices_repository.dart';
@@ -84,6 +85,78 @@ void main() {
       expect(repository.devices.single.brand, 'Google');
       expect(repository.devices.single.model, 'Pixel 8');
       expect(repository.devices.single.name, 'husky');
+    },
+  );
+
+  test('Android models are shown by their marketing name', () async {
+    final lookups = <String>[];
+    final namesChanged = ChangeNotifier();
+    String? listed;
+    final repository = DevicesRepository.forTesting(
+      adbTool: adbTool,
+      iosDeviceService: iosDevicesService,
+      androidMarketingName: ({brand, device, model}) async {
+        lookups.add('$brand/$device/$model');
+        return listed;
+      },
+      androidMarketingNamesChanged: namesChanged,
+    );
+    addTearDown(repository.dispose);
+    adbTool.androidDevices = [
+      Device('R5CW1234', 'device', platform: DevicePlatform.android),
+    ];
+    adbTool.androidDescriptions['R5CW1234'] = Device(
+      'R5CW1234',
+      'device',
+      brand: 'Samsung',
+      model: 'SM-S911B',
+      name: 'dm1q',
+      platform: DevicePlatform.android,
+    );
+
+    // The list hasn't arrived yet: the raw model stands in.
+    await repository.refreshDevices(force: true);
+    expect(lookups, ['Samsung/dm1q/SM-S911B']);
+    expect(repository.devices.single.model, 'SM-S911B');
+
+    // Once it does, the device is described again and renamed.
+    listed = 'Galaxy S23';
+    namesChanged.notifyListeners();
+    await pumpEventQueue();
+    expect(repository.devices.single.model, 'Galaxy S23');
+    expect(repository.devices.single.name, 'dm1q');
+    expect(adbTool.describeAndroidDeviceCalls['R5CW1234'], 2);
+  });
+
+  test(
+    'a device that names itself keeps its own name over the Play list',
+    () async {
+      final lookups = <String>[];
+      final repository = DevicesRepository.forTesting(
+        adbTool: adbTool,
+        iosDeviceService: iosDevicesService,
+        androidMarketingName: ({brand, device, model}) async {
+          lookups.add('$brand/$device/$model');
+          return 'Redmi Note 12';
+        },
+      );
+      addTearDown(repository.dispose);
+      adbTool.androidDevices = [
+        Device('8a7f3c', 'device', platform: DevicePlatform.android),
+      ];
+      adbTool.androidDescriptions['8a7f3c'] = const AndroidDevice(
+        '8a7f3c',
+        'device',
+        brand: 'Redmi',
+        model: '23021RAAEG',
+        name: 'sapphire',
+        marketName: 'Redmi Note 12 4G',
+      );
+
+      await repository.refreshDevices(force: true);
+
+      expect(repository.devices.single.model, 'Redmi Note 12 4G');
+      expect(lookups, isEmpty);
     },
   );
 

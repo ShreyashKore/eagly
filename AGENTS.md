@@ -134,6 +134,14 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   names devices by brand and model alone — no serial, no owner-given name — in tabs, titles and
   messages; a tab then adds its serial only when another would read the same
   (`DeviceTabStrip.ambiguousLabels`). Outside record mode labels are unchanged.
+- **Device model names:** iOS `ProductType`s map through `utils/apple_device_mapping.dart`;
+  Android `brand`/`ro.product.device`/`ro.product.model` map to a marketing name ("Galaxy
+  S23", not `SM-S911B`) through Google Play's supported-devices CSV
+  (`utils/android_device_mapping.dart`, cached in the app support dir, refreshed after 30
+  days). A device's own `ro.product.marketname` (`AndroidDevice.marketName`) wins over the
+  list, which is only consulted without one. The Android lookup never waits on the download: devices first show their raw
+  model, and `AndroidMarketingNames` notifies `DevicesRepository` to re-describe them when
+  the list lands. `DevicesRepository.forTesting` has no lookup unless a test passes one.
 - **Hidden columns persist across tabs and launches** unless the user opts out
   (`PreferencesService.rememberHiddenColumns`, default on; toggled from the column popup's
   last row and in Settings). The write happens in `LogViewer`'s popup handler, not in

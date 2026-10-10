@@ -165,11 +165,17 @@ final class AndroidDevice extends Device {
     super.name,
     super.connectionState,
     this.serialNumber,
+    this.marketName,
   }) : super._();
 
   /// Underlying device serial number, populated when available (e.g. from
   /// `adb shell getprop ro.serialno`). Used internally for deduplication.
   final String? serialNumber;
+
+  /// The marketing name the device reports for itself
+  /// (`ro.product.marketname`), when it sets one. [model] stays the raw
+  /// `ro.product.model`; `DevicesRepository` decides which one is shown.
+  final String? marketName;
 
   @override
   DevicePlatform get platform => DevicePlatform.android;
@@ -191,6 +197,7 @@ final class AndroidDevice extends Device {
     DevicePlatform? platform,
     DeviceConnectionState? connectionState,
     String? serialNumber,
+    String? marketName,
   }) {
     return AndroidDevice(
       id ?? this.id,
@@ -200,6 +207,7 @@ final class AndroidDevice extends Device {
       name: name ?? this.name,
       connectionState: connectionState ?? this.connectionState,
       serialNumber: serialNumber ?? this.serialNumber,
+      marketName: marketName ?? this.marketName,
     );
   }
 
