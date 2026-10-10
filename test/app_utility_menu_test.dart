@@ -168,7 +168,7 @@ void main() {
       await tester.tap(find.text('Grant permission…'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Suggestions'));
+      await tester.tap(find.byTooltip('Show all suggestions'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Microphone'));
       await tester.pumpAndSettle();

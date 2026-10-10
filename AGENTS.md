@@ -243,8 +243,9 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   only read-only ones opt in. Params whose useful values are known but not
   exhaustive (permissions, `dumpsys` services, screen sizes) use
   `UtilityParam.suggestion` with a list from
-  `features/utilities/data/utility_suggestions.dart` — a text field with a
-  dropdown, never a whitelist.
+  `features/utilities/data/utility_suggestions.dart` — rendered as a `ComboField`
+  (`presentation/components/combo_field.dart`): a searchable, keyboard-driven
+  dropdown over a text field, never a whitelist.
 - **Terminal feature:** free-form `adb` / libimobiledevice command entry, multi-tab like
   Logs (`TerminalSessionManager`; first tab permanent). Each `TerminalController` owns a
   scrollback, a history and a *target device*, and the point of the feature is that the
