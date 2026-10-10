@@ -1272,15 +1272,15 @@ class LogController extends FeatureController {
 
     if (!isConnected) {
       _enterInterruptedState(
-        'Live logging stopped — ${device.displayName} disconnected. '
-        'Reconnect the device, then restart logging or open a new tab.',
+        '${device.displayName} disconnected. Reconnect it, then restart '
+        'logging or open a new tab.',
       );
       return;
     }
 
     if (logcatState == LogcatState.paused) {
       _enterInterruptedState(
-        'Live logging stopped while paused. Resume to reconnect, or open a '
+        'The stream dropped while paused. Resume to reconnect, or open a '
         'new tab.',
       );
       return;
@@ -1288,8 +1288,8 @@ class LogController extends FeatureController {
 
     if (_recoveryAttempts >= _maxAutoRecoveryAttempts) {
       _enterInterruptedState(
-        'Live logging stopped and could not be resumed automatically. '
-        'Restart logging or open a new tab.',
+        'It could not be resumed automatically. Restart logging or open a '
+        'new tab.',
       );
       return;
     }
@@ -1317,7 +1317,8 @@ class LogController extends FeatureController {
       if (_disposed || logcatState == LogcatState.stopped) return;
       if (!isConnected) {
         _enterInterruptedState(
-          'Live logging stopped — ${device.displayName} disconnected.',
+          '${device.displayName} disconnected. Reconnect it, then restart '
+          'logging or open a new tab.',
         );
         return;
       }

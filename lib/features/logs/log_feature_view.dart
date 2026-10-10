@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:gap/gap.dart';
 
 import 'data/models/log_entry.dart';
 import '../../session/device_session_controller.dart';
 import '../../presentation/theme/app_theme.dart';
 import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/feature_view.dart';
+import '../../presentation/components/notice_banner.dart';
 import 'presentation/components/log_viewer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/log_feedback.dart';
@@ -136,54 +136,28 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
     BuildContext context,
     LogController controller,
   ) {
-    final warning = context.eaglyTheme.warningColor;
-    final connected = session.isConnected;
-    final message =
-        controller.liveLoggingInterruptionMessage ??
-        'Live logging has stopped.';
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: warning.withValues(alpha: 0.14),
-        border: Border(
-          top: BorderSide(color: warning.withValues(alpha: 0.4)),
-          bottom: BorderSide(color: warning.withValues(alpha: 0.4)),
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-      child: Row(
-        children: [
-          Icon(Icons.warning_amber_rounded, size: 18, color: warning),
-          const Gap(10),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                color: warning,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          const Gap(8),
-          TextButton.icon(
-            onPressed: connected
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: NoticeBanner(
+        edgeToEdge: true,
+        icon: session.isConnected
+            ? Icons.warning_amber_rounded
+            : Icons.usb_off_rounded,
+        title: 'Live logging stopped',
+        message: controller.liveLoggingInterruptionMessage,
+        actions: [
+          NoticeButton(
+            primary: true,
+            icon: Icons.restart_alt_rounded,
+            label: 'Restart logging',
+            onPressed: session.isConnected
                 ? () => unawaited(controller.resumeLiveLogging())
                 : null,
-            icon: const Icon(Icons.restart_alt_rounded, size: 16),
-            label: const Text('Restart logging'),
-            style: TextButton.styleFrom(foregroundColor: warning),
           ),
-          const Gap(4),
-          TextButton.icon(
+          NoticeButton(
+            icon: Icons.add,
+            label: 'New tab',
             onPressed: logManager.addLiveTab,
-            icon: const Icon(Icons.add, size: 16),
-            label: const Text('New tab'),
-            style: TextButton.styleFrom(
-              foregroundColor: context.eaglyTheme.inlineNoticeForeground,
-            ),
           ),
         ],
       ),

@@ -3,6 +3,7 @@ import 'package:gap/gap.dart';
 
 import '../../../app_menu/intents.dart';
 import '../../../data/device.dart';
+import '../../../presentation/components/notice_banner.dart';
 import '../../../presentation/theme/app_theme.dart';
 import 'home_primitives.dart';
 
@@ -23,8 +24,6 @@ class DisconnectedBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final accent = context.eaglyTheme.warningColor;
     final seen = lastUpdatedAt;
 
     final subtitle = hasSnapshot
@@ -33,69 +32,18 @@ class DisconnectedBanner extends StatelessWidget {
               ' — values below are frozen.'
         : 'Reconnect the device to see its vitals and use its features.';
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: context.scaled(34),
-            height: context.scaled(34),
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.usb_off_rounded, size: 18, color: accent),
-          ),
-          const Gap(12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${device.displayName} disconnected',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Gap(2),
-                Text(
-                  subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Gap(12),
-          const _ReloadButton(),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReloadButton extends StatelessWidget {
-  const _ReloadButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        FilledButton.tonalIcon(
+    return NoticeBanner(
+      icon: Icons.usb_off_rounded,
+      title: '${device.displayName} disconnected',
+      message: subtitle,
+      actions: [
+        NoticeButton(
+          primary: true,
+          icon: Icons.refresh_rounded,
+          label: 'Reload devices',
           onPressed: () =>
               Actions.maybeInvoke(context, const ReloadDevicesIntent()),
-          icon: const Icon(Icons.refresh_rounded, size: 17),
-          label: const Text('Reload devices'),
         ),
-        const Gap(8),
         KeyCap(label: acceleratorLabel('R', shift: true)),
       ],
     );
