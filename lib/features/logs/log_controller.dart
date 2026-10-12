@@ -1335,7 +1335,7 @@ class LogController extends FeatureController {
           _scheduleRecovery(reconnect: true);
         } else {
           _enterInterruptedState(
-            'Live logging stopped — ${device.displayName} is not responding. '
+            '${device.displayName} is not responding. '
             'Restart logging or open a new tab.',
           );
         }

@@ -7,10 +7,12 @@ import '../theme/app_theme.dart';
 /// and a few [actions] — shared by the panes that report a dropped device or
 /// stream (the logs pane, the device dashboard).
 ///
-/// Its actions sit beside the text while the notice is at least
-/// [wideBreakpoint] wide, and wrap *under* the text below that. A row of
-/// buttons beside the text in a narrow pane squeezes the text into a tall,
-/// thin column, which is what made the old banners take so much height.
+/// Its actions sit beside the text only when both fit on one row with the
+/// text given a comfortable reading width ([textWidth], or less if the text
+/// is shorter); otherwise they wrap *under* the text. The decision measures
+/// the real text and buttons, so it holds at any zoom and message length. A
+/// row of buttons beside the text in a narrow pane squeezes the text into a
+/// tall, thin column, which is what made the old banners take so much height.
 class NoticeBanner extends StatelessWidget {
   const NoticeBanner({
     super.key,
@@ -20,7 +22,7 @@ class NoticeBanner extends StatelessWidget {
     this.actions = const [],
     this.color,
     this.edgeToEdge = false,
-    this.wideBreakpoint = 640,
+    this.textWidth = 440,
   });
 
   final IconData icon;
@@ -38,7 +40,10 @@ class NoticeBanner extends StatelessWidget {
   /// instead of a rounded card.
   final bool edgeToEdge;
 
-  final double wideBreakpoint;
+  /// The widest the text runs before wrapping, unscaled. Actions go beside
+  /// the text only if this much room (or the text's own width, if shorter)
+  /// is left for it.
+  final double textWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -100,35 +105,30 @@ class NoticeBanner extends StatelessWidget {
             ? Border(top: rule, bottom: rule)
             : Border.fromBorderSide(rule),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final wide =
-              actions.isEmpty || constraints.maxWidth >= wideBreakpoint;
-          if (wide) {
-            return Row(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          badge,
+          const Gap(10),
+          Expanded(
+            // Lays its children in a row when they fit side by side, and
+            // stacks them otherwise.
+            child: OverflowBar(
+              spacing: 12,
+              overflowSpacing: 6,
+              alignment: MainAxisAlignment.spaceBetween,
               children: [
-                badge,
-                const Gap(10),
-                Expanded(child: text),
-                if (actions.isNotEmpty) ...[const Gap(12), actionBar],
-              ],
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              badge,
-              const Gap(10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [text, const Gap(6), actionBar],
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: context.scaled(textWidth),
+                  ),
+                  child: text,
                 ),
-              ),
-            ],
-          );
-        },
+                if (actions.isNotEmpty) actionBar,
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
