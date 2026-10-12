@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../presentation/components/app_icon_button.dart';
 import '../../../presentation/components/overflow_toolbar.dart';
+import '../../../presentation/components/workspace_pane_scope.dart';
 import '../file_manager_controller.dart';
 import '../../../presentation/theme/app_theme.dart';
 
@@ -12,6 +13,10 @@ import '../../../presentation/theme/app_theme.dart';
 ///
 /// Navigation and the close button are always visible; the actions in between
 /// collapse into an overflow menu (last one first) when the pane is narrow.
+/// In the device workspace a [PaneGrip] leads the bar and the empty stretch
+/// after navigation drags the pane like a title bar; while the pane sits in
+/// a tab group its chip is the handle and has the close button, so the bar
+/// shows neither.
 class FileManagerToolbar extends StatelessWidget {
   const FileManagerToolbar({
     super.key,
@@ -49,6 +54,7 @@ class FileManagerToolbar extends StatelessWidget {
       child: OverflowToolbar(
         spacing: 0,
         leading: [
+          const PaneGrip(),
           AppIconButton(
             tooltip: 'Back',
             iconSize: 20,
@@ -73,7 +79,7 @@ class FileManagerToolbar extends StatelessWidget {
             icon: Icons.refresh,
           ),
         ],
-        flexible: const SizedBox.shrink(),
+        flexible: const PaneDragArea(child: SizedBox.expand()),
         actions: [
           ToolbarAction(
             icon: isList ? Icons.grid_view_rounded : Icons.view_list_rounded,
@@ -114,12 +120,13 @@ class FileManagerToolbar extends StatelessWidget {
             ),
         ],
         trailing: [
-          AppIconButton(
-            tooltip: 'Close files pane',
-            iconSize: 20,
-            onPressed: onClose,
-            icon: Icons.close,
-          ),
+          if (WorkspacePaneScope.showsOwnClose(context))
+            AppIconButton(
+              tooltip: 'Close files pane',
+              iconSize: 20,
+              onPressed: onClose,
+              icon: Icons.close,
+            ),
         ],
       ),
     );

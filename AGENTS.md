@@ -85,6 +85,7 @@ iOS backends                     services/ios/* — IosDeviceService, one interf
 discovery                        services/devices_repository.dart (DevicesRepository) — adb/idevice polling + track-devices
 app coordinator                  session/device_session_manager.dart — one DeviceSessionController per device, tab order, selection
 per-device session               session/device_session_controller.dart — owns the live Device + feature controllers (lazy)
+pane layout                      session/workspace_layout.dart — which feature panes are open and how they are arranged (fl_panel tree)
 per-feature controllers          session/feature_controller.dart (base) → LogController, MirrorController, CrashReportController, FileManagerController, UtilitiesController, TerminalController
 views                            features/<feature>/..._feature_view.dart — extend presentation/components/feature_view.dart (FeatureView)
 ```
@@ -338,6 +339,17 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     the failure message survives the reload that follows it.
   - Not covered, deliberately: iOS simulators (`xcrun simctl`), system-image downloads
     (`sdkmanager`, licence prompts, multi-GB fetches) and hardware-profile editing.
+- **Device workspace (pane layout):** the open feature panes are an fl_panel docking tree
+  owned by `WorkspaceLayout` (`session.workspaceLayout`) — split, stacked or grouped into
+  tabs by dragging a pane's header, resized by the dividers. **Read docs/WORKSPACE_LAYOUT.md
+  before touching it.** The rules most easily broken: the tree *is* the open/closed state
+  (`isLogsOpen` asks it; there are no per-pane flags), and `WorkspaceLayout` notifies only
+  when the set of open panes changes — divider drags and tab switches go to
+  `layout.panels`, which only the view listens to; pane content is never reparented, so it
+  needs no `GlobalKey` to survive a move; and where a pane reopens comes from
+  `WorkspaceLayoutMemory` (one remembered tree for every device, persisted as
+  `PreferencesService.workspaceLayout`). Adding a pane is a `WorkspacePane` value plus a case
+  in `_Workspace` (`device_screen_content.dart`) — the doc has the checklist.
 - **Imported logs workspace:** opening a log file with no device hosts it in a single
   synthetic `DeviceSessionController` (`isImportedWorkspace`, id `__imported-logs__`); each
   file becomes a sub-tab. It appears as a tab but is excluded from the landing-screen
@@ -363,6 +375,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   Icons follow the app zoom, and `IconButton`'s theme-clamped box pushed a zoomed glyph
   right and down; `AppIconButton` scales its box with the zoom and centres the icon, and
   has the tooltip, focus ring, Enter/Space activation, `busy` and `isActive` built in.
+- A feature pane's header is its title bar in the device workspace: use
+  `FeatureViewHeader`, or put `const PaneGrip()` first in a custom toolbar, wrap an empty
+  stretch in `PaneDragArea`, and show the close button only if
+  `WorkspacePaneScope.showsOwnClose(context)` (a tab chip has it otherwise). Outside a
+  workspace these draw nothing. See docs/WORKSPACE_LAYOUT.md.
 - Explanations for a user who looks stuck go in a `HintNote`
   (`presentation/components/hint_note.dart`) wrapped in a `DelayedReveal`
   (`presentation/components/delayed_reveal.dart`): the note is not built at all until the

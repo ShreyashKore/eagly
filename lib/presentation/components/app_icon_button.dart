@@ -31,6 +31,7 @@ class AppIconButton extends StatefulWidget {
     this.color,
     this.focusNode,
     this.autofocus = false,
+    this.mouseCursor,
   }) : assert(
          (icon == null) != (child == null),
          'Pass exactly one of icon or child.',
@@ -68,6 +69,10 @@ class AppIconButton extends StatefulWidget {
 
   final FocusNode? focusNode;
   final bool autofocus;
+
+  /// Cursor over an enabled button; the click cursor when null. A button
+  /// that is also a drag handle shows the grab cursor instead.
+  final MouseCursor? mouseCursor;
 
   @override
   State<AppIconButton> createState() => _AppIconButtonState();
@@ -129,7 +134,9 @@ class _AppIconButtonState extends State<AppIconButton> {
           autofocus: widget.autofocus,
           canRequestFocus: enabled,
           onFocusChange: (focused) => setState(() => _focused = focused),
-          mouseCursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+          mouseCursor: enabled
+              ? widget.mouseCursor ?? SystemMouseCursors.click
+              : MouseCursor.defer,
           borderRadius: radius,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),

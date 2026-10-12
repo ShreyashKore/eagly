@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../data/device.dart';
 import '../../../session/device_session_controller.dart';
+import '../../../session/workspace_layout.dart';
 import '../../apps/apps_feature_view.dart';
 import '../../crash_reports/crash_report_feature_view.dart';
 import '../../device_home/device_home_feature_view.dart';
@@ -13,11 +14,12 @@ import '../../terminal/terminal_feature_view.dart';
 import '../../utilities/utilities_feature_view.dart';
 import 'android_unauthorized_guidance.dart';
 import 'ios_guidance.dart';
-import 'pane_resize_handle.dart';
+import 'workspace_view.dart';
 
 /// The content area of the device screen: guidance when the device needs user
-/// action, otherwise Home or the feature workspace (Logs always; Mirror,
-/// Crash Reports, Files, Apps, Utilities and Terminal alongside when open).
+/// action, otherwise Home or the feature workspace — whichever of Logs,
+/// Mirror, Crash Reports, Files, Apps, Utilities and Terminal are open, in
+/// the arrangement the user gave them.
 class DeviceScreenContent extends StatelessWidget {
   const DeviceScreenContent({
     super.key,
@@ -79,123 +81,43 @@ class _Workspace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logController = session.logSessionManager.selectedTab;
-    final mirror = session.mirrorController;
-    final crashReports = session.crashReportController;
-    final files = session.fileManagerController;
-    final apps = session.appsController;
-    final utilities = session.utilitiesController;
-    final terminal = session.terminalSessionManager;
-
-    // Open features split the full width proportionally to their pane widths,
-    // so no empty space remains; the dividers still resize them by ratio.
-    return ListenableBuilder(
-      listenable: Listenable.merge([
-        logController,
-        mirror,
-        crashReports,
-        files,
-        apps,
-        utilities,
-        terminal,
-      ]),
-      builder: (context, _) => Row(
-        children: [
-          if (session.isLogsOpen && logController != null) ...[
-            Expanded(
-              flex: logController.paneWidth.round(),
-              child: LogFeatureView(
-                logManager: session.logSessionManager,
-                session: session,
-                appMemoryBytesListenable: appMemoryBytesListenable,
-                onClose: session.closeLogs,
-              ),
-            ),
-            PaneResizeHandle(
-              paneWidth: () => logController.paneWidth,
-              onResize: logController.setPaneWidth,
-            ),
-          ],
-          if (session.isMirrorOpen) ...[
-            Expanded(
-              flex: mirror.paneWidth.round(),
-              child: MirrorFeatureView(
-                controller: mirror,
-                onClose: session.closeMirror,
-              ),
-            ),
-            PaneResizeHandle(
-              paneWidth: () => mirror.paneWidth,
-              onResize: mirror.setPaneWidth,
-            ),
-          ],
-          if (session.isCrashReportsOpen) ...[
-            Expanded(
-              flex: crashReports.paneWidth.round(),
-              child: CrashReportFeatureView(
-                controller: crashReports,
-                onClose: session.closeCrashReports,
-              ),
-            ),
-            PaneResizeHandle(
-              paneWidth: () => crashReports.paneWidth,
-              onResize: crashReports.setPaneWidth,
-            ),
-          ],
-          if (session.isFilesOpen) ...[
-            Expanded(
-              flex: files.paneWidth.round(),
-              child: FileManagerFeatureView(
-                controller: files,
-                onClose: session.closeFiles,
-              ),
-            ),
-            PaneResizeHandle(
-              paneWidth: () => files.paneWidth,
-              onResize: files.setPaneWidth,
-            ),
-          ],
-          if (session.isAppsOpen) ...[
-            Expanded(
-              flex: apps.paneWidth.round(),
-              child: AppsFeatureView(
-                controller: apps,
-                onClose: session.closeApps,
-              ),
-            ),
-            PaneResizeHandle(
-              paneWidth: () => apps.paneWidth,
-              onResize: apps.setPaneWidth,
-            ),
-          ],
-          if (session.isUtilitiesOpen) ...[
-            Expanded(
-              flex: utilities.paneWidth.round(),
-              child: UtilitiesFeatureView(
-                controller: utilities,
-                onClose: session.closeUtilities,
-              ),
-            ),
-            PaneResizeHandle(
-              paneWidth: () => utilities.paneWidth,
-              onResize: utilities.setPaneWidth,
-            ),
-          ],
-          if (session.isTerminalOpen) ...[
-            Expanded(
-              flex: terminal.paneWidth.round(),
-              child: TerminalFeatureView(
-                manager: terminal,
-                onClose: session.closeTerminal,
-              ),
-            ),
-            PaneResizeHandle(
-              paneWidth: () => terminal.paneWidth,
-              onResize: terminal.setPaneWidth,
-            ),
-          ],
-        ],
-      ),
+    // Open panes are laid out however the user arranged them: side by side
+    // by default, split, stacked or grouped into tabs by dragging a pane's
+    // header (see docs/WORKSPACE_LAYOUT.md).
+    return WorkspaceView(
+      layout: session.workspaceLayout,
+      paneBuilder: (context, pane) => switch (pane) {
+        WorkspacePane.logs => LogFeatureView(
+          logManager: session.logSessionManager,
+          session: session,
+          appMemoryBytesListenable: appMemoryBytesListenable,
+          onClose: session.closeLogs,
+        ),
+        WorkspacePane.mirror => MirrorFeatureView(
+          controller: session.mirrorController,
+          onClose: session.closeMirror,
+        ),
+        WorkspacePane.crashReports => CrashReportFeatureView(
+          controller: session.crashReportController,
+          onClose: session.closeCrashReports,
+        ),
+        WorkspacePane.files => FileManagerFeatureView(
+          controller: session.fileManagerController,
+          onClose: session.closeFiles,
+        ),
+        WorkspacePane.apps => AppsFeatureView(
+          controller: session.appsController,
+          onClose: session.closeApps,
+        ),
+        WorkspacePane.utilities => UtilitiesFeatureView(
+          controller: session.utilitiesController,
+          onClose: session.closeUtilities,
+        ),
+        WorkspacePane.terminal => TerminalFeatureView(
+          manager: session.terminalSessionManager,
+          onClose: session.closeTerminal,
+        ),
+      },
     );
   }
 }

@@ -17,8 +17,6 @@ class UtilitiesController extends FeatureController {
   /// on a big app and `monkey` runs are the slow end of the range.
   static const Duration commandTimeout = Duration(seconds: 45);
 
-  double paneWidth = 420;
-
   String _searchText = '';
   String? _runningCommandId;
   UtilityRunResult? _lastResult;
@@ -74,13 +72,6 @@ class UtilitiesController extends FeatureController {
   void setSearchText(String value) {
     if (_searchText == value) return;
     _searchText = value;
-    _notify();
-  }
-
-  void setPaneWidth(double width) {
-    final clamped = width.clamp(320.0, 900.0);
-    if (clamped == paneWidth) return;
-    paneWidth = clamped;
     _notify();
   }
 

@@ -95,13 +95,6 @@ class LogController extends FeatureController {
   /// Focus for the filter row's search field, so ⌘F can jump into it.
   final FocusNode searchFocusNode = FocusNode();
 
-  double paneWidth = 600;
-
-  void setPaneWidth(double value) {
-    paneWidth = value.clamp(340, 1200);
-    notifyListeners();
-  }
-
   /// The filter bar's pills, focus and debounce. It emits updated
   /// [LogFilters] state through [_applyFilterConfig].
   late final LogFilterController filter;

@@ -7,10 +7,12 @@ import 'components/rail_footer.dart';
 /// Far-left vertical rail listing the features available for a device. The
 /// rail is split into two sections: Home (pinned at the top, its own
 /// mutually-exclusive view) and the other destinations below a divider, each
-/// of which toggles on/off independently and stacks side by side. Selecting
-/// Home swaps the visible view but never closes the other panes underneath —
-/// selecting any of them again restores the previous layout. Install opens a
-/// file picker. Settings and the app version are pinned to the bottom.
+/// of which opens or closes a pane of the workspace independently — where it
+/// opens, and how the panes are arranged, is the workspace's business (see
+/// docs/WORKSPACE_LAYOUT.md). Selecting Home swaps the visible view but never
+/// closes the other panes underneath — selecting any of them again restores
+/// the previous layout. Install opens a file picker. Settings and the app
+/// version are pinned to the bottom.
 class FeatureRail extends StatelessWidget {
   const FeatureRail({
     super.key,

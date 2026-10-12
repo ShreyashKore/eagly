@@ -64,7 +64,6 @@ class MirrorController extends FeatureController {
   var screenMirrorState = ScreenMirrorState.stopped;
   String? screenMirrorError;
   MirrorQuality mirrorQuality = MirrorQuality.normal;
-  double paneWidth = 340;
 
   ScrcpyMirrorSession? _session;
   ScreenRecordingSession? _recordingSession;
@@ -424,12 +423,6 @@ class MirrorController extends FeatureController {
   }
 
   /// Adjusts the mirror pane width (clamped) when the user drags its edge.
-  void setPaneWidth(double width) {
-    final clamped = width.clamp(260.0, 720.0);
-    if (clamped == paneWidth) return;
-    paneWidth = clamped;
-    _notify();
-  }
 
   @override
   void onDeviceDisconnected() {

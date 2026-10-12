@@ -146,6 +146,22 @@ List<CommandPaletteItem> buildCommandPaletteItems({
         ),
       );
     }
+    // Only once there is more than one pane to arrange — and only when the
+    // arrangement isn't already the default one.
+    final layout = session.workspaceLayout;
+    if (layout.openPanes.length > 1 && !layout.isSideBySide) {
+      items.add(
+        CommandPaletteItem(
+          id: 'layout.reset',
+          label: 'Reset Pane Layout',
+          category: 'Navigate',
+          icon: Icons.view_column_outlined,
+          subtitle: 'Open panes side by side, in rail order',
+          keywords: const ['arrange', 'windows', 'tile', 'side by side'],
+          run: layout.reset,
+        ),
+      );
+    }
     if (session.canRunUtilities) {
       items.add(
         CommandPaletteItem(

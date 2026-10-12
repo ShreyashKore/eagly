@@ -55,6 +55,7 @@ dependencies:
     path: rust_builder
   flutter_rust_bridge: 2.13.0
   freezed_annotation: ^2.4.1
+  fl_panel: ^1.1.0
 
 dev_dependencies:
   sentry_dart_plugin: ^3.4.0

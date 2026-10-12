@@ -52,7 +52,6 @@ class AppsController extends FeatureController {
   List<AppInfo> _apps = const [];
   String _searchText = '';
   bool _showSystemApps = false;
-  double paneWidth = 420;
   AppsViewMode _viewMode = PreferencesService.appsViewMode;
   AppIconSize _iconSize = PreferencesService.appsIconSize;
   bool _recentExpanded = true;
@@ -109,7 +108,7 @@ class AppsController extends FeatureController {
   AppIconSize get iconSize => _iconSize;
 
   /// Whether the pinned recently-installed row shows its apps or only its
-  /// header. Session-only, like [paneWidth].
+  /// header. Session-only, unlike [viewMode] and [iconSize].
   bool get recentExpanded => _recentExpanded;
 
   /// Android exposes system apps via `pm list packages`; iOS's installer
@@ -276,13 +275,6 @@ class AppsController extends FeatureController {
 
   void toggleRecentExpanded() {
     _recentExpanded = !_recentExpanded;
-    _notify();
-  }
-
-  void setPaneWidth(double width) {
-    final clamped = width.clamp(320.0, 900.0);
-    if (clamped == paneWidth) return;
-    paneWidth = clamped;
     _notify();
   }
 

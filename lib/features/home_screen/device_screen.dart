@@ -12,7 +12,8 @@ import 'components/install_progress_banner.dart';
 import 'feature_rail.dart';
 
 /// The screen shown for the selected device tab: the feature rail on the far
-/// left, then the open feature panes (Logs always, Mirror alongside when open).
+/// left, then Home or the open feature panes, arranged however the user left
+/// them.
 class DeviceScreen extends StatefulWidget {
   const DeviceScreen({
     super.key,
