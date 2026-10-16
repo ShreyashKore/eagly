@@ -81,8 +81,7 @@ class FilterEditorHeader extends StatelessWidget {
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         ),
         const SizedBox(width: 4),
-        Flexible(child: operator),
-        const Spacer(),
+        Expanded(child: operator),
         AppIconButton(
           tooltip: 'Delete filter',
           onPressed: onRemove,
