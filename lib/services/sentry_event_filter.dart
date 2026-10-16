@@ -16,9 +16,10 @@ class SentryEventFilter {
   ///
   /// Add any non-critical or known noisy error patterns here.
   static final List<Pattern> ignoredPatterns = <Pattern>[
-    // Benign layout overflow errors during window resizing or layout shifts
-    RegExp(r'RenderFlex overflowed', caseSensitive: false),
-    RegExp(r'A RenderFlex overflowed by \d+ pixels', caseSensitive: false),
+    // Layout overflow errors during window resizing or layout shifts. Every
+    // overflow-painting render object (RenderFlex, RenderUnconstrainedBox,
+    // RenderConstraintsTransformBox, …) reports "A <Type> overflowed by …".
+    RegExp(r'\bRender\w+ overflowed by', caseSensitive: false),
   ];
 
   /// Exception types / class names that should be dropped unconditionally.
