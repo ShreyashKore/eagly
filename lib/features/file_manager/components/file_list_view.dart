@@ -4,11 +4,15 @@ import '../data/device_file_entry.dart';
 import '../file_manager_controller.dart';
 import 'file_context_menu.dart';
 import 'file_entry_visuals.dart';
+import '../../../presentation/components/min_width_box.dart';
 import '../../../presentation/theme/app_theme.dart';
 
 /// Detailed table view: a sortable header (Name / Size / Modified /
 /// Permissions) above one row per entry. Single tap selects, double tap opens
 /// a directory, right-click shows the context menu.
+///
+/// A narrow pane drops the trailing columns, Permissions first, so Name keeps
+/// at least [_minNameWidth]; narrower still, the table clips its right edge.
 class FileListView extends StatelessWidget {
   const FileListView({
     super.key,
@@ -22,34 +26,47 @@ class FileListView extends StatelessWidget {
   static const double _sizeWidth = 84;
   static const double _modifiedWidth = 132;
   static const double _permsWidth = 104;
+  static const double _minNameWidth = 140;
+  static const double _horizontalPadding = 12;
 
   @override
   Widget build(BuildContext context) {
     final entries = controller.entries;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _header(context),
-        Expanded(
-          child: ListView.builder(
-            itemCount: entries.length,
-            itemExtent: 40,
-            itemBuilder: (context, index) => _FileRow(
-              controller: controller,
-              entry: entries[index],
-              actions: actions,
-            ),
-          ),
-        ),
-      ],
+    return MinWidthBox(
+      minWidth: _minNameWidth + 2 * _horizontalPadding,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = _FileColumns.fitting(
+            constraints.maxWidth - 2 * _horizontalPadding,
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _header(context, columns),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: entries.length,
+                  itemExtent: 40,
+                  itemBuilder: (context, index) => _FileRow(
+                    controller: controller,
+                    entry: entries[index],
+                    actions: actions,
+                    columns: columns,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
-  Widget _header(BuildContext context) {
+  Widget _header(BuildContext context, _FileColumns columns) {
     final theme = Theme.of(context);
     return Container(
       height: context.scaled(34),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHigh,
         border: Border(
@@ -59,23 +76,26 @@ class FileListView extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: _headerCell(context, 'Name', FileSortField.name)),
-          SizedBox(
-            width: _sizeWidth,
-            child: _headerCell(
-              context,
-              'Size',
-              FileSortField.size,
-              alignEnd: true,
+          if (columns.size)
+            SizedBox(
+              width: _sizeWidth,
+              child: _headerCell(
+                context,
+                'Size',
+                FileSortField.size,
+                alignEnd: true,
+              ),
             ),
-          ),
-          SizedBox(
-            width: _modifiedWidth,
-            child: _headerCell(context, 'Modified', FileSortField.modified),
-          ),
-          SizedBox(
-            width: _permsWidth,
-            child: _headerCell(context, 'Perms', FileSortField.type),
-          ),
+          if (columns.modified)
+            SizedBox(
+              width: _modifiedWidth,
+              child: _headerCell(context, 'Modified', FileSortField.modified),
+            ),
+          if (columns.perms)
+            SizedBox(
+              width: _permsWidth,
+              child: _headerCell(context, 'Perms', FileSortField.type),
+            ),
         ],
       ),
     );
@@ -96,13 +116,17 @@ class FileListView extends StatelessWidget {
             ? MainAxisAlignment.end
             : MainAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: active
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: active
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           if (active)
@@ -124,11 +148,13 @@ class _FileRow extends StatelessWidget {
     required this.controller,
     required this.entry,
     required this.actions,
+    required this.columns,
   });
 
   final FileManagerController controller;
   final DeviceFileEntry entry;
   final FileManagerActions actions;
+  final _FileColumns columns;
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +178,9 @@ class _FileRow extends StatelessWidget {
         color: selected
             ? theme.colorScheme.primaryContainer.withValues(alpha: 0.5)
             : Colors.transparent,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(
+          horizontal: FileListView._horizontalPadding,
+        ),
         child: Row(
           children: [
             Expanded(
@@ -176,41 +204,69 @@ class _FileRow extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(
-              width: FileListView._sizeWidth,
-              child: Text(
-                FileEntryVisuals.formatSize(entry),
-                textAlign: TextAlign.end,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            SizedBox(
-              width: FileListView._modifiedWidth,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 12),
+            if (columns.size)
+              SizedBox(
+                width: FileListView._sizeWidth,
                 child: Text(
-                  FileEntryVisuals.formatModified(entry.modified),
+                  FileEntryVisuals.formatSize(entry),
+                  textAlign: TextAlign.end,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
-            ),
-            SizedBox(
-              width: FileListView._permsWidth,
-              child: Text(
-                entry.permissions ?? entry.typeLabel,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontFamily: 'monospace',
-                  color: theme.colorScheme.onSurfaceVariant,
+            if (columns.modified)
+              SizedBox(
+                width: FileListView._modifiedWidth,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: Text(
+                    FileEntryVisuals.formatModified(entry.modified),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ),
               ),
-            ),
+            if (columns.perms)
+              SizedBox(
+                width: FileListView._permsWidth,
+                child: Text(
+                  entry.permissions ?? entry.typeLabel,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontFamily: 'monospace',
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
     );
   }
+}
+
+/// Which trailing columns fit beside a Name column of at least
+/// [FileListView._minNameWidth]. They drop from the right: Permissions, then
+/// Modified, then Size.
+class _FileColumns {
+  const _FileColumns({
+    required this.size,
+    required this.modified,
+    required this.perms,
+  });
+
+  factory _FileColumns.fitting(double width) {
+    var used = FileListView._minNameWidth + FileListView._sizeWidth;
+    final size = width >= used;
+    used += FileListView._modifiedWidth;
+    final modified = width >= used;
+    used += FileListView._permsWidth;
+    final perms = width >= used;
+    return _FileColumns(size: size, modified: modified, perms: perms);
+  }
+
+  final bool size;
+  final bool modified;
+  final bool perms;
 }

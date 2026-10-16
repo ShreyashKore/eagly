@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../presentation/components/app_icon_button.dart';
+import '../../../../presentation/components/min_width_box.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../log_controller.dart';
 import 'filter_bar_shared.dart';
@@ -12,7 +13,8 @@ import 'filter_bar_shared.dart';
 ///
 /// Collapsed it shows its shortcut; focused, or holding a query, it widens to
 /// show the match-case / whole-word / regex toggles, the match count and
-/// previous / next. Escape (or ×) clears it.
+/// previous / next. Escape (or ×) clears it. Narrower than [showOptionsWidth]
+/// it leaves the three toggles out; narrower still, it clips its right edge.
 class LogSearchField extends StatefulWidget {
   const LogSearchField({
     super.key,
@@ -28,6 +30,17 @@ class LogSearchField extends StatefulWidget {
 
   static const double collapsedWidth = 240;
   static const double expandedWidth = 380;
+
+  /// Below this width the match-case / whole-word / regex toggles are left
+  /// out, keeping room for the count, previous / next and clear.
+  static const double showOptionsWidth = 320;
+
+  /// The narrowest the row's content lays out without overflowing — the
+  /// icon, a sliver of text, and the trailing controls — collapsed, expanded
+  /// without the toggles, and expanded with them.
+  static const double _minCollapsedContent = 110;
+  static const double _minExpandedContent = 216;
+  static const double _optionsWidth = 84;
 
   @override
   State<LogSearchField> createState() => _LogSearchFieldState();
@@ -143,6 +156,11 @@ class _LogSearchFieldState extends State<LogSearchField> {
                       ? LogSearchField.expandedWidth
                       : LogSearchField.collapsedWidth)
                   .clamp(0.0, maxWidth);
+        final showOptions = width >= LogSearchField.showOptionsWidth;
+        final minContentWidth = !expanded
+            ? LogSearchField._minCollapsedContent
+            : LogSearchField._minExpandedContent +
+                  (showOptions ? LogSearchField._optionsWidth : 0);
         return MouseRegion(
           cursor: SystemMouseCursors.text,
           onEnter: (_) => setState(() => _hovered = true),
@@ -163,32 +181,39 @@ class _LogSearchFieldState extends State<LogSearchField> {
                   width: _focused ? 1.5 : 1,
                 ),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.search, size: 16, color: style.icon),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Focus(
-                      onKeyEvent: _onKey,
-                      skipTraversal: true,
-                      child: TextField(
-                        controller: _text,
-                        focusNode: _focusNode,
-                        style: style.label,
-                        cursorHeight: 14,
-                        decoration: bareFilterInputDecoration(
-                          hintText: 'Search logs',
-                          hintStyle: style.hint,
+              child: MinWidthBox(
+                minWidth: minContentWidth,
+                child: Row(
+                  children: [
+                    Icon(Icons.search, size: 16, color: style.icon),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Focus(
+                        onKeyEvent: _onKey,
+                        skipTraversal: true,
+                        child: TextField(
+                          controller: _text,
+                          focusNode: _focusNode,
+                          style: style.label,
+                          cursorHeight: 14,
+                          decoration: bareFilterInputDecoration(
+                            hintText: 'Search logs',
+                            hintStyle: style.hint,
+                          ),
+                          onChanged: _onChanged,
                         ),
-                        onChanged: _onChanged,
                       ),
                     ),
-                  ),
-                  if (!expanded)
-                    FilterKeyHint(label: _shortcutLabel)
-                  else
-                    ..._buildActiveControls(context, colors),
-                ],
+                    if (!expanded)
+                      FilterKeyHint(label: _shortcutLabel)
+                    else
+                      ..._buildActiveControls(
+                        context,
+                        colors,
+                        showOptions: showOptions,
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -197,31 +222,37 @@ class _LogSearchFieldState extends State<LogSearchField> {
     );
   }
 
-  List<Widget> _buildActiveControls(BuildContext context, ColorScheme colors) {
+  List<Widget> _buildActiveControls(
+    BuildContext context,
+    ColorScheme colors, {
+    required bool showOptions,
+  }) {
     final search = _log.inlineSearch;
     final hasQuery = _text.text.isNotEmpty;
     final matches = hasQuery ? _log.searchMatchIndices.length : 0;
     final eagly = context.eaglyTheme;
     final hasError = _log.inlineSearchHasError;
     return [
-      _OptionToggle(
-        label: 'Aa',
-        tooltip: 'Match case',
-        value: search.caseSensitive,
-        onPressed: () => _setOptions(caseSensitive: !search.caseSensitive),
-      ),
-      _OptionToggle(
-        label: 'W',
-        tooltip: 'Match whole word',
-        value: search.wholeWord,
-        onPressed: () => _setOptions(wholeWord: !search.wholeWord),
-      ),
-      _OptionToggle(
-        label: '.*',
-        tooltip: 'Use regular expression',
-        value: search.regex,
-        onPressed: () => _setOptions(regex: !search.regex),
-      ),
+      if (showOptions) ...[
+        _OptionToggle(
+          label: 'Aa',
+          tooltip: 'Match case',
+          value: search.caseSensitive,
+          onPressed: () => _setOptions(caseSensitive: !search.caseSensitive),
+        ),
+        _OptionToggle(
+          label: 'W',
+          tooltip: 'Match whole word',
+          value: search.wholeWord,
+          onPressed: () => _setOptions(wholeWord: !search.wholeWord),
+        ),
+        _OptionToggle(
+          label: '.*',
+          tooltip: 'Use regular expression',
+          value: search.regex,
+          onPressed: () => _setOptions(regex: !search.regex),
+        ),
+      ],
       if (hasQuery) ...[
         const SizedBox(width: 6),
         Tooltip(
