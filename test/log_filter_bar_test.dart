@@ -328,6 +328,69 @@ void main() {
     expect(composed(emitted!), 'tag:AuthService');
   });
 
+  testWidgets('↓ and ↑ move from a pill editor into its suggestions', (
+    WidgetTester tester,
+  ) async {
+    final controller = buildController(
+      knownPackageFilters: const [
+        'com.example.auth',
+        'com.example.billing',
+        'io.sample.payments',
+      ],
+    );
+    addTearDown(controller.dispose);
+    final highlight = find.byIcon(Icons.keyboard_return);
+
+    await pumpFilterBar(tester, controller: controller);
+    await addField(tester, 'Package');
+    await tester.enterText(editorField, 'example');
+    await tester.pump();
+    expect(highlight, findsNothing, reason: '↵ still takes the typed value');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(highlight, findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(editorField).focusNode!.hasFocus,
+      isTrue,
+      reason: 'the caret stays in the field',
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(editorField, findsNothing, reason: 'picking closes the editor');
+    expect(controller.conditions.single.value, 'com.example.billing');
+
+    // ↑ wraps to the last suggestion, and Esc returns to the typed value
+    // without closing the editor.
+    await addField(tester, 'Package');
+    await tester.enterText(editorField, 'example');
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(editorField, findsOneWidget);
+    expect(highlight, findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(controller.conditions.map((c) => c.value), [
+      'com.example.billing',
+      'com.example.auth',
+    ]);
+
+    // Tab still moves the focus, and takes the highlight with it.
+    await addField(tester, 'Package');
+    await tester.enterText(editorField, 'example');
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    expect(tester.widget<TextField>(editorField).focusNode!.hasFocus, isFalse);
+    expect(highlight, findsNothing);
+    await tester.pump(controller.debounce); // Let the typed value apply.
+  });
+
   testWidgets('Backspace in the empty field marks, then removes, a pill', (
     WidgetTester tester,
   ) async {

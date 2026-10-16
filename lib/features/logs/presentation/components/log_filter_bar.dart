@@ -1330,9 +1330,73 @@ class _ConditionEditorState extends State<_ConditionEditor> {
   final FocusNode _textFocus = FocusNode();
   bool _choosingOperator = false;
 
+  /// The suggestion ↓ / ↑ have moved to, which ↵ picks; -1 while ↵
+  /// still takes the typed value. The caret stays in the field either way,
+  /// so typing narrows the list (and starts over from the field).
+  int _highlighted = -1;
+
   FilterCondition? get _condition => widget.controller.conditions
       .where((condition) => condition.id == widget.conditionId)
       .firstOrNull;
+
+  List<String> _suggestions(FilterCondition condition) => _choosingOperator
+      ? const <String>[]
+      : _suggestedValues(widget.controller, condition.field, _text.text);
+
+  void _pick(FilterCondition condition, String suggestion) {
+    _text.text = suggestion;
+    widget.controller.updateCondition(condition.id, value: suggestion);
+    widget.onDone();
+  }
+
+  KeyEventResult _onKey(KeyEvent event) {
+    final condition = _condition;
+    if (condition == null ||
+        (event is! KeyDownEvent && event is! KeyRepeatEvent)) {
+      return KeyEventResult.ignored;
+    }
+    // Built from the live text, not the last frame's list.
+    final suggestions = _suggestions(condition);
+    if (suggestions.isEmpty) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
+    if (key == LogicalKeyboardKey.tab) {
+      // Tab moves the focus on, as everywhere else; the highlight goes too.
+      if (_highlighted >= 0) setState(() => _highlighted = -1);
+      return KeyEventResult.ignored;
+    }
+
+    final int? step = switch (key) {
+      LogicalKeyboardKey.arrowDown when !keyboard.isShiftPressed => 1,
+      LogicalKeyboardKey.arrowUp when !keyboard.isShiftPressed => -1,
+      _ => null,
+    };
+    if (step != null) {
+      // The field is the stop before the first suggestion and after the
+      // last, so the list cycles through it.
+      final stops = suggestions.length + 1;
+      setState(() => _highlighted = (_highlighted + 1 + step) % stops - 1);
+      return KeyEventResult.handled;
+    }
+    if (_highlighted < 0 || _highlighted >= suggestions.length) {
+      return KeyEventResult.ignored;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      _pick(condition, suggestions[_highlighted]);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      setState(() => _highlighted = -1);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
 
   @override
   void dispose() {
@@ -1358,9 +1422,7 @@ class _ConditionEditorState extends State<_ConditionEditor> {
     final operator = condition.operator;
     final canChooseOperator = field.operators.length > 1;
     final invalidRegex = condition.toTerm()?.hasInvalidRegex ?? false;
-    final suggestions = _choosingOperator
-        ? const <String>[]
-        : _suggestedValues(widget.controller, field, _text.text);
+    final suggestions = _suggestions(condition);
     final appIcons = _showsAppIcons(widget.controller, field);
 
     return Column(
@@ -1376,7 +1438,10 @@ class _ConditionEditorState extends State<_ConditionEditor> {
             negated: operator.negate,
             open: _choosingOperator,
             onPressed: canChooseOperator
-                ? () => setState(() => _choosingOperator = !_choosingOperator)
+                ? () => setState(() {
+                    _choosingOperator = !_choosingOperator;
+                    _highlighted = -1;
+                  })
                 : null,
           ),
         ),
@@ -1410,26 +1475,30 @@ class _ConditionEditorState extends State<_ConditionEditor> {
               ),
             )
         else ...[
-          TextField(
-            controller: _text,
-            focusNode: _textFocus,
-            autofocus: true,
-            contextMenuBuilder: AnchoredPopover.textContextMenuBuilder,
-            style: const TextStyle(fontSize: 13),
-            decoration: _cardInputDecoration(
-              context,
-              hintText: switch (operator.mode) {
-                FilterMatchMode.contains => 'Type a value…',
-                FilterMatchMode.exact => 'The whole value…',
-                FilterMatchMode.regex => 'A regular expression…',
+          Focus(
+            onKeyEvent: (node, event) => _onKey(event),
+            skipTraversal: true,
+            child: TextField(
+              controller: _text,
+              focusNode: _textFocus,
+              autofocus: true,
+              contextMenuBuilder: AnchoredPopover.textContextMenuBuilder,
+              style: const TextStyle(fontSize: 13),
+              decoration: _cardInputDecoration(
+                context,
+                hintText: switch (operator.mode) {
+                  FilterMatchMode.contains => 'Type a value…',
+                  FilterMatchMode.exact => 'The whole value…',
+                  FilterMatchMode.regex => 'A regular expression…',
+                },
+                errorText: invalidRegex ? 'Invalid regular expression' : null,
+              ),
+              onChanged: (value) {
+                setState(() => _highlighted = -1);
+                widget.controller.updateCondition(condition.id, value: value);
               },
-              errorText: invalidRegex ? 'Invalid regular expression' : null,
+              onSubmitted: (_) => widget.onDone(),
             ),
-            onChanged: (value) {
-              setState(() {});
-              widget.controller.updateCondition(condition.id, value: value);
-            },
-            onSubmitted: (_) => widget.onDone(),
           ),
           if (!canChooseOperator) ...[
             const SizedBox(height: 8),
@@ -1441,18 +1510,13 @@ class _ConditionEditorState extends State<_ConditionEditor> {
           if (suggestions.isNotEmpty) ...[
             const SizedBox(height: 8),
             const _MenuSectionLabel('Suggestions'),
-            for (final suggestion in suggestions)
+            for (final (i, suggestion) in suggestions.indexed)
               _MenuRow(
                 icon: appIcons ? _fieldIcon(field) : null,
                 packageName: appIcons ? suggestion : null,
-                onTap: () {
-                  _text.text = suggestion;
-                  widget.controller.updateCondition(
-                    condition.id,
-                    value: suggestion,
-                  );
-                  widget.onDone();
-                },
+                highlighted: i == _highlighted,
+                trailing: i == _highlighted ? const _EnterHint() : null,
+                onTap: () => _pick(condition, suggestion),
                 child: Text(
                   suggestion,
                   maxLines: 1,
