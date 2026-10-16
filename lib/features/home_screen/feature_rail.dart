@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../presentation/theme/app_theme.dart';
 import '../../session/device_session_controller.dart';
 import 'components/rail_button.dart';
 import 'components/rail_footer.dart';
@@ -13,6 +14,9 @@ import 'components/rail_footer.dart';
 /// closes the other panes underneath — selecting any of them again restores
 /// the previous layout. Install opens a file picker. Settings and the app
 /// version are pinned to the bottom.
+///
+/// Its width and padding follow the app zoom (a text scale), so the labels
+/// keep their room as the user zooms rather than being squeezed to fit.
 class FeatureRail extends StatelessWidget {
   const FeatureRail({
     super.key,
@@ -33,14 +37,14 @@ class FeatureRail extends StatelessWidget {
       listenable: session,
       builder: (context, _) {
         return Container(
-          width: 72,
+          width: context.scaled(72),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest,
             border: Border(
               right: BorderSide(color: theme.colorScheme.outlineVariant),
             ),
           ),
-          padding: EdgeInsets.all(4),
+          padding: EdgeInsets.all(context.scaled(4)),
           child: Column(
             children: [
               Expanded(
@@ -73,7 +77,7 @@ class FeatureRail extends StatelessWidget {
                         ),
                         child: SingleChildScrollView(
                           child: Padding(
-                            padding: const EdgeInsets.all(2),
+                            padding: EdgeInsets.all(context.scaled(2)),
                             child: Column(
                               spacing: 4,
                               children: [
