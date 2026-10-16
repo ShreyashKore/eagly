@@ -745,7 +745,11 @@ class _LogViewerState extends State<LogViewer> {
     if (viewportRenderBox == null ||
         rowRenderBox == null ||
         !viewportRenderBox.attached ||
-        !rowRenderBox.attached) {
+        !rowRenderBox.attached ||
+        // A row built but not yet laid out (a hidden pane, a frame cut
+        // short) has no size to measure.
+        !viewportRenderBox.hasSize ||
+        !rowRenderBox.hasSize) {
       return null;
     }
 
