@@ -4,7 +4,6 @@ import 'log_filter_controller.dart';
 import 'log_filter_field.dart';
 import 'log_level_button.dart';
 
-export 'filter_bar_shared.dart' show filterInputDecoration, kFilterFieldHeight;
 export 'log_filter_controller.dart'
     show LogFilterController, LogFilterSuggestions;
 export 'log_level_button.dart' show LogLevelButton;

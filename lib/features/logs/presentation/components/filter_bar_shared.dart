@@ -1,41 +1,5 @@
 import 'package:flutter/material.dart';
 
-// Consistent height for all filter bar input fields.
-const double kFilterFieldHeight = 38.0;
-
-/// Standard [InputDecoration] used across all filter bar fields.
-InputDecoration filterInputDecoration(
-  BuildContext context, {
-  String? labelText,
-  String? hintText,
-  IconData? prefixIcon,
-}) {
-  final colorScheme = Theme.of(context).colorScheme;
-  InputBorder inputBorder(Color color) =>
-      OutlineInputBorder(borderSide: BorderSide(color: color, width: 1.5));
-  return InputDecoration(
-    labelText: labelText,
-    labelStyle: const TextStyle(fontSize: 12),
-    hintText: hintText,
-    hintStyle: const TextStyle(fontSize: 13, height: kFilterTextHeight),
-    isDense: true,
-    // Fills the field's height around one line of [kFilterTextHeight] text.
-    contentPadding: const EdgeInsets.symmetric(
-      horizontal: 10,
-      vertical: (kFilterFieldHeight - 13 * kFilterTextHeight) / 2,
-    ),
-    border: inputBorder(Colors.transparent),
-    enabledBorder: inputBorder(Colors.transparent),
-    focusedBorder: inputBorder(colorScheme.primary),
-    filled: true,
-    fillColor: colorScheme.surfaceContainerHighest,
-    prefixIconConstraints: prefixIcon != null
-        ? const BoxConstraints(minHeight: 32, minWidth: 34)
-        : null,
-    prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 16) : null,
-  );
-}
-
 /// Returns `true` when [query] matches [candidate] at a word/segment boundary.
 bool filterBoundaryMatch(String candidate, String query) {
   if (candidate.startsWith(query)) return true;
