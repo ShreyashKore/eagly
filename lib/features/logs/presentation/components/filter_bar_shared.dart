@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../presentation/theme/app_theme.dart';
+
 /// Returns `true` when [query] matches [candidate] at a word/segment boundary.
 bool filterBoundaryMatch(String candidate, String query) {
   if (candidate.startsWith(query)) return true;
@@ -37,6 +39,14 @@ const double kFilterControlRadius = 8.0;
 /// Height of a filter pill — a label line over a value line — which sits
 /// inside the filter field.
 const double kFilterPillHeight = 32.0;
+
+/// The filter row's heights at the app zoom. The zoom scales text, so a
+/// fixed height overflows once the text outgrows it — a pill's two lines
+/// already do at 1.2×.
+extension FilterRowMetrics on BuildContext {
+  double get filterControlHeight => scaled(kFilterControlHeight);
+  double get filterPillHeight => scaled(kFilterPillHeight);
+}
 
 /// Decoration for a text field that sits inside a filter row control, which
 /// draws the border and fill itself: every border state, the theme's fill
@@ -164,7 +174,7 @@ class _FilterControlButtonState extends State<FilterControlButton> {
         onHover: (value) => setState(() => _hovered = value),
         onFocusChange: (value) => setState(() => _focused = value),
         child: SizedBox(
-          height: kFilterControlHeight,
+          height: context.filterControlHeight,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(

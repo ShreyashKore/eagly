@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../presentation/components/min_width_box.dart';
+import '../../../../presentation/theme/app_theme.dart';
 import '../../log_controller.dart';
 import 'log_filter_bar.dart';
 import 'log_search_field.dart';
@@ -20,10 +21,12 @@ class LogFilterArea extends StatefulWidget {
 
   final LogController controller;
 
-  /// Below this width the filter and the Level / Search controls stack.
+  /// Below this width (at 1× zoom; it scales with the zoom) the filter and
+  /// the Level / Search controls stack.
   static const double stackBelowWidth = 1050;
 
-  /// The narrowest the stacked controls lay out without overflowing.
+  /// The narrowest (at 1× zoom) the stacked controls lay out without
+  /// overflowing.
   static const double minWidth = 320;
 
   @override
@@ -41,10 +44,11 @@ class _LogFilterAreaState extends State<LogFilterArea> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
       child: MinWidthBox(
-        minWidth: LogFilterArea.minWidth,
+        minWidth: context.scaled(LogFilterArea.minWidth),
         child: LayoutBuilder(
           builder: (context, constraints) =>
-              constraints.maxWidth < LogFilterArea.stackBelowWidth
+              constraints.maxWidth <
+                  context.scaled(LogFilterArea.stackBelowWidth)
               ? _buildStacked()
               : _buildRow(),
         ),

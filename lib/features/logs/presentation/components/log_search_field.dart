@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,6 +30,7 @@ class LogSearchField extends StatefulWidget {
   /// for a row of its own in the stacked narrow-window layout.
   final bool fillWidth;
 
+  /// Widths at 1× zoom; they scale with the zoom.
   static const double collapsedWidth = 240;
   static const double expandedWidth = 380;
 
@@ -134,6 +137,8 @@ class _LogSearchFieldState extends State<LogSearchField> {
     );
   }
 
+  static const EdgeInsets _padding = EdgeInsets.only(left: 12, right: 6);
+
   static String get _shortcutLabel =>
       defaultTargetPlatform == TargetPlatform.macOS ? '⌘F' : 'Ctrl+F';
 
@@ -145,22 +150,33 @@ class _LogSearchFieldState extends State<LogSearchField> {
     final hasQuery = _text.text.isNotEmpty;
     final expanded = _focused || hasQuery;
 
+    // The widths follow the app zoom, which scales the text and icons inside.
+    final expandedWidth = context.scaled(LogSearchField.expandedWidth);
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
-            : LogSearchField.expandedWidth;
+            : expandedWidth;
         final width = widget.fillWidth
             ? maxWidth
             : (expanded
-                      ? LogSearchField.expandedWidth
-                      : LogSearchField.collapsedWidth)
+                      ? expandedWidth
+                      : context.scaled(LogSearchField.collapsedWidth))
                   .clamp(0.0, maxWidth);
-        final showOptions = width >= LogSearchField.showOptionsWidth;
-        final minContentWidth = !expanded
-            ? LogSearchField._minCollapsedContent
-            : LogSearchField._minExpandedContent +
-                  (showOptions ? LogSearchField._optionsWidth : 0);
+        final showOptions =
+            width >= context.scaled(LogSearchField.showOptionsWidth);
+        final borderWidth = _focused ? 1.5 : 1.0;
+        // Laid out at the box's target width from the first frame, the
+        // controls stay put while the expand animation reveals them instead
+        // of reflowing (or overflowing) as the box grows.
+        final targetContentWidth =
+            width - _padding.horizontal - 2 * borderWidth;
+        final minContentWidth = context.scaled(
+          !expanded
+              ? LogSearchField._minCollapsedContent
+              : LogSearchField._minExpandedContent +
+                    (showOptions ? LogSearchField._optionsWidth : 0),
+        );
         return MouseRegion(
           cursor: SystemMouseCursors.text,
           onEnter: (_) => setState(() => _hovered = true),
@@ -171,18 +187,18 @@ class _LogSearchFieldState extends State<LogSearchField> {
               duration: const Duration(milliseconds: 160),
               curve: Curves.easeOutCubic,
               width: width,
-              height: kFilterControlHeight,
-              padding: const EdgeInsets.only(left: 12, right: 6),
+              height: context.filterControlHeight,
+              padding: _padding,
               decoration: BoxDecoration(
                 color: style.fill(hovered: _hovered && !_focused),
                 borderRadius: BorderRadius.circular(kFilterControlRadius),
                 border: Border.all(
                   color: style.border(focused: _focused, active: hasQuery),
-                  width: _focused ? 1.5 : 1,
+                  width: borderWidth,
                 ),
               ),
               child: MinWidthBox(
-                minWidth: minContentWidth,
+                minWidth: math.max(minContentWidth, targetContentWidth),
                 child: Row(
                   children: [
                     Icon(Icons.search, size: 16, color: style.icon),

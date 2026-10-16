@@ -202,63 +202,67 @@ class _FilterPillState extends State<_FilterPill> {
         child: InkWell(
           onTap: _popover.toggle,
           child: SizedBox(
-            height: kFilterPillHeight,
+            height: context.filterPillHeight,
             child: Padding(
               padding: const EdgeInsets.only(left: 9, right: 3),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Semantics(
-                    label: widget.description,
-                    excludeSemantics: true,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 220),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: widget.fieldLabel,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: accent,
+                  // Shrinks, ellipsizing, when the field is narrower than
+                  // the pill.
+                  Flexible(
+                    child: Semantics(
+                      label: widget.description,
+                      excludeSemantics: true,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 220),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: widget.fieldLabel,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: accent,
+                                    ),
                                   ),
-                                ),
-                                const TextSpan(text: ' · '),
-                                TextSpan(
-                                  text: widget.operatorLabel,
-                                  style: widget.negated
-                                      ? TextStyle(
-                                          color: colors.error,
-                                          fontWeight: FontWeight.w600,
-                                        )
-                                      : null,
-                                ),
-                              ],
+                                  const TextSpan(text: ' · '),
+                                  TextSpan(
+                                    text: widget.operatorLabel,
+                                    style: widget.negated
+                                        ? TextStyle(
+                                            color: colors.error,
+                                            fontWeight: FontWeight.w600,
+                                          )
+                                        : null,
+                                  ),
+                                ],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: labelStyle,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: labelStyle,
-                          ),
-                          Text(
-                            isDraft ? 'Add a value…' : widget.value,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              height: 1.2,
-                              fontWeight: isDraft
-                                  ? FontWeight.w400
-                                  : FontWeight.w500,
-                              color: isDraft
-                                  ? colors.onSurfaceVariant
-                                  : colors.onSurface,
+                            Text(
+                              isDraft ? 'Add a value…' : widget.value,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                height: 1.2,
+                                fontWeight: isDraft
+                                    ? FontWeight.w400
+                                    : FontWeight.w500,
+                                color: isDraft
+                                    ? colors.onSurfaceVariant
+                                    : colors.onSurface,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),

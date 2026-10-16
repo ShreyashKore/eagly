@@ -198,6 +198,10 @@ class _LogFilterFieldState extends State<LogFilterField> {
     final hasPills = controller.hasPills;
     final input = _buildInput(context, style, hasPills: hasPills);
     final borderWidth = _focused ? 1.5 : 1.0;
+    final pillHeight = context.filterPillHeight;
+    // Border plus padding above (and below) a pill-high line, so one line of
+    // the field is exactly as tall as the row's other controls.
+    final verticalInset = (context.filterControlHeight - pillHeight) / 2;
 
     return AnchoredPopover(
       controller: _menu,
@@ -227,14 +231,14 @@ class _LogFilterFieldState extends State<LogFilterField> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),
             curve: Curves.easeOutCubic,
-            constraints: const BoxConstraints(minHeight: kFilterControlHeight),
+            constraints: BoxConstraints(minHeight: context.filterControlHeight),
             // Lines are pill-high; the padding makes up the rest of the
             // row's height, less the (focus-thickened) border.
             padding: EdgeInsets.fromLTRB(
               12,
-              _verticalInset - borderWidth,
+              verticalInset - borderWidth,
               5,
-              _verticalInset - borderWidth,
+              verticalInset - borderWidth,
             ),
             decoration: BoxDecoration(
               color: style.fill(hovered: _hovered && !_focused),
@@ -248,7 +252,7 @@ class _LogFilterFieldState extends State<LogFilterField> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
-                  height: kFilterPillHeight,
+                  height: pillHeight,
                   child: Icon(
                     Icons.filter_list_rounded,
                     size: 16,
@@ -285,14 +289,14 @@ class _LogFilterFieldState extends State<LogFilterField> {
                 ),
                 if (!hasPills && !_focused)
                   SizedBox(
-                    height: kFilterPillHeight,
+                    height: pillHeight,
                     child: Center(
                       child: FilterKeyHint(label: _filterShortcutLabel),
                     ),
                   )
                 else if (hasPills)
                   SizedBox(
-                    height: kFilterPillHeight,
+                    height: pillHeight,
                     child: Center(
                       child: _ClearFiltersButton(
                         onPressed: controller.clearConditions,
@@ -307,11 +311,6 @@ class _LogFilterFieldState extends State<LogFilterField> {
     );
   }
 
-  /// Border plus padding above (and below) a pill-high line, so one line of
-  /// the field is exactly as tall as the row's other controls.
-  static const double _verticalInset =
-      (kFilterControlHeight - kFilterPillHeight) / 2;
-
   Widget _buildInput(
     BuildContext context,
     FilterControlStyle style, {
@@ -322,7 +321,7 @@ class _LogFilterFieldState extends State<LogFilterField> {
       onKeyEvent: (node, event) => _onKey(context, event),
       skipTraversal: true,
       child: SizedBox(
-        height: kFilterPillHeight,
+        height: context.filterPillHeight,
         child: Align(
           alignment: Alignment.centerLeft,
           child: TextField(
