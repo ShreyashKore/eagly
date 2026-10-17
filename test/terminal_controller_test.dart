@@ -98,11 +98,40 @@ void main() {
         'am start -n a/b',
       ]);
       expect(tokenizeCommandLine("echo 'a  b'"), ['echo', 'a  b']);
-      expect(tokenizeCommandLine(r'adb push my\ file.txt /sdcard'), [
-        'adb',
-        'push',
-        'my file.txt',
-        '/sdcard',
+      expect(
+        tokenizeCommandLine(
+          r'adb push my\ file.txt /sdcard',
+          windowsPaths: false,
+        ),
+        ['adb', 'push', 'my file.txt', '/sdcard'],
+      );
+    });
+
+    test('inside double quotes a backslash only escapes what sh lets it', () {
+      expect(
+        tokenizeCommandLine(r'echo "a\b \" \$x \\"', windowsPaths: false),
+        ['echo', r'a\b " $x \'],
+      );
+    });
+
+    test('Windows paths keep their backslashes', () {
+      expect(
+        tokenizeCommandLine(
+          r'adb install C:\Users\me\app.apk',
+          windowsPaths: true,
+        ),
+        ['adb', 'install', r'C:\Users\me\app.apk'],
+      );
+      expect(
+        tokenizeCommandLine(
+          r'adb push "C:\My Files\a.txt" \\server\share',
+          windowsPaths: true,
+        ),
+        ['adb', 'push', r'C:\My Files\a.txt', r'\\server\share'],
+      );
+      expect(tokenizeCommandLine(r'echo "say \"hi\""', windowsPaths: true), [
+        'echo',
+        'say "hi"',
       ]);
     });
 

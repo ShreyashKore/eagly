@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'terminal_tools.dart';
 
 /// Commands the terminal answers itself instead of handing to a device tool.
@@ -123,12 +125,18 @@ TerminalRequest parseTerminalInput(String input) {
 }
 
 /// Splits a command line into argv the way a POSIX shell would: whitespace
-/// separates tokens, single quotes are literal, double quotes and backslashes
-/// escape. The result is handed straight to `Process.start`, so no host shell
-/// ever sees the line.
+/// separates tokens, single quotes are literal, and a backslash escapes the
+/// next character — inside double quotes only `$`, `` ` ``, `"`, `\` and a
+/// newline, as in `sh`. The result is handed straight to `Process.start`, so
+/// no host shell ever sees the line.
+///
+/// With [windowsPaths] (the default on Windows) a backslash is a path
+/// separator, not an escape: it only escapes a following `"`, so
+/// `C:\Users\me\app.apk` and `\\server\share` survive intact.
 ///
 /// Throws a [FormatException] when a quote is left open.
-List<String> tokenizeCommandLine(String input) {
+List<String> tokenizeCommandLine(String input, {bool? windowsPaths}) {
+  final literalBackslashes = windowsPaths ?? Platform.isWindows;
   final tokens = <String>[];
   final buffer = StringBuffer();
   var hasToken = false;
@@ -146,9 +154,16 @@ List<String> tokenizeCommandLine(String input) {
       continue;
     }
     if (char == r'\' && quote != "'" && index + 1 < input.length) {
-      buffer.write(input[++index]);
-      hasToken = true;
-      continue;
+      final next = input[index + 1];
+      final escapes = literalBackslashes
+          ? next == '"'
+          : quote.isEmpty || _doubleQuoteEscapes.contains(next);
+      if (escapes) {
+        buffer.write(next);
+        index++;
+        hasToken = true;
+        continue;
+      }
     }
     if (quote.isEmpty && (char == "'" || char == '"')) {
       quote = char;
@@ -169,3 +184,7 @@ List<String> tokenizeCommandLine(String input) {
   if (hasToken) tokens.add(buffer.toString());
   return tokens;
 }
+
+/// What a backslash still escapes inside double quotes in `sh`; before any
+/// other character it is kept literally.
+const Set<String> _doubleQuoteEscapes = {r'$', '`', '"', r'\', '\n'};
