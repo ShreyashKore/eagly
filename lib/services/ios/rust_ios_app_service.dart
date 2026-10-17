@@ -37,7 +37,7 @@ class RustIosAppService implements IosAppService {
     try {
       await rust.installIosApp(udid: deviceId, packagePath: appPath);
       return DeviceCommandResult.success(
-        message: 'Installed app on \$deviceId.',
+        message: 'Installed app on $deviceId.',
       );
     } catch (error) {
       _logger.error('Failed to install $appPath', detail: error.toString());
@@ -54,7 +54,7 @@ class RustIosAppService implements IosAppService {
   }) async {
     try {
       await rust.uninstallIosApp(udid: deviceId, bundleId: bundleId);
-      return DeviceCommandResult.success(message: 'Uninstalled \$bundleId.');
+      return DeviceCommandResult.success(message: 'Uninstalled $bundleId.');
     } catch (error) {
       _logger.error('Failed to uninstall $bundleId', detail: error.toString());
       return DeviceCommandResult.failure(
