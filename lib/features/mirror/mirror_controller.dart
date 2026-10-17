@@ -373,8 +373,7 @@ class MirrorController extends FeatureController {
     final text = data?.text;
     if (text == null || text.isEmpty) return false;
     if (!identical(_session?.control, control)) return false;
-    _lastPushedClipboard = text;
-    control.setClipboard(text, paste: true);
+    _lastPushedClipboard = control.setClipboard(text, paste: true);
     return true;
   }
 
