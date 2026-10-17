@@ -16,13 +16,20 @@ set -uo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT" || exit 1
 
+# Git exports GIT_DIR and GIT_INDEX_FILE to hooks (absolute paths inside a
+# linked worktree). fvm and Flutter's bin/dart run git against their own cache
+# and SDK repos, and with these inherited that git lands on this repo instead:
+# fvm 4.1 "migrated" this repo's origin into a copy of its Flutter mirror config
+# that way. The hook's own git calls keep them; dart never sees them.
+NO_GIT_ENV=(env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_PREFIX)
+
 # Prefer the fvm-pinned SDK so the hook wraps exactly the way CI does.
 if [ -x ".fvm/flutter_sdk/bin/dart" ]; then
-  DART=(".fvm/flutter_sdk/bin/dart")
+  DART=("${NO_GIT_ENV[@]}" ".fvm/flutter_sdk/bin/dart")
 elif command -v fvm >/dev/null 2>&1; then
-  DART=(fvm dart)
+  DART=("${NO_GIT_ENV[@]}" fvm dart)
 elif command -v dart >/dev/null 2>&1; then
-  DART=(dart)
+  DART=("${NO_GIT_ENV[@]}" dart)
 else
   echo "pre-commit: no dart on PATH and no .fvm SDK — skipping format check." >&2
   exit 0
