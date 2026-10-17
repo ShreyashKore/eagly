@@ -36,6 +36,10 @@ final _failurePattern = RegExp(r'Failure \[([A-Z0-9_]+)(?::\s*([\s\S]*?))?\]');
 
 final _adbPrefix = RegExp(r'^adb: (?:error: )?');
 
+/// Every fix that says to uninstall carries this: it wipes the app's data.
+const _uninstallLosesData =
+    "Uninstalling deletes that app's data, so back up anything you need first.";
+
 String? _explain(String code, String detail) {
   switch (code) {
     case 'INSTALL_FAILED_VERSION_DOWNGRADE':
@@ -43,21 +47,22 @@ String? _explain(String code, String detail) {
         r'version code (\d+) is older than current (\d+)',
       ).firstMatch(detail);
       if (versions == null) {
-        return 'A newer version of this app is already installed. '
-            'Uninstall it first, or install a newer build.';
+        return 'A newer version of this app is already installed. Install '
+            'a newer build, or uninstall it first. $_uninstallLosesData';
       }
       final current = versions.group(2);
       return 'The device already has a newer version of this app (version '
-          'code $current; this APK is ${versions.group(1)}). Uninstall the '
-          'app first, or install a build with version code $current or '
-          'higher.';
+          'code $current; this APK is ${versions.group(1)}). Install a build '
+          'with version code $current or higher, or uninstall the app first. '
+          '$_uninstallLosesData';
     case 'INSTALL_FAILED_UPDATE_INCOMPATIBLE':
       final package = RegExp(r'Package (\S+)').firstMatch(detail)?.group(1);
       final app = package ?? 'the installed app';
       return 'The installed copy of $app is signed with a different key. '
-          'Uninstall it first, then install again.';
+          'Uninstall it first, then install again. $_uninstallLosesData';
     case 'INSTALL_FAILED_ALREADY_EXISTS':
-      return 'This app is already installed. Uninstall it first.';
+      return 'This app is already installed. Uninstall it first. '
+          '$_uninstallLosesData';
     case 'INSTALL_FAILED_INSUFFICIENT_STORAGE':
       return 'The device is out of storage. Free some space and try again.';
     case 'INSTALL_FAILED_OLDER_SDK':
@@ -89,13 +94,14 @@ String? _explain(String code, String detail) {
     case 'INSTALL_FAILED_CONFLICTING_PROVIDER':
       return 'Another installed app already declares something this APK '
           'declares. Uninstall the other app first'
-          '${detail.isEmpty ? '.' : ' ($detail).'}';
+          '${detail.isEmpty ? '.' : ' ($detail).'} $_uninstallLosesData';
     case 'INSTALL_FAILED_MISSING_SHARED_LIBRARY':
       return 'The device is missing a library this APK requires'
           '${detail.isEmpty ? '.' : ' ($detail).'}';
     case 'INSTALL_PARSE_FAILED_NO_CERTIFICATES':
-      return 'The APK is not signed. Sign it (a debug key is fine) and try '
-          'again.';
+      return 'The APK is not signed, or its signature is invalid. Check the '
+          'file is complete and undamaged; if it is, rebuild and sign it (a '
+          'debug key is fine).';
     case 'INSTALL_PARSE_FAILED_NOT_APK':
     case 'INSTALL_FAILED_INVALID_APK':
     case 'INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION':

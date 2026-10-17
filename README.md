@@ -147,49 +147,84 @@ support.**
 
 ## Screenshots
 
-### 📲 Screen mirroring & control — *Android*
-Mirror the device screen right next to your logs and control it with your mouse and keyboard.
+### 🌗 Live logs in dark and light themes
+Fast, colour-coded streaming with timestamps, package, PID/TID, level and tag columns — in
+whichever theme you prefer, or following your system.
 
-![Screen mirroring](docs/screenshots/screen-mirroring.png)
+| Dark | Light |
+|---|---|
+| ![Live logs in the dark theme](docs/screenshots/logs-dark-theme.webp) | ![Live logs in the light theme](docs/screenshots/logs-light-theme-filters.webp) |
 
-### 🔍 Live logs
-Fast, colour-coded streaming with timestamps, package, PID/TID, level and tag columns.
+### 🪟 Side-by-side workspace
+Drag a pane's header to split, stack or tab panes — here Logs and Apps share a tab group,
+Utilities sits below, and the mirrored screen runs alongside.
 
-![Logs screen](docs/screenshots/logs_screen.png)
+![Logs, Utilities and screen mirror open side by side](docs/screenshots/workspace-split-panes.webp)
 
 ### 🔎 Filtering & regex search
-Narrow down noisy logs by level, tag or process, and find anything with regex search.
+Add a pill per condition — pick a field and how it matches, then type a value — and find
+anything with the search box beside it.
+
+![Filter pills with the message pill's editor open](docs/screenshots/logs-light-theme-filters.webp)
 
 | Filtering | Regex search |
 |---|---|
 | <video src="https://github.com/user-attachments/assets/a93d115b-8899-4c03-895c-3aa0f33dec17" width="400"></video> | <video src="https://github.com/user-attachments/assets/10971f7b-a0a0-418b-a0b7-c70c43b9b77b" width="400"></video> |
 
+### 📲 Screen mirroring & control — *Android*
+Mirror the device screen right next to your logs and control it with your mouse and keyboard.
+
+![Screen mirroring](docs/screenshots/screen-mirroring.webp)
+
+### 📦 Apps
+Every installed app with its real name and icon, recently installed ones up top. Right-click
+an app to open, force-stop, clear its data or uninstall it.
+
+![Apps pane](docs/screenshots/apps.webp)
+
+### 🧰 Utilities
+Common device commands, grouped and searchable. Each one says whether it runs at once, asks
+for options, or asks you to confirm first.
+
+![Utilities pane](docs/screenshots/utilities.webp)
+
+### 💻 Terminal
+Run `adb` and `libimobiledevice` commands with the device already selected, in as many tabs
+as you need.
+
+![Terminal pane](docs/screenshots/terminal.webp)
+
+### ⌨️ Command palette
+Press **⌘⇧P** / **Ctrl+Shift+P** and type a few letters to find any action or utility.
+
+![Command palette searching for "rotat"](docs/screenshots/command-palette.webp)
+
 ### 🐞 iOS crash reports
 Pull and read crash logs from connected iPhones and iPads.
 
-![iOS crash reports list](docs/screenshots/ios-crashlogs-list.png)
-![iOS crash report details](docs/screenshots/ios-crashlogs-details.png)
+![iOS crash reports list](docs/screenshots/ios-crashlogs-list.webp)
+![iOS crash report details](docs/screenshots/ios-crashlogs-details.webp)
 
-### 📂 File manager — *Android*
-Browse the device filesystem; upload, download and delete files.
+### 📂 File manager
+Browse an Android device's filesystem, or an iPhone or iPad's media storage; upload, download
+and delete files.
 
-![File manager](docs/screenshots/file-manager.png)
+![File manager](docs/screenshots/file-manager.webp)
 
 ### 🌐 Wireless debugging
 Pair and connect to Android devices over Wi-Fi.
 
-![Wireless debugging](docs/screenshots/wireless-debugging.png)
+![Wireless debugging](docs/screenshots/wireless-debugging.webp)
 
 ### 🗂️ Import logs
 Open previously saved log files in their own workspace tab.
 
-![Import logs](docs/screenshots/import-logs.png)
+![Import logs](docs/screenshots/import-logs.webp)
 
-### 🎨 Getting started & themes
-A friendly landing screen and full light / dark theme support.
+### 🏠 Getting started
+A friendly landing screen to pick a connected device, connect over Wi-Fi, or open a saved log file.
 
-![Getting started](docs/screenshots/getting_started_screen.png)
-![Settings & themes](docs/screenshots/settings_screen.png)
+![Getting started](docs/screenshots/getting_started_screen.webp)
 
 ---
 
