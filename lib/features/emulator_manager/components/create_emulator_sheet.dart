@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../../../presentation/components/hint_note.dart';
+import '../../../presentation/theme/app_theme.dart';
 import '../../../services/tools/avd_manager_tool.dart';
 import '../data/device_profile.dart';
 import '../data/system_image.dart';
@@ -224,7 +225,7 @@ class _CreateEmulatorSheetState extends State<CreateEmulatorSheet> {
                           Text(
                             'Loading hardware profiles…',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                              color: context.eaglyTheme.secondaryTextColor,
                             ),
                           ),
                         ],

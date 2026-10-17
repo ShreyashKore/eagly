@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../presentation/theme/app_theme.dart';
 import '../data/emulator_entry.dart';
 
 /// What the user picked from a tile's menu.
@@ -66,9 +67,10 @@ class EmulatorTile extends StatelessWidget {
                 ? Icons.shop_outlined
                 : Icons.phone_android_outlined,
             size: 22,
+            // Faint while stopped, so the running ones stand out.
             color: entry.isRunning
                 ? theme.colorScheme.primary
-                : theme.colorScheme.onSurfaceVariant,
+                : context.eaglyTheme.tertiaryTextColor,
           ),
           const Gap(12),
           Expanded(
@@ -90,7 +92,7 @@ class EmulatorTile extends StatelessWidget {
                       Text(
                         entry.serial!,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                          color: context.eaglyTheme.tertiaryTextColor,
                         ),
                       ),
                     ],
@@ -101,7 +103,7 @@ class EmulatorTile extends StatelessWidget {
                   Text(
                     details,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: context.eaglyTheme.secondaryTextColor,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -226,7 +228,7 @@ class _PendingAction extends StatelessWidget {
         Text(
           label,
           style: theme.textTheme.labelMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+            color: context.eaglyTheme.secondaryTextColor,
           ),
         ),
       ],
@@ -259,7 +261,7 @@ class _MenuRow extends StatelessWidget {
               Text(
                 subtitle,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: context.eaglyTheme.secondaryTextColor,
                 ),
               ),
             ],
