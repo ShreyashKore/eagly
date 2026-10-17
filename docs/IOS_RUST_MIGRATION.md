@@ -28,24 +28,24 @@ Each iOS surface gets an interface under `lib/services/ios/`, with two implement
 
 ```
 IosDeviceService                       discovery + lockdownd domains
- ├─ LibimobiledeviceIosDeviceService   wraps IdeviceIdTool + IdeviceInfoTool   ← default
- └─ RustIosDeviceService               wraps lib/src/rust/api/ios.dart
+ ├─ LibimobiledeviceIosDeviceService   wraps IdeviceIdTool + IdeviceInfoTool
+ └─ RustIosDeviceService               wraps lib/src/rust/api/ios.dart         ← default
 
 IosLogService                          live syslog streaming
- ├─ LibimobiledeviceIosLogService      wraps IdeviceSyslogTool                 ← default
- └─ RustIosLogService                  wraps lib/src/rust/api/ios.dart
+ ├─ LibimobiledeviceIosLogService      wraps IdeviceSyslogTool
+ └─ RustIosLogService                  wraps lib/src/rust/api/ios.dart         ← default
 
 IosAppService                          app inventory and lifecycle
- ├─ LibimobiledeviceIosAppService      wraps IdeviceInstallerTool              ← default
- └─ RustIosAppService                  wraps lib/src/rust/api/ios.dart
+ ├─ LibimobiledeviceIosAppService      wraps IdeviceInstallerTool
+ └─ RustIosAppService                  wraps lib/src/rust/api/ios.dart         ← default
 
 IosCrashReportService                  crash report retrieval
- ├─ LibimobiledeviceIosCrashReportService  wraps IdeviceCrashReportTool        ← default
- └─ RustIosCrashReportService              wraps lib/src/rust/api/ios.dart
+ ├─ LibimobiledeviceIosCrashReportService  wraps IdeviceCrashReportTool
+ └─ RustIosCrashReportService              wraps lib/src/rust/api/ios.dart     ← default
 
 DeviceFileSystem                       file browsing (shared with Android)
- ├─ IosFileSystem                      drives the afcclient REPL              ← default
- └─ RustIosFileSystem                  wraps lib/src/rust/api/ios.dart
+ ├─ IosFileSystem                      drives the afcclient REPL
+ └─ RustIosFileSystem                  wraps lib/src/rust/api/ios.dart         ← default
 ```
 
 Logic that sits *above* the transport is shared rather than duplicated per backend:
@@ -59,13 +59,14 @@ Rules that keep this from rotting:
 
 - **The interface speaks domain types** (`IosDeviceInfo`), never generated ones. Only the `Rust*`
   implementation may import `lib/src/rust/**`; everything above it is backend-agnostic.
-- **libimobiledevice stays the default** until a surface is proven on real hardware.
+- **Rust is the default**; libimobiledevice remains as a fallback until every surface is proven
+  on real hardware.
 - **Tests fake the interface**, so they cover both backends and need no native library.
 
 Switch backends with an environment variable — a developer migration aid, not a user setting:
 
 ```bash
-EAGLY_IOS_BACKEND=rust fvm flutter run -d macos
+EAGLY_IOS_BACKEND=cli fvm flutter run -d macos   # fall back to libimobiledevice
 ```
 
 ## Status
@@ -113,9 +114,10 @@ cd rust && cargo clippy && cargo fmt
 under `rust/src/api/` is invisible to codegen until it is declared in `rust/src/api/mod.rs`.
 
 `frb_generated.dart` embeds a hash of the Rust API: if `RustLib.init()` fails complaining about a
-codegen version or content hash, re-run the generator. It runs only when `EAGLY_IOS_BACKEND=rust`
-(`initIosBackend()` → `services/ios/rust_ios_runtime.dart`), and a failure is logged, not thrown —
-so look in the app log rather than for a crash, and the default backend never loads the library.
+codegen version or content hash, re-run the generator. It runs at startup unless
+`EAGLY_IOS_BACKEND=cli` (`initIosBackend()` → `services/ios/rust_ios_runtime.dart`), and a
+failure is logged, not thrown — so look in the app log rather than for a crash. Only the CLI
+fallback never loads the library.
 
 **Streams.** A function taking a `StreamSink` becomes a Dart `Stream` and its return value is
 discarded — `Result<(), E>` is the only shape that works, so a stream cannot hand back a session

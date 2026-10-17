@@ -90,8 +90,8 @@ views                            features/<feature>/..._feature_view.dart — ex
 
 **iOS backends (migration in progress):** every iOS surface is moving from the bundled
 libimobiledevice CLIs to the `idevice` Rust crate, called through flutter_rust_bridge. Both
-implementations live behind an interface in `services/ios/`; libimobiledevice stays the default
-and `EAGLY_IOS_BACKEND=rust` selects the other. The interface speaks domain types — only the
+implementations live behind an interface in `services/ios/`; Rust is the default and
+`EAGLY_IOS_BACKEND=cli` falls back to libimobiledevice. The interface speaks domain types — only the
 `Rust*` implementation may import `lib/src/rust/**`, which is generated and never edited by hand.
 **The libimobiledevice CLIs and friends will be removed in a future version**, so new iOS work
 goes on the Rust side first; keep the CLI path correct while it ships, but don't extend it.
