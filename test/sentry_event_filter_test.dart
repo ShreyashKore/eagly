@@ -4,12 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 void main() {
+  // The shipped defaults, so the tests check the real filter rather than a copy.
+  final defaultPatterns = List.of(SentryEventFilter.ignoredPatterns);
+
   setUp(() {
-    SentryEventFilter.ignoredPatterns.clear();
-    SentryEventFilter.ignoredPatterns.addAll([
-      RegExp(r'RenderFlex overflowed', caseSensitive: false),
-      RegExp(r'A RenderFlex overflowed by \d+ pixels', caseSensitive: false),
-    ]);
+    SentryEventFilter.ignoredPatterns
+      ..clear()
+      ..addAll(defaultPatterns);
     SentryEventFilter.ignoredExceptionTypes.clear();
     SentryEventFilter.customFilters.clear();
   });
@@ -61,6 +62,23 @@ void main() {
         expect(SentryEventFilter.beforeSend(event, hint), isNull);
       },
     );
+
+    test('drops fractional and non-RenderFlex overflows', () {
+      for (final value in [
+        'A RenderFlex overflowed by 8.0 pixels on the right.',
+        'A RenderUnconstrainedBox overflowed by 12 pixels on the bottom.',
+        'A RenderConstraintsTransformBox overflowed by 3.5 pixels on the left.',
+      ]) {
+        final event = SentryEvent(
+          exceptions: [SentryException(type: 'FlutterError', value: value)],
+        );
+        expect(
+          SentryEventFilter.shouldIgnore(event, Hint()),
+          isTrue,
+          reason: value,
+        );
+      }
+    });
 
     test('drops event when message contains RenderFlex overflowed', () {
       final event = SentryEvent(

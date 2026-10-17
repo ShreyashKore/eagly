@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import '../theme/app_theme.dart';
+import 'app_icon_button.dart';
 
 /// One collapsible toolbar action. Rendered as a button while it fits in the
 /// bar and as an entry in the overflow menu once it doesn't, so the same
@@ -53,7 +54,7 @@ class ToolbarAction {
 }
 
 /// Builds the in-bar button for an action, so a toolbar can keep its own
-/// button style (see `ToolbarIconButton` in the logs feature).
+/// button style (e.g. the logs toolbar sizing its `AppIconButton`s).
 typedef ToolbarActionBuilder =
     Widget Function(BuildContext context, ToolbarAction action);
 
@@ -163,13 +164,15 @@ class _OverflowToolbarState extends State<OverflowToolbar> {
   }
 
   Widget _defaultActionButton(BuildContext context, ToolbarAction action) {
-    final theme = Theme.of(context);
-    return IconButton(
+    final override = action.iconOverride;
+    return AppIconButton(
       tooltip: action.tooltip ?? action.label,
       iconSize: widget.iconSize,
-      color: action.isActive ? theme.colorScheme.primary : action.color,
+      isActive: action.isActive,
+      color: action.color,
       onPressed: action.onPressed,
-      icon: action.iconOverride ?? Icon(action.icon),
+      icon: override == null ? action.icon : null,
+      child: override,
     );
   }
 

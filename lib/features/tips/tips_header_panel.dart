@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../presentation/components/app_icon_button.dart';
 import '../../presentation/components/eagly_dialog.dart';
 import '../../presentation/theme/app_theme.dart';
 import 'components/action_hint.dart';
 import 'components/confirm_disable_tips.dart';
-import 'components/pill_icon_button.dart';
 import 'components/tips_menu_button.dart';
 import 'tip.dart';
 import 'tips_controller.dart';
@@ -106,10 +106,12 @@ class _TipsHeaderPanelState extends State<TipsHeaderPanel> {
                       ),
                     ),
                     const Gap(6),
-                    PillIconButton(
+                    AppIconButton(
                       icon: Icons.close_rounded,
                       tooltip: 'Hide tip',
-                      onTap: widget.controller.dismissForSession,
+                      iconSize: 16,
+                      padding: 4,
+                      onPressed: widget.controller.dismissForSession,
                     ),
                     TipsMenuButton(controller: widget.controller),
                   ],
@@ -187,27 +189,17 @@ Future<void> showTipDetailDialog(
                     ),
                     const Spacer(),
                     if (controller.hasMultipleTips) ...[
-                      IconButton(
+                      AppIconButton(
                         tooltip: 'Previous tip',
                         onPressed: controller.showPreviousTip,
-                        icon: const Icon(Icons.chevron_left_rounded),
+                        icon: Icons.chevron_left_rounded,
                         iconSize: 20,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 36,
-                          minHeight: 36,
-                        ),
                       ),
-                      IconButton(
+                      AppIconButton(
                         tooltip: 'Next tip',
                         onPressed: controller.showNextTip,
-                        icon: const Icon(Icons.chevron_right_rounded),
+                        icon: Icons.chevron_right_rounded,
                         iconSize: 20,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 36,
-                          minHeight: 36,
-                        ),
                       ),
                       const Gap(8),
                     ],

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import 'app_icon_button.dart';
+
 /// Standard dialog shell for Eagly's desktop UI.
 ///
 /// Provides a consistent header (optional leading icon, title, optional
@@ -75,10 +77,10 @@ class EaglyDialog extends StatelessWidget {
                   ),
                   ...headerActions,
                   if (headerActions.isNotEmpty) const Gap(4),
-                  IconButton(
+                  AppIconButton(
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
+                    icon: Icons.close,
                   ),
                 ],
               ),

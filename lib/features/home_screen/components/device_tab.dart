@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../presentation/components/app_icon_button.dart';
+import '../../../data/device.dart';
 import '../../../session/device_session_controller.dart';
 import '../../../presentation/components/device_presentation.dart';
 import 'connection_dot.dart';
@@ -15,6 +17,7 @@ class DeviceTab extends StatefulWidget {
   const DeviceTab({
     super.key,
     required this.session,
+    this.disambiguate = false,
     required this.selected,
     required this.animateIn,
     required this.onSelect,
@@ -22,7 +25,20 @@ class DeviceTab extends StatefulWidget {
     required this.onClose,
   });
 
+  /// A tab is as wide as its label needs, up to [maxWidth] — twice the
+  /// widest a tab used to be (a 160 px label plus its dot, icon and close
+  /// button). When the strip runs out of room the widest tabs shrink first,
+  /// down to [minWidth]; past that it scrolls. The strip decides the width
+  /// (`DeviceTabStrip.fitTabWidths`); the tab fills whatever it is given.
+  static const double minWidth = 140;
+  static const double maxWidth = 508;
+
   final DeviceSessionController session;
+
+  /// Whether another tab shows the same name. Only matters under
+  /// [Device.shortNames], whose tabs show the label's secondary part — the
+  /// serial — just to tell such tabs apart; otherwise it always shows.
+  final bool disambiguate;
   final bool selected;
 
   /// When true the tab plays a snappy entrance and, shortly after, a one-shot
@@ -137,35 +153,32 @@ class _DeviceTabState extends State<DeviceTab> with TickerProviderStateMixin {
                           ),
                         ),
                         child: Row(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
                             if (isWorkspace)
-                              WorkspaceLabel(theme: theme)
+                              Expanded(child: WorkspaceLabel(theme: theme))
                             else ...[
                               ConnectionDot(connected: device.isConnected),
                               const Gap(6),
-                              DeviceSelectionLabel(
-                                device: device,
-                                maxWidth: 160,
-                                textStyle: theme.textTheme.bodyMedium,
-                                secondaryTextStyle: theme.textTheme.labelSmall,
-                                iconSize: 16,
+                              Expanded(
+                                child: DeviceSelectionLabel(
+                                  device: device,
+                                  showSecondary:
+                                      !Device.shortNames || widget.disambiguate,
+                                  textStyle: theme.textTheme.bodyMedium,
+                                  secondaryTextStyle:
+                                      theme.textTheme.labelSmall,
+                                  iconSize: 16,
+                                ),
                               ),
                             ],
                             if (onClose != null) ...[
                               const Gap(4),
-                              IconButton(
+                              AppIconButton(
                                 tooltip: 'Close tab',
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
-                                mouseCursor: SystemMouseCursors.click,
-                                constraints: const BoxConstraints(
-                                  minWidth: 28,
-                                  minHeight: 28,
-                                ),
                                 iconSize: 16,
+                                padding: 4,
                                 onPressed: onClose,
-                                icon: const Icon(Icons.close),
+                                icon: Icons.close,
                               ),
                             ] else
                               const Gap(6),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../presentation/components/min_width_box.dart';
+import '../../../../presentation/theme/app_theme.dart';
 import '../../log_controller.dart';
 import 'log_filter_bar.dart';
 import 'log_search_field.dart';
@@ -12,14 +14,20 @@ import 'log_search_field.dart';
 /// Narrower than [stackBelowWidth], the row stacks: the filter gets the full
 /// width, with Level and Search on a line below. Global keys carry the filter
 /// and the search field across the switch, so typed text, focus and an open
-/// menu survive a resize.
+/// menu survive a resize. A pane narrower than [minWidth] clips the row's
+/// right edge rather than squeezing its controls.
 class LogFilterArea extends StatefulWidget {
   const LogFilterArea({super.key, required this.controller});
 
   final LogController controller;
 
-  /// Below this width the filter and the Level / Search controls stack.
+  /// Below this width (at 1× zoom; it scales with the zoom) the filter and
+  /// the Level / Search controls stack.
   static const double stackBelowWidth = 1050;
+
+  /// The narrowest (at 1× zoom) the stacked controls lay out without
+  /// overflowing.
+  static const double minWidth = 320;
 
   @override
   State<LogFilterArea> createState() => _LogFilterAreaState();
@@ -35,11 +43,15 @@ class _LogFilterAreaState extends State<LogFilterArea> {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-      child: LayoutBuilder(
-        builder: (context, constraints) =>
-            constraints.maxWidth < LogFilterArea.stackBelowWidth
-            ? _buildStacked()
-            : _buildRow(),
+      child: MinWidthBox(
+        minWidth: context.scaled(LogFilterArea.minWidth),
+        child: LayoutBuilder(
+          builder: (context, constraints) =>
+              constraints.maxWidth <
+                  context.scaled(LogFilterArea.stackBelowWidth)
+              ? _buildStacked()
+              : _buildRow(),
+        ),
       ),
     );
   }

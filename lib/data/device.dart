@@ -90,6 +90,24 @@ sealed class Device {
     };
   }
 
+  /// How a device identifier — serial, UDID, wireless address — appears in
+  /// anything shown to the user. Verbatim, except under `--record-mode`, which
+  /// swaps in stand-ins (`RecordMode.anonymizeDevices`). Display only: an id
+  /// handed to a tool is always the real [id].
+  static String Function(String id) presentId = _verbatim;
+
+  /// [id] as the user should see it; see [presentId].
+  String get shownId => presentId(id);
+
+  /// Names a device by brand and model alone — no serial, no name its owner
+  /// gave it — in [displayLabel] and [displayName]. Only under
+  /// `--record-mode`, for tidy tabs and titles that put no person's name in
+  /// the video; tabs then show [displayLabel]'s secondary part only when two
+  /// would otherwise read the same.
+  static bool shortNames = false;
+
+  /// The tab label: [primary] plus a [secondary] detail (model, serial or
+  /// name — see [shortNames] for record mode).
   ({String primary, String? secondary}) get displayLabel;
 
   String get displayName;
@@ -147,11 +165,17 @@ final class AndroidDevice extends Device {
     super.name,
     super.connectionState,
     this.serialNumber,
+    this.marketName,
   }) : super._();
 
   /// Underlying device serial number, populated when available (e.g. from
   /// `adb shell getprop ro.serialno`). Used internally for deduplication.
   final String? serialNumber;
+
+  /// The marketing name the device reports for itself
+  /// (`ro.product.marketname`), when it sets one. [model] stays the raw
+  /// `ro.product.model`; `DevicesRepository` decides which one is shown.
+  final String? marketName;
 
   @override
   DevicePlatform get platform => DevicePlatform.android;
@@ -173,6 +197,7 @@ final class AndroidDevice extends Device {
     DevicePlatform? platform,
     DeviceConnectionState? connectionState,
     String? serialNumber,
+    String? marketName,
   }) {
     return AndroidDevice(
       id ?? this.id,
@@ -182,14 +207,24 @@ final class AndroidDevice extends Device {
       name: name ?? this.name,
       connectionState: connectionState ?? this.connectionState,
       serialNumber: serialNumber ?? this.serialNumber,
+      marketName: marketName ?? this.marketName,
     );
   }
 
   @override
   ({String primary, String? secondary}) get displayLabel {
+    if (Device.shortNames) {
+      final label = _androidPrimaryLabel;
+      final hint = _shortId;
+      if (label != null) return (primary: label, secondary: hint);
+      return (
+        primary: hint,
+        secondary: isWireless ? null : _normalizedValue(name),
+      );
+    }
     if (isWireless) {
       final label = _androidPrimaryLabel;
-      final hint = _wirelessShortId;
+      final hint = Device.presentId(_wirelessShortId);
       if (label != null) {
         // Brand/model as primary; short wireless ID as disambiguating secondary.
         return (primary: label, secondary: hint);
@@ -197,7 +232,7 @@ final class AndroidDevice extends Device {
       return (primary: hint, secondary: null);
     }
     return (
-      primary: _subString(id, 10),
+      primary: _subString(shownId, 10),
       secondary: _androidPrimaryLabel ?? _normalizedValue(name),
     );
   }
@@ -212,23 +247,34 @@ final class AndroidDevice extends Device {
   @override
   String get displayName {
     final primary = _androidPrimaryLabel;
+    if (Device.shortNames) {
+      return primary ??
+          _normalizedValue(model) ??
+          _normalizedValue(brand) ??
+          _shortId;
+    }
     if (isWireless) {
       // Never append the full mDNS or IP:port ID — it's unreadable noise.
       return primary ??
           _normalizedValue(name) ??
           _normalizedValue(model) ??
           _normalizedValue(brand) ??
-          _wirelessShortId;
+          Device.presentId(_wirelessShortId);
     }
     if (primary != null && _isDistinctFrom(primary, name)) {
-      return '$primary ($id)';
+      return '$primary ($shownId)';
     }
     return primary ??
         _normalizedValue(name) ??
         _normalizedValue(model) ??
         _normalizedValue(brand) ??
-        id;
+        shownId;
   }
+
+  /// The id as a short label shows it: a wireless id's readable part, or the
+  /// serial.
+  String get _shortId =>
+      isWireless ? Device.presentId(_wirelessShortId) : shownId;
 
   /// A short, human-readable identifier derived from the wireless ADB device
   /// ID. For mDNS IDs the embedded serial is extracted; for IP:port IDs the
@@ -277,11 +323,16 @@ final class IosDevice extends Device {
 
   @override
   ({String primary, String? secondary}) get displayLabel {
+    if (Device.shortNames) {
+      final primary = _normalizedValue(model) ?? _normalizedValue(brand);
+      if (primary == null) return (primary: shownId, secondary: null);
+      return (primary: primary, secondary: shownId);
+    }
     final primary =
         _normalizedValue(name) ??
         _normalizedValue(model) ??
         _normalizedValue(brand) ??
-        id;
+        shownId;
     final secondary = _normalizedValue(model);
     return (
       primary: primary,
@@ -292,13 +343,16 @@ final class IosDevice extends Device {
   @override
   String get displayName {
     final normalizedModel = _normalizedValue(model);
+    if (Device.shortNames) {
+      return normalizedModel ?? _normalizedValue(brand) ?? shownId;
+    }
     final normalizedName = _normalizedValue(name);
     if (normalizedModel != null && normalizedName != null) {
       return _isDistinctFrom(normalizedModel, normalizedName)
           ? '$normalizedModel ($normalizedName)'
           : normalizedModel;
     }
-    return normalizedModel ?? normalizedName ?? id;
+    return normalizedModel ?? normalizedName ?? shownId;
   }
 }
 
@@ -330,6 +384,8 @@ Device _buildDevice({
     ),
   };
 }
+
+String _verbatim(String id) => id;
 
 String? _normalizedValue(String? value) {
   if (value == null) {

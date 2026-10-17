@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../presentation/components/app_icon_button.dart';
 import '../emulator_manager/services/android_sdk_picker.dart';
 import '../logs/data/models/log_level.dart';
 import '../mirror/services/capture_storage.dart';
@@ -303,12 +304,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     mainAxisSize: MainAxisSize.min,
                     spacing: 12,
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.zoom_out, size: 18),
-                        constraints: const BoxConstraints(
-                          minWidth: 32,
-                          minHeight: 32,
-                        ),
+                      AppIconButton(
+                        icon: Icons.zoom_out,
                         onPressed: () {
                           final next = (PreferencesService.zoomLevel - 0.05)
                               .clamp(0.7, 1.8);
@@ -330,12 +327,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           },
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.zoom_in, size: 18),
-                        constraints: const BoxConstraints(
-                          minWidth: 32,
-                          minHeight: 32,
-                        ),
+                      AppIconButton(
+                        icon: Icons.zoom_in,
                         onPressed: () {
                           final next = (PreferencesService.zoomLevel + 0.05)
                               .clamp(0.7, 1.8);
@@ -461,13 +454,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
+                    AppIconButton(
                       tooltip: 'Open folder',
-                      icon: const Icon(Icons.folder_open_outlined, size: 18),
-                      constraints: const BoxConstraints(
-                        minWidth: 32,
-                        minHeight: 32,
-                      ),
+                      icon: Icons.folder_open_outlined,
                       onPressed: _openCaptureDirectory,
                     ),
                     TextButton(

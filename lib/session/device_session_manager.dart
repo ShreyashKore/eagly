@@ -10,6 +10,7 @@ import '../services/app_breadcrumbs.dart';
 import '../services/devices_repository.dart';
 import '../services/device_session_repository.dart';
 import 'device_session_controller.dart';
+import 'workspace_layout.dart';
 
 typedef DeviceSessionServiceFactory =
     DeviceSessionRepository Function(Device device);
@@ -25,8 +26,10 @@ class DeviceSessionManager extends ChangeNotifier {
   DeviceSessionManager({
     DevicesRepository? repository,
     DeviceSessionServiceFactory? serviceFactory,
+    WorkspaceLayoutMemory? layoutMemory,
   }) : _repository = repository ?? DevicesRepository.instance,
-       _serviceFactory = serviceFactory {
+       _serviceFactory = serviceFactory,
+       _layoutMemory = layoutMemory ?? WorkspaceLayoutMemory.persisted() {
     _repository.addListener(_sync);
     unawaited(_repository.ensureStarted(refreshImmediately: true));
     _sync();
@@ -34,6 +37,10 @@ class DeviceSessionManager extends ChangeNotifier {
 
   final DevicesRepository _repository;
   final DeviceSessionServiceFactory? _serviceFactory;
+
+  /// Where panes were last placed, shared by every device's workspace (and,
+  /// by default, kept in preferences across launches).
+  final WorkspaceLayoutMemory _layoutMemory;
 
   final Map<String, DeviceSessionController> _sessions = {};
   final List<String> _order = [];
@@ -74,6 +81,7 @@ class DeviceSessionManager extends ChangeNotifier {
         _sessions[id] = DeviceSessionController(
           device: device,
           service: _serviceFactory?.call(device),
+          layoutMemory: _layoutMemory,
         );
         _order.add(id);
       } else {
@@ -189,6 +197,7 @@ class DeviceSessionManager extends ChangeNotifier {
     final session = _sessions[id] = DeviceSessionController(
       device: device,
       service: _serviceFactory?.call(device),
+      layoutMemory: _layoutMemory,
     );
     if (wasSelected) session.activate();
     notifyListeners();

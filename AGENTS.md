@@ -11,6 +11,7 @@ This repo pins Flutter via **fvm** (`.fvmrc` → 3.47.0). Always prefix with `fv
 
 ```bash
 fvm flutter run -d macos        # run (also: windows / linux)
+fvm flutter run -d macos -a --record-mode   # product videos: 1920×1080 locked, centred window; stand-in serials/UDIDs (lib/utils/record_mode.dart)
 fvm flutter test                # all tests
 fvm flutter test test/log_controller_test.dart
 fvm flutter analyze lib test    # lints (flutter_lints; clean except 1 known deprecation)
@@ -84,6 +85,7 @@ iOS backends                     services/ios/* — IosDeviceService, one interf
 discovery                        services/devices_repository.dart (DevicesRepository) — adb/idevice polling + track-devices
 app coordinator                  session/device_session_manager.dart — one DeviceSessionController per device, tab order, selection
 per-device session               session/device_session_controller.dart — owns the live Device + feature controllers (lazy)
+pane layout                      session/workspace_layout.dart — which feature panes are open and how they are arranged (fl_panel tree)
 per-feature controllers          session/feature_controller.dart (base) → LogController, MirrorController, CrashReportController, FileManagerController, UtilitiesController, TerminalController
 views                            features/<feature>/..._feature_view.dart — extend presentation/components/feature_view.dart (FeatureView)
 ```
@@ -105,6 +107,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
 
 ## Domain notes
 
+- **Known issues:** bugs found and left for a later branch are listed in
+  docs/KNOWN_ISSUES.md, with causes and suggested fixes. iOS Rust ones are in
+  docs/IOS_RUST_MIGRATION.md → *Open issues*. Check both before working in those areas, and
+  delete an entry in the commit that fixes it.
 - **Log streaming:** `DeviceSessionRepository.startLogStream()` is an `async*` that yields
   `LogEntry`s; the underlying tool's `StreamController` closing ⇒ stream EOF. `LogController`
   buffers into a `LogBuffer` (ring), flushing pending logs on a 300 ms timer. **Read
@@ -127,6 +133,23 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   stream EOF (no cheap liveness probe).
 - **Device statuses:** Android is connected only when `adb` status == `device` (offline/
   unauthorized ⇒ disconnected). iOS presence in `idevice_id -l` ⇒ connected.
+- **Device labels:** anything that *shows* an id goes through `shownId` / `Device.presentId`,
+  never raw `id`; tools and copy buttons keep the real `id`. Under `--record-mode`
+  (`RecordMode.anonymizeDevices`) `presentId` returns a stable stand-in and `Device.shortNames`
+  names devices by brand and model alone — no serial, no owner-given name — in tabs, titles and
+  messages; a tab then adds its serial only when another would read the same
+  (`DeviceTabStrip.ambiguousLabels`). Outside record mode labels are unchanged.
+- **Device model names:** iOS `ProductType`s map through `utils/apple_device_mapping.dart`;
+  Android `brand`/`ro.product.device`/`ro.product.model` map to a marketing name ("Galaxy
+  S23", not `SM-S911B`) through Google Play's supported-devices CSV
+  (`utils/android_device_mapping.dart`, cached in the app support dir via write-then-rename,
+  refreshed after 30 days; a failed download retries on a timer, not on the next lookup).
+  Its parsing runs in `Isolate.run` from *static* helpers — a closure built in an instance
+  method captures `this`, whose timer and listeners can't cross isolates. A device's own
+  `ro.product.marketname` (`AndroidDevice.marketName`) wins over the list, which is only
+  consulted without one. The Android lookup never waits — not on the download, and not on
+  reading the cached copy either (a ~5 MB parse): devices first show their raw model, and `AndroidMarketingNames` notifies `DevicesRepository` to re-describe them when
+  the list lands. `DevicesRepository.forTesting` has no lookup unless a test passes one.
 - **Hidden columns persist across tabs and launches** unless the user opts out
   (`PreferencesService.rememberHiddenColumns`, default on; toggled from the column popup's
   last row and in Settings). The write happens in `LogViewer`'s popup handler, not in
@@ -186,7 +209,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   dropped paths — installable bundles (`.apk` on Android / `.ipa` on iOS, classified by
   `AppInstallService.inferSupportedPlatform`) go to `installAppFromPath()`; everything else
   is copied onto the device via `FileManagerController.copyExternalFiles()`. Installs run
-  one-at-a-time behind a per-device guard.
+  one-at-a-time behind a per-device guard. While one runs, the rail's Install button spins
+  and `InstallProgressBanner` floats over the panes (app, device, elapsed time). The tools
+  report no percentage, so progress is indeterminate; `installStartedAt` lives on the
+  controller so the elapsed time survives switching tabs.
   - **Dropping onto the Files pane** copies into the folder it shows instead, and an
     installable for this device first asks *Install* or *Copy*; other-platform installables
     are copied there rather than rejected. The pane is a `DropZone`
@@ -195,6 +221,17 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     would both act on one drop. `DeviceScreen`'s single target hit-tests for the zone under
     the pointer (`DropZone.at`, via `MetaData`) and hands it the drop — which is also why
     the screen-wide `DropOverlay` sits in an `IgnorePointer`.
+- **Apps pane names:** Android's package manager reports no app names, so the label is
+  read out of the same pulled APK as the icon (`ApkIconExtractor.extractDetails`, default
+  locale first) and cached across sessions by `AppIconCache` (`app_labels.json`). A label
+  that arrives mid-session renames the tile *without* re-sorting (tiles must not jump under
+  the cursor); the next refresh sorts by the new names. The Logs filter bar's package
+  suggestions (Android only) draw the same cached icons through `PackageIcon`
+  (`presentation/components/package_icon.dart`), which only ever *reads* the cache: a
+  fetch pulls the whole APK over the adb connection logcat is streaming on, so a log view
+  must never trigger one. Grid/list mode and icon size are
+  global preferences, and the controller — not the view — owns the search text, so a
+  reopened pane re-seeds its field from it.
 - **Utilities feature:** a declarative catalog (`features/utilities/data/utility_catalog.dart`)
   of curated `adb` / `adb shell` commands with a libimobiledevice equivalent where one
   exists. Each `UtilityCommand` owns its label, params, confirmation text and a
@@ -215,8 +252,9 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   only read-only ones opt in. Params whose useful values are known but not
   exhaustive (permissions, `dumpsys` services, screen sizes) use
   `UtilityParam.suggestion` with a list from
-  `features/utilities/data/utility_suggestions.dart` — a text field with a
-  dropdown, never a whitelist.
+  `features/utilities/data/utility_suggestions.dart` — rendered as a `ComboField`
+  (`presentation/components/combo_field.dart`): a searchable, keyboard-driven
+  dropdown over a text field, never a whitelist.
 - **Terminal feature:** free-form `adb` / libimobiledevice command entry, multi-tab like
   Logs (`TerminalSessionManager`; first tab permanent). Each `TerminalController` owns a
   scrollback, a history and a *target device*, and the point of the feature is that the
@@ -309,6 +347,17 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     the failure message survives the reload that follows it.
   - Not covered, deliberately: iOS simulators (`xcrun simctl`), system-image downloads
     (`sdkmanager`, licence prompts, multi-GB fetches) and hardware-profile editing.
+- **Device workspace (pane layout):** the open feature panes are an fl_panel docking tree
+  owned by `WorkspaceLayout` (`session.workspaceLayout`) — split, stacked or grouped into
+  tabs by dragging a pane's header, resized by the dividers. **Read docs/WORKSPACE_LAYOUT.md
+  before touching it.** The rules most easily broken: the tree *is* the open/closed state
+  (`isLogsOpen` asks it; there are no per-pane flags), and `WorkspaceLayout` notifies only
+  when the set of open panes changes — divider drags and tab switches go to
+  `layout.panels`, which only the view listens to; pane content is never reparented, so it
+  needs no `GlobalKey` to survive a move; and where a pane reopens comes from
+  `WorkspaceLayoutMemory` (one remembered tree for every device, persisted as
+  `PreferencesService.workspaceLayout`). Adding a pane is a `WorkspacePane` value plus a case
+  in `_Workspace` (`device_screen_content.dart`) — the doc has the checklist.
 - **Imported logs workspace:** opening a log file with no device hosts it in a single
   synthetic `DeviceSessionController` (`isImportedWorkspace`, id `__imported-logs__`); each
   file becomes a sub-tab. It appears as a tab but is excluded from the landing-screen
@@ -329,6 +378,16 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   dividers, private helpers prefixed `_`, `unawaited(...)` for fire-and-forget futures.
 - Theme tokens come from the `EaglyTheme` extension: `context.eaglyTheme.<token>` (status
   colors, `warningColor`, `inlineNotice*`). Don't hardcode colors.
+- Icon-only buttons are `AppIconButton` (`presentation/components/app_icon_button.dart`),
+  never Material's `IconButton` — `test/app_icon_button_test.dart` fails on one in `lib/`.
+  Icons follow the app zoom, and `IconButton`'s theme-clamped box pushed a zoomed glyph
+  right and down; `AppIconButton` scales its box with the zoom and centres the icon, and
+  has the tooltip, focus ring, Enter/Space activation, `busy` and `isActive` built in.
+- A feature pane's header is its title bar in the device workspace: use
+  `FeatureViewHeader`, or put `const PaneGrip()` first in a custom toolbar, wrap an empty
+  stretch in `PaneDragArea`, and show the close button only if
+  `WorkspacePaneScope.showsOwnClose(context)` (a tab chip has it otherwise). Outside a
+  workspace these draw nothing. See docs/WORKSPACE_LAYOUT.md.
 - Explanations for a user who looks stuck go in a `HintNote`
   (`presentation/components/hint_note.dart`) wrapped in a `DelayedReveal`
   (`presentation/components/delayed_reveal.dart`): the note is not built at all until the

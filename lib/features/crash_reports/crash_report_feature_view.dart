@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../presentation/components/app_icon_button.dart';
 import '../../presentation/components/feature_view.dart';
 import '../../presentation/components/overflow_toolbar.dart';
 import 'components/body.dart';
@@ -39,10 +40,10 @@ class _CrashReportFeatureViewState
         onClose: widget.onClose,
         leading: selected == null
             ? null
-            : IconButton(
+            : AppIconButton(
                 tooltip: 'Back to list',
                 onPressed: controller.clearSelection,
-                icon: const Icon(Icons.arrow_back),
+                icon: Icons.arrow_back,
               ),
         actions: [
           ToolbarAction(

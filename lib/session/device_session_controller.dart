@@ -16,6 +16,7 @@ import '../services/app_breadcrumbs.dart';
 import '../services/app_install_service.dart';
 import '../services/device_session_repository.dart';
 import '../utils/utils.dart';
+import 'workspace_layout.dart';
 
 /// Summary of a drag-and-drop onto a device: which apps were installed, which
 /// files were copied (into [copyDirectory]) and any per-item [errors]. Build a
@@ -65,7 +66,8 @@ class DeviceSessionController extends ChangeNotifier {
   DeviceSessionController({
     required Device device,
     DeviceSessionRepository? service,
-  }) : this._(device: device, service: service);
+    WorkspaceLayoutMemory? layoutMemory,
+  }) : this._(device: device, service: service, layoutMemory: layoutMemory);
 
   /// Creates the device-less "Imported Logs" workspace session: a session that
   /// hosts only imported log tabs (no live capture, mirror, files, etc.). It is
@@ -78,10 +80,13 @@ class DeviceSessionController extends ChangeNotifier {
   DeviceSessionController._({
     required Device device,
     DeviceSessionRepository? service,
+    WorkspaceLayoutMemory? layoutMemory,
     this.isImportedWorkspace = false,
   }) : _device = device,
-       service = service ?? DeviceSessionRepository(device: device) {
+       service = service ?? DeviceSessionRepository(device: device),
+       workspaceLayout = WorkspaceLayout(memory: layoutMemory) {
     this.service.sessionLabel = device.id;
+    workspaceLayout.addListener(_handleWorkspaceChanged);
   }
 
   /// True for the synthetic workspace that only shows imported log files.
@@ -89,6 +94,11 @@ class DeviceSessionController extends ChangeNotifier {
 
   Device _device;
   final DeviceSessionRepository service;
+
+  /// Which feature panes are open and how they are arranged — split,
+  /// stacked or grouped into tabs. The source of truth for every
+  /// `is…Open` getter below.
+  final WorkspaceLayout workspaceLayout;
 
   LogSessionManager? _logSessionManager;
   MirrorController? _mirrorController;
@@ -100,43 +110,33 @@ class DeviceSessionController extends ChangeNotifier {
   TerminalSessionManager? _terminalSessionManager;
 
   bool _homeOpen = true;
-  bool _logsOpen = false;
-  bool _mirrorOpen = false;
-  bool _crashReportsOpen = false;
-  bool _filesOpen = false;
-  bool _appsOpen = false;
-  bool _utilitiesOpen = false;
-  bool _terminalOpen = false;
   bool _activated = false;
+
+  /// Set while this controller edits [workspaceLayout] itself, so the
+  /// change notifies once, from the verb, rather than also from the layout.
+  bool _editingLayout = false;
   bool _disposed = false;
 
   String get id => _device.id;
   Device get device => _device;
   DevicePlatform get platform => _device.platform;
   bool get isConnected => _device.isConnected;
-  bool get isMirrorOpen => _mirrorOpen;
-  bool get isCrashReportsOpen => _crashReportsOpen;
-  bool get isFilesOpen => _filesOpen;
-  bool get isAppsOpen => _appsOpen;
-  bool get isUtilitiesOpen => _utilitiesOpen;
-  bool get isTerminalOpen => _terminalOpen;
-  bool get isLogsOpen => _logsOpen;
+  bool get isMirrorOpen => isPaneOpen(WorkspacePane.mirror);
+  bool get isCrashReportsOpen => isPaneOpen(WorkspacePane.crashReports);
+  bool get isFilesOpen => isPaneOpen(WorkspacePane.files);
+  bool get isAppsOpen => isPaneOpen(WorkspacePane.apps);
+  bool get isUtilitiesOpen => isPaneOpen(WorkspacePane.utilities);
+  bool get isTerminalOpen => isPaneOpen(WorkspacePane.terminal);
+  bool get isLogsOpen => isPaneOpen(WorkspacePane.logs);
   bool get isHomeOpen => _homeOpen;
   bool get isActivated => _activated;
+
+  bool isPaneOpen(WorkspacePane pane) => workspaceLayout.isOpen(pane);
 
   /// Closing a pane must never leave nothing selected — fall back to Home
   /// when it would otherwise be the last one standing.
   void _ensureSelection() {
-    if (!_homeOpen &&
-        !_logsOpen &&
-        !_mirrorOpen &&
-        !_crashReportsOpen &&
-        !_filesOpen &&
-        !_appsOpen &&
-        !_utilitiesOpen &&
-        !_terminalOpen) {
-      _homeOpen = true;
-    }
+    if (!_homeOpen && workspaceLayout.isEmpty) _homeOpen = true;
   }
 
   /// Whether this device can be screen-mirrored right now.
@@ -204,32 +204,100 @@ class DeviceSessionController extends ChangeNotifier {
 
   void toggleHome() => _homeOpen ? closeHome() : openHome();
 
+  // ── Feature panes ─────────────────────────────────────────────────────
+
   /// Home and the feature workspace are two mutually-exclusive *views* over
-  /// state that both stay alive underneath. Opening a feature pane switches
-  /// the view to the workspace and marks the pane open, but never touches the
-  /// open/closed flags of the other panes — so returning to Home and back
-  /// restores whatever combination of panes was showing before.
-  void openLogs() {
-    final viewChanged = _homeOpen || !_logsOpen;
-    _logsOpen = true;
+  /// state that both stay alive underneath. Opening a pane switches the view
+  /// to the workspace and puts the pane where it stood last time (or along
+  /// the right edge), or brings it to the front of its tab group. It never
+  /// touches the other panes, so returning to Home and back restores
+  /// whatever arrangement was showing before.
+  void openPane(WorkspacePane pane) {
+    final viewChanged = _homeOpen || !workspaceLayout.isShown(pane);
     _homeOpen = false;
+    _editLayout(() => workspaceLayout.show(pane));
     if (viewChanged) {
-      _navigate('Logs');
+      _navigate(pane.label);
       _notify();
+    }
+    switch (pane) {
+      case WorkspacePane.mirror:
+        if (canMirror) mirrorController.show();
+      case WorkspacePane.crashReports:
+        if (canReadCrashReports) {
+          unawaited(crashReportController.ensureLoaded());
+        }
+      case WorkspacePane.files:
+        unawaited(fileManagerController.ensureLoaded());
+      case WorkspacePane.apps:
+        unawaited(appsController.ensureLoaded());
+      case WorkspacePane.logs:
+      case WorkspacePane.utilities:
+      case WorkspacePane.terminal:
+        break;
     }
   }
 
-  void closeLogs() {
-    if (!_logsOpen) return;
-    _logsOpen = false;
+  void closePane(WorkspacePane pane) {
+    if (!workspaceLayout.isOpen(pane)) return;
+    _editLayout(() => workspaceLayout.hide(pane));
     _ensureSelection();
     _notify();
   }
 
   /// While Home is showing, tapping a pane's rail item always reveals the
-  /// workspace (opening the pane if it wasn't already); it only closes the
-  /// pane when the workspace is already the active view.
-  void toggleLogs() => _logsOpen && !_homeOpen ? closeLogs() : openLogs();
+  /// workspace (opening the pane if it wasn't already), and a pane hidden
+  /// behind another tab of its group is brought to the front. Only a pane
+  /// already in view is closed.
+  void togglePane(WorkspacePane pane) =>
+      !_homeOpen && workspaceLayout.isShown(pane)
+      ? closePane(pane)
+      : openPane(pane);
+
+  void openLogs() => openPane(WorkspacePane.logs);
+  void closeLogs() => closePane(WorkspacePane.logs);
+  void toggleLogs() => togglePane(WorkspacePane.logs);
+
+  void openMirror() => openPane(WorkspacePane.mirror);
+  void closeMirror() => closePane(WorkspacePane.mirror);
+  void toggleMirror() => togglePane(WorkspacePane.mirror);
+
+  void openCrashReports() => openPane(WorkspacePane.crashReports);
+  void closeCrashReports() => closePane(WorkspacePane.crashReports);
+  void toggleCrashReports() => togglePane(WorkspacePane.crashReports);
+
+  void openFiles() => openPane(WorkspacePane.files);
+  void closeFiles() => closePane(WorkspacePane.files);
+  void toggleFiles() => togglePane(WorkspacePane.files);
+
+  void openApps() => openPane(WorkspacePane.apps);
+  void closeApps() => closePane(WorkspacePane.apps);
+  void toggleApps() => togglePane(WorkspacePane.apps);
+
+  void openUtilities() => openPane(WorkspacePane.utilities);
+  void closeUtilities() => closePane(WorkspacePane.utilities);
+  void toggleUtilities() => togglePane(WorkspacePane.utilities);
+
+  void openTerminal() => openPane(WorkspacePane.terminal);
+  void closeTerminal() => closePane(WorkspacePane.terminal);
+  void toggleTerminal() => togglePane(WorkspacePane.terminal);
+
+  void _editLayout(VoidCallback edit) {
+    _editingLayout = true;
+    try {
+      edit();
+    } finally {
+      _editingLayout = false;
+    }
+  }
+
+  /// Edits made in the workspace itself — a tab's close button, a strip's
+  /// "Close all" — reach the session only through the layout.
+  void _handleWorkspaceChanged() {
+    if (_editingLayout) return;
+    _ensureSelection();
+    _notify();
+  }
 
   /// Updates the live device snapshot from the repository. Feature controllers
   /// listen to this controller and react to connectivity transitions.
@@ -253,139 +321,17 @@ class DeviceSessionController extends ChangeNotifier {
     _notify();
   }
 
-  void openMirror() {
-    final viewChanged = _homeOpen || !_mirrorOpen;
-    _mirrorOpen = true;
-    _homeOpen = false;
-    if (viewChanged) {
-      _navigate('Mirror');
-      _notify();
-    }
-    if (canMirror) {
-      mirrorController.show();
-    }
-  }
-
-  void closeMirror() {
-    if (!_mirrorOpen) return;
-    _mirrorOpen = false;
-    _ensureSelection();
-    _notify();
-  }
-
-  void toggleMirror() =>
-      _mirrorOpen && !_homeOpen ? closeMirror() : openMirror();
-
-  void openCrashReports() {
-    final viewChanged = _homeOpen || !_crashReportsOpen;
-    _crashReportsOpen = true;
-    _homeOpen = false;
-    if (viewChanged) {
-      _navigate('Crash Reports');
-      _notify();
-    }
-    if (canReadCrashReports) {
-      unawaited(crashReportController.ensureLoaded());
-    }
-  }
-
-  void closeCrashReports() {
-    if (!_crashReportsOpen) return;
-    _crashReportsOpen = false;
-    _ensureSelection();
-    _notify();
-  }
-
-  void toggleCrashReports() => _crashReportsOpen && !_homeOpen
-      ? closeCrashReports()
-      : openCrashReports();
-
-  void openFiles() {
-    final viewChanged = _homeOpen || !_filesOpen;
-    _filesOpen = true;
-    _homeOpen = false;
-    if (viewChanged) {
-      _navigate('Files');
-      _notify();
-    }
-    unawaited(fileManagerController.ensureLoaded());
-  }
-
-  void closeFiles() {
-    if (!_filesOpen) return;
-    _filesOpen = false;
-    _ensureSelection();
-    _notify();
-  }
-
-  void toggleFiles() => _filesOpen && !_homeOpen ? closeFiles() : openFiles();
-
-  void openApps() {
-    final viewChanged = _homeOpen || !_appsOpen;
-    _appsOpen = true;
-    _homeOpen = false;
-    if (viewChanged) {
-      _navigate('Apps');
-      _notify();
-    }
-    unawaited(appsController.ensureLoaded());
-  }
-
-  void closeApps() {
-    if (!_appsOpen) return;
-    _appsOpen = false;
-    _ensureSelection();
-    _notify();
-  }
-
-  void toggleApps() => _appsOpen && !_homeOpen ? closeApps() : openApps();
-
-  void openUtilities() {
-    final viewChanged = _homeOpen || !_utilitiesOpen;
-    _utilitiesOpen = true;
-    _homeOpen = false;
-    if (viewChanged) {
-      _navigate('Utilities');
-      _notify();
-    }
-  }
-
-  void closeUtilities() {
-    if (!_utilitiesOpen) return;
-    _utilitiesOpen = false;
-    _ensureSelection();
-    _notify();
-  }
-
-  void toggleUtilities() =>
-      _utilitiesOpen && !_homeOpen ? closeUtilities() : openUtilities();
-
-  void openTerminal() {
-    final viewChanged = _homeOpen || !_terminalOpen;
-    _terminalOpen = true;
-    _homeOpen = false;
-    if (viewChanged) {
-      _navigate('Terminal');
-      _notify();
-    }
-  }
-
-  void closeTerminal() {
-    if (!_terminalOpen) return;
-    _terminalOpen = false;
-    _ensureSelection();
-    _notify();
-  }
-
-  void toggleTerminal() =>
-      _terminalOpen && !_homeOpen ? closeTerminal() : openTerminal();
-
   // ── App install (device-level) ──────────────────────────────────────────
   bool _isInstallingApp = false;
   String? _installingAppName;
+  DateTime? _installStartedAt;
 
   bool get isInstallingApp => _isInstallingApp;
   String? get installingAppName => _installingAppName;
+
+  /// When the running install began — kept here rather than in the progress
+  /// banner so its elapsed time survives switching device tabs.
+  DateTime? get installStartedAt => _installStartedAt;
 
   Future<AppInstallResult> installAppFromPicker() async {
     if (!isConnected) {
@@ -459,6 +405,7 @@ class DeviceSessionController extends ChangeNotifier {
 
     _isInstallingApp = true;
     _installingAppName = fileName;
+    _installStartedAt = DateTime.now();
     AppBreadcrumbs.action(
       'Installing $fileName on ${device.displayName}',
       category: 'install',
@@ -499,6 +446,7 @@ class DeviceSessionController extends ChangeNotifier {
     } finally {
       _isInstallingApp = false;
       _installingAppName = null;
+      _installStartedAt = null;
       _notify();
     }
   }
@@ -631,6 +579,9 @@ class DeviceSessionController extends ChangeNotifier {
     _appsController?.dispose();
     _utilitiesController?.dispose();
     _terminalSessionManager?.dispose();
+    workspaceLayout
+      ..removeListener(_handleWorkspaceChanged)
+      ..dispose();
     unawaited(service.dispose());
     super.dispose();
   }

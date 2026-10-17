@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'app_icon_button.dart';
 import '../../features/app_log/app_logger.dart';
 import '../theme/app_theme.dart';
 
@@ -32,14 +33,12 @@ class AppLogTriggerButton extends StatelessWidget {
     required this.title,
     required this.tooltip,
     this.iconSize = 15,
-    this.visualDensity = VisualDensity.compact,
   });
 
   final String? sessionTag;
   final String title;
   final String tooltip;
   final double iconSize;
-  final VisualDensity visualDensity;
 
   @override
   Widget build(BuildContext context) {
@@ -54,18 +53,19 @@ class AppLogTriggerButton extends StatelessWidget {
         final colorScheme = theme.colorScheme;
         final (icon, color) = _indicatorStyle(latest?.level, colorScheme);
 
-        return IconButton(
+        return AppIconButton(
           tooltip: latest == null ? tooltip : '$tooltip\n${latest.message}',
-          visualDensity: visualDensity,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+          iconSize: iconSize,
+          padding: 3,
           onPressed: () => showAppLogDialog(
             context,
             sessionTag: sessionTag,
             title: title,
             allowClear: sessionTag == null,
           ),
-          icon: Stack(
+          child: Stack(
+            // Cross-fade when the severity icon changes, not on every entry.
+            key: ValueKey(icon),
             clipBehavior: Clip.none,
             children: [
               Icon(icon, size: iconSize, color: color),

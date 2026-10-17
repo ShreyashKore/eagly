@@ -1,6 +1,7 @@
 //! iOS device discovery, backed by the `idevice` crate talking to usbmuxd
 //! directly. Replaces shelling out to `idevice_id -l` + `ideviceinfo -u <udid>`.
 
+use chrono::{Local, TimeZone};
 use idevice::provider::IdeviceProvider;
 use idevice::provider::UsbmuxdProvider;
 use idevice::services::afc::opcode::AfcFopenMode;
@@ -356,6 +357,11 @@ pub async fn start_ios_syslog(
                         // `add` fails once Dart has dropped the stream, which is
                         // the other way this task legitimately ends.
                         Ok(log) => if sink.add(format_os_trace_log(&log)).is_err() { break },
+                        // One record the crate can't decode (an unmapped level
+                        // byte, say) is reported only after its whole packet is
+                        // read, so the next one is still in frame: skip it
+                        // rather than end the user's stream over it.
+                        Err(error) if is_skippable_record_error(&error) => continue,
                         // Includes the device going away mid-stream; Dart sees
                         // end-of-stream, same as the CLI backend's EOF.
                         Err(_) => break,
@@ -385,9 +391,13 @@ pub async fn start_ios_syslog(
 /// them into the same entry's continuation lines.
 fn format_os_trace_log(log: &OsTraceLog) -> String {
     // The crate builds `timestamp` with `DateTime::from_timestamp(seconds,
-    // microseconds)`, passing microseconds where nanoseconds belong. The
-    // wall-clock part is correct; the sub-second field therefore still holds
-    // the raw microsecond count, so read it back as microseconds to undo that.
+    // microseconds).naive_local()`. That is a `DateTime<Utc>`, so the naive
+    // value is the UTC wall clock; `idevicesyslog` prints host-local time, and
+    // so must we — the Dart parser reads the text as local.
+    let local = Local.from_utc_datetime(&log.timestamp);
+    // It also passes microseconds where nanoseconds belong, so the sub-second
+    // field holds the raw microsecond count: read it back as microseconds.
+    // Pinned to idevice =0.1.65; recheck both quirks when bumping it.
     let micros = log.timestamp.and_utc().timestamp_subsec_nanos();
 
     let process = basename(&log.filename);
@@ -408,9 +418,22 @@ fn format_os_trace_log(log: &OsTraceLog) -> String {
 
     format!(
         "{}.{micros:06} {label}[{}] <{level}>: {}",
-        log.timestamp.format("%b %e %H:%M:%S"),
+        local.format("%b %e %H:%M:%S"),
         log.pid,
         log.message,
+    )
+}
+
+/// Whether `OsTraceRelayReceiver::next` failed on one record's contents rather
+/// than on the connection. In idevice 0.1.65 every decode failure is an
+/// `UnexpectedResponse` raised after the packet has been read in full — except
+/// a missing `0x02` lead byte, which means the stream is out of frame and
+/// every later read would be garbage. I/O errors, EOF included, are never
+/// skippable.
+fn is_skippable_record_error(error: &IdeviceError) -> bool {
+    matches!(
+        error,
+        IdeviceError::UnexpectedResponse(detail) if !detail.contains("leading byte")
     )
 }
 
@@ -814,4 +837,58 @@ async fn provider_for(udid: &str) -> Result<UsbmuxdProvider, IosError> {
     let device = usbmuxd.get_device(udid).await?;
     let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
     Ok(device.to_provider(address, CLIENT_LABEL))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::DateTime;
+
+    /// A record as idevice 0.1.65 builds it: `from_timestamp(seconds,
+    /// microseconds).naive_local()` — UTC, with micros in the nanos field.
+    fn record(seconds: i64, microseconds: u32, message: &str) -> OsTraceLog {
+        OsTraceLog {
+            pid: 42,
+            timestamp: DateTime::from_timestamp(seconds, microseconds)
+                .unwrap()
+                .naive_local(),
+            level: LogLevel::Error,
+            image_name: "/System/Library/Frameworks/QuartzCore.framework/QuartzCore".into(),
+            filename: "/usr/libexec/backboardd".into(),
+            message: message.into(),
+            label: None,
+        }
+    }
+
+    #[test]
+    fn formats_in_host_local_time_with_microseconds() {
+        let seconds = 1_792_000_000;
+        let expected_clock = Local
+            .timestamp_opt(seconds, 0)
+            .unwrap()
+            .format("%b %e %H:%M:%S");
+
+        assert_eq!(
+            format_os_trace_log(&record(seconds, 1_234, "boom")),
+            format!("{expected_clock}.001234 backboardd(QuartzCore)[42] <Error>: boom"),
+        );
+    }
+
+    #[test]
+    fn skips_only_record_decode_errors() {
+        let unexpected = |detail: &str| IdeviceError::UnexpectedResponse(detail.into());
+
+        assert!(is_skippable_record_error(&unexpected(
+            "unknown log level byte value"
+        )));
+        assert!(is_skippable_record_error(&unexpected(
+            "invalid timestamp in log packet"
+        )));
+        assert!(!is_skippable_record_error(&unexpected(
+            "expected leading byte 0x02 at start of log packet"
+        )));
+        assert!(!is_skippable_record_error(
+            &IdeviceError::NoEstablishedConnection
+        ));
+    }
 }

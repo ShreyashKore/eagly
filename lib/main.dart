@@ -9,16 +9,19 @@ import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/presentation/theme/app_zoom.dart';
 import 'package:eagly/features/home_screen/home_page.dart';
 import 'package:eagly/services/sentry_event_filter.dart';
+import 'package:eagly/utils/record_mode.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
-void main() async {
+void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   await initIosBackend();
   await PreferencesService.init();
   await EaglyInfoService.init();
-  await _configureDesktopWindow();
+  final recordMode = RecordMode.isRequested(args);
+  if (recordMode) RecordMode.anonymizeDevices();
+  await _configureDesktopWindow(recordMode: recordMode);
   await SentryFlutter.init((options) {
     options.dsn =
         'https://ae4a6b39a9a2ca819748de8112255cb6@o4511675750416384.ingest.us.sentry.io/4511675759984640';
@@ -46,7 +49,10 @@ void main() async {
 /// the window header. macOS keeps its traffic-light controls; Windows/Linux get
 /// custom caption buttons in the header. Dragging is handled by a drag region
 /// in the header.
-Future<void> _configureDesktopWindow() async {
+///
+/// [recordMode] (`--record-mode`) locks the window to a fixed size for
+/// product-video recording; see [RecordMode].
+Future<void> _configureDesktopWindow({required bool recordMode}) async {
   if (!Platform.isMacOS && !Platform.isWindows && !Platform.isLinux) return;
 
   await windowManager.ensureInitialized();
@@ -56,6 +62,7 @@ Future<void> _configureDesktopWindow() async {
     minimumSize: Size(560, 240),
   );
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
+    if (recordMode) await RecordMode.applyWindowLayout();
     await windowManager.show();
     await windowManager.focus();
   });

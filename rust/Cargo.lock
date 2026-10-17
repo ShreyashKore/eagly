@@ -1269,6 +1269,7 @@ dependencies = [
 name = "rust_lib_eagly"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "flutter_rust_bridge",
  "idevice",
  "plist",

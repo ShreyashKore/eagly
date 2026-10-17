@@ -95,13 +95,6 @@ class LogController extends FeatureController {
   /// Focus for the filter row's search field, so ⌘F can jump into it.
   final FocusNode searchFocusNode = FocusNode();
 
-  double paneWidth = 600;
-
-  void setPaneWidth(double value) {
-    paneWidth = value.clamp(340, 1200);
-    notifyListeners();
-  }
-
   /// The filter bar's pills, focus and debounce. It emits updated
   /// [LogFilters] state through [_applyFilterConfig].
   late final LogFilterController filter;
@@ -126,6 +119,12 @@ class LogController extends FeatureController {
   /// Re-flagging rescans every stored entry, so it waits for the next append
   /// rather than running once per learned PID.
   bool _logBufferFilterDirty = false;
+
+  /// PIDs [_requestPackageForUnknownPid] has already asked about. One refresh
+  /// per PID: if that didn't resolve it — the process exited first, or the
+  /// device's `ps` can't list it (older Androids reject `-A`) — asking again
+  /// would only repeat the same `ps -A` every second for as long as it logs.
+  final Set<String> _pidsAskedToResolve = {};
 
   StreamSubscription<LogEntry>? _logSub;
   StreamSubscription<Map<String, String>>? _pidPackageUpdatesSub;
@@ -920,6 +919,9 @@ class LogController extends FeatureController {
     final pid = entry.pid.trim();
     if (pid.isEmpty || packageFilterValue(entry).isNotEmpty) return;
     if (_pidPackages.packageForPid(pid) != null) return;
+    // Capped; clearing only risks one more ask per PID.
+    if (_pidsAskedToResolve.length >= 4096) _pidsAskedToResolve.clear();
+    if (!_pidsAskedToResolve.add(pid)) return;
     service.requestPidToPackageRefresh();
   }
 
@@ -1000,6 +1002,12 @@ class LogController extends FeatureController {
   }
 
   void _appendImmediateLogEntry(LogEntry entry) {
+    // Entries still queued for the periodic flush arrived first; appending
+    // around them would put a separator or session marker ("paused",
+    // "stopped") ahead of up to one flush interval of earlier logs — and
+    // after a stop, whose flush timer is already gone, strand them.
+    _flushPendingLogs();
+
     _syncLogBufferFilterIfDirty();
     final evictedLogs = _logsBuffer.append(entry);
     final addedBytes = estimateLogEntryBytes(entry);
@@ -1257,15 +1265,15 @@ class LogController extends FeatureController {
 
     if (!isConnected) {
       _enterInterruptedState(
-        'Live logging stopped — ${device.displayName} disconnected. '
-        'Reconnect the device, then restart logging or open a new tab.',
+        '${device.displayName} disconnected. Reconnect it, then restart '
+        'logging or open a new tab.',
       );
       return;
     }
 
     if (logcatState == LogcatState.paused) {
       _enterInterruptedState(
-        'Live logging stopped while paused. Resume to reconnect, or open a '
+        'The stream dropped while paused. Resume to reconnect, or open a '
         'new tab.',
       );
       return;
@@ -1273,8 +1281,8 @@ class LogController extends FeatureController {
 
     if (_recoveryAttempts >= _maxAutoRecoveryAttempts) {
       _enterInterruptedState(
-        'Live logging stopped and could not be resumed automatically. '
-        'Restart logging or open a new tab.',
+        'It could not be resumed automatically. Restart logging or open a '
+        'new tab.',
       );
       return;
     }
@@ -1302,7 +1310,8 @@ class LogController extends FeatureController {
       if (_disposed || logcatState == LogcatState.stopped) return;
       if (!isConnected) {
         _enterInterruptedState(
-          'Live logging stopped — ${device.displayName} disconnected.',
+          '${device.displayName} disconnected. Reconnect it, then restart '
+          'logging or open a new tab.',
         );
         return;
       }
@@ -1319,7 +1328,7 @@ class LogController extends FeatureController {
           _scheduleRecovery(reconnect: true);
         } else {
           _enterInterruptedState(
-            'Live logging stopped — ${device.displayName} is not responding. '
+            '${device.displayName} is not responding. '
             'Restart logging or open a new tab.',
           );
         }

@@ -9,10 +9,10 @@ import '../../utils/log_entry_utils.dart';
 import '../tools/tool_process_runner.dart';
 import 'ios_log_service.dart';
 
-/// [IosLogService] backed by the `idevice` crate's syslog relay client.
+/// [IosLogService] backed by the `idevice` crate's `os_trace_relay` client.
 ///
-/// Rust emits one string per syslog-relay record — a whole message, embedded
-/// newlines included (the relay delimits records with `\n\0`) — and the same
+/// Rust emits one string per relay record — a whole message, embedded newlines
+/// included, formatted into the line `idevicesyslog` prints — and the same
 /// [IosSyslogParser] turns them into [LogEntry]s for both backends, via
 /// [parseLogRecords] rather than the CLI's line-by-line [parseLogLines]. The
 /// parser (`\M-` meta-escapes, header parsing) is well tested, so moving it

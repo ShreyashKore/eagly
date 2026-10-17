@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../presentation/components/app_icon_button.dart';
 import '../../../data/device.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../terminal_controller.dart';
@@ -174,19 +175,17 @@ class _TerminalInputBarState extends State<TerminalInputBar> {
               ),
               const SizedBox(width: 4),
               if (isRunning)
-                IconButton(
+                AppIconButton(
                   tooltip: 'Stop (Ctrl+C)',
                   onPressed: () => unawaited(controller.cancel()),
-                  icon: Icon(
-                    Icons.stop_circle_outlined,
-                    color: eaglyTheme.errorColor,
-                  ),
+                  color: eaglyTheme.errorColor,
+                  icon: Icons.stop_circle_outlined,
                 )
               else
-                IconButton(
+                AppIconButton(
                   tooltip: 'Run (Enter)',
                   onPressed: _submit,
-                  icon: const Icon(Icons.keyboard_return),
+                  icon: Icons.keyboard_return,
                 ),
             ],
           ),
@@ -221,9 +220,9 @@ class _PromptLabel extends StatelessWidget {
 
     return Tooltip(
       message: isPinned
-          ? 'Pinned to ${device.displayName} (${device.id}) — `use auto` to '
-                'follow this tab\'s device'
-          : '${device.displayName} (${device.id})',
+          ? 'Pinned to ${device.displayName} (${device.shownId}) — `use auto` '
+                'to follow this tab\'s device'
+          : '${device.displayName} (${device.shownId})',
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `afc_client`, `basename`, `claim_syslog_session`, `connect_usbmuxd`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_syslog_session`, `format_os_trace_log`, `installation_proxy`, `is_crash_report`, `is_network`, `join_afc_path`, `open_session`, `provider_for`, `read_afc_file`, `status`, `string_value`, `upload_recursive`
+// These functions are ignored because they are not marked as `pub`: `afc_client`, `basename`, `claim_syslog_session`, `connect_usbmuxd`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_syslog_session`, `format_os_trace_log`, `installation_proxy`, `is_crash_report`, `is_network`, `is_skippable_record_error`, `join_afc_path`, `open_session`, `provider_for`, `read_afc_file`, `status`, `string_value`, `upload_recursive`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
 /// Lists every device usbmuxd knows about.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../presentation/components/app_icon_button.dart';
 import '../../../utils/utils.dart';
 
 class RecentFileTile extends StatelessWidget {
@@ -60,12 +61,11 @@ class RecentFileTile extends StatelessWidget {
                 ),
               ),
               const Gap(8),
-              IconButton(
+              AppIconButton(
                 tooltip: 'Remove from recent',
-                visualDensity: VisualDensity.compact,
                 iconSize: 16,
                 onPressed: onRemove,
-                icon: const Icon(Icons.close),
+                icon: Icons.close,
               ),
             ],
           ),

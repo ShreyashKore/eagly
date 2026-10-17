@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import 'app_icon_button.dart';
 import '../../utils/external_launcher.dart';
 import '../theme/app_theme.dart';
 
@@ -98,13 +99,12 @@ class _IosSupportNoticeState extends State<IosSupportNotice> {
               ],
             ),
           ),
-          IconButton(
+          AppIconButton(
             tooltip: 'Dismiss',
             iconSize: 16,
-            visualDensity: VisualDensity.compact,
             color: eagly.inlineNoticeForeground,
             onPressed: () => setState(() => _dismissed = true),
-            icon: const Icon(Icons.close_rounded),
+            icon: Icons.close_rounded,
           ),
         ],
       ),

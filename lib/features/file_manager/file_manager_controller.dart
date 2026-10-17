@@ -65,8 +65,6 @@ class FileManagerController extends FeatureController {
   bool _busy = false;
   String? busyLabel;
 
-  double paneWidth = 600;
-
   bool _disposed = false;
   bool _loadedOnce = false;
   int _loadToken = 0;
@@ -218,13 +216,6 @@ class FileManagerController extends FeatureController {
       sortField = field;
       sortAscending = true;
     }
-    _notify();
-  }
-
-  void setPaneWidth(double width) {
-    final clamped = width.clamp(380.0, 960.0);
-    if (clamped == paneWidth) return;
-    paneWidth = clamped;
     _notify();
   }
 

@@ -8,26 +8,49 @@ import '../data/ios_device_info.dart';
 import '../features/wireless_connection/data/wireless_debug_models.dart';
 import '../features/app_log/app_logger.dart';
 import 'app_breadcrumbs.dart';
+import '../utils/android_device_mapping.dart';
 import '../utils/apple_device_mapping.dart';
 import 'tools/adb_tool.dart';
 import 'ios/ios_device_service.dart';
 
-class DevicesRepository extends ChangeNotifier {
-  DevicesRepository._({AdbTool? adbTool, IosDeviceService? iosDeviceService})
-    : _adbTool = adbTool ?? AdbTool(),
-      _iosDeviceService = iosDeviceService ?? createIosDeviceService();
+/// Looks up an Android device's marketing name from its `ro.product.brand`,
+/// `ro.product.device` and `ro.product.model`.
+typedef AndroidMarketingNameLookup =
+    Future<String?> Function({String? brand, String? device, String? model});
 
+class DevicesRepository extends ChangeNotifier {
+  DevicesRepository._({
+    AdbTool? adbTool,
+    IosDeviceService? iosDeviceService,
+    AndroidMarketingNameLookup? androidMarketingName,
+    Listenable? androidMarketingNamesChanged,
+  }) : _adbTool = adbTool ?? AdbTool(),
+       _iosDeviceService = iosDeviceService ?? createIosDeviceService(),
+       _androidMarketingName = androidMarketingName,
+       _androidMarketingNamesChanged = androidMarketingNamesChanged {
+    _androidMarketingNamesChanged?.addListener(_onAndroidMarketingNamesChanged);
+  }
+
+  /// Tests get no marketing-name lookup unless they pass one, so they never
+  /// download Google Play's device list.
   factory DevicesRepository.forTesting({
     AdbTool? adbTool,
     IosDeviceService? iosDeviceService,
+    AndroidMarketingNameLookup? androidMarketingName,
+    Listenable? androidMarketingNamesChanged,
   }) {
     return DevicesRepository._(
       adbTool: adbTool,
       iosDeviceService: iosDeviceService,
+      androidMarketingName: androidMarketingName,
+      androidMarketingNamesChanged: androidMarketingNamesChanged,
     );
   }
 
-  static final DevicesRepository instance = DevicesRepository._();
+  static final DevicesRepository instance = DevicesRepository._(
+    androidMarketingName: AndroidMarketingNames.instance.lookup,
+    androidMarketingNamesChanged: AndroidMarketingNames.instance,
+  );
 
   static const Duration _minimumRefreshInterval = Duration(seconds: 2);
   static const Duration _androidRefreshDebounce = Duration(milliseconds: 350);
@@ -40,6 +63,11 @@ class DevicesRepository extends ChangeNotifier {
 
   final AdbTool _adbTool;
   final IosDeviceService _iosDeviceService;
+  final AndroidMarketingNameLookup? _androidMarketingName;
+
+  /// Fires when the marketing-name list arrives after devices were already
+  /// described without it.
+  final Listenable? _androidMarketingNamesChanged;
   final AppLogger _logger = AppLogger(source: 'DevicesRepository');
   final Map<String, _CachedAndroidDeviceDescription> _androidDescriptionCache =
       {};
@@ -311,9 +339,10 @@ class DevicesRepository extends ChangeNotifier {
     final describedSerial = described is AndroidDevice
         ? described.serialNumber
         : null;
+    final marketingName = await _resolveAndroidMarketingName(described);
     Device enriched = device.copyWith(
       brand: described.brand ?? device.brand,
-      model: described.model ?? device.model,
+      model: marketingName ?? described.model ?? device.model,
       name: described.name ?? device.name,
     );
     if (describedSerial != null && enriched is AndroidDevice) {
@@ -330,6 +359,37 @@ class DevicesRepository extends ChangeNotifier {
       );
     }
     return enriched;
+  }
+
+  /// The marketing name for [described] ("Galaxy S23" rather than
+  /// "SM-S911B"): the one the device reports for itself, else the one Google
+  /// Play lists for it (`name` carries `ro.product.device`). Null when neither
+  /// has one.
+  Future<String?> _resolveAndroidMarketingName(Device described) async {
+    if (described is AndroidDevice) {
+      final own = described.marketName?.trim();
+      if (own != null && own.isNotEmpty) return own;
+    }
+    final lookup = _androidMarketingName;
+    if (lookup == null || described.model == null) return null;
+    try {
+      return await lookup(
+        brand: described.brand,
+        device: described.name,
+        model: described.model,
+      );
+    } catch (error) {
+      _logger.warning('Android marketing name lookup failed', detail: '$error');
+      return null;
+    }
+  }
+
+  /// Re-describes Android devices so ones named before the list arrived pick
+  /// up their marketing names.
+  void _onAndroidMarketingNamesChanged() {
+    if (_disposed) return;
+    _androidDescriptionCache.clear();
+    unawaited(refreshDevices(force: true));
   }
 
   Future<Device> _resolveIosDevice(String deviceId) async {
@@ -482,6 +542,9 @@ class DevicesRepository extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _androidMarketingNamesChanged?.removeListener(
+      _onAndroidMarketingNamesChanged,
+    );
     _androidRefreshTimer?.cancel();
     _androidWatcherRestartTimer?.cancel();
     _iosRefreshTimer?.cancel();

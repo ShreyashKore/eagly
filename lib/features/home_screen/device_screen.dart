@@ -8,10 +8,12 @@ import '../../utils/log_feedback.dart';
 import '../logs/log_feature_view.dart';
 import 'components/device_screen_content.dart';
 import 'components/drop_overlay.dart';
+import 'components/install_progress_banner.dart';
 import 'feature_rail.dart';
 
 /// The screen shown for the selected device tab: the feature rail on the far
-/// left, then the open feature panes (Logs always, Mirror alongside when open).
+/// left, then Home or the open feature panes, arranged however the user left
+/// them.
 class DeviceScreen extends StatefulWidget {
   const DeviceScreen({
     super.key,
@@ -126,12 +128,29 @@ class _DeviceScreenState extends State<DeviceScreen> {
                   onOpenSettings: widget.onOpenSettings,
                 ),
                 Expanded(
-                  child: ListenableBuilder(
-                    listenable: widget.session,
-                    builder: (context, _) => DeviceScreenContent(
-                      session: widget.session,
-                      appMemoryBytesListenable: widget.appMemoryBytesListenable,
-                    ),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: ListenableBuilder(
+                          listenable: widget.session,
+                          builder: (context, _) => DeviceScreenContent(
+                            session: widget.session,
+                            appMemoryBytesListenable:
+                                widget.appMemoryBytesListenable,
+                          ),
+                        ),
+                      ),
+                      // Above the panes' status bars, clear of the content
+                      // edges, and empty (no hit area) when idle.
+                      Positioned(
+                        left: 16,
+                        right: 16,
+                        bottom: 40,
+                        child: Center(
+                          child: InstallProgressBanner(session: widget.session),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

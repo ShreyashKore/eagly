@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../../../data/device.dart';
+import '../../../presentation/components/combo_field.dart';
 import '../../../presentation/components/eagly_dialog.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../data/utility_command.dart';
@@ -189,9 +190,16 @@ class _UtilityParamsDialogState extends State<_UtilityParamsDialog> {
           },
         );
       case UtilityParamKind.suggestion:
-        return _SuggestionField(
-          param: param,
+        return ComboField(
           controller: _textControllers[param.key]!,
+          options: [
+            for (final option in param.options)
+              ComboOption(
+                value: option.value,
+                label: option.label,
+                description: option.description,
+              ),
+          ],
           decoration: _decorationFor(param),
           autofocus: autofocus,
           onChanged: (value) => _setValue(param, value),
@@ -216,134 +224,6 @@ class _UtilityParamsDialogState extends State<_UtilityParamsDialog> {
     border: const OutlineInputBorder(),
     isDense: true,
   );
-}
-
-/// A text field with a dropdown of common values attached. Typing filters the
-/// list; picking an entry fills the field. Anything typed is kept as-is — the
-/// suggestions are a shortcut, not a whitelist.
-class _SuggestionField extends StatefulWidget {
-  const _SuggestionField({
-    required this.param,
-    required this.controller,
-    required this.decoration,
-    required this.autofocus,
-    required this.onChanged,
-    required this.onSubmitted,
-  });
-
-  final UtilityParam param;
-  final TextEditingController controller;
-  final InputDecoration decoration;
-  final bool autofocus;
-  final ValueChanged<String> onChanged;
-  final ValueChanged<String> onSubmitted;
-
-  @override
-  State<_SuggestionField> createState() => _SuggestionFieldState();
-}
-
-class _SuggestionFieldState extends State<_SuggestionField> {
-  final GlobalKey _fieldKey = GlobalKey();
-
-  /// Suggestions matching what has been typed so far. Falls back to the whole
-  /// list when nothing matches, so the menu is never empty.
-  List<UtilityOption> get _matches {
-    final query = widget.controller.text.trim().toLowerCase();
-    if (query.isEmpty) return widget.param.options;
-    final matches = widget.param.options
-        .where(
-          (option) =>
-              option.value.toLowerCase().contains(query) ||
-              option.label.toLowerCase().contains(query),
-        )
-        .toList();
-    return matches.isEmpty ? widget.param.options : matches;
-  }
-
-  Future<void> _openMenu() async {
-    final box = _fieldKey.currentContext?.findRenderObject() as RenderBox?;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (box == null || overlay == null) return;
-
-    final topLeft = box.localToGlobal(Offset.zero, ancestor: overlay);
-    final position = RelativeRect.fromLTRB(
-      topLeft.dx,
-      topLeft.dy + box.size.height,
-      overlay.size.width - topLeft.dx - box.size.width,
-      0,
-    );
-
-    final picked = await showMenu<String>(
-      context: context,
-      position: position,
-      constraints: BoxConstraints(minWidth: box.size.width),
-      items: [
-        for (final option in _matches)
-          PopupMenuItem(
-            value: option.value,
-            height: option.description == null ? 40 : 52,
-            child: _SuggestionRow(option: option),
-          ),
-      ],
-    );
-    if (picked == null || !mounted) return;
-    widget.controller.text = picked;
-    widget.controller.selection = TextSelection.collapsed(
-      offset: picked.length,
-    );
-    widget.onChanged(picked);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      key: _fieldKey,
-      controller: widget.controller,
-      autofocus: widget.autofocus,
-      decoration: widget.decoration.copyWith(
-        suffixIcon: IconButton(
-          tooltip: 'Suggestions',
-          iconSize: 20,
-          visualDensity: VisualDensity.compact,
-          onPressed: widget.param.options.isEmpty ? null : _openMenu,
-          icon: const Icon(Icons.arrow_drop_down),
-        ),
-      ),
-      onChanged: widget.onChanged,
-      onSubmitted: widget.onSubmitted,
-    );
-  }
-}
-
-class _SuggestionRow extends StatelessWidget {
-  const _SuggestionRow({required this.option});
-
-  final UtilityOption option;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final description = option.description;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(option.label, style: theme.textTheme.bodyMedium),
-        if (description != null)
-          Text(
-            description,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontFamily: 'monospace',
-              fontSize: 11,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-      ],
-    );
-  }
 }
 
 /// Shows the exact line that will run, so the dialog is never a black box.

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../features/apps/data/apps_view_options.dart';
 import '../features/logs/data/models/log_column.dart';
 import '../features/logs/data/models/log_level.dart';
 import '../features/logs/data/models/log_tab_settings.dart';
@@ -67,6 +68,9 @@ class PreferencesService {
   static const _keyCaptureDirectory = 'captureDirectory';
   static const _keyCaptureAskEveryTime = 'captureAskEveryTime';
   static const _keyAndroidSdkPath = 'androidSdkPath';
+  static const _keyAppsViewMode = 'appsViewMode';
+  static const _keyAppsIconSize = 'appsIconSize';
+  static const _keyWorkspaceLayout = 'workspaceLayout';
 
   /// Maximum number of recently opened log files retained for quick re-open.
   static const _maxRecentLogFiles = 10;
@@ -293,5 +297,41 @@ class PreferencesService {
       'dark' => ThemeMode.dark,
       _ => null,
     };
+  }
+
+  // --- Apps pane layout (shared by every device's Apps pane) ---
+
+  static AppsViewMode get appsViewMode =>
+      AppsViewMode.fromStored(_prefs.getString(_keyAppsViewMode));
+  static set appsViewMode(AppsViewMode v) =>
+      _prefs.setString(_keyAppsViewMode, v.name);
+
+  static AppIconSize get appsIconSize =>
+      AppIconSize.fromStored(_prefs.getString(_keyAppsIconSize));
+  static set appsIconSize(AppIconSize v) =>
+      _prefs.setString(_keyAppsIconSize, v.name);
+
+  // --- Device workspace layout (shared by every device's workspace) ---
+
+  /// Where each feature pane was last placed, as the JSON
+  /// `WorkspaceLayoutMemory.encode` writes; null when nothing is remembered
+  /// or the stored value is not JSON. Interpreting it is the layout's job.
+  static Map<String, Object?>? get workspaceLayout {
+    try {
+      return _prefs.getJson<Map<String, Object?>?>(
+        _keyWorkspaceLayout,
+        (json) => json is Map<String, Object?> ? json : null,
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static set workspaceLayout(Map<String, Object?>? v) {
+    if (v == null) {
+      _prefs.remove(_keyWorkspaceLayout);
+    } else {
+      _prefs.setJson(_keyWorkspaceLayout, v);
+    }
   }
 }

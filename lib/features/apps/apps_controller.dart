@@ -1,41 +1,103 @@
 import 'dart:async';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 import '../../data/device.dart';
+import '../../services/app_icon_cache.dart';
+import '../../services/preferences_service.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/utils.dart';
 import '../wireless_connection/data/wireless_debug_models.dart';
 import 'data/app_info.dart';
+import 'data/apps_view_options.dart';
 
 enum AppLoadState { idle, loading, ready, error }
 
 /// Per-device app-management feature. Owns the installed-app inventory,
-/// search/system-apps filters, per-app action busy state, and a small
-/// concurrency-limited icon cache (icons are fetched lazily, one per app
-/// tile, the first time that tile is built).
+/// search/system-apps filters, the (persisted) layout options, per-app action
+/// busy state, and a small concurrency-limited icon cache (icons are fetched
+/// lazily, one per app tile, the first time that tile is built).
+///
+/// Android's package manager doesn't report app names, so each icon fetch
+/// also reads the label out of the same pulled APK; labels are cached across
+/// sessions by [AppIconCache] and patched into [apps] as they arrive.
 ///
 /// Pane *visibility* lives on the owning [DeviceSessionController]; this
 /// controller only manages the feature's own data.
 class AppsController extends FeatureController {
-  AppsController(super.session);
+  AppsController(super.session, {AppIconCache? iconCache})
+    : _iconStore = iconCache ?? AppIconCache.instance;
 
   static const int _maxConcurrentIconFetches = 4;
+
+  /// How many apps the pinned "recently installed" row shows at most.
+  static const int recentAppsLimit = 12;
+
+  /// Maximum consecutive failed fetches before an app's icon is left alone for
+  /// the rest of the session, until the app itself changes (its cached icon,
+  /// if any, keeps showing).
+  static const int _maxIconRetries = 5;
+
+  /// Backoff base: how long to wait after a failed icon fetch before retrying,
+  /// doubled per consecutive failure up to [iconRetryMaxDelay].
+  @visibleForTesting
+  static Duration iconRetryBaseDelay = const Duration(seconds: 2);
+
+  /// Upper bound on the per-app retry backoff, so low-end devices aren't
+  /// hammered by a stuck package.
+  @visibleForTesting
+  static Duration iconRetryMaxDelay = const Duration(minutes: 2);
 
   AppLoadState loadState = AppLoadState.idle;
   String? error;
   List<AppInfo> _apps = const [];
   String _searchText = '';
   bool _showSystemApps = false;
-  double paneWidth = 420;
+  AppsViewMode _viewMode = PreferencesService.appsViewMode;
+  AppIconSize _iconSize = PreferencesService.appsIconSize;
+  bool _recentExpanded = true;
 
   bool _busy = false;
   String? busyLabel;
   final Set<String> _busyPackages = {};
 
-  final Map<String, Uint8List?> _iconCache = {};
-  final Set<String> _iconRequested = {};
+  /// Persistent, cross-device icon store injected so tests can substitute a
+  /// fake instead of touching the real filesystem.
+  final AppIconCache _iconStore;
+
+  /// Best-known icon bytes per package (fresh fetch or disk cache). Absence
+  /// means "no icon yet" — the tile then shows its fallback initial.
+  final Map<String, Uint8List> _iconCache = {};
+
+  /// Packages whose disk-cached icon has been requested at least once, so we
+  /// only hit the disk once per package per session.
+  final Set<String> _iconDiskChecked = {};
+
+  /// Signature (version + recency) we're done with per package — fetched,
+  /// found to have no extractable icon, or given up on — so an unchanged app
+  /// isn't pulled again within a session. An update changes the signature
+  /// and earns a fresh attempt.
+  final Map<String, String> _iconFetchedSignature = {};
+
+  /// Packages still awaiting a successful fetch this session → the signature
+  /// we want. Covers queued, in-flight and backoff-waiting retries.
+  final Map<String, String> _iconPending = {};
+
+  /// Packages currently being fetched (holding a concurrency slot).
+  final Set<String> _iconInFlight = {};
+
+  /// Consecutive fetch failures per package (drives exponential backoff).
+  final Map<String, int> _iconFailures = {};
+
+  /// Packages waiting for a free fetch slot.
   final List<String> _iconQueue = [];
-  int _activeIconFetches = 0;
+
+  /// Backoff timers per package, so [dispose] can cancel them.
+  final Map<String, Timer> _iconRetryTimers = {};
+
+  /// Recency (epoch ms) per package, used to prioritize newly installed or
+  /// updated apps ahead of the rest of the icon queue.
+  final Map<String, int> _iconRecency = {};
 
   bool _disposed = false;
   bool _loadedOnce = false;
@@ -45,6 +107,12 @@ class AppsController extends FeatureController {
   bool get isBusy => _busy;
   String get searchText => _searchText;
   bool get showSystemApps => _showSystemApps;
+  AppsViewMode get viewMode => _viewMode;
+  AppIconSize get iconSize => _iconSize;
+
+  /// Whether the pinned recently-installed row shows its apps or only its
+  /// header. Session-only, unlike [viewMode] and [iconSize].
+  bool get recentExpanded => _recentExpanded;
 
   /// Android exposes system apps via `pm list packages`; iOS's installer
   /// only ever lists user apps, so the toggle is meaningless there.
@@ -74,6 +142,19 @@ class AppsController extends FeatureController {
         .toList();
   }
 
+  /// The most recently installed or updated user apps, newest first, for the
+  /// row pinned above the inventory. Empty when the platform reports no
+  /// install times (iOS). System apps are left out: OTA and Play-system
+  /// updates would otherwise crowd out the apps the user actually installed.
+  List<AppInfo> get recentApps {
+    final dated =
+        _apps
+            .where((app) => !app.isSystemApp && app.lastChanged != null)
+            .toList()
+          ..sort((a, b) => b.lastChanged!.compareTo(a.lastChanged!));
+    return dated.take(recentAppsLimit).toList();
+  }
+
   bool isBusyWith(String packageName) => _busyPackages.contains(packageName);
   Uint8List? iconFor(String packageName) => _iconCache[packageName];
 
@@ -97,6 +178,11 @@ class AppsController extends FeatureController {
     }
     if (isLoading) return;
 
+    // Read the label cache alongside the (much slower) `listApps`, so it's
+    // usually ready by the time the list is — but never wait for it.
+    if (!_loadedOnce && device is AndroidDevice) {
+      unawaited(_iconStore.loadLabels().then((_) => _onLabelsLoaded()));
+    }
     _loadedOnce = true;
     loadState = AppLoadState.loading;
     error = null;
@@ -105,7 +191,7 @@ class AppsController extends FeatureController {
     try {
       final result = await service.listApps(includeSystemApps: _showSystemApps);
       if (_disposed) return;
-      _apps = result;
+      _apps = _applyCachedLabels(result);
       loadState = AppLoadState.ready;
       _notify();
     } catch (err) {
@@ -119,6 +205,40 @@ class AppsController extends FeatureController {
         unawaited(refresh());
       }
     }
+  }
+
+  /// Names Android apps from the label cache and re-sorts by that name. iOS
+  /// already reports names (and its own order), so it is left untouched, as
+  /// is everything while the cache is still being read.
+  List<AppInfo> _applyCachedLabels(List<AppInfo> apps) {
+    final labels = _iconStore.cachedLabels;
+    if (device is! AndroidDevice || labels == null) return apps;
+    return apps.map((app) {
+      final label = labels[app.packageName];
+      return app.appName == null && label != null
+          ? app.withAppName(label)
+          : app;
+    }).toList()..sort(
+      (a, b) =>
+          a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()),
+    );
+  }
+
+  /// The rare case where the inventory beat the label cache off the disk.
+  void _onLabelsLoaded() {
+    if (_disposed || _apps.isEmpty) return;
+    _apps = _applyCachedLabels(_apps);
+    _notify();
+  }
+
+  /// Patches a freshly read label into [apps] in place — deliberately without
+  /// re-sorting, so tiles don't jump around while the user is looking at
+  /// them; the next [refresh] sorts by the new names.
+  void _applyLabel(String package, String label) {
+    unawaited(_iconStore.storeLabel(package, label));
+    final index = _apps.indexWhere((app) => app.packageName == package);
+    if (index < 0 || _apps[index].appName == label) return;
+    _apps = List.of(_apps)..[index] = _apps[index].withAppName(label);
   }
 
   void setSearchText(String value) {
@@ -142,10 +262,22 @@ class AppsController extends FeatureController {
     }
   }
 
-  void setPaneWidth(double width) {
-    final clamped = width.clamp(320.0, 900.0);
-    if (clamped == paneWidth) return;
-    paneWidth = clamped;
+  void setViewMode(AppsViewMode mode) {
+    if (_viewMode == mode) return;
+    _viewMode = mode;
+    PreferencesService.appsViewMode = mode;
+    _notify();
+  }
+
+  void setIconSize(AppIconSize size) {
+    if (_iconSize == size) return;
+    _iconSize = size;
+    PreferencesService.appsIconSize = size;
+    _notify();
+  }
+
+  void toggleRecentExpanded() {
+    _recentExpanded = !_recentExpanded;
     _notify();
   }
 
@@ -242,37 +374,179 @@ class AppsController extends FeatureController {
 
   // ── Icons ──────────────────────────────────────────────────────────────
 
-  /// Kicks off a best-effort icon fetch for [packageName] the first time
-  /// it's requested (an app tile's first build) — cached for the life of
-  /// this controller, with a small concurrency cap so scrolling a long list
-  /// doesn't spawn dozens of simultaneous `adb pull`s at once.
-  void ensureIconLoaded(String packageName) {
-    if (_iconRequested.contains(packageName)) return;
-    _iconRequested.add(packageName);
-    if (_activeIconFetches >= _maxConcurrentIconFetches) {
-      _iconQueue.add(packageName);
-      return;
-    }
-    unawaited(_fetchIcon(packageName));
+  /// Prepares [app]'s icon for display. First surfaces the globally-cached icon
+  /// (from disk, if any) so the tile shows it instead of its initial while a
+  /// fresh icon is still being fetched, then schedules that fetch. Newly
+  /// installed/updated apps (higher recency) jump the fetch queue.
+  void ensureIconLoaded(AppInfo app) {
+    final package = app.packageName;
+    _iconRecency[package] = _recencyOf(app);
+    _loadCachedIconOnce(package);
+    _requestFreshIcon(package, _signatureOf(app));
   }
 
-  Future<void> _fetchIcon(String packageName) async {
-    _activeIconFetches++;
-    try {
-      final bytes = await service.fetchAppIcon(packageName);
-      if (_disposed) return;
-      _iconCache[packageName] = bytes;
+  /// Loads the disk-cached icon for [package] at most once per session. Always
+  /// asynchronous: even an in-memory hit is surfaced from a microtask so
+  /// [notifyListeners] never fires during a widget build.
+  void _loadCachedIconOnce(String package) {
+    if (_iconDiskChecked.contains(package)) return;
+    _iconDiskChecked.add(package);
+    unawaited(_loadCachedIconFromDisk(package));
+  }
+
+  Future<void> _loadCachedIconFromDisk(String package) async {
+    final bytes = await _iconStore.load(package);
+    if (_disposed || bytes == null) return;
+    // A fresh fetch may have won the race already; don't clobber it with the
+    // older cached bytes.
+    if (!_iconCache.containsKey(package)) {
+      _iconCache[package] = bytes;
       _notify();
-    } catch (_) {
-      if (!_disposed) _iconCache[packageName] = null;
-    } finally {
-      _activeIconFetches--;
-      if (!_disposed && _iconQueue.isNotEmpty) {
-        final next = _iconQueue.removeAt(0);
-        unawaited(_fetchIcon(next));
-      }
     }
   }
+
+  void _requestFreshIcon(String package, String signature) {
+    if (_disposed) return;
+    if (_iconFetchedSignature[package] == signature) return;
+    // Already trying (queued / in-flight / backoff). If the signature changed
+    // underneath an in-flight fetch, the next [ensureIconLoaded] self-heals.
+    if (_iconPending.containsKey(package)) return;
+    _iconPending[package] = signature;
+    _iconFailures[package] = 0;
+    _scheduleIconAttempt(package);
+  }
+
+  /// Starts a fetch for [package] now, parks it behind a backoff timer, or
+  /// queues it behind the concurrency cap.
+  void _scheduleIconAttempt(String package) {
+    if (_disposed) return;
+    if (_iconInFlight.contains(package) || _iconQueue.contains(package)) {
+      return;
+    }
+    if (_iconInFlight.length >= _maxConcurrentIconFetches) {
+      _iconQueue.add(package);
+      return;
+    }
+    _iconInFlight.add(package);
+    unawaited(_fetchIcon(package));
+  }
+
+  Future<void> _fetchIcon(String package) async {
+    final signature = _iconPending[package];
+    ({Uint8List? icon, String? label})? details;
+    try {
+      details = await service.fetchAppDetails(package);
+    } catch (_) {
+      details = null;
+    }
+    try {
+      if (_disposed) return;
+      _iconInFlight.remove(package);
+      final label = details?.label;
+      if (label != null) _applyLabel(package, label);
+      final bytes = details?.icon;
+      if (bytes != null) {
+        _settleIcon(package, signature);
+        _iconCache[package] = bytes;
+        unawaited(_iconStore.store(package, bytes));
+        _notify();
+      } else if (details != null) {
+        // The pull worked but the APK has no raster icon to extract (a
+        // vector-only adaptive icon, say). Pulling it again won't change
+        // that, and each try copies the whole APK over adb.
+        _settleIcon(package, signature);
+        if (label != null) _notify();
+      } else {
+        if (label != null) _notify();
+        _handleIconFailure(package);
+      }
+    } finally {
+      if (!_disposed) _drainIconQueue();
+    }
+  }
+
+  void _handleIconFailure(String package) {
+    final failures = (_iconFailures[package] ?? 0) + 1;
+    _iconFailures[package] = failures;
+    if (failures >= _maxIconRetries) {
+      // Give up until the app changes — the cached icon (if any) keeps
+      // showing. Settling records the signature, so a tile scrolled back
+      // into view doesn't start five more pulls.
+      _settleIcon(package, _iconPending[package]);
+      _iconRetryTimers.remove(package);
+      return;
+    }
+    final delay = _iconRetryDelay(failures);
+    _iconRetryTimers[package] = Timer(delay, () {
+      _iconRetryTimers.remove(package);
+      _scheduleIconAttempt(package);
+    });
+  }
+
+  /// Ends the attempts for [package] and marks [signature] done, so
+  /// [_requestFreshIcon] leaves it alone until the app changes.
+  void _settleIcon(String package, String? signature) {
+    _iconPending.remove(package);
+    _iconFailures.remove(package);
+    if (signature != null) _iconFetchedSignature[package] = signature;
+  }
+
+  Duration _iconRetryDelay(int failures) {
+    var ms = iconRetryBaseDelay.inMilliseconds;
+    for (var i = 1; i < failures; i++) {
+      ms *= 2;
+      if (ms >= iconRetryMaxDelay.inMilliseconds) {
+        ms = iconRetryMaxDelay.inMilliseconds;
+        break;
+      }
+    }
+    return Duration(milliseconds: ms);
+  }
+
+  /// Starts the next-highest-priority queued fetch while slots are free.
+  void _drainIconQueue() {
+    while (_iconInFlight.length < _maxConcurrentIconFetches &&
+        _iconQueue.isNotEmpty) {
+      final package = _popHighestPriorityIcon();
+      _iconInFlight.add(package);
+      unawaited(_fetchIcon(package));
+    }
+  }
+
+  /// Removes and returns the queued package with the highest recency (most
+  /// recently installed/updated), so those icons surface first.
+  String _popHighestPriorityIcon() {
+    var bestIndex = 0;
+    var best = _iconQueue[0];
+    var bestRecency = _iconRecency[best] ?? 0;
+    for (var i = 1; i < _iconQueue.length; i++) {
+      final recency = _iconRecency[_iconQueue[i]] ?? 0;
+      if (recency > bestRecency) {
+        bestIndex = i;
+        best = _iconQueue[i];
+        bestRecency = recency;
+      }
+    }
+    return _iconQueue.removeAt(bestIndex);
+  }
+
+  /// Epoch ms of the app's most recent activity (last update, else install),
+  /// used to order icon fetches. Falls back to 0 when neither is known.
+  int _recencyOf(AppInfo app) {
+    var recency = 0;
+    final install = app.installTime;
+    final update = app.updateTime;
+    if (install != null) recency = install.millisecondsSinceEpoch;
+    if (update != null && update.millisecondsSinceEpoch > recency) {
+      recency = update.millisecondsSinceEpoch;
+    }
+    return recency;
+  }
+
+  /// Identifies a specific build of an app so a version bump or reinstall
+  /// (changed update time) triggers a fresh icon fetch.
+  String _signatureOf(AppInfo app) =>
+      '${app.versionCode ?? ''}|${app.versionName ?? ''}|${_recencyOf(app)}';
 
   @override
   void onDeviceConnected() {
@@ -286,6 +560,10 @@ class AppsController extends FeatureController {
   @override
   void dispose() {
     _disposed = true;
+    for (final timer in _iconRetryTimers.values) {
+      timer.cancel();
+    }
+    _iconRetryTimers.clear();
     super.dispose();
   }
 }

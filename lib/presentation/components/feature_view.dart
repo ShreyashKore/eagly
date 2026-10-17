@@ -1,9 +1,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import 'app_icon_button.dart';
 import '../theme/app_theme.dart';
 
 import 'overflow_toolbar.dart';
+import 'workspace_pane_scope.dart';
 
 /// Base class for the per-device feature panes (logs, mirror, crash reports,
 /// file manager, device home) — the view counterpart of `FeatureController`.
@@ -90,8 +92,14 @@ class FeaturePane extends StatelessWidget {
 
 /// The standard 48-dip feature-pane header: [title] on the left, then
 /// [actions], then the close button when [onClose] is non-null. Panes are
-/// resizable and stack side by side, so the actions collapse into an overflow
+/// resizable and arranged freely, so the actions collapse into an overflow
 /// menu once the header runs out of room (see [OverflowToolbar]).
+///
+/// Hosted in the device workspace, the header is also the pane's title bar:
+/// a [PaneGrip] leads it and the title area drags the pane. While the pane
+/// sits in a tab group its tab chip is the title bar — title, close button,
+/// drag handle — so the header keeps only its actions, and is not drawn at
+/// all when it has none (see [WorkspacePaneScope]).
 class FeatureViewHeader extends StatelessWidget {
   const FeatureViewHeader({
     super.key,
@@ -122,10 +130,18 @@ class FeatureViewHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scope = WorkspacePaneScope.maybeOf(context);
+    final movable = scope?.showsGrip ?? false;
+    if ((scope?.isTabbed ?? false) &&
+        leading == null &&
+        actions.isEmpty &&
+        trailing.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       height: context.scaled(48),
-      padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+      padding: EdgeInsets.fromLTRB(movable ? 4 : 12, 6, 6, 6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
         border: Border(
@@ -135,21 +151,32 @@ class FeatureViewHeader extends StatelessWidget {
       child: OverflowToolbar(
         spacing: 0,
         iconSize: 24,
-        leading: [if (leading != null) leading!],
-        flexible: Text(
-          title,
-          style: theme.textTheme.titleSmall,
-          overflow: TextOverflow.ellipsis,
+        leading: [
+          if (movable) ...[const PaneGrip(), const SizedBox(width: 4)],
+          if (leading != null) leading!,
+        ],
+        flexible: PaneDragArea(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: WorkspacePaneScope.showsOwnTitle(context)
+                ? Text(
+                    title,
+                    style: theme.textTheme.titleSmall,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                : const SizedBox.shrink(),
+          ),
         ),
         flexibleMinWidth: 56,
         actions: actions,
         trailing: [
           ...trailing,
-          if (onClose != null)
-            IconButton(
+          if (onClose != null && WorkspacePaneScope.showsOwnClose(context))
+            AppIconButton(
               tooltip: closeTooltip,
+              iconSize: 20,
               onPressed: onClose,
-              icon: const Icon(Icons.close),
+              icon: Icons.close,
             ),
         ],
       ),

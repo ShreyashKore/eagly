@@ -1,40 +1,6 @@
 import 'package:flutter/material.dart';
 
-// Consistent height for all filter bar input fields.
-const double kFilterFieldHeight = 38.0;
-
-/// Standard [InputDecoration] used across all filter bar fields.
-InputDecoration filterInputDecoration(
-  BuildContext context, {
-  String? labelText,
-  String? hintText,
-  IconData? prefixIcon,
-}) {
-  final colorScheme = Theme.of(context).colorScheme;
-  InputBorder inputBorder(Color color) =>
-      OutlineInputBorder(borderSide: BorderSide(color: color, width: 1.5));
-  return InputDecoration(
-    labelText: labelText,
-    labelStyle: const TextStyle(fontSize: 12),
-    hintText: hintText,
-    hintStyle: const TextStyle(fontSize: 13, height: kFilterTextHeight),
-    isDense: true,
-    // Fills the field's height around one line of [kFilterTextHeight] text.
-    contentPadding: const EdgeInsets.symmetric(
-      horizontal: 10,
-      vertical: (kFilterFieldHeight - 13 * kFilterTextHeight) / 2,
-    ),
-    border: inputBorder(Colors.transparent),
-    enabledBorder: inputBorder(Colors.transparent),
-    focusedBorder: inputBorder(colorScheme.primary),
-    filled: true,
-    fillColor: colorScheme.surfaceContainerHighest,
-    prefixIconConstraints: prefixIcon != null
-        ? const BoxConstraints(minHeight: 32, minWidth: 34)
-        : null,
-    prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 16) : null,
-  );
-}
+import '../../../../presentation/theme/app_theme.dart';
 
 /// Returns `true` when [query] matches [candidate] at a word/segment boundary.
 bool filterBoundaryMatch(String candidate, String query) {
@@ -73,6 +39,14 @@ const double kFilterControlRadius = 8.0;
 /// Height of a filter pill — a label line over a value line — which sits
 /// inside the filter field.
 const double kFilterPillHeight = 32.0;
+
+/// The filter row's heights at the app zoom. The zoom scales text, so a
+/// fixed height overflows once the text outgrows it — a pill's two lines
+/// already do at 1.2×.
+extension FilterRowMetrics on BuildContext {
+  double get filterControlHeight => scaled(kFilterControlHeight);
+  double get filterPillHeight => scaled(kFilterPillHeight);
+}
 
 /// Decoration for a text field that sits inside a filter row control, which
 /// draws the border and fill itself: every border state, the theme's fill
@@ -200,7 +174,7 @@ class _FilterControlButtonState extends State<FilterControlButton> {
         onHover: (value) => setState(() => _hovered = value),
         onFocusChange: (value) => setState(() => _focused = value),
         child: SizedBox(
-          height: kFilterControlHeight,
+          height: context.filterControlHeight,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(

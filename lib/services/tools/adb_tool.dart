@@ -148,9 +148,10 @@ class AdbTool extends ToolProcessRunner {
           properties['ro.product.manufacturer'],
         ),
       );
-      final model = _firstNonEmpty(
+      final model = _firstNonEmpty(properties['ro.product.model'], null);
+      final marketName = _firstNonEmpty(
         properties['ro.product.marketname'],
-        properties['ro.product.model'],
+        null,
       );
       final name = _firstNonEmpty(
         properties['ro.product.device'],
@@ -168,6 +169,7 @@ class AdbTool extends ToolProcessRunner {
         model: model,
         name: name,
         serialNumber: serialNumber,
+        marketName: marketName,
       );
     } on ProcessException catch (error) {
       logError('ProcessException describing Android device $deviceId', error);

@@ -128,9 +128,14 @@ class FakeSessionService extends DeviceSessionRepository {
     recoverCount++;
   }
 
+  /// When set, [installApp] waits on it, so a test can look at the UI
+  /// while an install is still running.
+  Completer<void>? installGate;
+
   @override
   Future<DeviceCommandResult> installApp({required String filePath}) async {
     installRequests.add(filePath);
+    await installGate?.future;
     return installResult;
   }
 
@@ -184,6 +189,15 @@ class FakeSessionService extends DeviceSessionRepository {
   final List<String> iconFetchRequests = [];
   final List<bool> listAppsIncludeSystemAppsRequests = [];
   Uint8List? iconToReturn;
+  Map<String, String> labelsToReturn = {};
+
+  /// Makes [fetchAppDetails] return null, as the real one does when the APK
+  /// can't be pulled — as opposed to a pulled APK with no icon to extract.
+  bool appPullFails = false;
+
+  /// When set, [fetchAppDetails] waits on this before resolving — lets tests hold
+  /// icon fetches in flight to observe concurrency/priority ordering.
+  Completer<void>? iconGate;
 
   @override
   Future<List<AppInfo>> listApps({bool includeSystemApps = false}) async {
@@ -221,9 +235,14 @@ class FakeSessionService extends DeviceSessionRepository {
   }
 
   @override
-  Future<Uint8List?> fetchAppIcon(String packageName) async {
+  Future<({Uint8List? icon, String? label})?> fetchAppDetails(
+    String packageName,
+  ) async {
     iconFetchRequests.add(packageName);
-    return iconToReturn;
+    final gate = iconGate;
+    if (gate != null) await gate.future;
+    if (appPullFails) return null;
+    return (icon: iconToReturn, label: labelsToReturn[packageName]);
   }
 
   // ── Device home feature ──────────────────────────────────────────────────

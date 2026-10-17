@@ -442,7 +442,6 @@ class AppTheme {
           mouseCursor: cursorStyle,
           iconSize: WidgetStatePropertyAll(18),
           minimumSize: WidgetStatePropertyAll(const Size(24, 24)),
-          maximumSize: WidgetStatePropertyAll(const Size(32, 32)),
           padding: WidgetStatePropertyAll(const EdgeInsets.all(6)),
           shape: WidgetStatePropertyAll(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

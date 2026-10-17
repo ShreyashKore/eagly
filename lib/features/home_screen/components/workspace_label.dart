@@ -19,7 +19,14 @@ class WorkspaceLabel extends StatelessWidget {
           color: theme.colorScheme.primary,
         ),
         const Gap(6),
-        Text('Imported Logs', style: theme.textTheme.bodyMedium),
+        Flexible(
+          child: Text(
+            'Imported Logs',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium,
+          ),
+        ),
       ],
     );
   }

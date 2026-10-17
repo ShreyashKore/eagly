@@ -25,7 +25,6 @@ class CrashReportController extends FeatureController {
   List<CrashReport> reports = const [];
   CrashReport? selectedReport;
   String? selectedReportBody;
-  double paneWidth = 360;
 
   Directory? _outputDir;
   bool _disposed = false;
@@ -146,12 +145,6 @@ class CrashReportController extends FeatureController {
   }
 
   /// Adjusts the crash pane width (clamped) when the user drags its edge.
-  void setPaneWidth(double width) {
-    final clamped = width.clamp(300.0, 760.0);
-    if (clamped == paneWidth) return;
-    paneWidth = clamped;
-    _notify();
-  }
 
   String _fileNameOf(String path) => extractFileName(path);
 

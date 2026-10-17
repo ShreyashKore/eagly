@@ -56,12 +56,13 @@ class DeviceSessionRepository {
   Timer? _pidCacheRefreshTimer;
   int _pidCacheConsumers = 0;
 
-  /// Minimum gap between a requested refresh and the previous `ps -A`, polled
-  /// or requested; see [requestPidToPackageRefresh].
+  /// Minimum gap between a requested refresh and the end of the previous
+  /// `ps -A`, polled or requested; see [requestPidToPackageRefresh].
   @visibleForTesting
   static Duration pidRefreshMinInterval = const Duration(seconds: 1);
   DateTime? _lastPidRefreshAt;
-  Timer? _requestedPidRefreshTimer;
+  Future<void>? _pidRefreshInFlight;
+  bool _pidRefreshRequested = false;
   final StreamController<Map<String, String>> _pidToPackageUpdates =
       StreamController.broadcast();
 
@@ -376,8 +377,6 @@ class DeviceSessionRepository {
     _pidCacheRefreshTimer?.cancel();
     _pidCacheRefreshTimer = null;
     _pidCacheConsumers = 0;
-    _requestedPidRefreshTimer?.cancel();
-    _requestedPidRefreshTimer = null;
     await _pidToPackageUpdates.close();
     final iconTempDir = _iconTempDir;
     if (iconTempDir != null) {
@@ -476,11 +475,15 @@ class DeviceSessionRepository {
     return _adbTool.openAppInfoSettings(_deviceId, packageName);
   }
 
-  /// Best-effort launcher icon for [packageName]: pulls its APK to a scratch
-  /// temp directory, extracts the icon via [ApkIconExtractor], then deletes
-  /// the pulled APK. Returns null on iOS (no icon extraction available) or
-  /// when extraction fails for any reason — never throws.
-  Future<Uint8List?> fetchAppIcon(String packageName) async {
+  /// Best-effort launcher icon and user-visible label for [packageName]:
+  /// pulls its APK to a scratch temp directory, extracts both via
+  /// [ApkIconExtractor], then deletes the pulled APK. Returns null on iOS (no
+  /// extraction available, and its installer already reports names) or when
+  /// the pull fails; either half is null when it can't be resolved — never
+  /// throws.
+  Future<({Uint8List? icon, String? label})?> fetchAppDetails(
+    String packageName,
+  ) async {
     if (device is! AndroidDevice) return null;
     File? localApk;
     try {
@@ -494,10 +497,10 @@ class DeviceSessionRepository {
       if (!await localApk.exists()) return null;
 
       final bytes = await localApk.readAsBytes();
-      return ApkIconExtractor.extractIconBytes(bytes);
+      return ApkIconExtractor.extractDetails(bytes);
     } catch (error) {
       _sessionLogger.error(
-        'Failed to fetch app icon for $packageName',
+        'Failed to fetch app details for $packageName',
         detail: error.toString(),
       );
       return null;
@@ -718,9 +721,16 @@ class DeviceSessionRepository {
     );
   }
 
-  /// Refresh the PID to package name mapping.
-  Future<void> refreshPidToPackageMap() async {
-    _lastPidRefreshAt = DateTime.now();
+  /// Refresh the PID to package name mapping. One `ps -A` runs at a time — an
+  /// adb round trip can take a second on a slow device, longer than the
+  /// spacing between requests — so a call while one is in flight shares it.
+  Future<void> refreshPidToPackageMap() =>
+      _pidRefreshInFlight ??= _refreshPidToPackageMap().whenComplete(() {
+        _pidRefreshInFlight = null;
+        _lastPidRefreshAt = DateTime.now();
+      });
+
+  Future<void> _refreshPidToPackageMap() async {
     final next = await _adbTool.getPidToPackageMap(_deviceId);
     final changed = {
       for (final MapEntry(key: pid, value: package) in next.entries)
@@ -744,21 +754,33 @@ class DeviceSessionRepository {
   /// Asks for the pid→package map to be refreshed soon rather than at the next
   /// poll, for a log line from a PID the map doesn't know yet — typically an
   /// app that has just launched. Requests coalesce into one pending refresh,
-  /// spaced at least [pidRefreshMinInterval] after the previous `ps -A`, so a
-  /// burst of unknown PIDs (or a process that exits before `ps` sees it) costs
-  /// at most one refresh per interval. Android only: iOS lines carry their
-  /// process name.
+  /// starting at least [pidRefreshMinInterval] after the previous `ps -A`
+  /// finished, so a burst of unknown PIDs costs at most one refresh per
+  /// interval plus round trip. Android only: iOS lines carry their process
+  /// name.
   void requestPidToPackageRefresh() {
-    if (device is! AndroidDevice || _requestedPidRefreshTimer != null) return;
+    if (device is! AndroidDevice ||
+        _pidRefreshRequested ||
+        _pidToPackageUpdates.isClosed) {
+      return;
+    }
+    _pidRefreshRequested = true;
+    unawaited(_runRequestedPidRefresh());
+  }
+
+  Future<void> _runRequestedPidRefresh() async {
+    // A refresh already under way may have listed processes before the PID
+    // behind this request appeared, so it doesn't count: wait it out, then
+    // keep the usual spacing after it.
+    await _pidRefreshInFlight;
     final last = _lastPidRefreshAt;
-    final sinceLast = last == null ? null : DateTime.now().difference(last);
-    final wait = sinceLast == null || sinceLast >= pidRefreshMinInterval
-        ? Duration.zero
-        : pidRefreshMinInterval - sinceLast;
-    _requestedPidRefreshTimer = Timer(wait, () {
-      _requestedPidRefreshTimer = null;
-      unawaited(refreshPidToPackageMap());
-    });
+    if (last != null) {
+      final wait = pidRefreshMinInterval - DateTime.now().difference(last);
+      if (wait > Duration.zero) await Future<void>.delayed(wait);
+    }
+    if (_pidToPackageUpdates.isClosed) return;
+    _pidRefreshRequested = false;
+    await refreshPidToPackageMap();
   }
 
   String? getProcessNameFromPid(String pid) {

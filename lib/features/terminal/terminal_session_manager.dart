@@ -23,10 +23,6 @@ class TerminalSessionManager extends ChangeNotifier {
   int _selectedIndex = 0;
   bool _disposed = false;
 
-  /// Width of the terminal pane in the workspace row. Pane-level rather than
-  /// per-tab: switching tabs must not resize the pane.
-  double paneWidth = 520;
-
   List<TerminalController> get tabs => List.unmodifiable(_tabs);
   int get selectedIndex => _selectedIndex;
   TerminalController get selectedTab => _tabs[_selectedIndex];
@@ -60,13 +56,6 @@ class TerminalSessionManager extends ChangeNotifier {
     _tabs[index].dispose();
     _tabs.removeAt(index);
     _selectedIndex = _selectedIndex.clamp(0, math.max(0, _tabs.length - 1));
-    _notify();
-  }
-
-  void setPaneWidth(double width) {
-    final clamped = width.clamp(360.0, 1200.0);
-    if (clamped == paneWidth) return;
-    paneWidth = clamped;
     _notify();
   }
 

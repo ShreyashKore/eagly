@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 
+import '../../../presentation/components/app_icon_button.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../data/utility_command.dart';
 
@@ -72,30 +73,27 @@ class UtilityOutputPanel extends StatelessWidget {
                   ),
                 ),
                 if (onRerun != null)
-                  IconButton(
+                  AppIconButton(
                     tooltip: 'Run again',
                     iconSize: 16,
-                    visualDensity: VisualDensity.compact,
                     onPressed: onRerun,
-                    icon: const Icon(Icons.refresh),
+                    icon: Icons.refresh,
                   ),
-                IconButton(
+                AppIconButton(
                   tooltip: 'Copy output',
                   iconSize: 16,
-                  visualDensity: VisualDensity.compact,
                   onPressed: () async {
                     await Clipboard.setData(
                       ClipboardData(text: result.copyText),
                     );
                   },
-                  icon: const Icon(Icons.copy_all_outlined),
+                  icon: Icons.copy_all_outlined,
                 ),
-                IconButton(
+                AppIconButton(
                   tooltip: 'Dismiss output',
                   iconSize: 16,
-                  visualDensity: VisualDensity.compact,
                   onPressed: onClose,
-                  icon: const Icon(Icons.close),
+                  icon: Icons.close,
                 ),
               ],
             ),

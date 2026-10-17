@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../presentation/components/app_icon_button.dart';
 import '../../../presentation/components/saved_file_snack_bar.dart';
 import '../../flutter_scrcpy/flutter_scrcpy.dart';
 import '../mirror_controller.dart';
@@ -24,11 +25,11 @@ class MirrorControlStrip extends StatelessWidget {
     final recording = controller.isRecording;
 
     Widget keyButton(IconData icon, String tooltip, ScrcpyKey key) {
-      return IconButton(
+      return AppIconButton(
         tooltip: tooltip,
         iconSize: 16,
         onPressed: controlEnabled ? () => controller.handleKey(key) : null,
-        icon: Icon(icon),
+        icon: icon,
       );
     }
 
@@ -39,12 +40,12 @@ class MirrorControlStrip extends StatelessWidget {
       bool enabled = true,
       Color? color,
     }) {
-      return IconButton(
+      return AppIconButton(
         tooltip: tooltip,
         iconSize: 16,
         color: color,
         onPressed: enabled ? () => onTap() : null,
-        icon: Icon(icon),
+        icon: icon,
       );
     }
 
@@ -100,39 +101,31 @@ class MirrorControlStrip extends StatelessWidget {
               () => _paste(context),
               enabled: controlEnabled,
             ),
-            IconButton(
+            AppIconButton(
               tooltip: controller.isKeyboardForwarding
                   ? 'Keyboard goes to the device — click the app to stop'
                   : 'Send keyboard to device (or click the mirror)',
               iconSize: 16,
-              color: controller.isKeyboardForwarding
-                  ? theme.colorScheme.primary
-                  : null,
+              isActive: controller.isKeyboardForwarding,
               onPressed: controlEnabled
                   ? controller.keyboardFocusNode.requestFocus
                   : null,
-              icon: Icon(
-                controller.isKeyboardForwarding
-                    ? Icons.keyboard
-                    : Icons.keyboard_outlined,
-              ),
+              icon: controller.isKeyboardForwarding
+                  ? Icons.keyboard
+                  : Icons.keyboard_outlined,
             ),
-            IconButton(
+            AppIconButton(
               tooltip: controller.clipboardSyncEnabled
                   ? 'Device clipboard sync: on'
                   : 'Device clipboard sync: off',
               iconSize: 16,
-              color: controller.clipboardSyncEnabled
-                  ? theme.colorScheme.primary
-                  : null,
+              isActive: controller.clipboardSyncEnabled,
               onPressed: () => controller.setClipboardSyncEnabled(
                 !controller.clipboardSyncEnabled,
               ),
-              icon: Icon(
-                controller.clipboardSyncEnabled
-                    ? Icons.sync
-                    : Icons.sync_disabled,
-              ),
+              icon: controller.clipboardSyncEnabled
+                  ? Icons.sync
+                  : Icons.sync_disabled,
             ),
             const Gap(8),
             divider(),

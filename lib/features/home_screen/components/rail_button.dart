@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/theme/app_theme.dart';
+
 class RailButton extends StatelessWidget {
   const RailButton({
     super.key,
@@ -9,6 +11,7 @@ class RailButton extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     this.enabled = true,
+    this.busy = false,
   });
 
   final IconData icon;
@@ -17,6 +20,10 @@ class RailButton extends StatelessWidget {
   final String tooltip;
   final VoidCallback? onTap;
   final bool enabled;
+
+  /// Spins a progress ring around the icon — for a long-running action the
+  /// button started, such as an app install.
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -42,12 +49,42 @@ class RailButton extends StatelessWidget {
           splashColor: colorScheme.primary.withValues(alpha: 0.24),
           highlightColor: colorScheme.primary.withValues(alpha: 0.08),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+            padding: EdgeInsets.symmetric(
+              vertical: context.scaled(6),
+              horizontal: context.scaled(8),
+            ),
             child: SizedBox(
               width: double.infinity,
               child: Column(
                 children: [
-                  Icon(icon, size: 22, color: foreground),
+                  // The ring spills 3px into the padding, so a busy button
+                  // keeps its height and the rail doesn't shift. The box
+                  // follows the zoom like the icon does, so a zoomed icon
+                  // doesn't spill over the label.
+                  SizedBox.square(
+                    dimension: context.scaled(22),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      clipBehavior: Clip.none,
+                      children: [
+                        if (busy)
+                          Positioned.fill(
+                            left: -3,
+                            top: -3,
+                            right: -3,
+                            bottom: -3,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.primary,
+                              backgroundColor: colorScheme.primary.withValues(
+                                alpha: 0.15,
+                              ),
+                            ),
+                          ),
+                        Icon(icon, size: busy ? 14 : 22, color: foreground),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   FittedBox(
                     child: Text(

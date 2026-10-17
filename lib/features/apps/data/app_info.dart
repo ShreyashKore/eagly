@@ -39,4 +39,27 @@ class AppInfo {
   final DateTime? updateTime;
 
   String get displayName => appName ?? packageName;
+
+  /// Most recent install or update — what "recently installed" orders by,
+  /// since reinstalling a build (`adb install -r`) only moves the update
+  /// time. Null when the platform reports neither (iOS).
+  DateTime? get lastChanged {
+    final install = installTime;
+    final update = updateTime;
+    if (install == null) return update;
+    if (update == null) return install;
+    return update.isAfter(install) ? update : install;
+  }
+
+  AppInfo withAppName(String name) => AppInfo(
+    packageName: packageName,
+    appName: name,
+    versionName: versionName,
+    versionCode: versionCode,
+    isSystemApp: isSystemApp,
+    isEnabled: isEnabled,
+    apkPath: apkPath,
+    installTime: installTime,
+    updateTime: updateTime,
+  );
 }

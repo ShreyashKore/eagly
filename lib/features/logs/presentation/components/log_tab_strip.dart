@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../presentation/components/app_icon_button.dart';
 import '../../log_session_manager.dart';
 import 'log_tab_chip.dart';
 
@@ -50,32 +51,16 @@ class _LogTabStripState extends State<LogTabStrip> {
                       : null,
                 ),
               // ── + New log tab (or import, in the imports-only workspace) ─
-              Tooltip(
-                message: manager.isImportsOnly
+              AppIconButton(
+                tooltip: manager.isImportsOnly
                     ? 'Import log file'
                     : 'New log tab',
-                child: IconButton(
-                  onPressed: manager.isImportsOnly
-                      ? widget.onImportLog
-                      : manager.addLiveTab,
-                  mouseCursor: SystemMouseCursors.click,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 16,
-                    minHeight: 16,
-                  ),
-                  icon: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 4,
-                    ),
-                    child: Icon(
-                      Icons.add,
-                      size: 16,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
+                onPressed: manager.isImportsOnly
+                    ? widget.onImportLog
+                    : manager.addLiveTab,
+                iconSize: 16,
+                padding: 4,
+                icon: Icons.add,
               ),
             ],
           ),

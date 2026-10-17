@@ -99,7 +99,7 @@ class DeviceHeroCard extends StatelessWidget {
                           icon: Icons.memory,
                         ),
                       StatusPill(
-                        label: device.id,
+                        label: device.shownId,
                         icon: Icons.tag,
                         mono: true,
                         trailing: CopyButton(

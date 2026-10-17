@@ -101,15 +101,28 @@ class HardwareCard extends StatelessWidget {
         SpecItem('Brand', device.brand!),
       if (device.model != null && device.model!.isNotEmpty)
         SpecItem('Model', device.model!),
+      // An Android `name` is the build's codename; an iPhone's is the one its
+      // owner gave it, which record mode keeps off screen.
       if (device.name != null && device.name!.isNotEmpty)
-        SpecItem('Code name', device.name!),
+        if (!isIos)
+          SpecItem('Code name', device.name!)
+        else if (!Device.shortNames)
+          SpecItem('Name', device.name!),
       if (identity.buildVersion != null)
         SpecItem('Build', identity.buildVersion!, mono: true),
       if (identity.cpuArchitecture != null)
         SpecItem('CPU', identity.cpuArchitecture!),
       if (device is AndroidDevice && device.serialNumber != null)
-        SpecItem('Serial', device.serialNumber!, copyable: true),
-      SpecItem(isIos ? 'UDID' : 'Device ID', device.id, copyable: true),
+        SpecItem(
+          'Serial',
+          Device.presentId(device.serialNumber!),
+          copyValue: device.serialNumber,
+        ),
+      SpecItem(
+        isIos ? 'UDID' : 'Device ID',
+        device.shownId,
+        copyValue: device.id,
+      ),
     ];
 
     return SectionCard(

@@ -4,6 +4,7 @@ import '../data/device_file_entry.dart';
 import '../file_manager_controller.dart';
 import 'file_context_menu.dart';
 import 'file_entry_visuals.dart';
+import '../../../presentation/theme/app_theme.dart';
 
 /// Icon-grid view: a large icon, name and size per entry. Single tap selects,
 /// double tap opens a directory, right-click shows the context menu.
@@ -17,14 +18,20 @@ class FileGridView extends StatelessWidget {
   final FileManagerController controller;
   final FileManagerActions actions;
 
+  static const double _iconSize = 40;
+  static const EdgeInsets _tilePadding = EdgeInsets.symmetric(
+    horizontal: 8,
+    vertical: 8,
+  );
+
   @override
   Widget build(BuildContext context) {
     final entries = controller.entries;
     return GridView.builder(
       padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 128,
-        mainAxisExtent: 116,
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: context.scaled(128),
+        mainAxisExtent: _tileHeight(context),
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
       ),
@@ -36,6 +43,37 @@ class FileGridView extends StatelessWidget {
       ),
     );
   }
+
+  /// Fits the icon, a two-line name and the size at the current zoom and
+  /// font — a fixed height overflowed as soon as a name wrapped or the app
+  /// was zoomed in.
+  static double _tileHeight(BuildContext context) {
+    final theme = Theme.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
+    double lineHeight(TextStyle? style) {
+      final painter = TextPainter(
+        text: TextSpan(text: 'Ag', style: style),
+        textDirection: TextDirection.ltr,
+        textScaler: textScaler,
+      )..layout();
+      final height = painter.height;
+      painter.dispose();
+      return height;
+    }
+
+    return _tilePadding.vertical +
+        2 + // border
+        context.scaled(_iconSize) +
+        8 +
+        2 * lineHeight(_nameStyle(theme)) +
+        2 +
+        lineHeight(_sizeStyle(theme));
+  }
+
+  static TextStyle? _nameStyle(ThemeData theme) => theme.textTheme.bodySmall;
+
+  static TextStyle? _sizeStyle(ThemeData theme) => theme.textTheme.labelSmall
+      ?.copyWith(color: theme.colorScheme.onSurfaceVariant);
 }
 
 class _GridTile extends StatelessWidget {
@@ -80,25 +118,25 @@ class _GridTile extends StatelessWidget {
                 : theme.colorScheme.outlineVariant,
           ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        padding: FileGridView._tilePadding,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            FileEntryIcon(entry: entry, size: 40),
+            FileEntryIcon(entry: entry, size: FileGridView._iconSize),
             const SizedBox(height: 8),
             Text(
               entry.name,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall,
+              style: FileGridView._nameStyle(theme),
             ),
             const SizedBox(height: 2),
             Text(
               FileEntryVisuals.formatSize(entry),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: FileGridView._sizeStyle(theme),
             ),
           ],
         ),

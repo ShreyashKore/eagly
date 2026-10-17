@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/apps/apps_controller.dart';
 import 'package:eagly/features/apps/apps_feature_view.dart';
@@ -45,6 +47,9 @@ void main() {
             model: 'iPhone 15',
           );
     service = FakeSessionService(device);
+    // Succeed at icon fetching so a failed-fetch backoff timer never parks a
+    // pending timer at the end of a testWidgets body.
+    service.iconToReturn = Uint8List.fromList([1, 2, 3]);
     session = DeviceSessionController(device: device, service: service);
     return session!.appsController;
   }
@@ -163,7 +168,7 @@ void main() {
       await tester.tap(find.text('Grant permission…'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Suggestions'));
+      await tester.tap(find.byTooltip('Show all suggestions'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Microphone'));
       await tester.pumpAndSettle();

@@ -365,7 +365,7 @@ class TerminalController extends FeatureController {
       _push(
         TerminalLine.notice(
           '$marker ${candidate.displayName.padRight(nameWidth)}  '
-          '${candidate.id}  ${candidate.platform.name}  '
+          '${candidate.shownId}  ${candidate.platform.name}  '
           '${candidate.statusLabel}',
         ),
       );
@@ -473,14 +473,19 @@ class TerminalController extends FeatureController {
   }
 
   /// Resolves a `@ref` / `use <ref>` reference: an exact id wins, otherwise a
-  /// unique substring of the id or the display name. Returns the error to
-  /// print when nothing — or too much — matches.
+  /// unique substring of the id or the display name. The id as `devices`
+  /// showed it (a record-mode stand-in) counts as the id. Returns the error
+  /// to print when nothing — or too much — matches.
   ({Device? device, String? error}) _resolveDeviceRef(String reference) {
     final needle = reference.toLowerCase();
     final candidates = _candidates;
 
     final exact = candidates
-        .where((candidate) => candidate.id.toLowerCase() == needle)
+        .where(
+          (candidate) =>
+              candidate.id.toLowerCase() == needle ||
+              candidate.shownId.toLowerCase() == needle,
+        )
         .toList();
     if (exact.length == 1) return (device: exact.single, error: null);
 
@@ -488,6 +493,7 @@ class TerminalController extends FeatureController {
         .where(
           (candidate) =>
               candidate.id.toLowerCase().contains(needle) ||
+              candidate.shownId.toLowerCase().contains(needle) ||
               candidate.displayName.toLowerCase().contains(needle),
         )
         .toList();
