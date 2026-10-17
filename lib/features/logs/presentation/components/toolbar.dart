@@ -9,7 +9,7 @@ import 'toolbar_divider.dart';
 import 'toolbar_icon_button.dart';
 
 /// Toolbar for the Logs feature: log-tab strip, capture controls
-/// (start/pause/clear), copy/row-selection, search, view toggles, export,
+/// (start/pause/clear), copy/row-selection, view toggles, export,
 /// import, and a pane-level close button.
 ///
 /// The capture controls, the tab strip and the close button are always
@@ -126,28 +126,13 @@ class Toolbar extends StatelessWidget {
               onPressed: c.clearSelectedRows,
             ),
 
-          // ── Search / wrap / auto-scroll ───────────────────────────────
-          ToolbarAction(
-            icon: Icons.search,
-            label: 'Search in logs',
-            tooltip: c.searchBarVisible
-                ? 'Close search'
-                : 'Search in logs (Ctrl+F / Cmd+F)',
-            isActive: c.searchBarVisible,
-            dividerBefore: true,
-            onPressed: () {
-              if (c.searchBarVisible) {
-                c.closeSearchBar();
-              } else {
-                c.activateSearchFromSelection();
-              }
-            },
-          ),
+          // ── Wrap / auto-scroll (search lives in the filter row) ───────
           ToolbarAction(
             icon: c.wrapText ? Icons.wrap_text : Icons.notes,
             label: 'Wrap long lines',
             tooltip: c.wrapText ? 'Disable Wrap' : 'Enable Wrap',
             isActive: c.wrapText,
+            dividerBefore: true,
             onPressed: c.toggleWrapText,
           ),
           ToolbarAction(

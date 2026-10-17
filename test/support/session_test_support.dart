@@ -9,7 +9,6 @@ import 'package:eagly/features/logs/data/models/log_column.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/features/logs/data/models/log_tab_settings.dart';
-import 'package:eagly/features/logs/presentation/models/log_view_mode.dart';
 import 'package:eagly/features/terminal/data/terminal_line.dart';
 import 'package:eagly/features/terminal/data/terminal_process.dart';
 import 'package:eagly/features/terminal/data/terminal_tools.dart';
@@ -24,15 +23,11 @@ import 'package:eagly/services/ios/ios_device_service.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
 import 'package:eagly/services/tools/tool_process_runner.dart';
 
-LogTabSettings testSettings({
-  int logLinesLimit = 50000,
-  LogFilterViewMode filterViewMode = LogFilterViewMode.classic,
-}) {
+LogTabSettings testSettings({int logLinesLimit = 50000}) {
   return LogTabSettings(
     wrapText: false,
     autoScroll: true,
     selectedLogLevel: LogLevel.verbose,
-    filterViewMode: filterViewMode,
     logLinesLimit: logLinesLimit,
     hiddenColumns: const {},
     columnWidths: {
@@ -97,6 +92,21 @@ class FakeSessionService extends DeviceSessionRepository {
   }
 
   void emit(LogEntry entry) => _activeStream?.add(entry);
+
+  int pidRefreshRequests = 0;
+
+  @override
+  void requestPidToPackageRefresh() => pidRefreshRequests++;
+
+  final _pidPackageUpdates = StreamController<Map<String, String>>.broadcast();
+
+  @override
+  Stream<Map<String, String>> get pidToPackageUpdates =>
+      _pidPackageUpdates.stream;
+
+  /// Simulates a `ps -A` refresh that added or changed these mappings.
+  void pushPidPackages(Map<String, String> updates) =>
+      _pidPackageUpdates.add(updates);
 
   /// Simulates the underlying tool/pipe dying so the live stream completes.
   Future<void> endStream() async {

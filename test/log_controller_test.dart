@@ -1,10 +1,10 @@
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/logs/data/models/log_column.dart';
+import 'package:eagly/features/logs/data/models/filter_condition.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/data/models/log_filters.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/features/logs/data/models/log_tab_settings.dart';
-import 'package:eagly/features/logs/presentation/models/log_view_mode.dart';
 import 'package:eagly/features/logs/log_controller.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
@@ -16,9 +16,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/session_test_support.dart';
 
-/// Applies inline filter syntax the way the inline bar would: parse the text
-/// into a [LogFilters] configuration, then apply it.
-void applyInlineFilter(LogController log, String text) {
+/// Applies typed filter syntax: parse the text into a [LogFilters]
+/// configuration, then apply it.
+void applyTypedFilter(LogController log, String text) {
   log.applyFilters(
     LogFilters.parse(
       text,
@@ -43,7 +43,6 @@ void main() {
 
   LogController createLog({LogTabSettings? settings, Device? withDevice}) {
     if (settings != null) {
-      PreferencesService.filterViewMode = settings.filterViewMode;
       PreferencesService.logLinesLimit = settings.logLinesLimit;
     }
     device =
@@ -392,7 +391,7 @@ void main() {
       ),
     ];
 
-    applyInlineFilter(log, 'age:1h');
+    applyTypedFilter(log, 'age:1h');
 
     expect(log.filteredLogs, hasLength(1));
     expect(log.filteredLogs.single.message, 'Recent entry');
@@ -462,11 +461,9 @@ void main() {
   );
 
   test(
-    'inline filter syntax applies package, tag, message, pid, and level filters',
+    'typed filter syntax applies package, tag, message, pid, and level filters',
     () {
-      final log = createLog(
-        settings: testSettings(filterViewMode: LogFilterViewMode.inline),
-      );
+      final log = createLog();
 
       log.logs = [
         LogEntry(
@@ -489,7 +486,7 @@ void main() {
         ),
       ];
 
-      applyInlineFilter(
+      applyTypedFilter(
         log,
         'package:com.example.auth tag:Auth pid:101/202 level:error "signed in"',
       );
@@ -497,17 +494,28 @@ void main() {
       expect(log.selectedLogLevel, LogLevel.error);
       expect(log.filteredLogs, hasLength(1));
       expect(log.filteredLogs.single.level, 'E');
-      expect(log.classicFilter.messageController.text, 'signed in');
-      expect(log.classicFilter.packageController.text, 'com.example.auth');
-      expect(log.classicFilter.tagController.text, 'Auth');
-      expect(log.classicFilter.pidTidController.text, '101/202');
+      // A bare word searches every field, so it is an "Any field" pill.
+      expect(
+        [
+          for (final condition in log.filter.conditions)
+            (condition.field, condition.operator, condition.value),
+        ],
+        [
+          (
+            FilterConditionField.packageName,
+            FilterOperator.contains,
+            'com.example.auth',
+          ),
+          (FilterConditionField.tag, FilterOperator.contains, 'Auth'),
+          (FilterConditionField.pidTid, FilterOperator.contains, '101/202'),
+          (FilterConditionField.anyField, FilterOperator.contains, 'signed in'),
+        ],
+      );
     },
   );
 
-  test('inline filter syntax supports quoted values and repeated keys', () {
-    final log = createLog(
-      settings: testSettings(filterViewMode: LogFilterViewMode.inline),
-    );
+  test('typed filter syntax supports quoted values and repeated keys', () {
+    final log = createLog();
 
     log.logs = [
       LogEntry(
@@ -530,7 +538,7 @@ void main() {
       ),
     ];
 
-    applyInlineFilter(
+    applyTypedFilter(
       log,
       'message:"background sync" message:worker tag:SyncWorker',
     );
@@ -540,54 +548,39 @@ void main() {
     expect(log.recentFilters.message, isEmpty);
   });
 
-  test(
-    'inline bare text matches the whole log entry, not only the message',
-    () {
-      final log = createLog(
-        settings: testSettings(filterViewMode: LogFilterViewMode.inline),
-      );
-
-      log.logs = [
-        LogEntry(
-          timestamp: '2026-04-26 10:00:00.000',
-          pid: '900',
-          tid: '901',
-          level: 'I',
-          tag: 'AuthService',
-          message: 'No matching message text here',
-          packageName: 'com.example.auth',
-        ),
-        LogEntry(
-          timestamp: '2026-04-26 10:00:01.000',
-          pid: '902',
-          tid: '903',
-          level: 'I',
-          tag: 'SyncService',
-          message: 'No matching message text here either',
-          packageName: 'com.example.sync',
-        ),
-      ];
-
-      applyInlineFilter(log, 'AuthService');
-
-      expect(log.filteredLogs, hasLength(1));
-      expect(log.filteredLogs.single.tag, 'AuthService');
-
-      applyInlineFilter(log, 'com.example.sync');
-
-      expect(log.filteredLogs, hasLength(1));
-      expect(log.filteredLogs.single.packageName, 'com.example.sync');
-    },
-  );
-
-  test('changing filter mode updates the active per-device setting', () {
+  test('bare typed text matches the whole log entry, not only the message', () {
     final log = createLog();
 
-    log.setFilterViewMode(LogFilterViewMode.inline);
-    expect(log.filterViewMode, LogFilterViewMode.inline);
+    log.logs = [
+      LogEntry(
+        timestamp: '2026-04-26 10:00:00.000',
+        pid: '900',
+        tid: '901',
+        level: 'I',
+        tag: 'AuthService',
+        message: 'No matching message text here',
+        packageName: 'com.example.auth',
+      ),
+      LogEntry(
+        timestamp: '2026-04-26 10:00:01.000',
+        pid: '902',
+        tid: '903',
+        level: 'I',
+        tag: 'SyncService',
+        message: 'No matching message text here either',
+        packageName: 'com.example.sync',
+      ),
+    ];
 
-    log.setFilterViewMode(LogFilterViewMode.classic);
-    expect(log.filterViewMode, LogFilterViewMode.classic);
+    applyTypedFilter(log, 'AuthService');
+
+    expect(log.filteredLogs, hasLength(1));
+    expect(log.filteredLogs.single.tag, 'AuthService');
+
+    applyTypedFilter(log, 'com.example.sync');
+
+    expect(log.filteredLogs, hasLength(1));
+    expect(log.filteredLogs.single.packageName, 'com.example.sync');
   });
 
   test(
@@ -629,6 +622,133 @@ void main() {
         'keep 1',
         'keep 2',
       ]);
+    },
+  );
+
+  test(
+    'a package filter keeps an unresolved-PID line once its package is learned',
+    () async {
+      final log = createLog(settings: testSettings(logLinesLimit: 3));
+
+      applyTypedFilter(log, 'package:com.foo');
+      await log.startLogcat();
+
+      // Arrives before anything maps pid 500, so it's stored as non-matching.
+      service.emit(testLogEntry(message: 'early', pid: '500'));
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+
+      // Now pid 500 resolves, then enough unrelated lines to force eviction.
+      service.emit(
+        testLogEntry(message: 'late', pid: '500', packageName: 'com.foo'),
+      );
+      for (var index = 0; index < 10; index++) {
+        service.emit(
+          testLogEntry(message: 'other $index', pid: '${600 + index}'),
+        );
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      expect(
+        log.logs.map((entry) => entry.message),
+        containsAll(['early', 'late']),
+        reason: 'the early line matches now, so it must not be evicted first',
+      );
+      expect(
+        log.filteredLogs
+            .where((entry) => !entry.isSpecialEntry)
+            .map((entry) => entry.message),
+        ['early', 'late'],
+      );
+    },
+  );
+
+  test(
+    'an unresolved PID asks for a pid→package refresh only under a package filter',
+    () async {
+      final log = createLog();
+      await log.startLogcat();
+
+      service.emit(testLogEntry(message: 'unfiltered', pid: '500'));
+      await Future<void>.delayed(Duration.zero);
+      expect(service.pidRefreshRequests, 0);
+
+      applyTypedFilter(log, 'package:com.foo');
+      // Applying the filter asks once on its own; count lines from there.
+      final base = service.pidRefreshRequests;
+      service.emit(
+        testLogEntry(message: 'resolved', pid: '501', packageName: 'com.bar'),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        service.pidRefreshRequests,
+        base,
+        reason: 'it already has a package',
+      );
+
+      service.emit(testLogEntry(message: 'unresolved', pid: '502'));
+      await Future<void>.delayed(Duration.zero);
+      expect(service.pidRefreshRequests, base + 1);
+
+      // pid 501 was learned from the resolved line above.
+      service.emit(testLogEntry(message: 'learned', pid: '501'));
+      await Future<void>.delayed(Duration.zero);
+      expect(service.pidRefreshRequests, base + 1);
+    },
+  );
+
+  test(
+    'a pid→package refresh reveals and keeps lines that logged before it',
+    () async {
+      final log = createLog(settings: testSettings(logLinesLimit: 3));
+      applyTypedFilter(log, 'package:com.foo');
+      await log.startLogcat();
+
+      service.emit(testLogEntry(message: 'early', pid: '500'));
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      List<String> visible() => log.filteredLogs
+          .where((entry) => !entry.isSpecialEntry)
+          .map((entry) => entry.message)
+          .toList();
+      expect(visible(), isEmpty);
+
+      // The process goes quiet; only the refresh learns its package.
+      var notified = 0;
+      log.addListener(() => notified++);
+      service.pushPidPackages({'500': 'com.foo', '600': 'com.bar'});
+      await Future<void>.delayed(Duration.zero);
+      expect(notified, greaterThan(0));
+      expect(visible(), ['early']);
+
+      for (var index = 0; index < 10; index++) {
+        service.emit(
+          testLogEntry(message: 'other $index', pid: '${700 + index}'),
+        );
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(
+        log.logs.map((entry) => entry.message),
+        contains('early'),
+        reason: 'the refresh re-flags it, so it is not evicted first',
+      );
+    },
+  );
+
+  test(
+    'a settled package filter change asks for a pid→package refresh',
+    () async {
+      final log = createLog();
+      applyTypedFilter(log, 'package:com.foo');
+      expect(service.pidRefreshRequests, 0, reason: 'not capturing yet');
+
+      await log.startLogcat();
+      applyTypedFilter(log, 'package:com.foo level:error');
+      expect(service.pidRefreshRequests, 0, reason: 'package terms unchanged');
+
+      applyTypedFilter(log, 'package:com.bar');
+      expect(service.pidRefreshRequests, 1);
+
+      applyTypedFilter(log, 'tag:Foo');
+      expect(service.pidRefreshRequests, 1, reason: 'no package terms');
     },
   );
 

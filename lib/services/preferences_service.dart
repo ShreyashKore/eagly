@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../features/logs/data/models/log_column.dart';
 import '../features/logs/data/models/log_level.dart';
 import '../features/logs/data/models/log_tab_settings.dart';
-import '../features/logs/presentation/models/log_view_mode.dart';
 
 extension SharedPreferencesJson on SharedPreferences {
   /// Reads a JSON-encoded value from persistent storage and decodes it.
@@ -35,6 +34,18 @@ class PreferencesService {
     recentLogFilesListenable.value = recentLogFiles;
     tipsEnabledListenable.value = tipsEnabled;
     zoomLevelListenable.value = zoomLevel;
+    _removeRetiredKeys();
+  }
+
+  /// Keys earlier versions stored that nothing reads any more.
+  static const _retiredKeys = [
+    'filterViewMode', // The pill filter bar is the only one now.
+  ];
+
+  static void _removeRetiredKeys() {
+    for (final key in _retiredKeys) {
+      if (_prefs.containsKey(key)) _prefs.remove(key);
+    }
   }
 
   // Keys
@@ -43,7 +54,6 @@ class PreferencesService {
   static const _keySelectedLogLevel = 'selectedLogLevel';
   static const _keySelectedAndroidLogLevel = 'selectedAndroidLogLevel';
   static const _keySelectedIosLogLevel = 'selectedIosLogLevel';
-  static const _keyFilterViewMode = 'filterViewMode';
   static const _keyColumnWidths = 'columnWidths';
   static const _keyHiddenColumns = 'hiddenColumns';
   static const _keyRememberHiddenColumns = 'rememberHiddenColumns';
@@ -80,11 +90,6 @@ class PreferencesService {
   );
   static set selectedLogLevel(LogLevel v) =>
       _prefs.setString(_keySelectedLogLevel, v.code);
-
-  static LogFilterViewMode get filterViewMode =>
-      LogFilterViewMode.fromStored(_prefs.getString(_keyFilterViewMode));
-  static set filterViewMode(LogFilterViewMode v) =>
-      _prefs.setString(_keyFilterViewMode, v.name);
 
   static int get logLinesLimit =>
       _prefs.getInt(_keyLogLinesLimit) ?? defaultLogLinesLimit;
@@ -200,7 +205,6 @@ class PreferencesService {
     wrapText: wrapText,
     autoScroll: autoScroll,
     selectedLogLevel: selectedLogLevel,
-    filterViewMode: filterViewMode,
     logLinesLimit: logLinesLimit,
     hiddenColumns: hiddenColumns,
     columnWidths: columnWidths,

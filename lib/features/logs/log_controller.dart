@@ -14,7 +14,6 @@ import 'data/models/log_entry.dart';
 import 'data/models/log_filters.dart';
 import 'data/models/log_level.dart';
 import 'data/models/log_tab_settings.dart';
-import 'presentation/models/log_view_mode.dart';
 import 'services/filter_utils.dart';
 import 'services/pid_package_index.dart';
 import 'services/log_file_service.dart';
@@ -64,24 +63,20 @@ class LogController extends FeatureController {
     final suggestions = LogFilterSuggestions(
       recentMessageFilters: () => _recentFilters.message,
       recentPackageFilters: () => _recentFilters.package,
-      knownPackageFilters: () => knownInlinePackageFilters,
+      knownPackageFilters: () => knownPackageFilters,
       recentPidTidFilters: () => _recentFilters.pidTid,
       recentTagFilters: () => _recentFilters.tag,
     );
-    classicFilter = ClassicFilterController(
+    filter = LogFilterController(
       initialState: initialState,
       suggestions: suggestions,
-      onStateChanged: (state) =>
-          _applyFilterState(state, source: classicFilter),
-      isIos: isIosLogContext,
-    );
-    inlineFilter = InlineFilterController(
-      initialState: initialState,
-      suggestions: suggestions,
-      onStateChanged: (state) => _applyFilterState(state, source: inlineFilter),
+      onStateChanged: _applyFilterConfig,
       isIos: isIosLogContext,
     );
     _syncLogBufferFilter();
+    _pidPackageUpdatesSub = service.pidToPackageUpdates.listen(
+      _learnRefreshedPidPackages,
+    );
   }
 
   /// Creates a controller pre-loaded with [entries] from a log file.
@@ -97,6 +92,9 @@ class LogController extends FeatureController {
 
   final ScrollController scrollController = ScrollController();
 
+  /// Focus for the filter row's search field, so ⌘F can jump into it.
+  final FocusNode searchFocusNode = FocusNode();
+
   double paneWidth = 600;
 
   void setPaneWidth(double value) {
@@ -104,12 +102,9 @@ class LogController extends FeatureController {
     notifyListeners();
   }
 
-  /// The two filter bars are each fully owned by their own controller (text
-  /// controllers, focus nodes, debounce). Both emit updated [LogFilters] state
-  /// through [_applyFilterState]; the sibling is kept in sync so switching modes
-  /// preserves the filter.
-  late final ClassicFilterController classicFilter;
-  late final InlineFilterController inlineFilter;
+  /// The filter bar's pills, focus and debounce. It emits updated
+  /// [LogFilters] state through [_applyFilterConfig].
+  late final LogFilterController filter;
 
   LogBuffer<LogEntry> _logsBuffer;
   final List<LogEntry> _pendingLogs = [];
@@ -127,7 +122,13 @@ class LogController extends FeatureController {
   /// buffer for each of them would cost a full rescan per frame.
   int _packageIndexRelevance = 0;
 
+  /// Set when a learned mapping left the buffer's retention flags stale.
+  /// Re-flagging rescans every stored entry, so it waits for the next append
+  /// rather than running once per learned PID.
+  bool _logBufferFilterDirty = false;
+
   StreamSubscription<LogEntry>? _logSub;
+  StreamSubscription<Map<String, String>>? _pidPackageUpdatesSub;
   Timer? _flushTimer;
   Timer? _filterSaveDebounceTimer;
   Timer? _inlineSearchDebounce;
@@ -140,10 +141,10 @@ class LogController extends FeatureController {
   var logcatState = LogcatState.stopped;
 
   final RecentFilterValues _recentFilters = RecentFilterValues();
-  List<String> _knownInlinePackageFilters = const [];
-  int _knownInlinePackageFingerprintLength = -1;
-  int? _knownInlinePackageFingerprintFirstId;
-  int? _knownInlinePackageFingerprintLastId;
+  List<String> _knownPackageFilters = const [];
+  int _knownPackageFingerprintLength = -1;
+  int? _knownPackageFingerprintFirstId;
+  int? _knownPackageFingerprintLastId;
 
   var _searchBarVisible = false;
   var _inlineSearch = const TextSearchConfig();
@@ -242,14 +243,14 @@ class LogController extends FeatureController {
   @visibleForTesting
   RecentFilterValues get recentFilters => _recentFilters;
 
-  List<String> get knownInlinePackageFilters {
+  List<String> get knownPackageFilters {
     final storedLogs = logs;
     final firstId = storedLogs.firstOrNull?.id;
     final lastId = storedLogs.lastOrNull?.id;
-    if (_knownInlinePackageFingerprintLength == storedLogs.length &&
-        _knownInlinePackageFingerprintFirstId == firstId &&
-        _knownInlinePackageFingerprintLastId == lastId) {
-      return List.unmodifiable(_knownInlinePackageFilters);
+    if (_knownPackageFingerprintLength == storedLogs.length &&
+        _knownPackageFingerprintFirstId == firstId &&
+        _knownPackageFingerprintLastId == lastId) {
+      return List.unmodifiable(_knownPackageFilters);
     }
 
     final counts = <String, int>{};
@@ -266,17 +267,16 @@ class LogController extends FeatureController {
         return left.toLowerCase().compareTo(right.toLowerCase());
       });
 
-    _knownInlinePackageFilters = sortedValues;
-    _knownInlinePackageFingerprintLength = storedLogs.length;
-    _knownInlinePackageFingerprintFirstId = firstId;
-    _knownInlinePackageFingerprintLastId = lastId;
-    return List.unmodifiable(_knownInlinePackageFilters);
+    _knownPackageFilters = sortedValues;
+    _knownPackageFingerprintLength = storedLogs.length;
+    _knownPackageFingerprintFirstId = firstId;
+    _knownPackageFingerprintLastId = lastId;
+    return List.unmodifiable(_knownPackageFilters);
   }
 
   bool get wrapText => _settings.wrapText;
   bool get autoScroll => _settings.autoScroll;
   LogLevel get selectedLogLevel => _settings.selectedLogLevel;
-  LogFilterViewMode get filterViewMode => _settings.filterViewMode;
   int get logLinesLimit => _settings.logLinesLimit;
   Set<String> get hiddenColumns => _settings.hiddenColumns;
   Map<String, double> get columnWidths => _settings.columnWidths;
@@ -329,23 +329,21 @@ class LogController extends FeatureController {
     _notify();
   }
 
-  LogFilterController get _activeFilterController => switch (filterViewMode) {
-    LogFilterViewMode.inline => inlineFilter,
-    LogFilterViewMode.classic => classicFilter,
-  };
-
   /// Sets the package/process filter to [packageName] and applies it
-  /// immediately, regardless of which filter bar is active — used by the
+  /// immediately — used by the
   /// Apps feature's "View logs" action to jump straight to one app's lines.
   void applyPackageFilter(String packageName) {
-    classicFilter.setFieldFromInput(LogFilterField.packageName, packageName);
-    classicFilter.applyNow();
+    filter.setPackageFilter(packageName);
   }
+
+  /// ⌘L: puts the caret in the filter field, which also opens its "Filter
+  /// by…" menu.
+  void activateFilterInput() => focusFilterInputs();
 
   void focusFilterInputs() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_disposed) return;
-      _activeFilterController.focusPrimaryField();
+      filter.focusPrimaryField();
     });
   }
 
@@ -562,8 +560,7 @@ class LogController extends FeatureController {
       isIos: isIosLogContext,
     );
     final cleared = LogFilters.empty(defaultLevel);
-    classicFilter.updateState(cleared);
-    inlineFilter.updateState(cleared);
+    filter.updateState(cleared);
     _settings = _settings.copyWith(selectedLogLevel: defaultLevel);
     _appliedFilters = cleared;
     _syncLogBufferFilter();
@@ -572,33 +569,17 @@ class LogController extends FeatureController {
     _notify();
   }
 
-  /// Applies a complete filter [configuration], updating both filter bars and
+  /// Applies a complete filter [configuration], updating the filter bar and
   /// the active filter. Interactive edits normally flow through the filter
   /// controllers; this is the single entry point for driving filters
   /// programmatically (tests / external callers).
   @visibleForTesting
   void applyFilters(LogFilters configuration) {
-    classicFilter.updateState(configuration);
-    inlineFilter.updateState(configuration);
+    filter.updateState(configuration);
     _applyFilterConfig(configuration);
   }
 
-  void setSelectedLogLevel(LogLevel level) =>
-      _activeFilterController.setLevel(level);
-
-  void setFilterViewMode(LogFilterViewMode mode) {
-    if (mode == filterViewMode) return;
-    // Carry the current (possibly un-applied) draft into the bar that is about
-    // to become visible so both surfaces show the same filter. This does not
-    // apply the filter — that still waits for submit / debounce.
-    final target = switch (mode) {
-      LogFilterViewMode.inline => inlineFilter,
-      LogFilterViewMode.classic => classicFilter,
-    };
-    target.updateState(_activeFilterController.state);
-    _updateSettings(_settings.copyWith(filterViewMode: mode));
-    focusFilterInputs();
-  }
+  void setSelectedLogLevel(LogLevel level) => filter.setLevel(level);
 
   void toggleWrapText() {
     _logViewerRevision++;
@@ -682,6 +663,11 @@ class LogController extends FeatureController {
       _searchBarVisible = true;
       _notify();
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_disposed && !searchFocusNode.hasFocus) {
+        searchFocusNode.requestFocus();
+      }
+    });
   }
 
   void closeSearchBar() {
@@ -851,24 +837,11 @@ class LogController extends FeatureController {
     });
   }
 
-  /// Applies filter state emitted by one of the filter controllers. Keeps the
-  /// sibling controller in sync so switching filter modes preserves the filter,
-  /// then applies the configuration.
-  void _applyFilterState(
-    LogFilters state, {
-    required LogFilterController source,
-  }) {
-    // Mirror into the other bar (the emitting one already holds this state).
-    final sibling = identical(source, inlineFilter)
-        ? classicFilter
-        : inlineFilter;
-    sibling.updateState(state);
-    _applyFilterConfig(state);
-  }
-
   /// Records the applied terms/level, schedules recording of recent values, and
   /// refreshes the filtered view. Does not touch the filter bars.
   void _applyFilterConfig(LogFilters configuration) {
+    final packageTermsChanged =
+        configuration.packageSignature != _appliedFilters.packageSignature;
     _appliedFilters = configuration;
     if (selectedLogLevel != configuration.level) {
       _settings = _settings.copyWith(selectedLogLevel: configuration.level);
@@ -882,6 +855,14 @@ class LogController extends FeatureController {
     _syncLogBufferFilter();
     _invalidateFilteredLogs();
     _notify();
+
+    // A package filter that just settled resolves against the processes
+    // running now, rather than at the next poll or the next unresolved line.
+    if (packageTermsChanged &&
+        configuration.packageTerms.isNotEmpty &&
+        isRunning) {
+      service.requestPidToPackageRefresh();
+    }
   }
 
   /// The applied filter's signature, extended with the pid→package index
@@ -900,13 +881,46 @@ class LogController extends FeatureController {
   /// revealing them.
   void _learnPidPackage(LogEntry entry) {
     final learned = _pidPackages.record(entry);
-    if (learned == null) return;
-
-    final terms = _appliedFilters.packageTerms;
-    if (terms.isEmpty) return;
-    if (terms.any((term) => term.matches(learned) != term.matches(''))) {
+    if (learned != null && _bearsOnPackageFilter(learned)) {
       _packageIndexRelevance++;
+      _logBufferFilterDirty = true;
     }
+  }
+
+  /// The same, for the mappings a device-side refresh added or changed. Unlike
+  /// [_learnPidPackage] nothing else notifies afterwards, so this does.
+  void _learnRefreshedPidPackages(Map<String, String> updates) {
+    if (_disposed) return;
+    var relevant = false;
+    for (final MapEntry(key: pid, value: package) in updates.entries) {
+      final learned = _pidPackages.learn(pid, package);
+      if (learned != null && _bearsOnPackageFilter(learned)) relevant = true;
+    }
+    if (!relevant) return;
+    _applyRelevantPidPackage();
+    _notify();
+  }
+
+  bool _bearsOnPackageFilter(String learned) => _appliedFilters.packageTerms
+      .any((term) => term.matches(learned) != term.matches(''));
+
+  void _applyRelevantPidPackage() {
+    _packageIndexRelevance++;
+    // The buffer flagged stored entries before this mapping was known; ones
+    // it now matches would otherwise be evicted first. Same filter, so
+    // capacity is unchanged and this only re-flags — it never evicts.
+    _syncLogBufferFilter();
+  }
+
+  /// While a package filter is active, a line from a PID nothing has resolved
+  /// asks the device for a fresh pid→package map instead of waiting for the
+  /// next poll — the usual case being the filtered app (re)launching.
+  void _requestPackageForUnknownPid(LogEntry entry) {
+    if (_appliedFilters.packageTerms.isEmpty) return;
+    final pid = entry.pid.trim();
+    if (pid.isEmpty || packageFilterValue(entry).isNotEmpty) return;
+    if (_pidPackages.packageForPid(pid) != null) return;
+    service.requestPidToPackageRefresh();
   }
 
   bool _matchesLogFilters(LogEntry log) {
@@ -925,7 +939,13 @@ class LogController extends FeatureController {
       _hasActiveRetentionFilter ? _matchesLogFilters : null;
 
   void _syncLogBufferFilter() {
+    _logBufferFilterDirty = false;
     _logsBuffer.setFilter(_retentionFilter);
+  }
+
+  /// Re-flags stored entries before an append can evict by stale flags.
+  void _syncLogBufferFilterIfDirty() {
+    if (_logBufferFilterDirty) _syncLogBufferFilter();
   }
 
   void _replaceStoredLogs(Iterable<LogEntry> entries) {
@@ -980,6 +1000,7 @@ class LogController extends FeatureController {
   }
 
   void _appendImmediateLogEntry(LogEntry entry) {
+    _syncLogBufferFilterIfDirty();
     final evictedLogs = _logsBuffer.append(entry);
     final addedBytes = estimateLogEntryBytes(entry);
     final evictedBytes = estimateLogsBytes(evictedLogs);
@@ -1066,6 +1087,7 @@ class LogController extends FeatureController {
           return;
         }
         if (logcatState == LogcatState.paused) return;
+        _requestPackageForUnknownPid(logEntry);
         if (_pendingLogs.length >= maxPendingLogs) {
           // High-volume streams can fill this queue before the periodic
           // flush. Flush the whole queue once, rather than falling back to an
@@ -1102,6 +1124,7 @@ class LogController extends FeatureController {
     final pendingLogsMemoryBytes = _pendingLogsMemoryBytes;
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
+    _syncLogBufferFilterIfDirty();
 
     var evictedMemoryBytes = 0;
     var didEvictStoredLogs = false;
@@ -1521,11 +1544,12 @@ class LogController extends FeatureController {
     _filterSaveDebounceTimer?.cancel();
     _inlineSearchDebounce?.cancel();
     unawaited(_logSub?.cancel());
+    unawaited(_pidPackageUpdatesSub?.cancel());
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
     scrollController.dispose();
-    classicFilter.dispose();
-    inlineFilter.dispose();
+    searchFocusNode.dispose();
+    filter.dispose();
     super.dispose();
   }
 }
@@ -1546,6 +1570,8 @@ extension on LogFilters {
     'pt:${_termSignatures(pidTidTerms)}',
     't:${_termSignatures(tagTerms)}',
   ].join('\u0000');
+
+  String get packageSignature => _termSignatures(packageTerms);
 
   static String _termSignatures(List<FilterTerm> terms) =>
       terms.map((term) => term.signature).join('\u0001');

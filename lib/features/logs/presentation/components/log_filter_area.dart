@@ -1,58 +1,87 @@
 import 'package:flutter/material.dart';
-import 'package:gap/gap.dart';
 
-import '../models/log_view_mode.dart';
 import '../../log_controller.dart';
-import 'classic_filter_bar.dart';
-import 'inline_filter_bar.dart';
+import 'log_filter_bar.dart';
+import 'log_search_field.dart';
 
-/// The filter area row: inline/classic mode toggle plus the active filter
-/// bar, cross-faded on mode switch.
-class LogFilterArea extends StatelessWidget {
+/// The row above the log list: the filter on the left (hide what doesn't
+/// match) and **Search** on the right (highlight and step through matches).
+/// The filter is the pill bar's type-to-filter field, which holds the active
+/// pills.
+///
+/// Narrower than [stackBelowWidth], the row stacks: the filter gets the full
+/// width, with Level and Search on a line below. Global keys carry the filter
+/// and the search field across the switch, so typed text, focus and an open
+/// menu survive a resize.
+class LogFilterArea extends StatefulWidget {
   const LogFilterArea({super.key, required this.controller});
 
   final LogController controller;
 
+  /// Below this width the filter and the Level / Search controls stack.
+  static const double stackBelowWidth = 1050;
+
+  @override
+  State<LogFilterArea> createState() => _LogFilterAreaState();
+}
+
+class _LogFilterAreaState extends State<LogFilterArea> {
+  final GlobalKey _filterKey = GlobalKey();
+  final GlobalKey _searchKey = GlobalKey();
+
+  LogController get _controller => widget.controller;
+
   @override
   Widget build(BuildContext context) {
-    final isInline = controller.filterViewMode == LogFilterViewMode.inline;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          IconButton(
-            tooltip: isInline
-                ? 'Inline filter mode active. Switch to classic fields.'
-                : 'Classic filter mode active. Switch to inline filter.',
-            onPressed: () {
-              controller.setFilterViewMode(
-                isInline ? LogFilterViewMode.classic : LogFilterViewMode.inline,
-              );
-            },
-            icon: Icon(
-              isInline ? Icons.filter_alt_outlined : Icons.filter_list_rounded,
-            ),
-          ),
-          const Gap(4),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              switchInCurve: Curves.easeOut,
-              switchOutCurve: Curves.easeIn,
-              child: isInline
-                  ? InlineFilterBar(
-                      key: const ValueKey('inline-filter-bar'),
-                      controller: controller.inlineFilter,
-                    )
-                  : ClassicFilterBar(
-                      key: const ValueKey('classic-filter-bar'),
-                      controller: controller.classicFilter,
-                    ),
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      child: LayoutBuilder(
+        builder: (context, constraints) =>
+            constraints.maxWidth < LogFilterArea.stackBelowWidth
+            ? _buildStacked()
+            : _buildRow(),
       ),
     );
   }
+
+  Widget _buildRow() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: _buildFilter(showLevel: true)),
+        const SizedBox(width: 8),
+        LogSearchField(key: _searchKey, controller: _controller),
+      ],
+    );
+  }
+
+  Widget _buildStacked() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildFilter(showLevel: false),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            LogLevelButton(controller: _controller.filter),
+            const SizedBox(width: 6),
+            Expanded(
+              child: LogSearchField(
+                key: _searchKey,
+                controller: _controller,
+                fillWidth: true,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilter({required bool showLevel}) => LogFilterBar(
+    key: _filterKey,
+    controller: _controller.filter,
+    showLevel: showLevel,
+  );
 }

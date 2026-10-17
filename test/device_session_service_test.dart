@@ -24,6 +24,12 @@ if [ "$1" = "-s" ] && [ "$3" = "shell" ] && [ "$4" = "getprop" ]; then
 EOF
   exit 0
 fi
+if [ "$1" = "-s" ] && [ "$3" = "shell" ] && [ "$4" = "ps" ]; then
+  echo ps >> "$(dirname "$0")/ps_calls"
+  echo "USER PID PPID VSZ RSS WCHAN ADDR S NAME"
+  echo "u0_a1 4242 1 0 0 0 0 S com.foo"
+  exit 0
+fi
 if [ "$1" = "connect" ]; then
   echo "failed to connect to $2"
   exit 0
@@ -106,6 +112,77 @@ exit 0
       expect(result.error, contains('failed to connect to 127.0.0.1:5555'));
     },
   );
+
+  test(
+    'requested pid→package refreshes coalesce and keep their spacing',
+    () async {
+      final previousInterval = DeviceSessionRepository.pidRefreshMinInterval;
+      DeviceSessionRepository.pidRefreshMinInterval = const Duration(
+        seconds: 1,
+      );
+      addTearDown(
+        () => DeviceSessionRepository.pidRefreshMinInterval = previousInterval,
+      );
+      final service = buildService(Device.android('emulator-5554', 'device'));
+      final calls = File('${tempDir.path}/ps_calls');
+      int psCalls() => calls.existsSync() ? calls.readAsLinesSync().length : 0;
+      Future<void> waitForPsCalls(int count) async {
+        final deadline = DateTime.now().add(const Duration(seconds: 5));
+        while (psCalls() < count && DateTime.now().isBefore(deadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+      }
+
+      // A burst of requests is one refresh.
+      for (var index = 0; index < 5; index++) {
+        service.requestPidToPackageRefresh();
+      }
+      await waitForPsCalls(1);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(psCalls(), 1);
+      expect(service.getProcessNameFromPid('4242'), 'com.foo');
+
+      // Inside the interval, the next requests wait for it to pass.
+      final requestedAt = DateTime.now();
+      service.requestPidToPackageRefresh();
+      service.requestPidToPackageRefresh();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(psCalls(), 1);
+      await waitForPsCalls(2);
+      expect(psCalls(), 2);
+      expect(
+        DateTime.now().difference(requestedAt),
+        greaterThan(const Duration(milliseconds: 500)),
+      );
+      await service.dispose();
+    },
+  );
+
+  test('a pid→package refresh reports only the mappings it changed', () async {
+    final service = buildService(Device.android('emulator-5554', 'device'));
+    final updates = <Map<String, String>>[];
+    final sub = service.pidToPackageUpdates.listen(updates.add);
+
+    await service.refreshPidToPackageMap();
+    await service.refreshPidToPackageMap();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(updates, [
+      {'4242': 'com.foo'},
+    ]);
+    await sub.cancel();
+    await service.dispose();
+  });
+
+  test('requested pid→package refreshes are a no-op on iOS', () async {
+    final service = buildService(
+      Device.ios('00008110-001234567890801E', 'device'),
+    );
+    service.requestPidToPackageRefresh();
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(File('${tempDir.path}/ps_calls').existsSync(), isFalse);
+    await service.dispose();
+  });
 
   test('installApp installs APKs on Android devices via adb', () async {
     final service = buildService(Device.android('emulator-5554', 'device'));

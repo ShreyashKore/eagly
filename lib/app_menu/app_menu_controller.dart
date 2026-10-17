@@ -95,7 +95,7 @@ class AppMenuController extends ChangeNotifier {
   void activateSearch() => _activeLog?.activateSearchFromSelection();
   void searchNext() => _activeLog?.onSearchNext();
   void searchPrevious() => _activeLog?.onSearchPrev();
-  void focusFilter() => _activeLog?.focusFilterInputs();
+  void focusFilter() => _activeLog?.activateFilterInput();
   void clearFilter() => _activeLog?.clearFilter();
   void setLogLevel(LogLevel level) => _activeLog?.setSelectedLogLevel(level);
   void toggleWrapText() => _activeLog?.toggleWrapText();

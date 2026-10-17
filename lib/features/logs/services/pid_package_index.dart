@@ -30,12 +30,14 @@ class PidPackageIndex {
   /// when that mapping is *new* (so the caller can tell whether anything the
   /// active filter cares about changed). Call before the entry is filtered, so
   /// the filter can already use what this entry taught us.
-  String? record(LogEntry log) {
-    final pid = log.pid.trim();
-    if (pid.isEmpty) return null;
+  String? record(LogEntry log) => learn(log.pid, packageFilterValue(log));
 
-    final package = packageFilterValue(log);
-    if (package.isEmpty || package == pid) return null;
+  /// Learns that [pid] belongs to [package] — from a log entry, or straight
+  /// from the device's refreshed map — returning [package] when that's new.
+  String? learn(String pid, String package) {
+    pid = pid.trim();
+    package = package.trim();
+    if (pid.isEmpty || package.isEmpty || package == pid) return null;
     if (_packageByPid[pid] == package) return null;
 
     _packageByPid[pid] = package;

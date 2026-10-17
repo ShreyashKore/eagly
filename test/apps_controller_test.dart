@@ -217,6 +217,6 @@ void main() {
     expect(session!.isLogsOpen, isTrue);
     expect(session!.logSessionManager.tabs.length, tabsBefore + 1);
     final tab = session!.logSessionManager.tabs.last;
-    expect(tab.classicFilter.packageController.text, 'com.example.a');
+    expect(tab.filter.conditions.single.value, 'com.example.a');
   });
 }

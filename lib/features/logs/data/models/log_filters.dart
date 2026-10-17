@@ -1,17 +1,14 @@
 import 'package:eagly/features/logs/data/models/log_level.dart';
 
-enum LogFilterField { message, packageName, pidTid, tag }
+enum FilterKey { message, packageName, pidTid, tag, level, age }
 
-enum InlineFilterKey { message, packageName, pidTid, tag, level, age }
-
-/// How a [FilterTerm]'s value is compared against a candidate string. The
-/// classic bar only ever produces [contains]; the inline bar's advanced syntax
-/// (`[-]key[=|~]:value`) can also select [exact] (`=`) or [regex] (`~`).
+/// How a [FilterTerm]'s value is compared against a candidate string. Typed
+/// syntax (`[-]key[=|~]:value`) selects [exact] (`=`) or [regex] (`~`); a
+/// filter pill's editor picks one from a list.
 enum FilterMatchMode { contains, exact, regex }
 
 /// A single filter value, how it should be matched, and whether the result is
-/// negated. Matching is always case-insensitive, matching the classic bar's
-/// substring behaviour.
+/// negated. Matching is always case-insensitive.
 class FilterTerm {
   FilterTerm(
     this.value, {
@@ -53,7 +50,7 @@ class FilterTerm {
     FilterMatchMode.regex => _regExp?.hasMatch(candidate) ?? false,
   };
 
-  /// Serializes back to inline syntax under [key] (e.g. `-tag~:value`). The
+  /// Serializes back to typed syntax under [key] (e.g. `-tag~:value`). The
   /// caller passes an already display-adjusted key.
   String toToken(String key) {
     final negation = negate ? '-' : '';
@@ -96,7 +93,7 @@ class LogFilters {
   final LogLevel level;
 
   /// When set, only entries whose timestamp is no older than this duration
-  /// (relative to now) match. Parsed from the inline `age:` key (e.g. `1h`).
+  /// (relative to now) match. Parsed from the typed `age:` key (e.g. `1h`).
   final Duration? maxAge;
 
   /// An empty filter that only constrains by [level].
@@ -114,9 +111,34 @@ class LogFilters {
     maxAge: null,
   );
 
-  /// Builds a filter from discrete classic-field values. Each field contributes
-  /// a single (trimmed) [FilterTerm.contains] term; the message field filters
-  /// the message column only (no [rawTerms]).
+  /// Builds a filter from per-field [FilterTerm] lists, deriving the plain
+  /// `*Text` summaries from them. Raw (any-field) terms fold into
+  /// [messageText] alongside the message terms.
+  factory LogFilters.fromTerms({
+    required LogLevel level,
+    List<FilterTerm> messageTerms = const [],
+    List<FilterTerm> rawTerms = const [],
+    List<FilterTerm> packageTerms = const [],
+    List<FilterTerm> pidTidTerms = const [],
+    List<FilterTerm> tagTerms = const [],
+    Duration? maxAge,
+  }) => LogFilters(
+    messageText: _plainValues([...rawTerms, ...messageTerms]),
+    packageText: _plainValues(packageTerms),
+    pidTidText: _plainValues(pidTidTerms),
+    tagText: _plainValues(tagTerms),
+    messageTerms: List.unmodifiable(messageTerms),
+    rawTerms: List.unmodifiable(rawTerms),
+    packageTerms: List.unmodifiable(packageTerms),
+    pidTidTerms: List.unmodifiable(pidTidTerms),
+    tagTerms: List.unmodifiable(tagTerms),
+    level: level,
+    maxAge: maxAge,
+  );
+
+  /// Builds a filter from at most one plain (contains) value per field — the
+  /// shorthand programmatic callers use. The message value filters the message
+  /// column only (no [rawTerms]).
   factory LogFilters.fromFields({
     required LogLevel level,
     String message = '',
@@ -130,17 +152,12 @@ class LogFilters {
       return trimmed.isEmpty ? const [] : [FilterTerm(trimmed)];
     }
 
-    return LogFilters(
-      messageText: message.trim(),
-      packageText: package.trim(),
-      pidTidText: pidTid.trim(),
-      tagText: tag.trim(),
+    return LogFilters.fromTerms(
+      level: level,
       messageTerms: single(message),
-      rawTerms: const [],
       packageTerms: single(package),
       pidTidTerms: single(pidTid),
       tagTerms: single(tag),
-      level: level,
       maxAge: maxAge,
     );
   }
@@ -163,16 +180,16 @@ class LogFilters {
     String rawText, {
     required LogLevel fallbackLevel,
     required bool isIosLogContext,
-  }) => _parseInlineFilters(
+  }) => _parseFilters(
     rawText,
     fallbackLevel: fallbackLevel,
     isIosLogContext: isIosLogContext,
   );
 
-  /// Serializes [state] into inline `[-]key[=|~]:value` syntax, the inverse of
+  /// Serializes [state] into typed `[-]key[=|~]:value` syntax, the inverse of
   /// [parse]. The `level` token is emitted only when it differs from
   /// [defaultLevel]; raw terms are emitted as bare words. On iOS the tag key is
-  /// surfaced as `category:` to match the inline bar's display.
+  /// surfaced as `category:`, as iOS names the column.
   static String compose(
     LogFilters state, {
     required LogLevel defaultLevel,
@@ -262,7 +279,7 @@ RegExp? _tryCompileRegExp(String pattern) {
   }
 }
 
-/// Quotes a filter value for inline serialization when it contains whitespace or
+/// Quotes a filter value for typed serialization when it contains whitespace or
 /// a double quote, escaping embedded quotes. Plain values pass through as-is.
 String _quoteFilterValue(String value) {
   final trimmed = value.trim();
@@ -276,15 +293,14 @@ String _quoteFilterValue(String value) {
 }
 
 /// Space-joined values of the plain (case-insensitive contains, non-negated)
-/// terms — the only form the classic bar's single-value fields can represent.
-/// Advanced terms are omitted, so switching an advanced inline filter to the
-/// classic bar shows an empty field rather than a corrupted value.
+/// terms — a one-line summary of a field that leaves advanced terms out rather
+/// than rendering them as a corrupted literal.
 String _plainValues(List<FilterTerm> terms) => terms
     .where((term) => term.mode == FilterMatchMode.contains && !term.negate)
     .map((term) => term.value)
     .join(' ');
 
-LogFilters _parseInlineFilters(
+LogFilters _parseFilters(
   String rawText, {
   required LogLevel fallbackLevel,
   required bool isIosLogContext,
@@ -297,15 +313,15 @@ LogFilters _parseInlineFilters(
   var parsedLevel = fallbackLevel;
   Duration? parsedMaxAge;
 
-  for (final token in _tokenizeInlineFilterText(rawText)) {
+  for (final token in tokenizeFilterText(rawText)) {
     final trimmedToken = token.trim();
     if (trimmedToken.isEmpty) continue;
 
-    final parsed = _parseKeyedToken(trimmedToken);
+    final parsed = parseKeyedFilterToken(trimmedToken);
     if (parsed == null) {
       // Not a recognised keyed filter → the whole token is a raw contains term.
       // Bare words (including a leading '-') are always literal.
-      final rawValue = _normalizeInlineFilterValue(trimmedToken);
+      final rawValue = _normalizeFilterValue(trimmedToken);
       if (rawValue.isNotEmpty) rawTerms.add(FilterTerm(rawValue));
       continue;
     }
@@ -316,46 +332,42 @@ LogFilters _parseInlineFilters(
       negate: parsed.negate,
     );
     switch (parsed.key) {
-      case InlineFilterKey.message:
+      case FilterKey.message:
         messageTerms.add(term);
-      case InlineFilterKey.packageName:
+      case FilterKey.packageName:
         packageTerms.add(term);
-      case InlineFilterKey.pidTid:
+      case FilterKey.pidTid:
         pidTidTerms.add(term);
-      case InlineFilterKey.tag:
+      case FilterKey.tag:
         tagTerms.add(term);
-      case InlineFilterKey.level:
+      case FilterKey.level:
         // Level is a hierarchy threshold; operators/negation don't apply.
         parsedLevel = LogLevel.fromStored(
           parsed.value,
         ).normalizeSelectionForPlatform(isIos: isIosLogContext);
-      case InlineFilterKey.age:
+      case FilterKey.age:
         final parsedAge = parseMaxAge(parsed.value);
         if (parsedAge != null) parsedMaxAge = parsedAge;
     }
   }
 
-  return LogFilters(
-    messageText: _plainValues([...rawTerms, ...messageTerms]),
-    packageText: _plainValues(packageTerms),
-    pidTidText: _plainValues(pidTidTerms),
-    tagText: _plainValues(tagTerms),
-    messageTerms: List.unmodifiable(messageTerms),
-    rawTerms: List.unmodifiable(rawTerms),
-    packageTerms: List.unmodifiable(packageTerms),
-    pidTidTerms: List.unmodifiable(pidTidTerms),
-    tagTerms: List.unmodifiable(tagTerms),
+  return LogFilters.fromTerms(
     level: parsedLevel,
+    messageTerms: messageTerms,
+    rawTerms: rawTerms,
+    packageTerms: packageTerms,
+    pidTidTerms: pidTidTerms,
+    tagTerms: tagTerms,
     maxAge: parsedMaxAge,
   );
 }
 
-/// The key, value, match mode, and negation extracted from a single inline
+/// The key, value, match mode, and negation extracted from a single typed
 /// token shaped `[-]key[=|~]:value`.
-class _KeyedToken {
-  const _KeyedToken(this.key, this.value, this.mode, this.negate);
+class KeyedFilterToken {
+  const KeyedFilterToken(this.key, this.value, this.mode, this.negate);
 
-  final InlineFilterKey key;
+  final FilterKey key;
   final String value;
   final FilterMatchMode mode;
   final bool negate;
@@ -364,7 +376,13 @@ class _KeyedToken {
 /// Parses [token] as an advanced keyed filter, or returns null when it is not a
 /// recognised `key:value` (so the caller keeps it as a literal raw term). A
 /// leading `-` negates; a trailing `=`/`~` on the key selects exact/regex.
-_KeyedToken? _parseKeyedToken(String token) {
+///
+/// With [allowEmptyValue], a bare `key:` still parses (with an empty value) —
+/// for a field that suggests values while the user is still typing one.
+KeyedFilterToken? parseKeyedFilterToken(
+  String token, {
+  bool allowEmptyValue = false,
+}) {
   var rest = token;
   var negate = false;
   if (rest.length > 1 && rest.startsWith('-')) {
@@ -387,25 +405,25 @@ _KeyedToken? _parseKeyedToken(String token) {
     keyText = keyText.substring(0, keyText.length - 1);
   }
 
-  final key = _canonicalInlineFilterKey(keyText);
-  final value = _normalizeInlineFilterValue(rawValue);
-  if (key == null || value.isEmpty) return null;
-  return _KeyedToken(key, value, mode, negate);
+  final key = _canonicalFilterKey(keyText);
+  final value = _normalizeFilterValue(rawValue);
+  if (key == null || (value.isEmpty && !allowEmptyValue)) return null;
+  return KeyedFilterToken(key, value, mode, negate);
 }
 
-InlineFilterKey? _canonicalInlineFilterKey(String rawKey) {
+FilterKey? _canonicalFilterKey(String rawKey) {
   return switch (rawKey.trim().toLowerCase()) {
-    'message' || 'msg' || 'text' => InlineFilterKey.message,
-    'package' || 'pkg' || 'app' || 'process' => InlineFilterKey.packageName,
-    'pid' || 'tid' || 'thread' || 'pidtid' => InlineFilterKey.pidTid,
-    'tag' || 'category' => InlineFilterKey.tag,
-    'level' || 'lvl' || 'priority' => InlineFilterKey.level,
-    'age' || 'maxage' || 'since' => InlineFilterKey.age,
+    'message' || 'msg' || 'text' => FilterKey.message,
+    'package' || 'pkg' || 'app' || 'process' => FilterKey.packageName,
+    'pid' || 'tid' || 'thread' || 'pidtid' => FilterKey.pidTid,
+    'tag' || 'category' => FilterKey.tag,
+    'level' || 'lvl' || 'priority' => FilterKey.level,
+    'age' || 'maxage' || 'since' => FilterKey.age,
     _ => null,
   };
 }
 
-String _normalizeInlineFilterValue(String rawValue) {
+String _normalizeFilterValue(String rawValue) {
   var normalized = rawValue.trim();
   if (normalized.length >= 2 &&
       normalized.startsWith('"') &&
@@ -415,7 +433,8 @@ String _normalizeInlineFilterValue(String rawValue) {
   return normalized.replaceAll(r'\"', '"').trim();
 }
 
-List<String> _tokenizeInlineFilterText(String rawText) {
+/// Splits typed filter text into tokens at whitespace outside double quotes.
+List<String> tokenizeFilterText(String rawText) {
   final tokens = <String>[];
   final buffer = StringBuffer();
   var inQuotes = false;
