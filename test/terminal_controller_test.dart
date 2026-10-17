@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/terminal/data/terminal_command.dart';
 import 'package:eagly/features/terminal/data/terminal_line.dart';
@@ -346,6 +348,45 @@ void main() {
 
       await process.finish(0);
       await pending;
+    });
+
+    test(
+      'a second Enter while a command starts does not start another',
+      () async {
+        createController();
+        final gate = service.terminalStartGate = Completer<void>();
+        final pending = controller.submit('adb shell');
+        await pumpEventQueue();
+        expect(controller.isRunning, isTrue);
+
+        await controller.submit('ls /sdcard');
+        expect(service.terminalRequests, hasLength(1));
+
+        gate.complete();
+        await pumpEventQueue();
+        final process = service.terminalProcesses.single;
+        // Typed ahead while starting, so it is the process' first stdin.
+        expect(process.stdinLines, ['ls /sdcard']);
+
+        await process.finish(0);
+        await pending;
+        expect(controller.isRunning, isFalse);
+      },
+    );
+
+    test('cancel while starting kills the process once it exists', () async {
+      createController();
+      final gate = service.terminalStartGate = Completer<void>();
+      final pending = controller.submit('adb logcat');
+      await pumpEventQueue();
+
+      await controller.cancel();
+      gate.complete();
+      await pending;
+
+      expect(service.terminalProcesses.single.killed, isTrue);
+      expect(textOf(TerminalLineKind.notice), contains('Stopped.'));
+      expect(controller.isRunning, isFalse);
     });
 
     test('cancel stops the process and says so', () async {
