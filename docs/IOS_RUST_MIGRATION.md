@@ -102,6 +102,66 @@ hostname. Relay records are whole messages, embedded newlines included, and go t
 re-verified on hardware** — re-run `test/device/log_stream_integrity_test.dart` against a device
 before declaring it done. Details, numbers and the device check: **docs/LOG_STREAMING.md**.
 
+### Open issues (from the PR #66 review, 2026-10-17)
+
+Found reviewing `fix/ios-rust-backend`; deferred to a follow-up branch. CLI-only issues are
+left out on purpose — that backend is going away.
+
+**Must fix — Rust is the default, so every user hits these:**
+
+1. **Timestamps are UTC, read as local.** `idevice` 0.1.65 builds `OsTraceLog.timestamp` with
+   `DateTime::from_timestamp(..).naive_local()` on a `DateTime<Utc>`, which is the UTC wall
+   clock. `format_os_trace_log` prints it as is, and `IosSyslogParser.normalizeTimestamp` reads
+   it as local — rows are off by the host's UTC offset (−5:30 in IST), and the date flips near
+   midnight UTC. Convert with `Local.from_utc_datetime` before formatting. The sub-second
+   workaround (reading nanos back as micros) depends on the crate's argument mix-up and breaks
+   silently if the crate fixes it.
+2. **One undecodable record ends the stream.** `start_ios_syslog`'s loop does `Err(_) => break`.
+   `LogLevel::try_from` returns `UnexpectedResponse` for any level byte outside
+   0/1/2/0x10/0x11 *after* the whole packet has been read, so the connection is still framed —
+   but Dart sees end-of-stream and the tab stops or goes into recovery with no error row. Skip
+   decode errors; break only on I/O / connection errors. The crate also panics on short packets
+   and zero-length strings (`len() - 1`, unchecked slicing); a panic skips
+   `forget_syslog_session`, leaking the registry entry.
+3. **No fallback when the library fails to load.** `initRustIosRuntime` logs a `RustLib.init()`
+   failure, but `useRustIosBackend` only reads the env var, so every factory still returns
+   `Rust*` services that all throw — discovery, logs, apps, crashes and files all go dead. Record
+   the init result and fall back to the CLI backend when it fails.
+
+**Should fix:**
+
+4. **Docs ahead of the code.** `AGENTS.md` and `docs/LOG_STREAMING.md` cite
+   `test/log_stream_pipeline_test.dart`, `test/device/log_stream_integrity_test.dart`, the
+   "special entries keep their place…" group in `log_controller_test`, and commits `8b63d95` /
+   `e155775` — all of which exist only on `release/next` and `dev/record-mode`. The rule they
+   describe is not implemented here either: `LogController._appendImmediateLogEntry` does not
+   flush `_pendingLogs`, so a logcat `beginning of crash` separator can land above the entry
+   before it. Port the fix and its tests from `release/next`, or drop the claims.
+5. **Rust records still go through the line parser.** Each line of a record is checked against
+   the header regex and the `[connected:…]` status pattern even though the record boundary
+   already ends the entry: a message line that looks like a header splits the entry under a fake
+   process/PID, and an `[connected:x]` line drops the rest of the message. And because
+   `parseLogRecords` flushes after every record, a record whose first line misses the header
+   regex (e.g. empty `filename` and `image_name` → `(.+?)\[` can't match) is filed under the
+   previous record's process and PID. The root cause is the round trip — Rust formats a
+   structured `OsTraceLog` into idevicesyslog text that Dart regex-parses back, which also causes
+   #1 and runs `\M-` decoding over raw UTF-8. Preferred fix: send a struct (epoch micros, pid,
+   level, process, image, message) over the bridge and build `LogEntry` directly. Smaller fix:
+   in record mode, don't resume the flushed header and skip the status-line check.
+
+**Minor:**
+
+- `RustIosLogService`'s class doc still describes `syslog_relay` and `\n\0` framing.
+- Stop race: if `stop()` runs after Rust has dropped the session but before Dart's `onDone`,
+  `ended` is still false and `stop_ios_syslog` leaves a cancelled token nobody claims.
+- The resume-after-flush logic (`_flushedHeader`, `resumed()`, `isResumed`, blank-entry check)
+  is duplicated in both parsers and has already drifted; if the text path stays, move it into a
+  shared base in `log_line_parser.dart`.
+- `parseLogLines` keeps a 100 ms periodic timer running for every open stream, even with nothing
+  pending (Android path).
+- A logcat header outside `[VDIWEF]` (e.g. `?`) or reshaped by device format settings is now
+  appended to the previous entry's text instead of dropped.
+
 ## Working on the Rust side
 
 ```bash

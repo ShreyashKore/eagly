@@ -277,6 +277,10 @@ platform-tools/macos/idevicesyslog | head -50
 
 ## Known limitations
 
+> **Open review findings** (PR #66, 2026-10-17) — including that some tests cited above are not
+> on this branch yet and that the `LogController` ordering rule is not implemented — are tracked
+> in docs/IOS_RUST_MIGRATION.md → *Open issues*.
+
 - **A split entry shows as two rows with the same header.** Only when a tool pauses for over
   100–200 ms mid-entry (iOS CLI), or over ~1 s before the logcat footer. Seen once in about
   6,000 iOS entries; never on Android. The text is complete and in order.
