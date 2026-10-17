@@ -85,7 +85,7 @@ void main() {
       ),
     );
 
-    testWidgets('typing filters the list and Enter picks the top match', (
+    testWidgets('typing filters the list; ↓ then Enter picks a match', (
       tester,
     ) async {
       await pump(tester);
@@ -94,6 +94,8 @@ void main() {
       expect(find.text('Microphone'), findsOneWidget);
       expect(find.text('Camera'), findsNothing);
 
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pump();
       expect(controller.text, 'android.permission.RECORD_AUDIO');
@@ -107,6 +109,36 @@ void main() {
       expect(submitted, ['android.permission.RECORD_AUDIO']);
     });
 
+    testWidgets('Enter after typing submits the typed text, not a match', (
+      tester,
+    ) async {
+      await pump(tester);
+      // A prefix of an option's value, so the list is open with a match.
+      await tester.enterText(find.byType(TextField), 'android.permission.CAM');
+      await tester.pump();
+      expect(find.text('Camera'), findsOneWidget);
+
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      expect(controller.text, 'android.permission.CAM');
+      expect(submitted, ['android.permission.CAM']);
+      expect(find.text('Camera'), findsNothing, reason: 'list closed');
+    });
+
+    testWidgets('Enter on the value the field already holds submits it', (
+      tester,
+    ) async {
+      await pump(tester);
+      controller.text = 'android.permission.CAMERA';
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      expect(find.text('Camera'), findsOneWidget, reason: 'opens on click');
+
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      expect(submitted, ['android.permission.CAMERA']);
+    });
+
     testWidgets('arrow keys move the highlight; Esc closes the list', (
       tester,
     ) async {
@@ -115,6 +147,8 @@ void main() {
       await tester.pump();
       expect(find.text('Camera'), findsOneWidget, reason: 'opens on click');
 
+      // Nothing is highlighted yet, so the first ↓ lands on the first entry.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pump();

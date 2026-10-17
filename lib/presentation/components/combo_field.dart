@@ -35,8 +35,10 @@ class ComboOption {
 /// typed) — not on bare focus, so an autofocused field doesn't cover the
 /// form. Once open it is driven by the keyboard:
 /// ↑ / ↓ move the highlight, Enter picks it, Esc closes the list (a second
-/// Esc reaches the enclosing dialog). With the list closed, Enter calls
-/// [onSubmitted].
+/// Esc reaches the enclosing dialog). Nothing is highlighted until ↑ / ↓ (or
+/// the pointer) chooses an entry — only the field's current value, when it is
+/// one of the options — so Enter after typing calls [onSubmitted] with what
+/// was typed, never a match that merely contains it.
 class ComboField extends StatefulWidget {
   const ComboField({
     super.key,
@@ -57,7 +59,8 @@ class ComboField extends StatefulWidget {
   /// Called when the text changes, by typing or by picking an option.
   final ValueChanged<String>? onChanged;
 
-  /// Enter with the list closed (or with nothing highlighted).
+  /// Enter with the list closed, with nothing highlighted, or on the entry
+  /// the field already holds.
   final ValueChanged<String>? onSubmitted;
 
   final double maxListHeight;
@@ -159,7 +162,7 @@ class _ComboFieldState extends State<ComboField> {
   void _refresh() {
     setState(() {
       _matches = _computeMatches();
-      _highlighted = _matches.isEmpty
+      _highlighted = _matches.isEmpty || _highlighted < 0
           ? -1
           : _highlighted.clamp(0, _matches.length - 1);
     });
@@ -170,7 +173,7 @@ class _ComboFieldState extends State<ComboField> {
     if (!_focusNode.hasFocus) _close();
   }
 
-  void _open({bool showAll = false}) {
+  void _open({bool showAll = false, bool highlightFirst = false}) {
     if (widget.options.isEmpty) return;
     // A field holding exactly one of the values is a selection, not a
     // search: reopening lists everything with that value highlighted.
@@ -184,7 +187,7 @@ class _ComboFieldState extends State<ComboField> {
       final current = matches.indexWhere(
         (o) => o.value == widget.controller.text.trim(),
       );
-      _highlighted = current >= 0 ? current : 0;
+      _highlighted = current >= 0 ? current : (highlightFirst ? 0 : -1);
     });
     _portal.show();
     _scrollToHighlighted();
@@ -211,9 +214,10 @@ class _ComboFieldState extends State<ComboField> {
     if (_matches.isEmpty) {
       _close();
     } else {
-      setState(() => _highlighted = 0);
+      // Typing is free text: show what matches, but leave Enter to submit it
+      // until ↑ / ↓ chooses an entry.
+      setState(() => _highlighted = -1);
       if (!_isOpen) _portal.show();
-      _scrollToHighlighted();
     }
     widget.onChanged?.call(text);
   }
@@ -229,24 +233,30 @@ class _ComboFieldState extends State<ComboField> {
 
   void _move(int delta) {
     if (!_isOpen) {
-      _open();
+      _open(highlightFirst: true);
       return;
     }
     if (_matches.isEmpty) return;
     setState(() {
-      _highlighted = (_highlighted + delta) % _matches.length;
+      _highlighted = _highlighted < 0
+          ? (delta > 0 ? 0 : _matches.length - 1)
+          : (_highlighted + delta) % _matches.length;
       if (_highlighted < 0) _highlighted += _matches.length;
     });
     _scrollToHighlighted();
   }
 
   void _handleSubmitted(String text) {
-    if (_isOpen && _highlighted >= 0 && _highlighted < _matches.length) {
+    if (_isOpen &&
+        _highlighted >= 0 &&
+        _highlighted < _matches.length &&
+        _matches[_highlighted].value != text.trim()) {
       _pick(_matches[_highlighted]);
       // Enter left the field; keep typing where the user was.
       _focusNode.requestFocus();
       return;
     }
+    _close();
     widget.onSubmitted?.call(text);
   }
 
