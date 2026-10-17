@@ -262,24 +262,26 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
               padding: const EdgeInsets.fromLTRB(16, 8, 12, 4),
               child: Row(
                 children: [
+                  // A section label over the tiles, not content: it steps
+                  // down so the app names below read first.
                   Icon(
                     Icons.schedule,
                     size: 14,
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: context.eaglyTheme.tertiaryTextColor,
                   ),
                   const Gap(6),
                   Expanded(
                     child: Text(
                       'Recently installed',
                       style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: context.eaglyTheme.secondaryTextColor,
                       ),
                     ),
                   ),
                   Icon(
                     expanded ? Icons.expand_less : Icons.expand_more,
                     size: 18,
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: context.eaglyTheme.tertiaryTextColor,
                   ),
                 ],
               ),
