@@ -14,6 +14,7 @@ use idevice::{IdeviceError, IdeviceService};
 use plist::Value;
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_util::sync::CancellationToken;
 
 use crate::frb_generated::StreamSink;
@@ -645,10 +646,25 @@ async fn download_recursive(
     let info = afc.get_file_info(device_path.to_string()).await?;
 
     if info.st_ifmt != "S_IFDIR" {
-        let bytes = read_afc_file(afc, device_path).await?;
-        tokio::fs::write(local_path, bytes)
+        // Streamed a chunk at a time: an app container or a video can be
+        // gigabytes, and nothing here needs the whole file in memory.
+        let mut descriptor = afc.open(device_path, AfcFopenMode::RdOnly).await?;
+        let mut file = tokio::fs::File::create(local_path)
             .await
             .map_err(|error| IosError::Other(error.to_string()))?;
+        loop {
+            let chunk = descriptor.read_n(AFC_TRANSFER_CHUNK).await?;
+            if chunk.is_empty() {
+                break;
+            }
+            file.write_all(&chunk)
+                .await
+                .map_err(|error| IosError::Other(error.to_string()))?;
+        }
+        file.flush()
+            .await
+            .map_err(|error| IosError::Other(error.to_string()))?;
+        descriptor.close().await?;
         return Ok(());
     }
 
@@ -680,11 +696,21 @@ async fn upload_recursive(
         .map_err(|error| IosError::Other(error.to_string()))?;
 
     if !metadata.is_dir() {
-        let bytes = tokio::fs::read(local_path)
+        let mut file = tokio::fs::File::open(local_path)
             .await
             .map_err(|error| IosError::Other(error.to_string()))?;
         let mut descriptor = afc.open(device_path, AfcFopenMode::WrOnly).await?;
-        descriptor.write_entire(&bytes).await?;
+        let mut buffer = vec![0u8; AFC_TRANSFER_CHUNK];
+        loop {
+            let read = file
+                .read(&mut buffer)
+                .await
+                .map_err(|error| IosError::Other(error.to_string()))?;
+            if read == 0 {
+                break;
+            }
+            descriptor.write_entire(&buffer[..read]).await?;
+        }
         descriptor.close().await?;
         return Ok(());
     }
@@ -707,6 +733,10 @@ async fn upload_recursive(
     }
     Ok(())
 }
+
+/// Bytes per AFC read or write while transferring files — the most the crate
+/// (and libimobiledevice's afcclient) sends in one packet.
+const AFC_TRANSFER_CHUNK: usize = 1024 * 1024;
 
 fn join_afc_path(parent: &str, name: &str) -> String {
     if parent.ends_with('/') {
