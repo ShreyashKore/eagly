@@ -263,11 +263,14 @@ class ScrcpyControl {
 
   /// Sets the device clipboard to [text]. When [paste] is true (the default)
   /// the server also simulates a paste action immediately afterwards.
-  void setClipboard(String text, {bool paste = true}) {
-    final textBytes = Uint8List.fromList(utf8.encode(text));
-    final clipped = textBytes.length > _clipboardTextMaxLength
-        ? textBytes.sublist(0, _clipboardTextMaxLength)
-        : textBytes;
+  ///
+  /// Text over the server's cap is cut on a character boundary; the text
+  /// actually sent is returned, since that is what the device echoes back.
+  String setClipboard(String text, {bool paste = true}) {
+    final bytes = utf8.encode(text);
+    final clipped = bytes.length <= _clipboardTextMaxLength
+        ? bytes
+        : _utf8Chunks(text, _clipboardTextMaxLength).first;
     final msg = ByteData(14 + clipped.length);
     var o = 0;
     msg.setUint8(o, _typeSetClipboard);
@@ -280,6 +283,7 @@ class ScrcpyControl {
     o += 4;
     msg.buffer.asUint8List().setRange(o, o + clipped.length, clipped);
     _send(msg);
+    return identical(clipped, bytes) ? text : utf8.decode(clipped);
   }
 
   /// Presses/releases the BACK button (also wakes the screen).

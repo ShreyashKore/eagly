@@ -577,7 +577,10 @@ final _appsGroup = UtilityGroup(
       ],
       build: (device, args) => _adbShell(
         device,
-        'monkey -p ${shellQuote(args['package'])} -v ${args['events']} -s 100',
+        // The event count must come last: monkey stops reading options at
+        // it, so a `-s` after the count is silently ignored.
+        'monkey -p ${shellQuote(args['package'])} -s 100 -v '
+        '${shellQuote(args['events'])}',
       ),
     ),
   ],

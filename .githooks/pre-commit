@@ -1,5 +1,5 @@
 #!/bin/bash
-# Keeps committed Dart and Rust formatted, so `dart format` / `cargo fmt` never
+# Keeps committed Dart and Rust formatted, so `dart format` / `rustfmt` never
 # show up as noise in a review diff (and so CI's format gate can't fail on
 # something a commit could have fixed for you).
 #
@@ -92,64 +92,60 @@ if [ ${#partial[@]} -gt 0 ]; then
 fi
 
 # ── Rust ────────────────────────────────────────────────────────────────────
-# Same contract as the Dart pass, but for the crate under rust/. cargo fmt
-# runs from the crate root (in a subshell so this script's cwd stays at the
-# repo root, where the git pathspecs are valid) and takes the file list
-# relative to it after --, forwarding to rustfmt; fully-staged files are
-# rewritten and re-staged, and partially-staged ones are only checked so
-# unstaged hunks stay put.
+# Same contract as the Dart pass, but for the crate under rust/. Each file is
+# piped through rustfmt on stdin, which formats exactly that file: `cargo fmt`
+# formats the whole crate whatever paths follow `--`, and `rustfmt <path>`
+# follows `mod` declarations into other files — either would rewrite unstaged
+# work. rustfmt runs from the crate root so it finds any rustfmt.toml there.
+# Fully-staged files are rewritten and re-staged; partially-staged ones are
+# checked as *staged* (the index blob), so unstaged hunks stay put and don't
+# decide the verdict.
 if [ ${#rstaged[@]} -gt 0 ]; then
-  if command -v cargo >/dev/null 2>&1; then
-    rwhole=()
-    rpartial=()
+  if command -v rustfmt >/dev/null 2>&1; then
+    RUST_EDITION="$(sed -n 's/^edition *= *"\([0-9]*\)".*/\1/p' rust/Cargo.toml | head -n 1)"
+    RUSTFMT=(rustfmt --edition "${RUST_EDITION:-2021}")
+    tmp="$(mktemp)"
+      err="$(mktemp)"
+    trap 'rm -f "$tmp" "$err"' EXIT
+    redo=()
     for file in "${rstaged[@]}"; do
-      rel="${file#rust/}"
       [ -f "$file" ] || continue
       if [ -n "$(git diff --name-only -- "$file")" ]; then
-        rpartial+=("$rel")
-      else
-        rwhole+=("$rel")
-      fi
-    done
-
-    if [ ${#rwhole[@]} -gt 0 ]; then
-      if ! output="$(cd "$REPO_ROOT/rust" && cargo fmt -- "${rwhole[@]}" 2>&1)"; then
-        echo "pre-commit: cargo fmt failed:" >&2
-        echo "$output" >&2
-        status=1
-      else
-        redo=()
-        for rel in "${rwhole[@]}"; do
-          file="rust/$rel"
-          if [ -n "$(git diff --name-only -- "$file")" ]; then
-            redo+=("$file")
-          fi
-        done
-        if [ ${#redo[@]} -gt 0 ]; then
-          git add -- "${redo[@]}"
-          echo "pre-commit: formatted and re-staged ${#redo[@]} rust file(s):"
-          printf '  %s\n' "${redo[@]}"
-        fi
-      fi
-    fi
-
-    if [ ${#rpartial[@]} -gt 0 ]; then
-      for rel in "${rpartial[@]}"; do
-        if ! (cd "$REPO_ROOT/rust" && cargo fmt -- --check "$rel") >/dev/null 2>&1; then
-          echo "pre-commit: rust/$rel is unformatted and only partially staged." >&2
+        if ! git show ":$file" | (cd "$REPO_ROOT/rust" && "${RUSTFMT[@]}") \
+          >"$tmp" 2>/dev/null; then
+          echo "pre-commit: rustfmt failed on staged $file (syntax error?)." >&2
+          status=1
+        elif ! git show ":$file" | cmp -s - "$tmp"; then
+          echo "pre-commit: $file is unformatted and only partially staged." >&2
           status=1
         fi
-      done
+        continue
+      fi
+      # stderr kept apart: a warning on a successful run would otherwise land
+      # in the formatted source and be staged with it.
+      if ! (cd "$REPO_ROOT/rust" && "${RUSTFMT[@]}") <"$file" >"$tmp" 2>"$err"; then
+        echo "pre-commit: rustfmt failed on $file:" >&2
+        cat "$err" >&2
+        status=1
+      elif ! cmp -s "$file" "$tmp"; then
+        cat "$tmp" >"$file"
+        redo+=("$file")
+      fi
+    done
+    if [ ${#redo[@]} -gt 0 ]; then
+      git add -- "${redo[@]}"
+      echo "pre-commit: formatted and re-staged ${#redo[@]} rust file(s):"
+      printf '  %s\n' "${redo[@]}"
     fi
   else
-    echo "pre-commit: no cargo on PATH — skipping rust format check." >&2
+    echo "pre-commit: no rustfmt on PATH — skipping rust format check." >&2
   fi
 fi
 
 if [ "$status" -ne 0 ]; then
   echo >&2
   echo "Format the files above ('fvm dart format <file>' for Dart," >&2
-  echo "cargo fmt for Rust), stage the result, or commit with --no-verify" >&2
+  echo "rustfmt for Rust), stage the result, or commit with --no-verify" >&2
   echo "to bypass." >&2
 fi
 

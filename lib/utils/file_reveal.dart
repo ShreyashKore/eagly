@@ -21,8 +21,17 @@ Future<bool> openPathExternally(String path) {
 /// platform supports it (macOS and Windows do; on Linux we fall back to just
 /// opening the containing folder). Returns false if nothing could be launched.
 Future<bool> revealPathInFileManager(String path) async {
+  // A detached spawn reports success whether or not the entry exists (and
+  // explorer exits 1 even when it worked), so a vanished file is caught here
+  // rather than by the fallback below.
+  if (!File(path).existsSync() && !Directory(path).existsSync()) {
+    return openPathExternally(_containingFolder(path));
+  }
   final launched = await _spawn(switch (Platform.operatingSystem) {
-    'windows' => ('explorer.exe', ['/select,${_windowsPath(path)}']),
+    // Two arguments, not `/select,<path>`: a path with spaces makes
+    // Process.start quote the whole argument, and explorer doesn't recognize
+    // a quoted `"/select,…"`. Split, the quotes land around the path only.
+    'windows' => ('explorer.exe', ['/select,', _windowsPath(path)]),
     'macos' => ('open', ['-R', path]),
     _ => ('xdg-open', [_containingFolder(path)]),
   });
@@ -38,7 +47,7 @@ String _containingFolder(String path) {
   return File(path).parent.path;
 }
 
-/// `explorer /select,` wants back-slashes and no quoting of its own.
+/// `explorer /select,` wants back-slashes.
 String _windowsPath(String path) => path.replaceAll('/', r'\');
 
 Future<bool> _spawn((String, List<String>) command) async {

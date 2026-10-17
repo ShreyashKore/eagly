@@ -3,19 +3,19 @@ import 'dart:math' as math;
 
 import 'package:eagly/constants/app_constants.dart';
 import 'package:eagly/services/eagly_info_service.dart';
+import 'package:eagly/services/ios/ios_backend.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/presentation/theme/app_zoom.dart';
 import 'package:eagly/features/home_screen/home_page.dart';
 import 'package:eagly/services/sentry_event_filter.dart';
-import 'package:eagly/src/rust/frb_generated.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await RustLib.init();
+  await initIosBackend();
   await PreferencesService.init();
   await EaglyInfoService.init();
   await _configureDesktopWindow();

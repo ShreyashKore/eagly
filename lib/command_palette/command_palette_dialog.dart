@@ -48,6 +48,10 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
   List<CommandPaletteItem> _all = const [];
   List<CommandPaletteItem> _filtered = const [];
   List<GlobalKey> _itemKeys = const [];
+  // Reused across filter passes so a source notification (the merged
+  // listenable fires on every device or menu change) doesn't remount every
+  // row; keyed by item id, with a suffix should two items ever share one.
+  final Map<String, GlobalKey> _keysById = {};
   int _selectedIndex = 0;
 
   /// True once there's a query — results are then a flat, relevance-ranked
@@ -95,7 +99,18 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
       _filtered = [for (final entry in scored) entry.$1];
     }
 
-    _itemKeys = List.generate(_filtered.length, (_) => GlobalKey());
+    final seen = <String, int>{};
+    String slot(CommandPaletteItem item) {
+      final occurrence = seen.update(item.id, (n) => n + 1, ifAbsent: () => 0);
+      return occurrence == 0 ? item.id : '${item.id}#$occurrence';
+    }
+
+    final slots = [for (final item in _filtered) slot(item)];
+    final live = slots.toSet();
+    _keysById.removeWhere((id, _) => !live.contains(id));
+    _itemKeys = [
+      for (final id in slots) _keysById.putIfAbsent(id, GlobalKey.new),
+    ];
     if (resetSelection || _selectedIndex >= _filtered.length) {
       _selectedIndex = 0;
     }

@@ -52,6 +52,12 @@ class TerminalController extends FeatureController {
   Device? _pinnedDevice;
   TerminalProcessSession? _running;
   String? _runningCommand;
+  // True from the moment a command is dispatched until its process exists.
+  // Starting awaits the adb server, so without this a second Enter in that
+  // window would start a second process.
+  bool _starting = false;
+  // Lines typed while [_starting]; they become the process' first stdin.
+  final List<String> _pendingInput = [];
   bool _cancelRequested = false;
   Timer? _flushTimer;
   bool _disposed = false;
@@ -59,8 +65,9 @@ class TerminalController extends FeatureController {
   List<TerminalLine> get lines => List.unmodifiable(_lines);
   List<String> get history => List.unmodifiable(_history);
 
-  /// True while a command is running; the input line then feeds its stdin.
-  bool get isRunning => _running != null;
+  /// True while a command is running (or starting); the input line then
+  /// feeds its stdin.
+  bool get isRunning => _starting || _running != null;
 
   /// The command line currently running, as actually executed.
   String? get runningCommand => _runningCommand;
@@ -93,10 +100,14 @@ class TerminalController extends FeatureController {
     if (text.isEmpty) return;
 
     _remember(text);
-    final running = _running;
-    if (running != null) {
+    if (isRunning) {
       _append(TerminalLine.input(text));
-      running.sendLine(text);
+      final running = _running;
+      if (running != null) {
+        running.sendLine(text);
+      } else {
+        _pendingInput.add(text);
+      }
       return;
     }
     await _run(text);
@@ -104,10 +115,10 @@ class TerminalController extends FeatureController {
 
   /// Stops the running command, if any.
   Future<void> cancel() async {
-    final running = _running;
-    if (running == null) return;
+    if (!isRunning) return;
     _cancelRequested = true;
-    await running.kill();
+    // A command still starting is killed as soon as its process exists.
+    await _running?.kill();
   }
 
   void clear() {
@@ -230,18 +241,36 @@ class TerminalController extends FeatureController {
     }
 
     _cancelRequested = false;
+    _starting = true;
     _runningCommand = invocation.displayCommand;
     _notify();
 
     StreamSubscription<TerminalOutputChunk>? subscription;
     try {
-      final process = await service.startTerminalProcess(invocation);
+      final process = await service.startTerminalProcess(
+        invocation,
+        isCancelled: () => _cancelRequested || _disposed,
+      );
+      _starting = false;
+      if (process == null) {
+        // Cancelled before the command was launched at all.
+        _push(const TerminalLine.notice('Stopped.'));
+        return;
+      }
       if (_disposed) {
         unawaited(process.kill());
         return;
       }
       _running = process;
       _notify();
+      if (_cancelRequested) {
+        unawaited(process.kill());
+      } else {
+        for (final line in _pendingInput) {
+          process.sendLine(line);
+        }
+      }
+      _pendingInput.clear();
 
       final drained = Completer<void>();
       subscription = process.output.listen(
@@ -270,6 +299,8 @@ class TerminalController extends FeatureController {
       _push(TerminalLine.error(describeError(error)));
     } finally {
       unawaited(subscription?.cancel());
+      _starting = false;
+      _pendingInput.clear();
       _running = null;
       _runningCommand = null;
       _cancelRequested = false;
