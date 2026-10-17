@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/features/app_log/app_logger.dart';
 import 'package:eagly/services/tools/idevice_id_tool.dart';
@@ -62,8 +64,8 @@ void main() {
 
   test('a missing bundled binary warns once with staging guidance', () async {
     // No executablePath and nothing to resolve in the test runner's directory,
-    // so the runner falls back to the bare name and the launch fails.
-    final missing = IdeviceIdTool();
+    // so the runner falls back to the bare name, which the OS cannot find.
+    final missing = _UnlaunchableIdeviceIdTool();
 
     expect(await missing.getDeviceIds(), isEmpty);
     expect(await missing.getDeviceIds(), isEmpty);
@@ -96,4 +98,14 @@ void main() {
     expect(errors(), hasLength(2));
     expect(warnings(), isEmpty);
   });
+}
+
+/// Resolves its executable like production, but fails every launch the way a
+/// bare name does when the OS PATH lookup finds nothing. The real lookup would
+/// make the test depend on the host: with libimobiledevice installed (e.g. via
+/// Homebrew), `idevice_id` is on PATH and the launch succeeds.
+class _UnlaunchableIdeviceIdTool extends IdeviceIdTool {
+  @override
+  Future<ToolCommandResult> runText(List<String> arguments) async =>
+      throw ProcessException(executable, arguments, 'No such file', 2);
 }
