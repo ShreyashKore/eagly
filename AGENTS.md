@@ -107,6 +107,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
 
 ## Domain notes
 
+- **Known issues:** bugs found and left for a later branch are listed in
+  docs/KNOWN_ISSUES.md, with causes and suggested fixes. iOS Rust ones are in
+  docs/IOS_RUST_MIGRATION.md → *Open issues*. Check both before working in those areas, and
+  delete an entry in the commit that fixes it.
 - **Log streaming:** `DeviceSessionRepository.startLogStream()` is an `async*` that yields
   `LogEntry`s; the underlying tool's `StreamController` closing ⇒ stream EOF. `LogController`
   buffers into a `LogBuffer` (ring), flushing pending logs on a 300 ms timer. **Read
