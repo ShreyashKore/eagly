@@ -133,4 +133,48 @@ void main() {
           ' — Material IconButton misaligns its icon under app zoom.',
     );
   });
+
+  testWidgets('a rebuilt child updates in place instead of cross-fading', (
+    tester,
+  ) async {
+    Widget badged(int count) => _host(
+      AppIconButton(
+        onPressed: () {},
+        child: Stack(children: [const Icon(Icons.notes), Text('$count')]),
+      ),
+    );
+
+    await tester.pumpWidget(badged(1));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(badged(2));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(
+      find.descendant(
+        of: find.byType(AnimatedSwitcher),
+        matching: find.byType(FadeTransition),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('1'), findsNothing);
+    expect(find.text('2'), findsOneWidget);
+  });
+
+  testWidgets('a child with a new key cross-fades like a new icon', (
+    tester,
+  ) async {
+    Widget keyed(String key) => _host(
+      AppIconButton(
+        onPressed: () {},
+        child: Icon(Icons.notes, key: ValueKey(key)),
+      ),
+    );
+
+    await tester.pumpWidget(keyed('a'));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(keyed('b'));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.byIcon(Icons.notes), findsNWidgets(2));
+  });
 }

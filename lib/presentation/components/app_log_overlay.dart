@@ -64,6 +64,8 @@ class AppLogTriggerButton extends StatelessWidget {
             allowClear: sessionTag == null,
           ),
           child: Stack(
+            // Cross-fade when the severity icon changes, not on every entry.
+            key: ValueKey(icon),
             clipBehavior: Clip.none,
             children: [
               Icon(icon, size: iconSize, color: color),

@@ -47,6 +47,8 @@ class AppIconButton extends StatefulWidget {
 
   /// Custom content in place of [icon] (e.g. an icon with a badge). It is
   /// centred in the same box and inherits the button's icon colour and size.
+  /// It updates in place across rebuilds; give it a new [Key] to cross-fade
+  /// to different content the way a new [icon] does.
   final Widget? child;
 
   final String? tooltip;
@@ -108,9 +110,12 @@ class _AppIconButtonState extends State<AppIconButton> {
       );
     } else {
       // A fresh colour tween per icon, so the switcher below cross-fades
-      // the old icon out while this animates the new one's colour.
+      // the old icon out while this animates the new one's colour. A [child]
+      // is keyed by its own key, not by the widget: callers rebuild it on
+      // every frame they rebuild, and a widget only equals itself, so keying
+      // by it would replay the cross-fade on each rebuild.
       content = TweenAnimationBuilder<Color?>(
-        key: ValueKey(widget.icon ?? widget.child),
+        key: ValueKey<Object?>(widget.icon ?? widget.child!.key),
         duration: const Duration(milliseconds: 250),
         tween: ColorTween(end: foreground),
         builder: (_, color, child) => IconTheme.merge(
