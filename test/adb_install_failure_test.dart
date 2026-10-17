@@ -13,8 +13,9 @@ void main() {
     expect(
       describeAdbInstallFailure(output),
       'The device already has a newer version of this app (version code 212; '
-      'this APK is 21). Uninstall the app first, or install a build with '
-      'version code 212 or higher.',
+      'this APK is 21). Install a build with version code 212 or higher, or '
+      'uninstall the app first. Uninstalling deletes that app\'s data, so '
+      'back up anything you need first.',
     );
   });
 
@@ -27,7 +28,8 @@ void main() {
     expect(
       describeAdbInstallFailure(output),
       'The installed copy of com.example.app is signed with a different key. '
-      'Uninstall it first, then install again.',
+      'Uninstall it first, then install again. Uninstalling deletes that '
+      'app\'s data, so back up anything you need first.',
     );
   });
 
