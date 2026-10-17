@@ -44,6 +44,8 @@ class EaglyTheme extends ThemeExtension<EaglyTheme> {
     required this.statusPausedColor,
     required this.statusStoppedColor,
     required this.cardShadowColor,
+    required this.secondaryTextColor,
+    required this.tertiaryTextColor,
   });
 
   /// The app's monospace face with no size or height baked in — the base for
@@ -73,6 +75,20 @@ class EaglyTheme extends ThemeExtension<EaglyTheme> {
   final Color statusPausedColor;
   final Color statusStoppedColor;
   final Color cardShadowColor;
+
+  // ── Text emphasis ──
+  // Three tiers, so a row reads in order of importance instead of all at
+  // once. Primary is the theme's own text color (`colorScheme.onSurface`,
+  // what an unstyled `Text` gets) — names, titles, values the user came for.
+
+  /// Supporting text that qualifies the primary line: a description under a
+  /// label, the package under an app name.
+  final Color secondaryTextColor;
+
+  /// Metadata worth having but not worth reading first: versions, dates,
+  /// counts, legends, an echoed command line. Still meets WCAG AA (4.5:1)
+  /// on every surface it sits on — see `test/text_emphasis_test.dart`.
+  final Color tertiaryTextColor;
 
   Color logLevelColor(String level) {
     return switch (LogLevel.fromStored(level).code) {
@@ -109,6 +125,8 @@ class EaglyTheme extends ThemeExtension<EaglyTheme> {
     Color? statusPausedColor,
     Color? statusStoppedColor,
     Color? cardShadowColor,
+    Color? secondaryTextColor,
+    Color? tertiaryTextColor,
   }) {
     return EaglyTheme(
       monoStyle: monoStyle ?? this.monoStyle,
@@ -141,6 +159,8 @@ class EaglyTheme extends ThemeExtension<EaglyTheme> {
       statusPausedColor: statusPausedColor ?? this.statusPausedColor,
       statusStoppedColor: statusStoppedColor ?? this.statusStoppedColor,
       cardShadowColor: cardShadowColor ?? this.cardShadowColor,
+      secondaryTextColor: secondaryTextColor ?? this.secondaryTextColor,
+      tertiaryTextColor: tertiaryTextColor ?? this.tertiaryTextColor,
     );
   }
 
@@ -222,6 +242,16 @@ class EaglyTheme extends ThemeExtension<EaglyTheme> {
         t,
       )!,
       cardShadowColor: Color.lerp(cardShadowColor, other.cardShadowColor, t)!,
+      secondaryTextColor: Color.lerp(
+        secondaryTextColor,
+        other.secondaryTextColor,
+        t,
+      )!,
+      tertiaryTextColor: Color.lerp(
+        tertiaryTextColor,
+        other.tertiaryTextColor,
+        t,
+      )!,
     );
   }
 }
@@ -497,6 +527,17 @@ class AppTheme {
           : const Color(0xFFB45309),
       statusStoppedColor: isDark ? const Color(0xFFF87171) : colorScheme.error,
       cardShadowColor: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04),
+      // Alpha over the primary text color rather than separate greys: the
+      // tiers keep its hue and follow whatever is behind them — a hover or
+      // selection fill — the way platform label colors do. Contrast falls
+      // off differently per polarity, so each brightness has its own steps;
+      // test/text_emphasis_test.dart holds them apart and above AA.
+      secondaryTextColor: colorScheme.onSurface.withValues(
+        alpha: isDark ? 0.72 : 0.76,
+      ),
+      tertiaryTextColor: colorScheme.onSurface.withValues(
+        alpha: isDark ? 0.58 : 0.64,
+      ),
     );
   }
 }

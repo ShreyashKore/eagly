@@ -107,10 +107,10 @@ class UtilityOutputPanel extends StatelessWidget {
                 children: [
                   SelectableText(
                     '\$ ${result.commandLine}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontFamily: 'monospace',
+                    style: eaglyTheme.monoStyle.copyWith(
                       fontSize: 11,
-                      color: theme.colorScheme.onSurfaceVariant,
+                      height: 1.35,
+                      color: eaglyTheme.tertiaryTextColor,
                     ),
                   ),
                   const Gap(8),
@@ -118,17 +118,19 @@ class UtilityOutputPanel extends StatelessWidget {
                     Text(
                       'Finished with no output.',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: eaglyTheme.tertiaryTextColor,
                         fontStyle: FontStyle.italic,
                       ),
                     )
                   else
                     SelectableText(
                       body,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontFamily: 'monospace',
+                      style: eaglyTheme.monoStyle.copyWith(
                         fontSize: 12,
-                        color: failure != null ? theme.colorScheme.error : null,
+                        height: 1.35,
+                        color: failure != null
+                            ? theme.colorScheme.error
+                            : theme.colorScheme.onSurface,
                       ),
                     ),
                 ],

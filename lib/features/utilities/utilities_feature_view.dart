@@ -163,7 +163,7 @@ class _Legend extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final eaglyTheme = context.eaglyTheme;
-    final muted = theme.colorScheme.onSurfaceVariant;
+    final muted = eaglyTheme.tertiaryTextColor;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 7, 12, 7),
@@ -221,7 +221,7 @@ class _LegendItem extends StatelessWidget {
         Text(
           label,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+            color: context.eaglyTheme.tertiaryTextColor,
           ),
         ),
       ],
@@ -280,18 +280,18 @@ class _GroupHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
+    final eaglyTheme = context.eaglyTheme;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(14, isFirst ? 12 : 20, 14, 6),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: muted),
+          Icon(icon, size: 14, color: eaglyTheme.tertiaryTextColor),
           const Gap(8),
           Text(
             title.toUpperCase(),
             style: theme.textTheme.labelSmall?.copyWith(
-              color: muted,
+              color: eaglyTheme.secondaryTextColor,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.6,
             ),
@@ -300,7 +300,7 @@ class _GroupHeader extends StatelessWidget {
           Text(
             '$count',
             style: theme.textTheme.labelSmall?.copyWith(
-              color: muted.withValues(alpha: 0.7),
+              color: eaglyTheme.tertiaryTextColor,
             ),
           ),
           const Gap(10),

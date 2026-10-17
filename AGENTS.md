@@ -378,6 +378,15 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   dividers, private helpers prefixed `_`, `unawaited(...)` for fire-and-forget futures.
 - Theme tokens come from the `EaglyTheme` extension: `context.eaglyTheme.<token>` (status
   colors, `warningColor`, `inlineNotice*`). Don't hardcode colors.
+- **Text emphasis has three tiers**, so a row reads in order of importance: primary
+  (`onSurface`, the default) for names and values, `eaglyTheme.secondaryTextColor` for
+  supporting text (descriptions, a package under an app name), `tertiaryTextColor` for
+  metadata (versions, dates, counts, legends, echoed command lines). Both are alpha over
+  `onSurface`, and `test/text_emphasis_test.dart` keeps them apart and above WCAG AA. Prefer
+  them to `colorScheme.onSurfaceVariant`: in the light theme that is `#262626` against
+  `#181818` text — no visible step. Views are being moved over one at a time (Apps list,
+  Utilities, Device home's Quick access so far). Keep color for meaning (destructive, status),
+  not for every row's icon.
 - Icon-only buttons are `AppIconButton` (`presentation/components/app_icon_button.dart`),
   never Material's `IconButton` — `test/app_icon_button_test.dart` fails on one in `lib/`.
   Icons follow the app zoom, and `IconButton`'s theme-clamped box pushed a zoomed glyph
