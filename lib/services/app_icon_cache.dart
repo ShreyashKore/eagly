@@ -69,6 +69,11 @@ class AppIconCache {
     return null;
   }
 
+  /// The icon for [packageName] if this process has already loaded it, without
+  /// touching the disk — so a widget can paint it in its first frame. Null
+  /// means either "none" or "not loaded yet"; [load] tells the two apart.
+  Uint8List? peek(String packageName) => _memory[packageName];
+
   /// Stores [bytes] for [packageName] in memory and on disk. Never throws.
   Future<void> store(String packageName, Uint8List bytes) async {
     _memory[packageName] = bytes;

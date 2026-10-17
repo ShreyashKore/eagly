@@ -6,48 +6,14 @@ import 'package:eagly/features/apps/apps_controller.dart';
 import 'package:eagly/features/apps/data/app_info.dart';
 import 'package:eagly/features/apps/data/apps_view_options.dart';
 import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
-import 'package:eagly/services/app_icon_cache.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/fake_app_icon_cache.dart';
 import 'support/session_test_support.dart';
-
-/// In-memory [AppIconCache] so icon tests never touch the real filesystem.
-class FakeAppIconCache implements AppIconCache {
-  final Map<String, Uint8List?> memory = {};
-  final List<String> storedPackages = [];
-
-  void seed(String packageName, Uint8List bytes) => memory[packageName] = bytes;
-
-  @override
-  Future<Uint8List?> load(String packageName) async {
-    if (memory.containsKey(packageName)) return memory[packageName];
-    memory[packageName] = null;
-    return null;
-  }
-
-  @override
-  Future<void> store(String packageName, Uint8List bytes) async {
-    memory[packageName] = bytes;
-    storedPackages.add(packageName);
-  }
-
-  final Map<String, String> labels = {};
-
-  @override
-  Map<String, String>? get cachedLabels => labels;
-
-  @override
-  Future<Map<String, String>> loadLabels() async => labels;
-
-  @override
-  Future<void> storeLabel(String packageName, String label) async {
-    labels[packageName] = label;
-  }
-}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../presentation/components/anchored_popover.dart';
 import '../../../../presentation/components/app_icon_button.dart';
+import '../../../../presentation/components/package_icon.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../../../presentation/theme/log_level_presentation.dart';
 import '../../data/models/filter_condition.dart';
@@ -132,6 +133,13 @@ List<String> _suggestedValues(
   }
   return [...preferred, ...secondary].take(limit).toList();
 }
+
+/// Whether [field]'s suggestions lead with the app's launcher icon: Android
+/// packages only, read from the cache the Apps pane fills ([PackageIcon]).
+bool _showsAppIcons(
+  LogFilterController controller,
+  FilterConditionField field,
+) => field == FilterConditionField.packageName && !controller.isIos;
 
 String get _filterShortcutLabel =>
     defaultTargetPlatform == TargetPlatform.macOS ? '⌘L' : 'Ctrl+L';
@@ -570,12 +578,17 @@ class _MenuOption {
   const _MenuOption({
     required this.icon,
     required this.label,
+    this.packageName,
     this.onSelected,
     this.insertText,
   });
 
   final IconData icon;
   final InlineSpan label;
+
+  /// Set on an Android package value, whose row then shows the app's icon
+  /// (when the Apps pane has cached one) in place of [icon].
+  final String? packageName;
   final VoidCallback? onSelected;
   final String? insertText;
 }
@@ -612,6 +625,8 @@ List<(String, List<_MenuOption>)> _menuSections(
     String value,
   ) =>
       phrase(field.label(isIos: isIos), operator.label, value, operator.negate);
+  String? packageOf(FilterConditionField field, String value) =>
+      _showsAppIcons(controller, field) ? value : null;
 
   final query = rawQuery.trim();
   if (query.isEmpty) {
@@ -728,6 +743,7 @@ List<(String, List<_MenuOption>)> _menuSections(
                     _MenuOption(
                       icon: _fieldIcon(field),
                       label: condition(field, operator, suggestion),
+                      packageName: packageOf(field, suggestion),
                       onSelected: () => controller.addConditionWithValue(
                         field,
                         suggestion,
@@ -781,6 +797,7 @@ List<(String, List<_MenuOption>)> _menuSections(
         _MenuOption(
           icon: _fieldIcon(field),
           label: condition(field, contains, value),
+          packageName: packageOf(field, value),
           onSelected: () => controller.addConditionWithValue(
             field,
             value,
@@ -876,6 +893,7 @@ class _FilterMenu extends StatelessWidget {
         rows.add(
           _MenuRow(
             icon: option.icon,
+            packageName: option.packageName,
             highlighted: i == highlighted,
             trailing: i == highlighted ? const _EnterHint() : null,
             onHover: () => onHover(i),
@@ -1343,6 +1361,7 @@ class _ConditionEditorState extends State<_ConditionEditor> {
     final suggestions = _choosingOperator
         ? const <String>[]
         : _suggestedValues(widget.controller, field, _text.text);
+    final appIcons = _showsAppIcons(widget.controller, field);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1424,6 +1443,8 @@ class _ConditionEditorState extends State<_ConditionEditor> {
             const _MenuSectionLabel('Suggestions'),
             for (final suggestion in suggestions)
               _MenuRow(
+                icon: appIcons ? _fieldIcon(field) : null,
+                packageName: appIcons ? suggestion : null,
                 onTap: () {
                   _text.text = suggestion;
                   widget.controller.updateCondition(
@@ -1678,6 +1699,7 @@ class _MenuRow extends StatefulWidget {
     required this.child,
     required this.onTap,
     this.icon,
+    this.packageName,
     this.trailing,
     this.highlighted = false,
     this.onHover,
@@ -1686,6 +1708,10 @@ class _MenuRow extends StatefulWidget {
   final Widget child;
   final VoidCallback onTap;
   final IconData? icon;
+
+  /// A package whose cached app icon replaces [icon], which stays the
+  /// fallback until the Apps pane has fetched one.
+  final String? packageName;
   final Widget? trailing;
   final bool highlighted;
   final VoidCallback? onHover;
@@ -1696,6 +1722,13 @@ class _MenuRow extends StatefulWidget {
 
 class _MenuRowState extends State<_MenuRow> {
   bool _hovered = false;
+
+  Widget _buildIcon(ColorScheme colors) {
+    final glyph = Icon(widget.icon, size: 16, color: colors.onSurfaceVariant);
+    final packageName = widget.packageName;
+    if (packageName == null) return glyph;
+    return PackageIcon(packageName: packageName, size: 16, fallback: glyph);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1720,7 +1753,7 @@ class _MenuRowState extends State<_MenuRow> {
           child: Row(
             children: [
               if (widget.icon != null) ...[
-                Icon(widget.icon, size: 16, color: colors.onSurfaceVariant),
+                _buildIcon(colors),
                 const SizedBox(width: 8),
               ],
               Expanded(

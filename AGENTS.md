@@ -221,7 +221,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   read out of the same pulled APK as the icon (`ApkIconExtractor.extractDetails`, default
   locale first) and cached across sessions by `AppIconCache` (`app_labels.json`). A label
   that arrives mid-session renames the tile *without* re-sorting (tiles must not jump under
-  the cursor); the next refresh sorts by the new names. Grid/list mode and icon size are
+  the cursor); the next refresh sorts by the new names. The Logs filter bar's package
+  suggestions (Android only) draw the same cached icons through `PackageIcon`
+  (`presentation/components/package_icon.dart`), which only ever *reads* the cache: a
+  fetch pulls the whole APK over the adb connection logcat is streaming on, so a log view
+  must never trigger one. Grid/list mode and icon size are
   global preferences, and the controller — not the view — owns the search text, so a
   reopened pane re-seeds its field from it.
 - **Utilities feature:** a declarative catalog (`features/utilities/data/utility_catalog.dart`)
