@@ -71,10 +71,16 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Quit from inside the app (⌘Q, the menu, the command palette). A bare
   /// `exit(0)` bypasses [AppLifecycleListener.onExitRequested], so the tool
   /// processes are terminated here first.
+  ///
+  /// Shared across calls: [ToolProcessRunner.terminateAllProcesses] empties its
+  /// set up front, so a second ⌘Q would otherwise find nothing to wait on and
+  /// exit before the first one's SIGKILL escalation ran.
   Future<void> _quit() async {
-    await ToolProcessRunner.terminateAllProcesses();
+    await (_quitting ??= ToolProcessRunner.terminateAllProcesses());
     exit(0);
   }
+
+  Future<void>? _quitting;
 
   @override
   void dispose() {
