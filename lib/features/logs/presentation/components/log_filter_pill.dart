@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../presentation/components/anchored_popover.dart';
+import '../../../../presentation/theme/app_theme.dart';
 import '../../data/models/log_filters.dart';
 import 'filter_bar_shared.dart';
 import 'log_filter_age_editor.dart';
@@ -165,11 +166,12 @@ class _FilterPillState extends State<_FilterPill> {
     final error = widget.error;
     final isDraft = widget.value.isEmpty;
     final accent = error != null ? colors.error : colors.primary;
+    // The field name is a caption over the value the user typed.
     final labelStyle = TextStyle(
       fontSize: 10,
       height: 1.2,
       letterSpacing: 0.1,
-      color: colors.onSurfaceVariant,
+      color: context.eaglyTheme.secondaryTextColor,
     );
 
     final pill = MouseRegion(
@@ -257,7 +259,7 @@ class _FilterPillState extends State<_FilterPill> {
                                     ? FontWeight.w400
                                     : FontWeight.w500,
                                 color: isDraft
-                                    ? colors.onSurfaceVariant
+                                    ? context.eaglyTheme.tertiaryTextColor
                                     : colors.onSurface,
                               ),
                             ),

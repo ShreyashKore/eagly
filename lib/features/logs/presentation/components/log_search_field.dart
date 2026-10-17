@@ -286,7 +286,7 @@ class _LogSearchFieldState extends State<LogSearchField> {
                   ? colors.error
                   : matches == 0
                   ? eagly.searchNoResultsTextColor
-                  : colors.onSurfaceVariant,
+                  : eagly.secondaryTextColor,
             ),
           ),
         ),

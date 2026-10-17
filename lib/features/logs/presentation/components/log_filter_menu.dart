@@ -60,7 +60,7 @@ List<(String, List<FilterMenuOption>)> filterMenuSections(
     fontWeight: FontWeight.w600,
     color: colors.onSurface,
   );
-  final mutedStyle = TextStyle(color: colors.onSurfaceVariant);
+  final mutedStyle = TextStyle(color: context.eaglyTheme.tertiaryTextColor);
   final negatedStyle = TextStyle(
     color: colors.error,
     fontWeight: FontWeight.w600,
@@ -408,7 +408,10 @@ class _SyntaxHint extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final tag = isIos ? 'category' : 'tag';
-    final muted = TextStyle(fontSize: 11, color: colors.onSurfaceVariant);
+    final muted = TextStyle(
+      fontSize: 11,
+      color: context.eaglyTheme.tertiaryTextColor,
+    );
     Widget code(String text) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       decoration: BoxDecoration(

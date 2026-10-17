@@ -390,8 +390,9 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `onSurface`, and `test/text_emphasis_test.dart` keeps them apart and above WCAG AA. Prefer
   them to `colorScheme.onSurfaceVariant`: in the light theme that is `#262626` against
   `#181818` text — no visible step. Views are being moved over one at a time (Apps list,
-  Utilities, Device home's Quick access so far). Keep color for meaning (destructive, status),
-  not for every row's icon.
+  Utilities, Device home's Quick access, Logs so far). Keep color for meaning (destructive,
+  status), not for every row's icon — a log row carries its level color on the badge and the
+  message only; package/tag are secondary, timestamp and PID/TID tertiary (`LogRow._cellStyle`).
 - Icon-only buttons are `AppIconButton` (`presentation/components/app_icon_button.dart`),
   never Material's `IconButton` — `test/app_icon_button_test.dart` fails on one in `lib/`.
   Icons follow the app zoom, and `IconButton`'s theme-clamped box pushed a zoomed glyph

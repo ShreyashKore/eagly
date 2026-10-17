@@ -486,17 +486,26 @@ class AppTheme {
   static EaglyTheme _themeTokens(ColorScheme colorScheme) {
     final isDark = colorScheme.brightness == Brightness.dark;
     final mono = GoogleFonts.jetBrainsMono();
+    // Alpha over the primary text color rather than separate greys: the
+    // tiers keep its hue and follow whatever is behind them — a hover or
+    // selection fill — the way platform label colors do. Contrast falls off
+    // differently per polarity, so each brightness has its own steps.
+    // Tertiary sits just above AA on surfaceContainerHighest, and secondary
+    // just far enough above it to read as its own step; neither can drop
+    // further without test/text_emphasis_test.dart failing.
+    final secondaryText = colorScheme.onSurface.withValues(
+      alpha: isDark ? 0.68 : 0.70,
+    );
+    final tertiaryText = colorScheme.onSurface.withValues(
+      alpha: isDark ? 0.56 : 0.62,
+    );
 
     return EaglyTheme(
       monoStyle: mono,
       logBodyStyle: mono.copyWith(fontSize: 12, height: 1.2),
       logCompactStyle: mono.copyWith(fontSize: 11, height: 1.2),
       logHeaderStyle: mono.copyWith(fontSize: 12, fontWeight: FontWeight.w700),
-      statusBarStyle: TextStyle(
-        fontSize: 12,
-        height: 1,
-        color: colorScheme.onSurfaceVariant,
-      ),
+      statusBarStyle: TextStyle(fontSize: 12, height: 1, color: tertiaryText),
       verboseColor: isDark ? colorScheme.onSurfaceVariant : colorScheme.outline,
       debugColor: colorScheme.primary,
       infoColor: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF0F766E),
@@ -527,20 +536,8 @@ class AppTheme {
           : const Color(0xFFB45309),
       statusStoppedColor: isDark ? const Color(0xFFF87171) : colorScheme.error,
       cardShadowColor: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04),
-      // Alpha over the primary text color rather than separate greys: the
-      // tiers keep its hue and follow whatever is behind them — a hover or
-      // selection fill — the way platform label colors do. Contrast falls
-      // off differently per polarity, so each brightness has its own steps;
-      // test/text_emphasis_test.dart holds them apart and above AA.
-      // Tertiary sits just above AA on surfaceContainerHighest, and secondary
-      // just far enough above it to read as its own step; neither can drop
-      // further without the test failing.
-      secondaryTextColor: colorScheme.onSurface.withValues(
-        alpha: isDark ? 0.68 : 0.70,
-      ),
-      tertiaryTextColor: colorScheme.onSurface.withValues(
-        alpha: isDark ? 0.56 : 0.62,
-      ),
+      secondaryTextColor: secondaryText,
+      tertiaryTextColor: tertiaryText,
     );
   }
 }
