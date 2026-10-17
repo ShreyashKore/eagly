@@ -11,6 +11,7 @@ import '../../services/eagly_info_service.dart';
 import '../../services/preferences_service.dart';
 import '../../presentation/components/app_log_overlay.dart';
 import '../../presentation/components/eagly_dialog.dart';
+import '../../presentation/theme/app_theme.dart';
 import '../../utils/android_sdk_path.dart';
 
 /// Presents the settings as a large desktop dialog.
@@ -221,380 +222,403 @@ class _SettingsScreenState extends State<SettingsScreen> {
       width: 820,
       height: 640,
       contentPadding: EdgeInsets.zero,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-        children: [
-          sectionCard(
-            title: 'Appearance',
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text('Theme', style: theme.textTheme.bodyLarge),
-                  ),
-                  ToggleButtons(
-                    isSelected: List.generate(
-                      3,
-                      (i) => i == _themeIndex,
-                      growable: false,
+      // Every row is a title over an explanation or its current value; the
+      // default subtitle color (onSurfaceVariant) is barely lighter than the
+      // title in the light theme, so set it to secondary text here.
+      child: ListTileTheme.merge(
+        subtitleTextStyle: theme.textTheme.bodyMedium?.copyWith(
+          color: context.eaglyTheme.secondaryTextColor,
+        ),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          children: [
+            sectionCard(
+              title: 'Appearance',
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Theme', style: theme.textTheme.bodyLarge),
                     ),
-                    onPressed: (index) => _setThemeByIndex(index),
-                    borderRadius: BorderRadius.circular(6),
-                    selectedBorderColor: theme.colorScheme.primary.withValues(
-                      alpha: 0.5,
+                    ToggleButtons(
+                      isSelected: List.generate(
+                        3,
+                        (i) => i == _themeIndex,
+                        growable: false,
+                      ),
+                      onPressed: (index) => _setThemeByIndex(index),
+                      borderRadius: BorderRadius.circular(6),
+                      selectedBorderColor: theme.colorScheme.primary.withValues(
+                        alpha: 0.5,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 84,
+                        minHeight: 36,
+                      ),
+                      children: const [
+                        Text('Auto'),
+                        Text('Light'),
+                        Text('Dark'),
+                      ],
                     ),
-                    constraints: const BoxConstraints(
-                      minWidth: 84,
-                      minHeight: 36,
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Log font size',
+                        style: theme.textTheme.bodyLarge,
+                      ),
                     ),
-                    children: const [Text('Auto'), Text('Light'), Text('Dark')],
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Log font size',
-                      style: theme.textTheme.bodyLarge,
-                    ),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 12,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surface,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'Aa',
-                          style: TextStyle(fontSize: _logFontSize),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 200,
-                        child: Slider(
-                          value: _logFontSize,
-                          min: 8,
-                          max: 24,
-                          divisions: 16,
-                          label: _logFontSize.toStringAsFixed(0),
-                          onChanged: (v) {
-                            setState(() => _logFontSize = v);
-                            PreferencesService.logFontSize = v;
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text('Zoom level', style: theme.textTheme.bodyLarge),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 12,
-                    children: [
-                      AppIconButton(
-                        icon: Icons.zoom_out,
-                        onPressed: () {
-                          final next = (PreferencesService.zoomLevel - 0.05)
-                              .clamp(0.7, 1.8);
-                          setState(() => _zoomLevel = next);
-                          PreferencesService.zoomLevel = next;
-                        },
-                      ),
-                      SizedBox(
-                        width: 200,
-                        child: Slider(
-                          value: _zoomLevel,
-                          min: 0.7,
-                          max: 1.8,
-                          divisions: 22,
-                          label: '${(_zoomLevel * 100).toStringAsFixed(0)}%',
-                          onChanged: (v) {
-                            setState(() => _zoomLevel = v);
-                            PreferencesService.zoomLevel = v;
-                          },
-                        ),
-                      ),
-                      AppIconButton(
-                        icon: Icons.zoom_in,
-                        onPressed: () {
-                          final next = (PreferencesService.zoomLevel + 0.05)
-                              .clamp(0.7, 1.8);
-                          setState(() => _zoomLevel = next);
-                          PreferencesService.zoomLevel = next;
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              SwitchListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                value: _tipsEnabled,
-                title: const Text('Feature tips'),
-                subtitle: const Text('Show a rotating tip in the app header'),
-                onChanged: (value) {
-                  setState(() => _tipsEnabled = value);
-                  PreferencesService.tipsEnabled = value;
-                },
-              ),
-            ],
-          ),
-          const Gap(16),
-          sectionCard(
-            title: 'Defaults for new tabs',
-            children: [
-              SwitchListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                value: _wrapText,
-                title: const Text('Wrap text'),
-                subtitle: const Text('Message column wraps'),
-                onChanged: (value) {
-                  setState(() => _wrapText = value);
-                  PreferencesService.wrapText = value;
-                },
-              ),
-              SwitchListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                value: _autoScroll,
-                title: const Text('Auto-scroll'),
-                subtitle: const Text('Keep view pinned to latest'),
-                onChanged: (value) {
-                  setState(() => _autoScroll = value);
-                  PreferencesService.autoScroll = value;
-                },
-              ),
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Default log level'),
-                trailing: SizedBox(
-                  width: 200,
-                  child: DropdownButtonFormField<LogLevel>(
-                    initialValue: _selectedLogLevel,
-                    isExpanded: true,
-                    items: LogLevel.values
-                        .map(
-                          (level) => DropdownMenuItem<LogLevel>(
-                            value: level,
-                            child: Text(level.labelWithCode),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 12,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
                           ),
-                        )
-                        .toList(growable: false),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() => _selectedLogLevel = value);
-                      PreferencesService.selectedLogLevel = value;
-                    },
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surface,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Aa',
+                            style: TextStyle(fontSize: _logFontSize),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 200,
+                          child: Slider(
+                            value: _logFontSize,
+                            min: 8,
+                            max: 24,
+                            divisions: 16,
+                            label: _logFontSize.toStringAsFixed(0),
+                            onChanged: (v) {
+                              setState(() => _logFontSize = v);
+                              PreferencesService.logFontSize = v;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Zoom level',
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 12,
+                      children: [
+                        AppIconButton(
+                          icon: Icons.zoom_out,
+                          onPressed: () {
+                            final next = (PreferencesService.zoomLevel - 0.05)
+                                .clamp(0.7, 1.8);
+                            setState(() => _zoomLevel = next);
+                            PreferencesService.zoomLevel = next;
+                          },
+                        ),
+                        SizedBox(
+                          width: 200,
+                          child: Slider(
+                            value: _zoomLevel,
+                            min: 0.7,
+                            max: 1.8,
+                            divisions: 22,
+                            label: '${(_zoomLevel * 100).toStringAsFixed(0)}%',
+                            onChanged: (v) {
+                              setState(() => _zoomLevel = v);
+                              PreferencesService.zoomLevel = v;
+                            },
+                          ),
+                        ),
+                        AppIconButton(
+                          icon: Icons.zoom_in,
+                          onPressed: () {
+                            final next = (PreferencesService.zoomLevel + 0.05)
+                                .clamp(0.7, 1.8);
+                            setState(() => _zoomLevel = next);
+                            PreferencesService.zoomLevel = next;
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                SwitchListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  value: _tipsEnabled,
+                  title: const Text('Feature tips'),
+                  subtitle: const Text('Show a rotating tip in the app header'),
+                  onChanged: (value) {
+                    setState(() => _tipsEnabled = value);
+                    PreferencesService.tipsEnabled = value;
+                  },
+                ),
+              ],
+            ),
+            const Gap(16),
+            sectionCard(
+              title: 'Defaults for new tabs',
+              children: [
+                SwitchListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  value: _wrapText,
+                  title: const Text('Wrap text'),
+                  subtitle: const Text('Message column wraps'),
+                  onChanged: (value) {
+                    setState(() => _wrapText = value);
+                    PreferencesService.wrapText = value;
+                  },
+                ),
+                SwitchListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  value: _autoScroll,
+                  title: const Text('Auto-scroll'),
+                  subtitle: const Text('Keep view pinned to latest'),
+                  onChanged: (value) {
+                    setState(() => _autoScroll = value);
+                    PreferencesService.autoScroll = value;
+                  },
+                ),
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Default log level'),
+                  trailing: SizedBox(
+                    width: 200,
+                    child: DropdownButtonFormField<LogLevel>(
+                      initialValue: _selectedLogLevel,
+                      isExpanded: true,
+                      items: LogLevel.values
+                          .map(
+                            (level) => DropdownMenuItem<LogLevel>(
+                              value: level,
+                              child: Text(level.labelWithCode),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _selectedLogLevel = value);
+                        PreferencesService.selectedLogLevel = value;
+                      },
+                    ),
                   ),
                 ),
-              ),
-              // (no explicit Divider here)
-              Row(
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                // (no explicit Divider here)
+                Row(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Max log lines'),
+                        Text(
+                          'Minimum 1000',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: context.eaglyTheme.tertiaryTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Gap(200),
+                    Expanded(
+                      child: TextField(
+                        controller: _logLinesController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          hintText:
+                              '${PreferencesService.defaultLogLinesLimit}',
+                        ),
+                        onSubmitted: (_) => _saveLogLinesLimit(),
+                      ),
+                    ),
+                    const Gap(12),
+                    FilledButton(
+                      onPressed: _saveLogLinesLimit,
+                      child: const Text('Apply'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const Gap(16),
+            sectionCard(
+              title: 'Screenshots & recordings',
+              children: [
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Save folder'),
+                  subtitle: Tooltip(
+                    message: _captureDirectory,
+                    child: Text(
+                      _captureDirectory,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Max log lines'),
-                      Text('Minimum 1000', style: theme.textTheme.labelSmall),
+                      AppIconButton(
+                        tooltip: 'Open folder',
+                        icon: Icons.folder_open_outlined,
+                        onPressed: _openCaptureDirectory,
+                      ),
+                      TextButton(
+                        onPressed: _chooseCaptureDirectory,
+                        child: const Text('Change…'),
+                      ),
+                      TextButton(
+                        onPressed: PreferencesService.captureDirectory == null
+                            ? null
+                            : _resetCaptureDirectory,
+                        child: const Text('Reset'),
+                      ),
                     ],
                   ),
-                  Gap(200),
-                  Expanded(
-                    child: TextField(
-                      controller: _logLinesController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        hintText: '${PreferencesService.defaultLogLinesLimit}',
+                ),
+                SwitchListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  value: _captureAskEveryTime,
+                  title: const Text('Ask where to save each time'),
+                  subtitle: const Text(
+                    'Show a save dialog instead of using the folder above',
+                  ),
+                  onChanged: (value) {
+                    setState(() => _captureAskEveryTime = value);
+                    PreferencesService.captureAskEveryTime = value;
+                  },
+                ),
+              ],
+            ),
+            const Gap(16),
+            sectionCard(
+              title: 'Android SDK',
+              children: [
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('SDK location'),
+                  subtitle: Tooltip(
+                    message: _androidSdk.sdkPath ?? '',
+                    child: Text(
+                      _androidSdkSummary,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: _androidSdk.isReady
+                            ? null
+                            : theme.colorScheme.error,
                       ),
-                      onSubmitted: (_) => _saveLogLinesLimit(),
                     ),
                   ),
-                  const Gap(12),
-                  FilledButton(
-                    onPressed: _saveLogLinesLimit,
-                    child: const Text('Apply'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const Gap(16),
-          sectionCard(
-            title: 'Screenshots & recordings',
-            children: [
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Save folder'),
-                subtitle: Tooltip(
-                  message: _captureDirectory,
-                  child: Text(
-                    _captureDirectory,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton(
+                        onPressed: _chooseAndroidSdk,
+                        child: const Text('Change…'),
+                      ),
+                      TextButton(
+                        onPressed: PreferencesService.androidSdkPath == null
+                            ? null
+                            : _resetAndroidSdk,
+                        child: const Text('Reset'),
+                      ),
+                    ],
                   ),
                 ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AppIconButton(
-                      tooltip: 'Open folder',
-                      icon: Icons.folder_open_outlined,
-                      onPressed: _openCaptureDirectory,
-                    ),
-                    TextButton(
-                      onPressed: _chooseCaptureDirectory,
-                      child: const Text('Change…'),
-                    ),
-                    TextButton(
-                      onPressed: PreferencesService.captureDirectory == null
-                          ? null
-                          : _resetCaptureDirectory,
-                      child: const Text('Reset'),
-                    ),
-                  ],
+              ],
+            ),
+            const Gap(16),
+            sectionCard(
+              title: 'Stored layout defaults',
+              children: [
+                SwitchListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  value: _rememberHiddenColumns,
+                  title: const Text('Remember hidden columns'),
+                  subtitle: const Text(
+                    'Columns shown or hidden in a log tab become the default '
+                    'for new tabs',
+                  ),
+                  onChanged: (value) {
+                    setState(() => _rememberHiddenColumns = value);
+                    PreferencesService.rememberHiddenColumns = value;
+                  },
                 ),
-              ),
-              SwitchListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                value: _captureAskEveryTime,
-                title: const Text('Ask where to save each time'),
-                subtitle: const Text(
-                  'Show a save dialog instead of using the folder above',
-                ),
-                onChanged: (value) {
-                  setState(() => _captureAskEveryTime = value);
-                  PreferencesService.captureAskEveryTime = value;
-                },
-              ),
-            ],
-          ),
-          const Gap(16),
-          sectionCard(
-            title: 'Android SDK',
-            children: [
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('SDK location'),
-                subtitle: Tooltip(
-                  message: _androidSdk.sdkPath ?? '',
-                  child: Text(
-                    _androidSdkSummary,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: _androidSdk.isReady
-                          ? null
-                          : theme.colorScheme.error,
-                    ),
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Default hidden columns'),
+                  subtitle: Text(
+                    '${hiddenColumns.length} columns hidden by default',
+                  ),
+                  trailing: TextButton(
+                    onPressed: hiddenColumns.isEmpty
+                        ? null
+                        : _resetHiddenColumns,
+                    child: const Text('Reset'),
                   ),
                 ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextButton(
-                      onPressed: _chooseAndroidSdk,
-                      child: const Text('Change…'),
-                    ),
-                    TextButton(
-                      onPressed: PreferencesService.androidSdkPath == null
-                          ? null
-                          : _resetAndroidSdk,
-                      child: const Text('Reset'),
-                    ),
-                  ],
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Default column widths'),
+                  subtitle: const Text('Persisted widths for new tabs'),
+                  trailing: TextButton(
+                    onPressed: _resetColumnWidths,
+                    child: const Text('Reset'),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const Gap(16),
-          sectionCard(
-            title: 'Stored layout defaults',
-            children: [
-              SwitchListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                value: _rememberHiddenColumns,
-                title: const Text('Remember hidden columns'),
-                subtitle: const Text(
-                  'Columns shown or hidden in a log tab become the default '
-                  'for new tabs',
+              ],
+            ),
+            const Gap(16),
+            sectionCard(
+              title: 'About',
+              children: [
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Version'),
+                  trailing: Text(EaglyInfoService.appVersion),
                 ),
-                onChanged: (value) {
-                  setState(() => _rememberHiddenColumns = value);
-                  PreferencesService.rememberHiddenColumns = value;
-                },
-              ),
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Default hidden columns'),
-                subtitle: Text(
-                  '${hiddenColumns.length} columns hidden by default',
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('App logs'),
+                  subtitle: const Text(
+                    'Open the internal debugging log viewer and copy full app logs.',
+                  ),
+                  onTap: () => showAppLogDialog(title: 'App Logs', context),
+                  trailing: const AppLogTriggerButton(
+                    title: 'App Logs',
+                    tooltip: 'Show app logs',
+                    iconSize: 18,
+                  ),
                 ),
-                trailing: TextButton(
-                  onPressed: hiddenColumns.isEmpty ? null : _resetHiddenColumns,
-                  child: const Text('Reset'),
-                ),
-              ),
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Default column widths'),
-                subtitle: const Text('Persisted widths for new tabs'),
-                trailing: TextButton(
-                  onPressed: _resetColumnWidths,
-                  child: const Text('Reset'),
-                ),
-              ),
-            ],
-          ),
-          const Gap(16),
-          sectionCard(
-            title: 'About',
-            children: [
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Version'),
-                trailing: Text(EaglyInfoService.appVersion),
-              ),
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('App logs'),
-                subtitle: const Text(
-                  'Open the internal debugging log viewer and copy full app logs.',
-                ),
-                onTap: () => showAppLogDialog(title: 'App Logs', context),
-                trailing: const AppLogTriggerButton(
-                  title: 'App Logs',
-                  tooltip: 'Show app logs',
-                  iconSize: 18,
-                ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
