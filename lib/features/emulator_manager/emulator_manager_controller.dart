@@ -382,15 +382,20 @@ class EmulatorManagerController extends ChangeNotifier {
     _notify();
 
     try {
-      _systemImages = await _systemImageScanner.scan(sdk.sdkPath!);
+      final images = await _systemImageScanner.scan(sdk.sdkPath!);
       if (_disposed) return;
 
       final avdManager = _avdManagerFor(sdk);
-      _deviceProfiles = avdManager == null
-          ? const []
+      final profiles = avdManager == null
+          ? const <DeviceProfile>[]
           : await avdManager.listDeviceProfiles();
       if (_disposed) return;
 
+      // A refresh that moved the SDK mid-load makes these the old SDK's; the
+      // next load reads the new one.
+      if (_sdk?.sdkPath != sdk.sdkPath) return;
+      _systemImages = images;
+      _deviceProfiles = profiles;
       _creationOptionsSdkPath = sdk.sdkPath;
     } finally {
       _loadingCreationOptions = false;
