@@ -14,12 +14,13 @@ import 'workspace_pane_scope.dart';
 /// plumbing for free: the [onClose] callback, a rebuild whenever
 /// [FeatureViewState.listenable] notifies, a snackbar helper, and the standard
 /// pane chrome ([FeaturePane], [FeatureViewHeader], [FeatureStatusBar]).
-abstract class const FeatureView({super.key, this.onClose})
-    extends StatefulWidget {
+abstract class const FeatureView({
+  super.key,
+
   /// Hides the pane (handled by the device screen). `null` for panes that
   /// cannot be closed (e.g. device home).
-  final VoidCallback? onClose;
-
+  final VoidCallback? onClose,
+}) extends StatefulWidget {
   /// Shows [message] in a snackbar, replacing the current one. Static so
   /// deeply-nested pane content can use it with any [BuildContext].
   static void showSnackBar(BuildContext context, String message) {
@@ -63,14 +64,10 @@ abstract class FeatureViewState<T extends FeatureView> extends State<T> {
 /// and an optional [statusBar] at the bottom, on the pane background color.
 class const FeaturePane({
   super.key,
-  this.header,
-  required this.body,
-  this.statusBar,
+  final Widget? header,
+  required final Widget body,
+  final Widget? statusBar,
 }) extends StatelessWidget {
-  final Widget? header;
-  final Widget body;
-  final Widget? statusBar;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -99,29 +96,21 @@ class const FeaturePane({
 /// all when it has none (see [WorkspacePaneScope]).
 class const FeatureViewHeader({
   super.key,
-  required this.title,
-  this.leading,
-  this.actions = const [],
-  this.trailing = const [],
-  this.onClose,
-  this.closeTooltip = 'Close pane',
-}) extends StatelessWidget {
-  final String title;
+  required final String title,
 
   /// Optional widget before the title (e.g. a back button).
-  final Widget? leading;
+  final Widget? leading,
 
   /// Action buttons shown between the title and the close button. The last
   /// ones collapse into the overflow menu first.
-  final List<ToolbarAction> actions;
+  final List<ToolbarAction> actions = const [],
 
   /// Widgets pinned between the actions and the close button — for controls
   /// that cannot become a menu entry (e.g. their own popup menu).
-  final List<Widget> trailing;
-
-  final VoidCallback? onClose;
-  final String closeTooltip;
-
+  final List<Widget> trailing = const [],
+  final VoidCallback? onClose,
+  final String closeTooltip = 'Close pane',
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -187,12 +176,12 @@ class const FeatureViewHeader({
 /// right edge.
 class const FeatureStatusBar({
   super.key,
-  required this.children,
-  this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+  required final List<Widget> children,
+  final EdgeInsetsGeometry padding = const EdgeInsets.symmetric(
+    horizontal: 16,
+    vertical: 4,
+  ),
 }) extends StatelessWidget {
-  final List<Widget> children;
-  final EdgeInsetsGeometry padding;
-
   @override
   Widget build(BuildContext context) {
     return Container(

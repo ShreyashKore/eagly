@@ -25,7 +25,7 @@ typedef DeviceSessionServiceFactory = DeviceSessionRepository Function(
 /// device reconnects.
 class DeviceSessionManager({
   DevicesRepository? repository,
-  this._serviceFactory,
+  final DeviceSessionServiceFactory? _serviceFactory,
   WorkspaceLayoutMemory? layoutMemory,
 }) extends ChangeNotifier {
   this
@@ -37,7 +37,6 @@ class DeviceSessionManager({
   }
 
   final DevicesRepository _repository;
-  final DeviceSessionServiceFactory? _serviceFactory;
 
   /// Where panes were last placed, shared by every device's workspace (and,
   /// by default, kept in preferences across launches).

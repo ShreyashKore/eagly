@@ -11,12 +11,10 @@ import 'mirror_controller.dart';
 /// [MirrorController]. [onClose] hides the pane (handled by the device screen).
 class const MirrorFeatureView({
   super.key,
-  required this.controller,
+  required final MirrorController controller,
   required VoidCallback onClose,
 }) extends FeatureView {
   this : super(onClose: onClose);
-
-  final MirrorController controller;
 
   @override
   State<MirrorFeatureView> createState() => _MirrorFeatureViewState();

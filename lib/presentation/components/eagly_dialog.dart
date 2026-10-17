@@ -12,37 +12,35 @@ import 'app_icon_button.dart';
 /// Use [showEaglyDialog] to present one.
 class const EaglyDialog({
   super.key,
-  required this.title,
-  required this.child,
-  this.icon,
-  this.headerActions = const [],
-  this.width = 720,
-  this.height,
-  this.contentPadding = const EdgeInsets.fromLTRB(24, 20, 24, 24),
-}) extends StatelessWidget {
+
   /// Title shown in the header.
-  final String title;
+  required final String title,
 
   /// Main dialog body. Sized to fill the available content area, so it should
   /// manage its own scrolling when it can overflow.
-  final Widget child;
+  required final Widget child,
 
   /// Optional leading icon shown before the [title].
-  final IconData? icon;
+  final IconData? icon,
 
   /// Optional widgets placed in the header before the close button.
-  final List<Widget> headerActions;
+  final List<Widget> headerActions = const [],
 
   /// Preferred dialog width. Clamped to the available screen width.
-  final double width;
+  final double width = 720,
 
   /// Optional fixed content height. When null the dialog shrinks to fit its
   /// content (clamped to the available screen height).
-  final double? height;
+  final double? height,
 
   /// Padding around [child].
-  final EdgeInsetsGeometry contentPadding;
-
+  final EdgeInsetsGeometry contentPadding = const EdgeInsets.fromLTRB(
+    24,
+    20,
+    24,
+    24,
+  ),
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

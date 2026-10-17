@@ -16,14 +16,10 @@ import 'feature_rail.dart';
 /// them.
 class const DeviceScreen({
   super.key,
-  required this.session,
-  required this.appMemoryBytesListenable,
-  required this.onOpenSettings,
+  required final DeviceSessionController session,
+  required final ValueListenable<int> appMemoryBytesListenable,
+  required final VoidCallback onOpenSettings,
 }) extends StatefulWidget {
-  final DeviceSessionController session;
-  final ValueListenable<int> appMemoryBytesListenable;
-  final VoidCallback onOpenSettings;
-
   @override
   State<DeviceScreen> createState() => _DeviceScreenState();
 }

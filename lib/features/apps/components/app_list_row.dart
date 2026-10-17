@@ -16,18 +16,12 @@ import 'app_tile.dart';
 /// tertiary.
 class const AppListRow({
   super.key,
-  required this.controller,
-  required this.app,
-  required this.iconSize,
-  required this.onTap,
-  required this.onSecondaryTap,
+  required final AppsController controller,
+  required final AppInfo app,
+  required final double iconSize,
+  required final VoidCallback? onTap,
+  required final void Function(Offset position) onSecondaryTap,
 }) extends StatelessWidget {
-  final AppsController controller;
-  final AppInfo app;
-  final double iconSize;
-  final VoidCallback? onTap;
-  final void Function(Offset position) onSecondaryTap;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -153,9 +147,7 @@ String formatAppTime(DateTime time, [DateTime? now]) {
 /// A quiet tag after the name. Most rows on a device are system apps, so a
 /// bordered chip on each one turned the list into a column of boxes; a faint
 /// fill is enough to set the word apart from the name.
-class const _Badge(this.label) extends StatelessWidget {
-  final String label;
-
+class const _Badge(final String label) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

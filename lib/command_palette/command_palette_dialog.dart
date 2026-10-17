@@ -28,12 +28,9 @@ Future<void> showCommandPalette({
 
 class const CommandPaletteDialog({
   super.key,
-  required this.itemsBuilder,
-  required this.listenable,
+  required final List<CommandPaletteItem> Function() itemsBuilder,
+  required final Listenable listenable,
 }) extends StatefulWidget {
-  final List<CommandPaletteItem> Function() itemsBuilder;
-  final Listenable listenable;
-
   @override
   State<CommandPaletteDialog> createState() => _CommandPaletteDialogState();
 }
@@ -287,16 +284,11 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
 
 class const _CommandTile({
   super.key,
-  required this.item,
-  required this.selected,
-  required this.onTap,
-  required this.onHover,
+  required final CommandPaletteItem item,
+  required final bool selected,
+  required final VoidCallback onTap,
+  required final VoidCallback onHover,
 }) extends StatelessWidget {
-  final CommandPaletteItem item;
-  final bool selected;
-  final VoidCallback onTap;
-  final VoidCallback onHover;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

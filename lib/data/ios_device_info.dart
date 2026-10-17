@@ -1,18 +1,11 @@
 class const IosDeviceInfo({
-  required this.deviceId,
-  required this.status,
-  this.deviceName,
-  this.productName,
-  this.hardwareModel,
-  this.productType,
+  required final String deviceId,
+  required final String status,
+  final String? deviceName,
+  final String? productName,
+  final String? hardwareModel,
+  final String? productType,
 }) {
-  final String deviceId;
-  final String status;
-  final String? deviceName;
-  final String? productName;
-  final String? hardwareModel;
-  final String? productType;
-
   bool get isAvailable => status == 'device';
 
   IosDeviceInfo copyWith({

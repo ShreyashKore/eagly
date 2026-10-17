@@ -679,10 +679,8 @@ void main() {
   );
 }
 
-class const _SelectableLogViewerHarness({required this.logs})
+class const _SelectableLogViewerHarness({required final List<LogEntry> logs})
     extends StatefulWidget {
-  final List<LogEntry> logs;
-
   @override
   State<_SelectableLogViewerHarness> createState() =>
       _SelectableLogViewerHarnessState();
@@ -799,12 +797,9 @@ class _SelectableLogViewerHarnessState
 }
 
 class const _ToggleableLogViewerHarness({
-  required this.logs,
-  this.initialRowSelectionMode = true,
+  required final List<LogEntry> logs,
+  final bool initialRowSelectionMode = true,
 }) extends StatefulWidget {
-  final List<LogEntry> logs;
-  final bool initialRowSelectionMode;
-
   @override
   State<_ToggleableLogViewerHarness> createState() =>
       _ToggleableLogViewerHarnessState();

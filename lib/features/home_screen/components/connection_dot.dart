@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
-class const ConnectionDot({super.key, required this.connected})
+class const ConnectionDot({super.key, required final bool connected})
     extends StatelessWidget {
-  final bool connected;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

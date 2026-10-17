@@ -7,29 +7,21 @@ import 'package:flutter/foundation.dart';
 /// while creating an AVD from one already on disk is a single command.
 @immutable
 class const SystemImage({
-  required this.packagePath,
-  required this.apiLevel,
-  required this.tagId,
-  required this.tagDisplay,
-  required this.abi,
-  this.vendorDisplay,
-}) {
   /// What `avdmanager create avd -k` takes, e.g.
   /// `system-images;android-34;google_apis_playstore;arm64-v8a`.
-  final String packagePath;
+  required final String packagePath,
 
   /// A string, not an int: minor-versioned platforms (`36.1`) are real.
-  final String apiLevel;
+  required final String apiLevel,
 
   /// `google_apis_playstore`, `android-tv`, …
-  final String tagId;
+  required final String tagId,
 
   /// The same tag as shown to humans, e.g. `Google Play`.
-  final String tagDisplay;
-
-  final String abi;
-  final String? vendorDisplay;
-
+  required final String tagDisplay,
+  required final String abi,
+  final String? vendorDisplay,
+}) {
   bool get hasPlayStore => tagId.contains('playstore');
 
   /// Tags that name a device class rather than an API flavour.

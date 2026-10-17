@@ -7,20 +7,13 @@ import '../../../../presentation/theme/app_theme.dart';
 /// an optional close button.
 class const LogTabChip({
   super.key,
-  required this.label,
-  required this.isImported,
-  required this.selected,
-  required this.canClose,
-  required this.onTap,
-  required this.onClose,
+  required final String label,
+  required final bool isImported,
+  required final bool selected,
+  required final bool canClose,
+  required final VoidCallback onTap,
+  required final VoidCallback? onClose,
 }) extends StatelessWidget {
-  final String label;
-  final bool isImported;
-  final bool selected;
-  final bool canClose;
-  final VoidCallback onTap;
-  final VoidCallback? onClose;
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;

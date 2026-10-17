@@ -20,12 +20,9 @@ import 'device_home_controller.dart';
 /// reference facts in a responsive card grid.
 class const DeviceHomeFeatureView({
   super.key,
-  required this.session,
-  required this.homeController,
+  required final DeviceSessionController session,
+  required final DeviceHomeController homeController,
 }) extends FeatureView {
-  final DeviceSessionController session;
-  final DeviceHomeController homeController;
-
   @override
   State<DeviceHomeFeatureView> createState() => _DeviceHomeFeatureViewState();
 }
@@ -185,14 +182,10 @@ class _DeviceHomeFeatureViewState
 /// background while leaving the tiles (drawn on `surface`) sitting above it —
 /// distinction by depth rather than by colour.
 class const _QuickAccessTray({
-  required this.label,
-  required this.child,
-  this.trailing,
+  required final String label,
+  required final Widget child,
+  final Widget? trailing,
 }) extends StatelessWidget {
-  final String label;
-  final Widget child;
-  final Widget? trailing;
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -220,9 +213,8 @@ class const _QuickAccessTray({
 
 /// Balanced multi-column layout for the detail cards — column count follows
 /// the window width, cards fill round-robin so no column runs long.
-class const _CardGrid({required this.children}) extends StatelessWidget {
-  final List<Widget> children;
-
+class const _CardGrid({required final List<Widget> children})
+    extends StatelessWidget {
   /// Wide enough that a two-column [SpecGrid] still fits inside a card.
   static const _minColumnWidth = 360.0;
   static const _maxColumns = 3;
@@ -270,11 +262,10 @@ class const _CardGrid({required this.children}) extends StatelessWidget {
 
 /// Small uppercase heading with an optional trailing action, used to give the
 /// launcher strip a home for the command-palette hint.
-class const _SectionHeading({required this.label, this.trailing})
-    extends StatelessWidget {
-  final String label;
-  final Widget? trailing;
-
+class const _SectionHeading({
+  required final String label,
+  final Widget? trailing,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

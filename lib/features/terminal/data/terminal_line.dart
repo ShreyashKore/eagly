@@ -21,7 +21,17 @@ enum TerminalLineKind {
 }
 
 /// One line of terminal scrollback.
-class const TerminalLine(this.kind, this.text, {this.prompt, this.resolved}) {
+class const TerminalLine(
+  final TerminalLineKind kind,
+  final String text, {
+
+  /// Device label rendered before the `$` on a [TerminalLineKind.command] line.
+  final String? prompt,
+
+  /// The command line as actually executed (device selector included), shown
+  /// as the prompt line's tooltip so the injected selector stays visible.
+  final String? resolved,
+}) {
   const TerminalLine.command(
     String text, {
     required String prompt,
@@ -34,16 +44,6 @@ class const TerminalLine(this.kind, this.text, {this.prompt, this.resolved}) {
 
   const TerminalLine.error(String text) : this(TerminalLineKind.error, text);
 
-  final TerminalLineKind kind;
-  final String text;
-
-  /// Device label rendered before the `$` on a [TerminalLineKind.command] line.
-  final String? prompt;
-
-  /// The command line as actually executed (device selector included), shown
-  /// as the prompt line's tooltip so the injected selector stays visible.
-  final String? resolved;
-
   /// Text put on the clipboard when the whole scrollback is copied.
   String get copyText => switch (kind) {
     TerminalLineKind.command => '${prompt ?? ''} \$ $text'.trimLeft(),
@@ -53,7 +53,7 @@ class const TerminalLine(this.kind, this.text, {this.prompt, this.resolved}) {
 }
 
 /// One chunk of live process output, tagged by the pipe it arrived on.
-class const TerminalOutputChunk(this.text, {required this.isError}) {
-  final String text;
-  final bool isError;
-}
+class const TerminalOutputChunk(
+  final String text, {
+  required final bool isError,
+});

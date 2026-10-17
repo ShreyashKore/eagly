@@ -10,14 +10,15 @@ import 'package:flutter/widgets.dart';
 /// as its ancestor and both would act on it. The screen's target asks
 /// [DropZone.at] which zone — if any — is under the pointer and hands the
 /// drop to it.
-class const DropZone({super.key, required this.onDrop, required this.builder})
-    extends StatefulWidget {
+class const DropZone({
+  super.key,
+
   /// Receives the dropped local paths (never empty).
-  final Future<void> Function(List<String> paths) onDrop;
+  required final Future<void> Function(List<String> paths) onDrop,
 
   /// Builds the zone; [isHovered] is true while files are dragged over it.
-  final Widget Function(BuildContext context, bool isHovered) builder;
-
+  required final Widget Function(BuildContext context, bool isHovered) builder,
+}) extends StatefulWidget {
   /// The zone under [globalPosition], found by hit-testing the view the way a
   /// pointer event would — so a zone hidden offstage or covered by something
   /// opaque doesn't claim the drop.

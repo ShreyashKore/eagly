@@ -5,16 +5,11 @@ import 'step_list.dart';
 
 class const IosGuidance({
   super.key,
-  required this.icon,
-  required this.title,
-  required this.message,
-  required this.steps,
+  required final IconData icon,
+  required final String title,
+  required final String message,
+  required final List<String> steps,
 }) extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String message;
-  final List<String> steps;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

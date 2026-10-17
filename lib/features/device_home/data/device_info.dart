@@ -13,24 +13,15 @@ enum BatteryHealth { good, overheat, dead, overVoltage, cold }
 enum DisplayOrientation { portrait, landscape }
 
 class const DeviceIdentityInfo({
-  this.deviceName,
-  this.manufacturer,
-  this.model,
-  this.osName,
-  this.osVersion,
-  this.buildVersion,
-  this.serialNumber,
-  this.cpuArchitecture,
+  final String? deviceName,
+  final String? manufacturer,
+  final String? model,
+  final String? osName,
+  final String? osVersion,
+  final String? buildVersion,
+  final String? serialNumber,
+  final String? cpuArchitecture,
 }) {
-  final String? deviceName;
-  final String? manufacturer;
-  final String? model;
-  final String? osName;
-  final String? osVersion;
-  final String? buildVersion;
-  final String? serialNumber;
-  final String? cpuArchitecture;
-
   bool get isEmpty =>
       deviceName == null &&
       manufacturer == null &&
@@ -43,17 +34,12 @@ class const DeviceIdentityInfo({
 }
 
 class const DeviceBatteryInfo({
-  this.percentage,
-  this.chargingState,
-  this.health,
-  this.temperatureCelsius,
-}) {
   /// 0–100.
-  final int? percentage;
-  final BatteryChargingState? chargingState;
-  final BatteryHealth? health;
-  final double? temperatureCelsius;
-
+  final int? percentage,
+  final BatteryChargingState? chargingState,
+  final BatteryHealth? health,
+  final double? temperatureCelsius,
+}) {
   bool get isEmpty =>
       percentage == null &&
       chargingState == null &&
@@ -62,14 +48,10 @@ class const DeviceBatteryInfo({
 }
 
 class const DeviceStorageInfo({
-  this.totalBytes,
-  this.usedBytes,
-  this.availableBytes,
+  final int? totalBytes,
+  final int? usedBytes,
+  final int? availableBytes,
 }) {
-  final int? totalBytes;
-  final int? usedBytes;
-  final int? availableBytes;
-
   double? get usagePercent {
     final total = totalBytes;
     final used = usedBytes;
@@ -82,18 +64,12 @@ class const DeviceStorageInfo({
 }
 
 class const DeviceDisplayInfo({
-  this.widthPx,
-  this.heightPx,
-  this.densityDpi,
-  this.refreshRateHz,
-  this.orientation,
+  final int? widthPx,
+  final int? heightPx,
+  final int? densityDpi,
+  final double? refreshRateHz,
+  final DisplayOrientation? orientation,
 }) {
-  final int? widthPx;
-  final int? heightPx;
-  final int? densityDpi;
-  final double? refreshRateHz;
-  final DisplayOrientation? orientation;
-
   bool get isEmpty =>
       widthPx == null &&
       heightPx == null &&
@@ -103,16 +79,11 @@ class const DeviceDisplayInfo({
 }
 
 class const DeviceConnectivityInfo({
-  this.usbConnected,
-  this.wifiEnabled,
-  this.bluetoothEnabled,
-  this.ipAddress,
+  final bool? usbConnected,
+  final bool? wifiEnabled,
+  final bool? bluetoothEnabled,
+  final String? ipAddress,
 }) {
-  final bool? usbConnected;
-  final bool? wifiEnabled;
-  final bool? bluetoothEnabled;
-  final String? ipAddress;
-
   bool get isEmpty =>
       usbConnected == null &&
       wifiEnabled == null &&
@@ -121,20 +92,13 @@ class const DeviceConnectivityInfo({
 }
 
 class const DeviceCellularInfo({
-  this.carrierName,
-  this.simOperatorName,
-  this.networkType,
-  this.simState,
-  this.mcc,
-  this.mnc,
+  final String? carrierName,
+  final String? simOperatorName,
+  final String? networkType,
+  final String? simState,
+  final String? mcc,
+  final String? mnc,
 }) {
-  final String? carrierName;
-  final String? simOperatorName;
-  final String? networkType;
-  final String? simState;
-  final String? mcc;
-  final String? mnc;
-
   bool get isEmpty =>
       carrierName == null &&
       simOperatorName == null &&
@@ -145,24 +109,19 @@ class const DeviceCellularInfo({
 }
 
 class const DeviceDeveloperStateInfo({
-  this.developerModeEnabled,
-  this.adbEnabled,
-  this.debuggingReady,
-  this.pairingState,
-}) {
   /// Android only — `Settings > Developer options` master toggle.
-  final bool? developerModeEnabled;
+  final bool? developerModeEnabled,
 
   /// Android only — the `adb_enabled` system setting.
-  final bool? adbEnabled;
+  final bool? adbEnabled,
 
   /// Both platforms — whether this device is currently reachable for
   /// debugging (adb `device` status / idevice pairing+trust).
-  final bool? debuggingReady;
+  final bool? debuggingReady,
 
   /// iOS only — human-readable pairing/trust state (e.g. "Paired", "Locked").
-  final String? pairingState;
-
+  final String? pairingState,
+}) {
   bool get isEmpty =>
       developerModeEnabled == null &&
       adbEnabled == null &&
@@ -171,19 +130,14 @@ class const DeviceDeveloperStateInfo({
 }
 
 class const DeviceSoftwareInfo({
-  this.sdkLevel,
-  this.securityPatch,
-  this.locale,
-  this.timeZone,
+  /// Android only.
+  final int? sdkLevel,
+
+  /// Android only.
+  final String? securityPatch,
+  final String? locale,
+  final String? timeZone,
 }) {
-  /// Android only.
-  final int? sdkLevel;
-
-  /// Android only.
-  final String? securityPatch;
-  final String? locale;
-  final String? timeZone;
-
   bool get isEmpty =>
       sdkLevel == null &&
       securityPatch == null &&
@@ -192,24 +146,16 @@ class const DeviceSoftwareInfo({
 }
 
 class const DeviceInfo({
-  this.identity = const DeviceIdentityInfo(),
-  this.battery = const DeviceBatteryInfo(),
-  this.storage = const DeviceStorageInfo(),
-  this.display = const DeviceDisplayInfo(),
-  this.connectivity = const DeviceConnectivityInfo(),
-  this.cellular = const DeviceCellularInfo(),
-  this.developerState = const DeviceDeveloperStateInfo(),
-  this.software = const DeviceSoftwareInfo(),
+  final DeviceIdentityInfo identity = const DeviceIdentityInfo(),
+  final DeviceBatteryInfo battery = const DeviceBatteryInfo(),
+  final DeviceStorageInfo storage = const DeviceStorageInfo(),
+  final DeviceDisplayInfo display = const DeviceDisplayInfo(),
+  final DeviceConnectivityInfo connectivity = const DeviceConnectivityInfo(),
+  final DeviceCellularInfo cellular = const DeviceCellularInfo(),
+  final DeviceDeveloperStateInfo developerState =
+      const DeviceDeveloperStateInfo(),
+  final DeviceSoftwareInfo software = const DeviceSoftwareInfo(),
 }) {
-  final DeviceIdentityInfo identity;
-  final DeviceBatteryInfo battery;
-  final DeviceStorageInfo storage;
-  final DeviceDisplayInfo display;
-  final DeviceConnectivityInfo connectivity;
-  final DeviceCellularInfo cellular;
-  final DeviceDeveloperStateInfo developerState;
-  final DeviceSoftwareInfo software;
-
   bool get isEmpty =>
       identity.isEmpty &&
       battery.isEmpty &&

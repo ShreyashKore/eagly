@@ -8,9 +8,9 @@ import '../../utils/tools_path.dart';
 import '../../utils/log_entry_utils.dart';
 
 class const ToolCommandResult({
-  required this.exitCode,
-  required this.stdout,
-  required this.stderr,
+  required final int exitCode,
+  required final String stdout,
+  required final String stderr,
 }) {
   factory ToolCommandResult.fromProcessResult(ProcessResult result) {
     return ToolCommandResult(
@@ -19,10 +19,6 @@ class const ToolCommandResult({
       stderr: result.stderr is String ? result.stderr as String : '',
     );
   }
-
-  final int exitCode;
-  final String stdout;
-  final String stderr;
 
   bool get isSuccess => exitCode == 0;
 
@@ -36,15 +32,15 @@ class const ToolCommandResult({
   }
 }
 
-class ToolStreamSession<T>({required this.stream, required this._onStop}) {
-  final Stream<T> stream;
-  final Future<void> Function() _onStop;
-
+class ToolStreamSession<T>({
+  required final Stream<T> stream,
+  required final Future<void> Function() _onStop,
+}) {
   Future<void> stop() => _onStop();
 }
 
 abstract class ToolProcessRunner({
-  required this.executableName,
+  required final String executableName,
   String? executablePath,
 }) {
   this
@@ -55,7 +51,6 @@ abstract class ToolProcessRunner({
     logger = AppLogger(source: runtimeType.toString());
   }
 
-  final String executableName;
   final String executable;
 
   late final AppLogger logger;

@@ -4,12 +4,9 @@ import 'package:flutter/material.dart';
 /// while fading and scaling up, so a newly connected device slides into place.
 class const EntranceReveal({
   super.key,
-  required this.animation,
-  required this.child,
+  required final Animation<double> animation,
+  required final Widget child,
 }) extends StatelessWidget {
-  final Animation<double> animation;
-  final Widget child;
-
   @override
   Widget build(BuildContext context) {
     final eased = CurvedAnimation(

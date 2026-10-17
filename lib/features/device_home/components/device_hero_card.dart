@@ -15,14 +15,10 @@ import '../../../presentation/theme/app_theme.dart';
 /// work with, and the one action most sessions start with (install a build).
 class const DeviceHeroCard({
   super.key,
-  required this.session,
-  required this.homeController,
-  required this.info,
+  required final DeviceSessionController session,
+  required final DeviceHomeController homeController,
+  required final DeviceInfo info,
 }) extends StatelessWidget {
-  final DeviceSessionController session;
-  final DeviceHomeController homeController;
-  final DeviceInfo info;
-
   Future<void> _install(BuildContext context) async {
     final result = await session.installAppFromPicker();
     if (!context.mounted || result.cancelled) return;
@@ -122,9 +118,8 @@ class const DeviceHeroCard({
   }
 }
 
-class const _PlatformBadge({required this.device}) extends StatelessWidget {
-  final Device device;
-
+class const _PlatformBadge({required final Device device})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -153,11 +148,10 @@ class const _PlatformBadge({required this.device}) extends StatelessWidget {
   }
 }
 
-class const _InstallAction({required this.session, required this.onInstall})
-    extends StatelessWidget {
-  final DeviceSessionController session;
-  final VoidCallback onInstall;
-
+class const _InstallAction({
+  required final DeviceSessionController session,
+  required final VoidCallback onInstall,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

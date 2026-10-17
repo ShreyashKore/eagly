@@ -17,10 +17,10 @@ String get _filterShortcutLabel =>
 /// The bar's type-to-filter field: the active filters as pills, then the
 /// text input, with the "Filter by…" menu ([FilterMenu]) under it while it
 /// has focus.
-class const LogFilterField({super.key, required this.controller})
-    extends StatefulWidget {
-  final LogFilterController controller;
-
+class const LogFilterField({
+  super.key,
+  required final LogFilterController controller,
+}) extends StatefulWidget {
   @override
   State<LogFilterField> createState() => _LogFilterFieldState();
 }
@@ -349,10 +349,8 @@ class _LogFilterFieldState extends State<LogFilterField> {
 /// The field's "Clear filters" ×, a fixed 28 px. An [IconButton]
 /// won't do: Material 3 keeps its minimum size over tight constraints, which
 /// stretched the field and pushed the × off its line.
-class const _ClearFiltersButton({required this.onPressed})
+class const _ClearFiltersButton({required final VoidCallback onPressed})
     extends StatelessWidget {
-  final VoidCallback onPressed;
-
   @override
   Widget build(BuildContext context) {
     return Tooltip(

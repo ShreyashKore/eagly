@@ -1,11 +1,7 @@
 class const InstalledAppInfo({
-  required this.packageName,
-  this.appName,
-  this.installTime,
+  required final String packageName,
+  final String? appName,
+  final DateTime? installTime,
 }) {
-  final String packageName;
-  final String? appName;
-  final DateTime? installTime;
-
   String get displayName => appName ?? packageName;
 }

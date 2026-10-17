@@ -9,31 +9,24 @@ import '../../data/models/log_column.dart';
 /// several columns be shown/hidden in one go.
 class const ColumnVisibilityMenu({
   super.key,
-  required this.columns,
-  required this.hiddenColumns,
-  required this.isIos,
-  required this.onChanged,
-  this.rememberForNewTabs = false,
-  this.onRememberForNewTabsChanged,
-}) extends StatefulWidget {
+
   /// Columns offered for toggling, in display order.
-  final List<LogColumn> columns;
+  required final List<LogColumn> columns,
 
   /// Initially hidden column names.
-  final Set<String> hiddenColumns;
-
-  final bool isIos;
+  required final Set<String> hiddenColumns,
+  required final bool isIos,
 
   /// Called with the full hidden-column set on every toggle.
-  final ValueChanged<Set<String>> onChanged;
+  required final ValueChanged<Set<String>> onChanged,
 
   /// Initial state of the trailing "Use for new tabs" row — whether toggles
   /// are saved as the default for new tabs.
-  final bool rememberForNewTabs;
+  final bool rememberForNewTabs = false,
 
   /// Called when that row is toggled. The row is only shown when this is set.
-  final ValueChanged<bool>? onRememberForNewTabsChanged;
-
+  final ValueChanged<bool>? onRememberForNewTabsChanged,
+}) extends StatefulWidget {
   @override
   State<ColumnVisibilityMenu> createState() => _ColumnVisibilityMenuState();
 }
@@ -89,16 +82,11 @@ class _ColumnVisibilityMenuState extends State<ColumnVisibilityMenu> {
 
 /// One tappable checkbox row; the row, not the checkbox, handles the tap.
 class const _CheckRow({
-  required this.label,
-  required this.value,
-  required this.style,
-  required this.onTap,
+  required final String label,
+  required final bool value,
+  required final TextStyle? style,
+  required final VoidCallback onTap,
 }) extends StatelessWidget {
-  final String label;
-  final bool value;
-  final TextStyle? style;
-  final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     return InkWell(

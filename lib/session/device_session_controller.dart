@@ -22,16 +22,11 @@ import 'workspace_layout.dart';
 /// files were copied (into [copyDirectory]) and any per-item [errors]. Build a
 /// user-facing string from [message].
 class const DropHandlingResult({
-  this.installed = const [],
-  this.copied = const [],
-  this.copyDirectory,
-  this.errors = const [],
+  final List<String> installed = const [],
+  final List<String> copied = const [],
+  final String? copyDirectory,
+  final List<String> errors = const [],
 }) {
-  final List<String> installed;
-  final List<String> copied;
-  final String? copyDirectory;
-  final List<String> errors;
-
   /// A single status line summarising the drop, or `null` when nothing
   /// happened (e.g. an empty drop).
   String? get message {
@@ -61,10 +56,12 @@ class const DropHandlingResult({
 /// controllers. It does not own feature state — that lives in the feature
 /// controllers.
 class DeviceSessionController._({
-  required Device device,
+  required var Device _device,
   DeviceSessionRepository? service,
   WorkspaceLayoutMemory? layoutMemory,
-  this.isImportedWorkspace = false,
+
+  /// True for the synthetic workspace that only shows imported log files.
+  final bool isImportedWorkspace = false,
 }) extends ChangeNotifier {
   DeviceSessionController({
     required Device device,
@@ -81,17 +78,12 @@ class DeviceSessionController._({
   }) : this._(device: device, service: service, isImportedWorkspace: true);
 
   this
-    : _device = device,
-      service = service ?? DeviceSessionRepository(device: device),
+    : service = service ?? DeviceSessionRepository(device: _device),
       workspaceLayout = WorkspaceLayout(memory: layoutMemory) {
-    this.service.sessionLabel = device.id;
+    this.service.sessionLabel = _device.id;
     workspaceLayout.addListener(_handleWorkspaceChanged);
   }
 
-  /// True for the synthetic workspace that only shows imported log files.
-  final bool isImportedWorkspace;
-
-  Device _device;
   final DeviceSessionRepository service;
 
   /// Which feature panes are open and how they are arranged — split,

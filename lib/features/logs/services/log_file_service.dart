@@ -9,14 +9,10 @@ import 'log_formats/log_formats.dart';
 import '../../../services/preferences_service.dart';
 
 class const LogExportResult({
-  this.fileName,
-  this.error,
-  this.cancelled = false,
+  final String? fileName,
+  final String? error,
+  final bool cancelled = false,
 }) {
-  final String? fileName;
-  final String? error;
-  final bool cancelled;
-
   bool get isSuccess => !cancelled && error == null;
 
   factory LogExportResult.success({required String fileName}) {
@@ -33,21 +29,15 @@ class const LogExportResult({
 }
 
 class const LogImportResult({
-  this.logs,
-  this.fileName,
-  this.filePath,
-  this.error,
-  this.cancelled = false,
-}) {
-  final List<LogEntry>? logs;
-  final String? fileName;
+  final List<LogEntry>? logs,
+  final String? fileName,
 
   /// Absolute path of the imported file, when known. Used to record the file
   /// in the recent-files list for quick re-open.
-  final String? filePath;
-  final String? error;
-  final bool cancelled;
-
+  final String? filePath,
+  final String? error,
+  final bool cancelled = false,
+}) {
   bool get isSuccess => !cancelled && error == null && logs != null;
 
   factory LogImportResult.success({

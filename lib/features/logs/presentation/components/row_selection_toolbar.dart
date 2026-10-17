@@ -4,12 +4,9 @@ import 'package:flutter/material.dart';
 /// selected: the selection count plus a Clear button.
 class const RowSelectionToolbar({
   super.key,
-  required this.selectedCount,
-  required this.onClear,
+  required final int selectedCount,
+  required final VoidCallback? onClear,
 }) extends StatelessWidget {
-  final int selectedCount;
-  final VoidCallback? onClear;
-
   @override
   Widget build(BuildContext context) {
     final count = selectedCount;

@@ -6,14 +6,14 @@ import 'log_tab_chip.dart';
 
 /// Horizontally scrolling strip of log tabs, with a trailing "+" button for
 /// new live tabs (or imports, in the imports-only workspace).
-class const LogTabStrip({super.key, required this.logManager, this.onImportLog})
-    extends StatefulWidget {
-  final LogSessionManager logManager;
+class const LogTabStrip({
+  super.key,
+  required final LogSessionManager logManager,
 
   /// Used by the trailing "+" button in the imports-only workspace, where new
   /// tabs come from importing a file rather than starting a live capture.
-  final VoidCallback? onImportLog;
-
+  final VoidCallback? onImportLog,
+}) extends StatefulWidget {
   @override
   State<LogTabStrip> createState() => _LogTabStripState();
 }

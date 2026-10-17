@@ -5,18 +5,12 @@ import 'package:gap/gap.dart';
 /// primary color so an available update reads as a gentle call to action.
 class const UpdatePill({
   super.key,
-  required this.label,
-  required this.tooltip,
-  this.icon,
-  this.busy = false,
-  this.onTap,
+  required final String label,
+  required final String tooltip,
+  final IconData? icon,
+  final bool busy = false,
+  final VoidCallback? onTap,
 }) extends StatefulWidget {
-  final String label;
-  final String tooltip;
-  final IconData? icon;
-  final bool busy;
-  final VoidCallback? onTap;
-
   @override
   State<UpdatePill> createState() => _UpdatePillState();
 }

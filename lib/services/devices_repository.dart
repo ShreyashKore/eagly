@@ -24,8 +24,11 @@ typedef AndroidMarketingNameLookup = Future<String?> Function({
 class DevicesRepository._({
   AdbTool? adbTool,
   IosDeviceService? iosDeviceService,
-  this._androidMarketingName,
-  this._androidMarketingNamesChanged,
+  final AndroidMarketingNameLookup? _androidMarketingName,
+
+  /// Fires when the marketing-name list arrives after devices were already
+  /// described without it.
+  final Listenable? _androidMarketingNamesChanged,
 }) extends ChangeNotifier {
   this
     : _adbTool = adbTool ?? AdbTool(),
@@ -65,11 +68,6 @@ class DevicesRepository._({
 
   final AdbTool _adbTool;
   final IosDeviceService _iosDeviceService;
-  final AndroidMarketingNameLookup? _androidMarketingName;
-
-  /// Fires when the marketing-name list arrives after devices were already
-  /// described without it.
-  final Listenable? _androidMarketingNamesChanged;
   final AppLogger _logger = AppLogger(source: 'DevicesRepository');
   final Map<String, _CachedAndroidDeviceDescription> _androidDescriptionCache =
       {};
@@ -555,16 +553,11 @@ class DevicesRepository._({
 }
 
 class const _CachedAndroidDeviceDescription({
-  this.brand,
-  this.model,
-  this.name,
-  this.serialNumber,
+  final String? brand,
+  final String? model,
+  final String? name,
+  final String? serialNumber,
 }) {
-  final String? brand;
-  final String? model;
-  final String? name;
-  final String? serialNumber;
-
   Device applyTo(Device device) {
     Device enriched = device.copyWith(
       brand: brand ?? device.brand,
@@ -578,10 +571,10 @@ class const _CachedAndroidDeviceDescription({
   }
 }
 
-class const _CachedIosDeviceDescription({this.name, this.model}) {
-  final String? name;
-  final String? model;
-
+class const _CachedIosDeviceDescription({
+  final String? name,
+  final String? model,
+}) {
   Device toIosDevice(String deviceId) {
     return Device.ios(
       deviceId,

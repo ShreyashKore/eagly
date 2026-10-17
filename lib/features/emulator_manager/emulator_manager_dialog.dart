@@ -38,12 +38,8 @@ Future<void> showEmulatorManagerDialog({
 /// dialog and not an error.
 class const EmulatorManagerDialog({
   super.key,
-  required this.manager,
-  required this.onShowSnackBar,
-  this.createController,
-}) extends StatefulWidget {
-  final DeviceSessionManager manager;
-  final ValueChanged<String> onShowSnackBar;
+  required final DeviceSessionManager manager,
+  required final ValueChanged<String> onShowSnackBar,
 
   /// Overrides how the controller is built, handing the builder the dialog's
   /// own "an emulator booted" callback so that path stays wired.
@@ -55,8 +51,8 @@ class const EmulatorManagerDialog({
   final EmulatorManagerController Function(
     Future<void> Function(Device device) onEmulatorReady,
   )?
-  createController;
-
+  createController,
+}) extends StatefulWidget {
   @override
   State<EmulatorManagerDialog> createState() => _EmulatorManagerDialogState();
 }

@@ -83,41 +83,30 @@ List<Widget> buildFilterPills(
 /// whole sentence. Clicking it opens [editorBuilder] in a popover underneath.
 class const _FilterPill({
   super.key,
-  required this.fieldLabel,
-  required this.operatorLabel,
-  required this.description,
-  required this.value,
-  required this.onRemove,
-  required this.onEditorClosed,
-  required this.editorBuilder,
-  this.negated = false,
-  this.armed = false,
-  this.error,
-  this.openOnMount = false,
-}) extends StatefulWidget {
-  final String fieldLabel;
+  required final String fieldLabel,
 
   /// The operator's short form, for the label line.
-  final String operatorLabel;
+  required final String operatorLabel,
 
   /// The filter as a sentence ("Tag does not contain Chatty"), which is what
   /// assistive technology reads for the chip.
-  final String description;
+  required final String description,
 
   /// Blank while the pill is a draft.
-  final String value;
-  final bool negated;
+  required final String value,
+  required final VoidCallback onRemove,
+  required final VoidCallback onEditorClosed,
+  required final Widget Function(BuildContext context, VoidCallback close)
+  editorBuilder,
+  final bool negated = false,
 
   /// Marked by a first Backspace in the filter field: the next one removes it.
-  final bool armed;
+  final bool armed = false,
 
   /// Why the pill doesn't filter the way it reads, if it doesn't.
-  final String? error;
-  final bool openOnMount;
-  final VoidCallback onRemove;
-  final VoidCallback onEditorClosed;
-  final Widget Function(BuildContext context, VoidCallback close) editorBuilder;
-
+  final String? error,
+  final bool openOnMount = false,
+}) extends StatefulWidget {
   @override
   State<_FilterPill> createState() => _FilterPillState();
 }

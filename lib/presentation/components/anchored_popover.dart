@@ -43,24 +43,17 @@ class PopoverController extends ChangeNotifier {
 /// card.
 class const AnchoredPopover({
   super.key,
-  required this.controller,
-  required this.popoverBuilder,
-  required this.child,
-  this.width = 300,
-  this.onClosed,
-  this.tapGroupId,
-}) extends StatefulWidget {
-  final PopoverController controller;
-  final WidgetBuilder popoverBuilder;
-  final Widget child;
-  final double width;
-  final VoidCallback? onClosed;
+  required final PopoverController controller,
+  required final WidgetBuilder popoverBuilder,
+  required final Widget child,
+  final double width = 300,
+  final VoidCallback? onClosed,
 
   /// The [TapRegion] group the anchor and card share. Pass the same object as
   /// a text field's `groupId` inside the anchor so a click in the card doesn't
   /// take the field's focus.
-  final Object? tapGroupId;
-
+  final Object? tapGroupId,
+}) extends StatefulWidget {
   /// A text field `contextMenuBuilder` for fields in a card or its anchor.
   ///
   /// The default right-click menu sits in the root overlay, outside every
@@ -91,10 +84,10 @@ class const AnchoredPopover({
 }
 
 /// Tells [AnchoredPopover.textContextMenuBuilder] which card a field is in.
-class const _PopoverTapGroup({required this.groupId, required super.child})
-    extends InheritedWidget {
-  final Object groupId;
-
+class const _PopoverTapGroup({
+  required final Object groupId,
+  required super.child,
+}) extends InheritedWidget {
   @override
   bool updateShouldNotify(_PopoverTapGroup oldWidget) =>
       groupId != oldWidget.groupId;
@@ -212,11 +205,10 @@ class _AnchoredPopoverState extends State<AnchoredPopover> {
 /// Puts the card [gap] below [anchor], left-aligned with it — or right-aligned
 /// when that would run off the overlay — and caps its height to the room left
 /// below.
-class const _PopoverLayout({required this.anchor, required this.width})
-    extends SingleChildLayoutDelegate {
-  final Rect anchor;
-  final double width;
-
+class const _PopoverLayout({
+  required final Rect anchor,
+  required final double width,
+}) extends SingleChildLayoutDelegate {
   static const double gap = 6;
   static const double margin = 8;
 

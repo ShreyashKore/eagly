@@ -28,23 +28,17 @@ enum EmulatorTileAction {
 /// press, and a disabled Stop invites clicking at it repeatedly.
 class const EmulatorTile({
   super.key,
-  required this.entry,
-  required this.onAction,
-  required this.onStop,
-  this.enabled = true,
-  this.canDelete = false,
-}) extends StatelessWidget {
-  final EmulatorEntry entry;
-  final ValueChanged<EmulatorTileAction> onAction;
-  final VoidCallback onStop;
+  required final EmulatorEntry entry,
+  required final ValueChanged<EmulatorTileAction> onAction,
+  required final VoidCallback onStop,
 
   /// False while another emulator action is in flight.
-  final bool enabled;
+  final bool enabled = true,
 
   /// Whether this SDK has the cmdline-tools that can delete an AVD. Hidden
   /// rather than disabled: an action that can never work here is noise.
-  final bool canDelete;
-
+  final bool canDelete = false,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -204,9 +198,8 @@ class const EmulatorTile({
   }
 }
 
-class const _PendingAction({required this.label}) extends StatelessWidget {
-  final String label;
-
+class const _PendingAction({required final String label})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -232,12 +225,11 @@ class const _PendingAction({required this.label}) extends StatelessWidget {
   }
 }
 
-class const _MenuRow(this.icon, this.label, this.subtitle)
-    extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String subtitle;
-
+class const _MenuRow(
+  final IconData icon,
+  final String label,
+  final String subtitle,
+) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

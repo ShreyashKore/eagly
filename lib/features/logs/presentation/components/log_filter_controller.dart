@@ -10,18 +10,12 @@ import '../../data/models/log_level.dart';
 /// lazily (only while a bar builds its suggestions) so the owner can back them
 /// with live, cached data without paying a per-frame cost.
 class const LogFilterSuggestions({
-  required this.recentMessageFilters,
-  required this.recentPackageFilters,
-  required this.knownPackageFilters,
-  required this.recentPidTidFilters,
-  required this.recentTagFilters,
+  required final ValueGetter<List<String>> recentMessageFilters,
+  required final ValueGetter<List<String>> recentPackageFilters,
+  required final ValueGetter<List<String>> knownPackageFilters,
+  required final ValueGetter<List<String>> recentPidTidFilters,
+  required final ValueGetter<List<String>> recentTagFilters,
 }) {
-  final ValueGetter<List<String>> recentMessageFilters;
-  final ValueGetter<List<String>> recentPackageFilters;
-  final ValueGetter<List<String>> knownPackageFilters;
-  final ValueGetter<List<String>> recentPidTidFilters;
-  final ValueGetter<List<String>> recentTagFilters;
-
   static final LogFilterSuggestions empty = LogFilterSuggestions(
     recentMessageFilters: () => const [],
     recentPackageFilters: () => const [],
@@ -42,27 +36,23 @@ class const LogFilterSuggestions({
 /// with [updateState] (which never re-emits, avoiding feedback loops).
 class LogFilterController({
   required LogFilters initialState,
-  required this.suggestions,
-  required this.onStateChanged,
-  required this.isIos,
-  this.debounce = const Duration(milliseconds: 300),
+
+  /// Suggestion sources, pulled lazily while building suggestions.
+  required final LogFilterSuggestions suggestions,
+
+  /// Invoked with the updated filter state whenever the user edits (debounced)
+  /// or an immediate apply is requested.
+  required final ValueChanged<LogFilters> onStateChanged,
+
+  /// Whether the hosting device is iOS (drives level labels + key names).
+  required final bool isIos,
+
+  /// Debounce applied to user edits before [onStateChanged] fires.
+  final Duration debounce = const Duration(milliseconds: 300),
 }) extends ChangeNotifier {
   this : _state = initialState {
     _syncPills();
   }
-
-  /// Suggestion sources, pulled lazily while building suggestions.
-  final LogFilterSuggestions suggestions;
-
-  /// Invoked with the updated filter state whenever the user edits (debounced)
-  /// or an immediate apply is requested.
-  final ValueChanged<LogFilters> onStateChanged;
-
-  /// Debounce applied to user edits before [onStateChanged] fires.
-  final Duration debounce;
-
-  /// Whether the hosting device is iOS (drives level labels + key names).
-  final bool isIos;
 
   LogFilters _state;
   LogFilters get state => _state;

@@ -17,24 +17,17 @@ import 'components/recent_files_list.dart';
 /// device to open its tab.
 class const HomeView({
   super.key,
-  required this.manager,
-  required this.onShowWireless,
-  required this.onShowEmulators,
-  required this.onShowMessage,
-  required this.onImportLog,
-  required this.onOpenRecent,
-}) extends StatelessWidget {
-  final DeviceSessionManager manager;
-  final VoidCallback onShowWireless;
-  final VoidCallback onShowEmulators;
-  final ValueChanged<String> onShowMessage;
+  required final DeviceSessionManager manager,
+  required final VoidCallback onShowWireless,
+  required final VoidCallback onShowEmulators,
+  required final ValueChanged<String> onShowMessage,
 
   /// Opens a log file via the system picker (no device required).
-  final VoidCallback onImportLog;
+  required final VoidCallback onImportLog,
 
   /// Re-opens a previously imported log file by its absolute [path].
-  final ValueChanged<String> onOpenRecent;
-
+  required final ValueChanged<String> onOpenRecent,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

@@ -25,12 +25,9 @@ import '../../presentation/theme/app_theme.dart';
 /// and because the code is what most users actually want to see first.
 class const WirelessConnectionDialog({
   super.key,
-  required this.manager,
-  required this.onShowSnackBar,
+  required final DeviceSessionManager manager,
+  required final ValueChanged<String> onShowSnackBar,
 }) extends StatefulWidget {
-  final DeviceSessionManager manager;
-  final ValueChanged<String> onShowSnackBar;
-
   @override
   State<WirelessConnectionDialog> createState() =>
       _WirelessConnectionDialogState();

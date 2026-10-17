@@ -26,14 +26,10 @@ import 'log_lines_limit_editor.dart';
 /// in a narrow pane rather than dropping readouts (see [FeatureStatusBar]).
 class const LogStatusBar({
   super.key,
-  required this.controller,
-  required this.appMemoryBytes,
-  required this.deviceDisplayName,
+  required final LogController controller,
+  required final int appMemoryBytes,
+  required final String deviceDisplayName,
 }) extends StatelessWidget {
-  final LogController controller;
-  final int appMemoryBytes;
-  final String deviceDisplayName;
-
   @override
   Widget build(BuildContext context) {
     final theme = context.eaglyTheme;

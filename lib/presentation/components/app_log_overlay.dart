@@ -28,16 +28,11 @@ Future<void> showAppLogDialog(
 
 class const AppLogTriggerButton({
   super.key,
-  this.sessionTag,
-  required this.title,
-  required this.tooltip,
-  this.iconSize = 15,
+  final String? sessionTag,
+  required final String title,
+  required final String tooltip,
+  final double iconSize = 15,
 }) extends StatelessWidget {
-  final String? sessionTag;
-  final String title;
-  final String tooltip;
-  final double iconSize;
-
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -102,14 +97,10 @@ class const AppLogTriggerButton({
 
 class const AppLogPanel({
   super.key,
-  this.sessionTag,
-  required this.title,
-  this.allowClear = false,
+  final String? sessionTag,
+  required final String title,
+  final bool allowClear = false,
 }) extends StatefulWidget {
-  final String? sessionTag;
-  final String title;
-  final bool allowClear;
-
   @override
   State<AppLogPanel> createState() => _AppLogPanelState();
 }
@@ -296,16 +287,11 @@ class _AppLogPanelState extends State<AppLogPanel> {
 }
 
 class const _HeaderButton({
-  required this.icon,
-  required this.tooltip,
-  required this.onTap,
-  this.label,
+  required final IconData icon,
+  required final String tooltip,
+  required final VoidCallback onTap,
+  final String? label,
 }) extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  final String? label;
-
   @override
   Widget build(BuildContext context) {
     return Tooltip(
@@ -341,11 +327,10 @@ class const _HeaderButton({
   }
 }
 
-class const _LogEntryRow({required this.entry, required this.showSessionTag})
-    extends StatelessWidget {
-  final AppLogEntry entry;
-  final bool showSessionTag;
-
+class const _LogEntryRow({
+  required final AppLogEntry entry,
+  required final bool showSessionTag,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

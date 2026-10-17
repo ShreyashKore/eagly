@@ -19,18 +19,12 @@ import 'window_controls.dart';
 /// link.
 class const AppHeader({
   super.key,
-  required this.manager,
-  required this.tipsController,
-  required this.onOpenSettings,
-  required this.onShowWireless,
-  required this.onShowEmulators,
+  required final DeviceSessionManager manager,
+  required final TipsController tipsController,
+  required final VoidCallback onOpenSettings,
+  required final VoidCallback onShowWireless,
+  required final VoidCallback onShowEmulators,
 }) extends StatelessWidget {
-  final DeviceSessionManager manager;
-  final TipsController tipsController;
-  final VoidCallback onOpenSettings;
-  final VoidCallback onShowWireless;
-  final VoidCallback onShowEmulators;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

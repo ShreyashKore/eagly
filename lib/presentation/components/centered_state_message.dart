@@ -3,16 +3,11 @@ import 'package:gap/gap.dart';
 
 class const CenteredStateMessage({
   super.key,
-  required this.icon,
-  required this.title,
-  required this.description,
-  this.footer,
+  required final IconData icon,
+  required final String title,
+  required final String description,
+  final Widget? footer,
 }) extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String description;
-  final Widget? footer;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

@@ -8,16 +8,16 @@ import '../features/logs/log_controller.dart' show LogcatState;
 /// equality). That lets the menu bar rebuild — and stay reactive to app state —
 /// without closing the open native menu on every unrelated notification.
 class const AppMenuState({
-  required this.hasActiveLog,
-  required this.isImported,
-  required this.deviceConnected,
-  required this.logcatState,
-  required this.hasLogs,
-  required this.isIos,
-  required this.selectedLogLevel,
-  required this.wrapText,
-  required this.autoScroll,
-  required this.searchBarVisible,
+  required final bool hasActiveLog,
+  required final bool isImported,
+  required final bool deviceConnected,
+  required final LogcatState logcatState,
+  required final bool hasLogs,
+  required final bool isIos,
+  required final LogLevel? selectedLogLevel,
+  required final bool wrapText,
+  required final bool autoScroll,
+  required final bool searchBarVisible,
 }) {
   /// State when no device is selected (Home screen / no active log tab).
   static const empty = AppMenuState(
@@ -32,17 +32,6 @@ class const AppMenuState({
     autoScroll: false,
     searchBarVisible: false,
   );
-
-  final bool hasActiveLog;
-  final bool isImported;
-  final bool deviceConnected;
-  final LogcatState logcatState;
-  final bool hasLogs;
-  final bool isIos;
-  final LogLevel? selectedLogLevel;
-  final bool wrapText;
-  final bool autoScroll;
-  final bool searchBarVisible;
 
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;

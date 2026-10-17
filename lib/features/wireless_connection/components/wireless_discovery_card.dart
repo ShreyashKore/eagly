@@ -7,14 +7,10 @@ import '../../../presentation/theme/app_theme.dart';
 /// Selectable card summarizing one discovered wireless ADB device.
 class const WirelessDiscoveryCard({
   super.key,
-  required this.target,
-  required this.selected,
-  required this.onTap,
+  required final DiscoveredWirelessTarget target,
+  required final bool selected,
+  required final VoidCallback onTap,
 }) extends StatelessWidget {
-  final DiscoveredWirelessTarget target;
-  final bool selected;
-  final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

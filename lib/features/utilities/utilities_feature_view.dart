@@ -24,11 +24,9 @@ import 'utility_runner.dart';
 /// under the search box explaining them.
 class const UtilitiesFeatureView({
   super.key,
-  required this.controller,
+  required final UtilitiesController controller,
   required super.onClose,
 }) extends FeatureView {
-  final UtilitiesController controller;
-
   @override
   State<UtilitiesFeatureView> createState() => _UtilitiesFeatureViewState();
 }
@@ -195,14 +193,10 @@ class const _Legend() extends StatelessWidget {
 }
 
 class const _LegendItem({
-  required this.icon,
-  required this.label,
-  required this.color,
+  required final IconData icon,
+  required final String label,
+  required final Color color,
 }) extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -257,16 +251,11 @@ class const _DisconnectedNotice() extends StatelessWidget {
 }
 
 class const _GroupHeader({
-  required this.title,
-  required this.icon,
-  required this.count,
-  required this.isFirst,
+  required final String title,
+  required final IconData icon,
+  required final int count,
+  required final bool isFirst,
 }) extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final int count;
-  final bool isFirst;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -307,14 +296,10 @@ class const _GroupHeader({
 }
 
 class const _SearchField({
-  required this.controller,
-  required this.onChanged,
-  required this.onClear,
+  required final TextEditingController controller,
+  required final ValueChanged<String> onChanged,
+  required final VoidCallback? onClear,
 }) extends StatelessWidget {
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final VoidCallback? onClear;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

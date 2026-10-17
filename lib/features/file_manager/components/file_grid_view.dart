@@ -10,12 +10,9 @@ import '../../../presentation/theme/app_theme.dart';
 /// double tap opens a directory, right-click shows the context menu.
 class const FileGridView({
   super.key,
-  required this.controller,
-  required this.actions,
+  required final FileManagerController controller,
+  required final FileManagerActions actions,
 }) extends StatelessWidget {
-  final FileManagerController controller;
-  final FileManagerActions actions;
-
   static const double _iconSize = 40;
   static const EdgeInsets _tilePadding = EdgeInsets.symmetric(
     horizontal: 8,
@@ -75,14 +72,10 @@ class const FileGridView({
 }
 
 class const _GridTile({
-  required this.controller,
-  required this.entry,
-  required this.actions,
+  required final FileManagerController controller,
+  required final DeviceFileEntry entry,
+  required final FileManagerActions actions,
 }) extends StatelessWidget {
-  final FileManagerController controller;
-  final DeviceFileEntry entry;
-  final FileManagerActions actions;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

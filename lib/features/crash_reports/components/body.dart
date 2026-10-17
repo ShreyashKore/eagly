@@ -5,10 +5,8 @@ import '../crash_report_controller.dart';
 import 'crash_report_detail.dart';
 import 'crash_report_list.dart';
 
-class const Body({super.key, required this.controller})
+class const Body({super.key, required final CrashReportController controller})
     extends StatelessWidget {
-  final CrashReportController controller;
-
   @override
   Widget build(BuildContext context) {
     if (controller.selectedReport != null) {

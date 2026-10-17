@@ -6,30 +6,18 @@ import '../log_viewer_constants.dart';
 
 class const LogViewerHeader({
   super.key,
-  required this.rowSelectionMode,
-  required this.headerStyle,
-  required this.visibleFixedColumns,
-  required this.messageVisible,
-  required this.messageWidth,
-  required this.wrapText,
-  required this.widthOf,
-  required this.onFixedColumnResize,
-  required this.onMessageResize,
-  required this.onShowColumnVisibilityMenu,
-  this.isIos = false,
+  required final bool rowSelectionMode,
+  required final TextStyle headerStyle,
+  required final List<LogColumn> visibleFixedColumns,
+  required final bool messageVisible,
+  required final double messageWidth,
+  required final bool wrapText,
+  required final double Function(LogColumn) widthOf,
+  required final void Function(LogColumn column, double dx) onFixedColumnResize,
+  required final ValueChanged<double> onMessageResize,
+  required final ValueChanged<Offset> onShowColumnVisibilityMenu,
+  final bool isIos = false,
 }) extends StatelessWidget {
-  final bool rowSelectionMode;
-  final TextStyle headerStyle;
-  final List<LogColumn> visibleFixedColumns;
-  final bool messageVisible;
-  final double messageWidth;
-  final bool wrapText;
-  final double Function(LogColumn) widthOf;
-  final void Function(LogColumn column, double dx) onFixedColumnResize;
-  final ValueChanged<double> onMessageResize;
-  final ValueChanged<Offset> onShowColumnVisibilityMenu;
-  final bool isIos;
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -82,14 +70,10 @@ class const LogViewerHeader({
 }
 
 class const _HeaderCell({
-  required this.text,
-  required this.width,
-  required this.style,
+  required final String text,
+  required final double width,
+  required final TextStyle style,
 }) extends StatelessWidget {
-  final String text;
-  final double width;
-  final TextStyle style;
-
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -105,9 +89,8 @@ class const _HeaderCell({
   }
 }
 
-class const _ColumnDragHandle({required this.onDrag}) extends StatelessWidget {
-  final ValueChanged<double> onDrag;
-
+class const _ColumnDragHandle({required final ValueChanged<double> onDrag})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(

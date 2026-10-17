@@ -11,12 +11,10 @@ import 'crash_report_controller.dart';
 /// the device screen).
 class const CrashReportFeatureView({
   super.key,
-  required this.controller,
+  required final CrashReportController controller,
   required VoidCallback onClose,
 }) extends FeatureView {
   this : super(onClose: onClose);
-
-  final CrashReportController controller;
 
   @override
   State<CrashReportFeatureView> createState() => _CrashReportFeatureViewState();

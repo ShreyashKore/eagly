@@ -70,10 +70,8 @@ InputDecoration bareFilterInputDecoration({
 );
 
 /// A small outlined keyboard shortcut, e.g. `⌘F`, shown in an idle control.
-class const FilterKeyHint({super.key, required this.label})
+class const FilterKeyHint({super.key, required final String label})
     extends StatelessWidget {
-  final String label;
-
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -130,24 +128,16 @@ class FilterControlStyle.of(BuildContext context) {
 /// A rounded, filled, icon-and-label button in the filter row.
 class const FilterControlButton({
   super.key,
-  required this.icon,
-  required this.label,
-  required this.onPressed,
-  this.trailing,
-  this.active = false,
-  this.focusNode,
-  this.tooltip,
-}) extends StatefulWidget {
-  final IconData icon;
-  final Widget label;
-  final Widget? trailing;
-  final VoidCallback onPressed;
+  required final IconData icon,
+  required final Widget label,
+  required final VoidCallback onPressed,
+  final Widget? trailing,
 
   /// Tints the border — the control currently has something applied.
-  final bool active;
-  final FocusNode? focusNode;
-  final String? tooltip;
-
+  final bool active = false,
+  final FocusNode? focusNode,
+  final String? tooltip,
+}) extends StatefulWidget {
   @override
   State<FilterControlButton> createState() => _FilterControlButtonState();
 }

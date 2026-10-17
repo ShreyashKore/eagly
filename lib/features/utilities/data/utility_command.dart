@@ -5,24 +5,27 @@ import '../../../data/device.dart';
 /// A bundled CLI a utility can run through, plus the flag that selects a
 /// device on it (`adb -s <serial>` vs. `idevicefoo -u <udid>`). Adding a new
 /// backing tool is a one-line change here — the runner is generic.
-enum UtilityTool(this.executable, this.deviceFlag) {
+enum UtilityTool(
+  final String executable,
+
+  /// Flag that precedes the device identifier for this tool.
+  final String deviceFlag,
+) {
   adb('adb', '-s'),
   ideviceinfo('ideviceinfo', '-u'),
   idevicediagnostics('idevicediagnostics', '-u'),
   idevicename('idevicename', '-u'),
   idevicedate('idevicedate', '-u'),
   idevicepair('idevicepair', '-u'),
-  idevicesetlocation('idevicesetlocation', '-u');
-
-  final String executable;
-
-  /// Flag that precedes the device identifier for this tool.
-  final String deviceFlag;
+  idevicesetlocation('idevicesetlocation', '-u'),
 }
 
 /// One concrete tool invocation: the arguments that follow the device
 /// selector, which the runner prepends.
-class const UtilityInvocation(this.tool, this.arguments) {
+class const UtilityInvocation(
+  final UtilityTool tool,
+  final List<String> arguments,
+) {
   /// `adb -s <id> <arguments>`.
   const UtilityInvocation.adb(List<String> arguments)
     : this(UtilityTool.adb, arguments);
@@ -32,9 +35,6 @@ class const UtilityInvocation(this.tool, this.arguments) {
   /// shell (arguments are passed to the process directly).
   UtilityInvocation.adbShell(String script)
     : this(UtilityTool.adb, ['shell', script]);
-
-  final UtilityTool tool;
-  final List<String> arguments;
 
   /// The command line as shown in the UI (without the device selector, which
   /// is noise for the reader).
@@ -94,20 +94,18 @@ class UtilityParam {
   final String? helperText;
 }
 
-class const UtilityOption(this.value, this.label, {this.description}) {
-  final String value;
-  final String label;
+class const UtilityOption(
+  final String value,
+  final String label, {
 
   /// Optional second line shown under [label] in a suggestion dropdown.
-  final String? description;
-}
+  final String? description,
+});
 
 /// The collected parameter values, read positionally by a command's builder.
 /// Missing keys read as an empty string so a builder can be called with no
 /// values at all to probe platform support (see [UtilityCommand.supports]).
-class const UtilityArgs([this._values = const {}]) {
-  final Map<String, String> _values;
-
+class const UtilityArgs([final Map<String, String> _values = const {}]) {
   String operator [](String key) => (_values[key] ?? '').trim();
 }
 
@@ -120,52 +118,41 @@ class const UtilityArgs([this._values = const {}]) {
 /// platform-agnostic, so adding an iOS counterpart to an Android command means
 /// extending its builder, not touching the controller or the view.
 class const UtilityCommand({
-  required this.id,
-  required this.label,
-  required this.description,
-  required this.icon,
-  required this.build,
-  this.params = const [],
-  this.confirmation,
-  this.expectsOutput = true,
-  this.successMessage,
-  this.packageParamKey,
-  this.systemAppSafe = false,
-}) {
-  final String id;
-  final String label;
+  required final String id,
+  required final String label,
 
   /// One-line explanation shown under [label].
-  final String description;
-  final IconData icon;
-
-  /// Values collected from the user before [build] is called.
-  final List<UtilityParam> params;
+  required final String description,
+  required final IconData icon,
 
   /// Builds the invocation for [device], or `null` when unsupported there.
-  final UtilityInvocation? Function(Device device, UtilityArgs args) build;
+  required final UtilityInvocation? Function(Device device, UtilityArgs args)
+  build,
+
+  /// Values collected from the user before [build] is called.
+  final List<UtilityParam> params = const [],
 
   /// Non-null for utilities that must be confirmed first — the string is the
   /// dialog body.
-  final String? confirmation;
+  final String? confirmation,
 
   /// False for utilities whose point is the side effect, not the output; the
   /// pane then reports [successMessage] instead of an empty output panel.
-  final bool expectsOutput;
-  final String? successMessage;
+  final bool expectsOutput = true,
+  final String? successMessage,
 
   /// The [UtilityParam.key] that takes a package name / bundle id, for
   /// commands aimed at one app. Non-null is what makes a command reachable
   /// from the Apps pane's right-click menu (pre-filled with that app), so
   /// the user never has to type a package name by hand.
-  final String? packageParamKey;
+  final String? packageParamKey,
 
   /// Whether this command may be aimed at a *system* app. Defaults to false:
   /// mutating a preinstalled package's permissions or state can leave the
   /// device unusable, so a command has to opt in — read-only ones do.
   /// Only meaningful together with [packageParamKey].
-  final bool systemAppSafe;
-
+  final bool systemAppSafe = false,
+}) {
   /// True for commands that target a single app, i.e. that the Apps pane can
   /// offer on an app's context menu.
   bool get targetsApp => packageParamKey != null;
@@ -197,41 +184,28 @@ class const UtilityCommand({
 
 /// A titled section of the catalog.
 class const UtilityGroup({
-  required this.id,
-  required this.title,
-  required this.icon,
-  required this.commands,
+  required final String id,
+  required final String title,
+  required final IconData icon,
+  required final List<UtilityCommand> commands,
 }) {
-  final String id;
-  final String title;
-  final IconData icon;
-  final List<UtilityCommand> commands;
-
   UtilityGroup withCommands(List<UtilityCommand> commands) =>
       UtilityGroup(id: id, title: title, icon: icon, commands: commands);
 }
 
 /// The outcome of one run, rendered by the output panel.
 class const UtilityRunResult({
-  required this.commandId,
-  required this.label,
-  required this.commandLine,
-  required this.exitCode,
-  required this.output,
-  required this.finishedAt,
-  this.failure,
-}) {
-  final String commandId;
-  final String label;
-  final String commandLine;
-  final int exitCode;
-  final String output;
-  final DateTime finishedAt;
+  required final String commandId,
+  required final String label,
+  required final String commandLine,
+  required final int exitCode,
+  required final String output,
+  required final DateTime finishedAt,
 
   /// Set when the run never produced a process result (tool missing, spawn
   /// failure, …) rather than exiting non-zero.
-  final String? failure;
-
+  final String? failure,
+}) {
   bool get isSuccess => failure == null && exitCode == 0;
 
   /// Text put on the clipboard by the panel's copy button.

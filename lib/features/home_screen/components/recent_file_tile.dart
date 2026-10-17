@@ -6,14 +6,10 @@ import '../../../utils/utils.dart';
 
 class const RecentFileTile({
   super.key,
-  required this.path,
-  required this.onOpen,
-  required this.onRemove,
+  required final String path,
+  required final VoidCallback onOpen,
+  required final VoidCallback onRemove,
 }) extends StatelessWidget {
-  final String path;
-  final VoidCallback onOpen;
-  final VoidCallback onRemove;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

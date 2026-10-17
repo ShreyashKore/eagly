@@ -9,10 +9,10 @@ import '../../../session/device_session_controller.dart';
 import '../../../session/device_session_manager.dart';
 import 'device_tab.dart';
 
-class const DeviceTabStrip({super.key, required this.manager})
-    extends StatefulWidget {
-  final DeviceSessionManager manager;
-
+class const DeviceTabStrip({
+  super.key,
+  required final DeviceSessionManager manager,
+}) extends StatefulWidget {
   /// How wide each tab is, given the width its content [wanted] and the
   /// [available] strip. A tab never grows past what it needs (nor past
   /// [DeviceTab.maxWidth]); when they don't all fit, the widest give way
@@ -161,11 +161,11 @@ class _DeviceTabStripState extends State<DeviceTabStrip> {
 /// Lays the tabs out left to right at [DeviceTabStrip.fitTabWidths], each
 /// stretched to the strip's height. Tabs get a *loose* width so the
 /// entrance animation can still shrink one below it.
-class const _TabRow({required this.available, required super.children})
-    extends MultiChildRenderObjectWidget {
+class const _TabRow({
   /// Width of the visible strip; the row itself may be wider and scroll.
-  final double available;
-
+  required final double available,
+  required super.children,
+}) extends MultiChildRenderObjectWidget {
   @override
   _RenderTabRow createRenderObject(BuildContext context) =>
       _RenderTabRow(available);
@@ -178,12 +178,11 @@ class const _TabRow({required this.available, required super.children})
 
 class _TabRowParentData extends ContainerBoxParentData<RenderBox> {}
 
-class _RenderTabRow(this._available)
+class _RenderTabRow(var double _available)
     extends RenderBox
     with
         ContainerRenderObjectMixin<RenderBox, _TabRowParentData>,
         RenderBoxContainerDefaultsMixin<RenderBox, _TabRowParentData> {
-  double _available;
   set available(double value) {
     if (value == _available) return;
     _available = value;

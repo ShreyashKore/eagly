@@ -16,22 +16,17 @@ import 'animation_utils.dart';
 /// keep it mounted at `heightFactor: 0`, which reads as "visible" to a test.)
 class const DelayedReveal({
   super.key,
-  required this.child,
-  this.delay = const Duration(seconds: 8),
-  this.enabled = true,
-  this.restartKey,
-}) extends StatefulWidget {
-  final Widget child;
+  required final Widget child,
 
   /// How long [enabled] must stay true before [child] appears.
-  final Duration delay;
+  final Duration delay = const Duration(seconds: 8),
 
   /// While false the child is hidden and the timer is held back.
-  final bool enabled;
+  final bool enabled = true,
 
   /// Changing this value hides the child and restarts the delay.
-  final Object? restartKey;
-
+  final Object? restartKey,
+}) extends StatefulWidget {
   @override
   State<DelayedReveal> createState() => _DelayedRevealState();
 }

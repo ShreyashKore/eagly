@@ -1,16 +1,11 @@
 enum WirelessDebugServiceType { connect, pairing, unknown }
 
 class const WirelessDebugService({
-  required this.name,
-  required this.type,
-  required this.host,
-  required this.port,
+  required final String name,
+  required final WirelessDebugServiceType type,
+  required final String host,
+  required final int port,
 }) {
-  final String name;
-  final WirelessDebugServiceType type;
-  final String host;
-  final int port;
-
   String get address => '$host:$port';
 
   String get typeLabel => switch (type) {
@@ -21,12 +16,9 @@ class const WirelessDebugService({
 }
 
 class const WirelessServiceDiscoveryResult({
-  this.services = const [],
-  this.error,
+  final List<WirelessDebugService> services = const [],
+  final String? error,
 }) {
-  final List<WirelessDebugService> services;
-  final String? error;
-
   bool get isSuccess => error == null;
 
   factory WirelessServiceDiscoveryResult.success({
@@ -40,10 +32,7 @@ class const WirelessServiceDiscoveryResult({
   }
 }
 
-class const DeviceCommandResult({this.message, this.error}) {
-  final String? message;
-  final String? error;
-
+class const DeviceCommandResult({final String? message, final String? error}) {
   bool get isSuccess => error == null;
 
   factory DeviceCommandResult.success({required String message}) {

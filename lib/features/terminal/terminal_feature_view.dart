@@ -18,12 +18,10 @@ import 'terminal_session_manager.dart';
 /// device selector on the way out.
 class const TerminalFeatureView({
   super.key,
-  required this.manager,
+  required final TerminalSessionManager manager,
   required VoidCallback onClose,
 }) extends FeatureView {
   this : super(onClose: onClose);
-
-  final TerminalSessionManager manager;
 
   @override
   State<TerminalFeatureView> createState() => _TerminalFeatureViewState();

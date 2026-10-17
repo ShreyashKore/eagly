@@ -15,14 +15,10 @@ import 'services/file_transfer_picker.dart';
 /// the file names that landed in [directory]; [errors] are human-readable
 /// per-file failures.
 class const FileDropCopyResult({
-  required this.directory,
-  this.copied = const [],
-  this.errors = const [],
-}) {
-  final String directory;
-  final List<String> copied;
-  final List<String> errors;
-}
+  required final String directory,
+  final List<String> copied = const [],
+  final List<String> errors = const [],
+});
 
 enum FileManagerViewMode { list, grid }
 

@@ -4,10 +4,10 @@ import '../log_viewer_constants.dart';
 
 /// Draggable divider between header cells that resizes the column to its
 /// left via [onDrag] deltas.
-class const ColumnDragHandle({super.key, required this.onDrag})
-    extends StatelessWidget {
-  final ValueChanged<double> onDrag;
-
+class const ColumnDragHandle({
+  super.key,
+  required final ValueChanged<double> onDrag,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(

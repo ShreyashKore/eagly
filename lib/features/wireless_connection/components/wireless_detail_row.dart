@@ -6,14 +6,10 @@ import '../../../presentation/theme/app_theme.dart';
 /// Single `label: value` info row with a leading icon.
 class const WirelessDetailRow({
   super.key,
-  required this.icon,
-  required this.label,
-  required this.value,
+  required final IconData icon,
+  required final String label,
+  required final String value,
 }) extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

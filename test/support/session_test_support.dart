@@ -402,7 +402,11 @@ class FakeIdeviceInfoTool() extends IdeviceInfoTool {
 /// A [ScrcpyControl] wired to a loopback socket, so a test can read back the
 /// control messages a controller wrote. `ScrcpyControl` speaks to a real
 /// `Socket`, and faking one is more code (and less proof) than connecting two.
-class FakeScrcpyControlChannel._(this._server, this._peer, this.control) {
+class FakeScrcpyControlChannel._(
+  final ServerSocket _server,
+  final Socket _peer,
+  final ScrcpyControl control,
+) {
   static Future<FakeScrcpyControlChannel> open() async {
     final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     final client = await Socket.connect(server.address, server.port);
@@ -415,10 +419,6 @@ class FakeScrcpyControlChannel._(this._server, this._peer, this.control) {
     channel._subscription = peer.listen(channel._received.add);
     return channel;
   }
-
-  final ServerSocket _server;
-  final Socket _peer;
-  final ScrcpyControl control;
 
   final BytesBuilder _received = BytesBuilder();
   StreamSubscription<Uint8List>? _subscription;

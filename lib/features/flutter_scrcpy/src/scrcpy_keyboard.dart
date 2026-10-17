@@ -50,22 +50,15 @@ class const ScrcpyIgnoreKey() extends ScrcpyKeyCommand;
 /// Inject [text] as characters. Preferred over a keycode for anything
 /// printable: the desktop keymap has already resolved the layout, so an
 /// AZERTY or Dvorak host types what the user actually sees on their keys.
-class const ScrcpyInjectText(this.text) extends ScrcpyKeyCommand {
-  final String text;
-}
+class const ScrcpyInjectText(final String text) extends ScrcpyKeyCommand;
 
 /// Inject an Android keycode press or release.
 class const ScrcpyInjectKeycode(
-  this.keycode, {
-  required this.down,
-  this.metaState = AndroidMetaState.none,
-  this.repeat = 0,
-}) extends ScrcpyKeyCommand {
-  final int keycode;
-  final bool down;
-  final int metaState;
-  final int repeat;
-}
+  final int keycode, {
+  required final bool down,
+  final int metaState = AndroidMetaState.none,
+  final int repeat = 0,
+}) extends ScrcpyKeyCommand;
 
 /// Push the desktop clipboard onto the device and paste it (Ctrl/⌘+V).
 class const ScrcpyPasteClipboard() extends ScrcpyKeyCommand;
@@ -77,12 +70,12 @@ class const ScrcpyPasteClipboard() extends ScrcpyKeyCommand;
 /// stateful: it remembers which keycodes it pressed so a key-up is only
 /// forwarded for a key-down it actually sent, and so [releaseAll] can unstick
 /// held modifiers when the mirror loses focus.
-class ScrcpyKeyboardTranslator({this.metaIsControl = false}) {
+class ScrcpyKeyboardTranslator({
   /// Whether the platform's ⌘ key should act as the device's Ctrl (macOS), so
   /// ⌘C/⌘V/⌘A do on the device what they do on the desktop. When false the
   /// Meta key is left to the host app.
-  final bool metaIsControl;
-
+  final bool metaIsControl = false,
+}) {
   final Map<int, int> _pressed = <int, int>{};
   final Map<int, int> _repeats = <int, int>{};
 

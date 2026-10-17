@@ -8,40 +8,28 @@ enum DeviceFileType { directory, file, symlink, other }
 /// their tool output into this shared shape so the UI never has to care whether
 /// it is talking to `adb` or `afcclient`.
 class const DeviceFileEntry({
-  required this.name,
-  required this.path,
-  required this.type,
-  this.sizeBytes,
-  this.modified,
-  this.permissions,
-  this.owner,
-  this.group,
-  this.linkTarget,
-}) {
   /// The entry's base name (no directory component).
-  final String name;
+  required final String name,
 
   /// The absolute POSIX path of the entry on the device.
-  final String path;
-
-  final DeviceFileType type;
+  required final String path,
+  required final DeviceFileType type,
 
   /// File size in bytes. `null` for directories, special files, or when the
   /// tool did not report a parseable size.
-  final int? sizeBytes;
+  final int? sizeBytes,
 
   /// Last-modified time in the device's local time zone, when available.
-  final DateTime? modified;
+  final DateTime? modified,
 
   /// POSIX permission string (e.g. `drwxr-xr-x`), when available.
-  final String? permissions;
-
-  final String? owner;
-  final String? group;
+  final String? permissions,
+  final String? owner,
+  final String? group,
 
   /// For [DeviceFileType.symlink], the raw link target (`name -> target`).
-  final String? linkTarget;
-
+  final String? linkTarget,
+}) {
   bool get isDirectory => type == DeviceFileType.directory;
   bool get isSymlink => type == DeviceFileType.symlink;
   bool get isFile => type == DeviceFileType.file;

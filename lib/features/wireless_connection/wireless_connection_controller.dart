@@ -9,18 +9,12 @@ import 'data/wireless_debug_models.dart';
 import '../../services/devices_repository.dart';
 
 class const WirelessPairResult({
-  required this.paired,
-  this.autoConnected = false,
-  this.connectAddresses = const [],
-  this.message,
-  this.error,
+  required final bool paired,
+  final bool autoConnected = false,
+  final List<String> connectAddresses = const [],
+  final String? message,
+  final String? error,
 }) {
-  final bool paired;
-  final bool autoConnected;
-  final List<String> connectAddresses;
-  final String? message;
-  final String? error;
-
   bool get isSuccess => error == null;
   bool get shouldShowConnectAction =>
       paired && !autoConnected && connectAddresses.isNotEmpty;
@@ -60,12 +54,9 @@ class const WirelessPairResult({
 /// There is no server side and therefore no expiry: a code stays valid until it
 /// is used. It is single-use, though — regenerate after a pair attempt.
 class const WirelessQrPairingSession({
-  required this.serviceName,
-  required this.password,
+  required final String serviceName,
+  required final String password,
 }) {
-  final String serviceName;
-  final String password;
-
   /// The `WIFI:T:ADB;...` string rendered as a QR code for the device to scan.
   String get payload => 'WIFI:T:ADB;S:$serviceName;P:$password;;';
 }
@@ -79,25 +70,17 @@ class const WirelessQrPairingSession({
 /// while a discovery was in flight left the code ungenerated for ~10 s. Nothing
 /// here should reintroduce a second poller or widen [isWirelessBusy].
 class WirelessConnectionController({
-  required this._devicesRepository,
-  required this._onDevicesApplied,
-  required this._onActivateDevice,
-  this.isDeviceSelectedInAnotherTab,
-  this.selectedDeviceIdProvider,
-  this.isRunningProvider,
-  this._onQrPairingCompleted,
-}) extends ChangeNotifier {
-  final DevicesRepository _devicesRepository;
-  final Future<void> Function(List<Device> devices) _onDevicesApplied;
-  final Future<void> Function(Device device) _onActivateDevice;
-  final bool Function(String deviceId)? isDeviceSelectedInAnotherTab;
-  final String? Function()? selectedDeviceIdProvider;
-  final bool Function()? isRunningProvider;
+  required final DevicesRepository _devicesRepository,
+  required final Future<void> Function(List<Device> devices) _onDevicesApplied,
+  required final Future<void> Function(Device device) _onActivateDevice,
+  final bool Function(String deviceId)? isDeviceSelectedInAnotherTab,
+  final String? Function()? selectedDeviceIdProvider,
+  final bool Function()? isRunningProvider,
 
   /// Called when a QR code was scanned and the resulting pair (plus automatic
   /// connect) attempt finished — the scan loop, not the UI, drives that flow.
-  final void Function(WirelessPairResult result)? _onQrPairingCompleted;
-
+  final void Function(WirelessPairResult result)? _onQrPairingCompleted,
+}) extends ChangeNotifier {
   var _pairingWireless = false;
   var _connectingWireless = false;
   var _hasAttemptedWirelessDiscovery = false;

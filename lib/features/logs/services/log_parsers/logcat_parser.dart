@@ -103,22 +103,16 @@ LogEntry? _parseSectionSeparator(String line) {
 }
 
 class _LogcatEntryBuilder({
-  required this.timestamp,
-  required this.pid,
-  required this.tid,
-  required this.level,
-  required this.tag,
-  this.isResumed = false,
-}) {
-  final String timestamp;
-  final String pid;
-  final String tid;
-  final String level;
-  final String tag;
+  required final String timestamp,
+  required final String pid,
+  required final String tid,
+  required final String level,
+  required final String tag,
 
   /// Whether this carries on an entry that was flushed before its end, and so
   /// holds the rest of its lines under the same header.
-  final bool isResumed;
+  final bool isResumed = false,
+}) {
   final List<String> _lines = [];
 
   static _LogcatEntryBuilder? tryParse(String line) {

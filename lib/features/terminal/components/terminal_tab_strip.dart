@@ -5,10 +5,10 @@ import '../terminal_session_manager.dart';
 import 'terminal_tab_chip.dart';
 
 /// Horizontally scrolling strip of terminal tabs with a trailing "+" button.
-class const TerminalTabStrip({super.key, required this.manager})
-    extends StatefulWidget {
-  final TerminalSessionManager manager;
-
+class const TerminalTabStrip({
+  super.key,
+  required final TerminalSessionManager manager,
+}) extends StatefulWidget {
   @override
   State<TerminalTabStrip> createState() => _TerminalTabStripState();
 }

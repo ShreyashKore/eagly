@@ -15,34 +15,26 @@ import '../theme/app_theme.dart';
 /// tall, thin column, which is what made the old banners take so much height.
 class const NoticeBanner({
   super.key,
-  required this.icon,
-  required this.title,
-  this.message,
-  this.actions = const [],
-  this.color,
-  this.edgeToEdge = false,
-  this.textWidth = 440,
-}) extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? message;
+  required final IconData icon,
+  required final String title,
+  final String? message,
 
   /// Usually [NoticeButton]s; any widget fits (e.g. a shortcut key cap).
-  final List<Widget> actions;
+  final List<Widget> actions = const [],
 
   /// Accent for the badge, tint and border. Defaults to the theme's warning
   /// colour.
-  final Color? color;
+  final Color? color,
 
   /// A full-width strip with top and bottom rules, for the top of a pane,
   /// instead of a rounded card.
-  final bool edgeToEdge;
+  final bool edgeToEdge = false,
 
   /// The widest the text runs before wrapping, unscaled. Actions go beside
   /// the text only if this much room (or the text's own width, if shorter)
   /// is left for it.
-  final double textWidth;
-
+  final double textWidth = 440,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -136,16 +128,11 @@ class const NoticeBanner({
 /// otherwise.
 class const NoticeButton({
   super.key,
-  required this.icon,
-  required this.label,
-  required this.onPressed,
-  this.primary = false,
+  required final IconData icon,
+  required final String label,
+  required final VoidCallback? onPressed,
+  final bool primary = false,
 }) extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback? onPressed;
-  final bool primary;
-
   @override
   Widget build(BuildContext context) {
     const padding = EdgeInsets.symmetric(horizontal: 10);

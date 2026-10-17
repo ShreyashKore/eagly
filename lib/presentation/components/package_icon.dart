@@ -17,24 +17,20 @@ import '../theme/app_theme.dart';
 /// icons in the first frame.
 class const PackageIcon({
   super.key,
-  required this.packageName,
-  required this.size,
-  required this.fallback,
-  this.cache,
-}) extends StatefulWidget {
+
   /// A package or process name. A process suffix (`com.app:remote`) is dropped
   /// before the lookup, since icons are cached per package.
-  final String packageName;
+  required final String packageName,
 
   /// Edge of the square, before the app zoom is applied.
-  final double size;
+  required final double size,
 
   /// Shown, centred in the same square, while there is no icon.
-  final Widget fallback;
+  required final Widget fallback,
 
   /// The cache to read; [AppIconCache.instance] unless a test substitutes one.
-  final AppIconCache? cache;
-
+  final AppIconCache? cache,
+}) extends StatefulWidget {
   static final RegExp _packagePattern = RegExp(
     r'^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$',
   );

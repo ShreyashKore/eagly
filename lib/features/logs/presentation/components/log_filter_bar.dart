@@ -22,15 +22,12 @@ export 'log_level_button.dart' show LogLevelButton;
 /// Fully driven by a [LogFilterController]; it owns no filter state.
 class const LogFilterBar({
   super.key,
-  required this.controller,
-  this.showLevel = true,
-}) extends StatelessWidget {
-  final LogFilterController controller;
+  required final LogFilterController controller,
 
   /// False when the host lays the [LogLevelButton] out elsewhere — the
   /// stacked narrow-window layout puts it beside search.
-  final bool showLevel;
-
+  final bool showLevel = true,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(

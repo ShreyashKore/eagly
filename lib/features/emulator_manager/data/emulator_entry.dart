@@ -32,18 +32,14 @@ enum EmulatorRunState {
 /// without touching the disk again.
 @immutable
 class const EmulatorEntry({
-  required this.emulator,
-  this.runState = EmulatorRunState.stopped,
-  this.serial,
-}) {
-  final AndroidEmulator emulator;
-  final EmulatorRunState runState;
+  required final AndroidEmulator emulator,
+  final EmulatorRunState runState = EmulatorRunState.stopped,
 
   /// The adb serial (`emulator-5554`) while this AVD is up, otherwise `null`.
   /// It is a console port, not an identity: the same AVD gets a different one
   /// on every boot.
-  final String? serial;
-
+  final String? serial,
+}) {
   String get name => emulator.name;
   String get label => emulator.label;
 

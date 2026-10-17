@@ -22,12 +22,9 @@ import 'workspace_view.dart';
 /// the arrangement the user gave them.
 class const DeviceScreenContent({
   super.key,
-  required this.session,
-  required this.appMemoryBytesListenable,
+  required final DeviceSessionController session,
+  required final ValueListenable<int> appMemoryBytesListenable,
 }) extends StatelessWidget {
-  final DeviceSessionController session;
-  final ValueListenable<int> appMemoryBytesListenable;
-
   @override
   Widget build(BuildContext context) {
     final guidance = _guidanceForDevice(session.device);
@@ -69,12 +66,9 @@ class const DeviceScreenContent({
 }
 
 class const _Workspace({
-  required this.session,
-  required this.appMemoryBytesListenable,
+  required final DeviceSessionController session,
+  required final ValueListenable<int> appMemoryBytesListenable,
 }) extends StatelessWidget {
-  final DeviceSessionController session;
-  final ValueListenable<int> appMemoryBytesListenable;
-
   @override
   Widget build(BuildContext context) {
     // Open panes are laid out however the user arranged them: side by side

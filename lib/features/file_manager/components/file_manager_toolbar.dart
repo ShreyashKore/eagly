@@ -19,20 +19,13 @@ import '../../../presentation/theme/app_theme.dart';
 /// shows neither.
 class const FileManagerToolbar({
   super.key,
-  required this.controller,
-  required this.onUpload,
-  required this.onNewFolder,
-  required this.onDownloadSelected,
-  required this.onDeleteSelected,
-  required this.onClose,
+  required final FileManagerController controller,
+  required final VoidCallback onUpload,
+  required final VoidCallback onNewFolder,
+  required final VoidCallback onDownloadSelected,
+  required final VoidCallback onDeleteSelected,
+  required final VoidCallback? onClose,
 }) extends StatelessWidget {
-  final FileManagerController controller;
-  final VoidCallback onUpload;
-  final VoidCallback onNewFolder;
-  final VoidCallback onDownloadSelected;
-  final VoidCallback onDeleteSelected;
-  final VoidCallback? onClose;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

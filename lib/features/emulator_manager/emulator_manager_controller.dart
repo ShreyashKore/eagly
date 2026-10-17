@@ -42,7 +42,11 @@ class EmulatorManagerController({
   EmulatorTool Function(String executablePath)? createEmulatorTool,
   AvdManagerTool Function(String executablePath)? createAvdManagerTool,
   SystemImageScanner? systemImageScanner,
-  this.onEmulatorReady,
+
+  /// Called once a launched AVD has booted far enough for adb to call it
+  /// `device`. Opening its tab is the caller's job — the controller knows
+  /// nothing about tabs.
+  final Future<void> Function(Device device)? onEmulatorReady,
 }) extends ChangeNotifier {
   this
     : _devicesRepository = devicesRepository ?? DevicesRepository.instance,
@@ -67,11 +71,6 @@ class EmulatorManagerController({
   final AvdManagerTool Function(String executablePath) _createAvdManagerTool;
   final SystemImageScanner _systemImageScanner;
   final AppLogger _logger = AppLogger(source: 'EmulatorManagerController');
-
-  /// Called once a launched AVD has booted far enough for adb to call it
-  /// `device`. Opening its tab is the caller's job — the controller knows
-  /// nothing about tabs.
-  final Future<void> Function(Device device)? onEmulatorReady;
 
   /// How often the runtime state is re-read while the dialog is open.
   @visibleForTesting

@@ -11,17 +11,12 @@ import 'rust_ios_crash_report_service.dart';
 /// the temporary directory they were copied into (so the caller can clean it up
 /// once it is done reading the files).
 class const CrashReportPullResult({
-  required this.reports,
-  required this.outputDir,
-}) {
-  final List<CrashReport> reports;
-  final Directory outputDir;
-}
+  required final List<CrashReport> reports,
+  required final Directory outputDir,
+});
 
 /// Thrown when crash reports cannot be read from the device.
-class CrashReportException(this.message) implements Exception {
-  final String message;
-
+class CrashReportException(final String message) implements Exception {
   @override
   String toString() => message;
 }

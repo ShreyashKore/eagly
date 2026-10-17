@@ -22,16 +22,14 @@ import 'workspace_chrome.dart';
 /// saying where a drop would land. See docs/WORKSPACE_LAYOUT.md.
 class const WorkspaceView({
   super.key,
-  required this.layout,
-  required this.paneBuilder,
-}) extends StatefulWidget {
-  final WorkspaceLayout layout;
+  required final WorkspaceLayout layout,
 
   /// Builds [pane]'s content. Called for every open pane, including ones
   /// behind another tab, which stay mounted (offstage) so they keep their
   /// state; a moved pane is never rebuilt from scratch either.
-  final Widget Function(BuildContext context, WorkspacePane pane) paneBuilder;
-
+  required final Widget Function(BuildContext context, WorkspacePane pane)
+  paneBuilder,
+}) extends StatefulWidget {
   @override
   State<WorkspaceView> createState() => _WorkspaceViewState();
 }
@@ -242,10 +240,8 @@ class _WorkspaceViewState extends State<WorkspaceView> {
 
 /// One pane's [PaneControls], kept for the life of the view so a pane's
 /// [WorkspacePaneScope] compares equal from frame to frame.
-class _PaneControls(this._view, this.pane) implements PaneControls {
-  final _WorkspaceViewState _view;
-  final WorkspacePane pane;
-
+class _PaneControls(final _WorkspaceViewState _view, final WorkspacePane pane)
+    implements PaneControls {
   WorkspaceLayout get _layout => _view._layout;
 
   @override
@@ -321,14 +317,10 @@ class _PaneControls(this._view, this.pane) implements PaneControls {
 /// The label that follows the pointer during a drag: what is moving and
 /// where it would land if dropped now — the words for the shaded preview.
 class const _DragLabel({
-  required this.layout,
-  required this.pointer,
-  required this.bounds,
+  required final WorkspaceLayout layout,
+  required final ValueListenable<Offset?> pointer,
+  required final Size bounds,
 }) extends StatelessWidget {
-  final WorkspaceLayout layout;
-  final ValueListenable<Offset?> pointer;
-  final Size bounds;
-
   static const double _maxWidth = 280;
 
   @override

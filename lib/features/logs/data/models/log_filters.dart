@@ -10,14 +10,10 @@ enum FilterMatchMode { contains, exact, regex }
 /// A single filter value, how it should be matched, and whether the result is
 /// negated. Matching is always case-insensitive.
 class FilterTerm(
-  this.value, {
-  this.mode = FilterMatchMode.contains,
-  this.negate = false,
+  final String value, {
+  final FilterMatchMode mode = FilterMatchMode.contains,
+  final bool negate = false,
 }) {
-  final String value;
-  final FilterMatchMode mode;
-  final bool negate;
-
   /// Compiled form of a [FilterMatchMode.regex] [value]; null for other modes,
   /// an empty value, or a pattern that fails to compile. Built once, lazily.
   late final RegExp? _regExp = mode == FilterMatchMode.regex
@@ -65,33 +61,21 @@ class FilterTerm(
 }
 
 class const LogFilters({
-  required this.messageText,
-  required this.packageText,
-  required this.pidTidText,
-  required this.tagText,
-  required this.messageTerms,
-  required this.rawTerms,
-  required this.packageTerms,
-  required this.pidTidTerms,
-  required this.tagTerms,
-  required this.level,
-  this.maxAge,
-}) {
-  final String messageText;
-  final String packageText;
-  final String pidTidText;
-  final String tagText;
-  final List<FilterTerm> messageTerms;
-  final List<FilterTerm> rawTerms;
-  final List<FilterTerm> packageTerms;
-  final List<FilterTerm> pidTidTerms;
-  final List<FilterTerm> tagTerms;
-  final LogLevel level;
+  required final String messageText,
+  required final String packageText,
+  required final String pidTidText,
+  required final String tagText,
+  required final List<FilterTerm> messageTerms,
+  required final List<FilterTerm> rawTerms,
+  required final List<FilterTerm> packageTerms,
+  required final List<FilterTerm> pidTidTerms,
+  required final List<FilterTerm> tagTerms,
+  required final LogLevel level,
 
   /// When set, only entries whose timestamp is no older than this duration
   /// (relative to now) match. Parsed from the typed `age:` key (e.g. `1h`).
-  final Duration? maxAge;
-
+  final Duration? maxAge,
+}) {
   /// An empty filter that only constrains by [level].
   factory LogFilters.empty(LogLevel level) => LogFilters(
     messageText: '',
@@ -359,12 +343,12 @@ LogFilters _parseFilters(
 
 /// The key, value, match mode, and negation extracted from a single typed
 /// token shaped `[-]key[=|~]:value`.
-class const KeyedFilterToken(this.key, this.value, this.mode, this.negate) {
-  final FilterKey key;
-  final String value;
-  final FilterMatchMode mode;
-  final bool negate;
-}
+class const KeyedFilterToken(
+  final FilterKey key,
+  final String value,
+  final FilterMatchMode mode,
+  final bool negate,
+);
 
 /// Parses [token] as an advanced keyed filter, or returns null when it is not a
 /// recognised `key:value` (so the caller keeps it as a literal raw term). A

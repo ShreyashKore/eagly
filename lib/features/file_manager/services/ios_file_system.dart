@@ -22,12 +22,10 @@ import 'device_file_system.dart';
 ///
 /// Requires `libimobiledevice`'s `afcclient` on PATH (or bundled) and a paired,
 /// trusted device; otherwise operations surface the tool's own error.
-class IosFileSystem({required this.deviceId, super.executablePath})
+class IosFileSystem({required final String deviceId, super.executablePath})
     extends ToolProcessRunner
     implements DeviceFileSystem {
   this : super(executableName: 'afcclient');
-
-  final String deviceId;
 
   @override
   String get storageLabel => 'Media (AFC)';

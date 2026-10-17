@@ -7,12 +7,9 @@ import '../../log_controller.dart';
 /// empty imported file.
 class const LogViewerEmptyState({
   super.key,
-  required this.controller,
-  required this.deviceDisplayName,
+  required final LogController controller,
+  required final String deviceDisplayName,
 }) extends StatelessWidget {
-  final LogController controller;
-  final String deviceDisplayName;
-
   @override
   Widget build(BuildContext context) {
     return CenteredStateMessage(

@@ -9,20 +9,13 @@ import 'app_utility_menu.dart';
 /// and invoked from the context menu, so the menu helper stays free of
 /// dialog logic.
 class const AppActions({
-  required this.onLaunch,
-  required this.onForceStop,
-  required this.onClearData,
-  required this.onAppInfo,
-  required this.onViewLogs,
-  required this.onUninstall,
-}) {
-  final void Function(AppInfo app) onLaunch;
-  final void Function(AppInfo app) onForceStop;
-  final void Function(AppInfo app) onClearData;
-  final void Function(AppInfo app) onAppInfo;
-  final void Function(AppInfo app) onViewLogs;
-  final void Function(AppInfo app) onUninstall;
-}
+  required final void Function(AppInfo app) onLaunch,
+  required final void Function(AppInfo app) onForceStop,
+  required final void Function(AppInfo app) onClearData,
+  required final void Function(AppInfo app) onAppInfo,
+  required final void Function(AppInfo app) onViewLogs,
+  required final void Function(AppInfo app) onUninstall,
+});
 
 enum _AppAction {
   open,
@@ -162,22 +155,15 @@ RelativeRect _positionFrom(Offset globalPosition) => RelativeRect.fromLTRB(
 );
 
 class const _MenuRow(
-  this.icon,
-  this.label, {
-  this.color,
-  this.trailing,
-  this.blocked = false,
-  this.blockedReason,
-}) extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color? color;
-  final IconData? trailing;
+  final IconData icon,
+  final String label, {
+  final Color? color,
+  final IconData? trailing,
 
   /// Renders the row as unavailable and explains why on hover.
-  final bool blocked;
-  final String? blockedReason;
-
+  final bool blocked = false,
+  final String? blockedReason,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

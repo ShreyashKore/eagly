@@ -41,7 +41,7 @@ import 'tools/tool_process_runner.dart';
 /// [DeviceSessionController]. It exposes platform-agnostic device operations and
 /// holds no feature state — feature controllers own their own state.
 class DeviceSessionRepository({
-  required this.device,
+  required final Device device,
   String? adbPath,
   String? ideviceInstallerPath,
   String? ideviceSyslogPath,
@@ -56,7 +56,6 @@ class DeviceSessionRepository({
   IosLogService? iosLogService,
   ScrcpyMirror? scrcpyMirror,
 }) {
-  final Device device;
   final AdbTool _adbTool;
   final IosAppService _iosAppService;
   final IosCrashReportService _iosCrashReportService;
@@ -792,16 +791,11 @@ class DeviceSessionRepository({
 /// A running on-device `screenrecord`. Stop it with [stopAndPull] to finalize
 /// the mp4 and copy it to the host, or [cancel] to discard it.
 class ScreenRecordingSession({
-  required this._adbTool,
-  required this.deviceId,
-  required this.devicePath,
-  required this.process,
+  required final AdbTool _adbTool,
+  required final String deviceId,
+  required final String devicePath,
+  required final Process process,
 }) {
-  final AdbTool _adbTool;
-  final String deviceId;
-  final String devicePath;
-  final Process process;
-
   Future<void> _finish() async {
     await _adbTool.signalStopScreenRecord(deviceId);
     try {

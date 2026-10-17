@@ -8,16 +8,11 @@ import 'layout_constants.dart';
 
 class const AvailableDeviceCard({
   super.key,
-  required this.device,
-  required this.onSelected,
-  this.onInstallApp,
-  this.onShowMessage,
+  required final Device device,
+  required final VoidCallback onSelected,
+  final VoidCallback? onInstallApp,
+  final ValueChanged<String>? onShowMessage,
 }) extends StatelessWidget {
-  final Device device;
-  final VoidCallback onSelected;
-  final VoidCallback? onInstallApp;
-  final ValueChanged<String>? onShowMessage;
-
   Future<void> _copyIosUdid() async {
     await Clipboard.setData(ClipboardData(text: device.id));
     onShowMessage?.call(LayoutConstants.iosUdidCopiedMessage);

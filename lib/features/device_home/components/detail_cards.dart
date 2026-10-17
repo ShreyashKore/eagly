@@ -14,12 +14,9 @@ import 'home_primitives.dart';
 
 class const ReadinessCard({
   super.key,
-  required this.device,
-  required this.developerState,
+  required final Device device,
+  required final DeviceDeveloperStateInfo developerState,
 }) extends StatelessWidget {
-  final Device device;
-  final DeviceDeveloperStateInfo developerState;
-
   @override
   Widget build(BuildContext context) {
     final isIos = device is IosDevice;
@@ -84,12 +81,9 @@ class const ReadinessCard({
 
 class const HardwareCard({
   super.key,
-  required this.device,
-  required this.identity,
+  required final Device device,
+  required final DeviceIdentityInfo identity,
 }) extends StatelessWidget {
-  final Device device;
-  final DeviceIdentityInfo identity;
-
   @override
   Widget build(BuildContext context) {
     final device = this.device;
@@ -135,10 +129,8 @@ class const HardwareCard({
 
 // ── Display ──────────────────────────────────────────────────────────────
 
-class const DisplayCard({super.key, required this.display})
+class const DisplayCard({super.key, required final DeviceDisplayInfo display})
     extends StatelessWidget {
-  final DeviceDisplayInfo display;
-
   @override
   Widget build(BuildContext context) {
     final width = display.widthPx;
@@ -174,14 +166,10 @@ class const DisplayCard({super.key, required this.display})
 /// A to-scale outline of the device screen — communicates aspect ratio and
 /// orientation instantly, which "1080 × 2400" alone does not.
 class const _ScreenGlyph({
-  required this.widthPx,
-  required this.heightPx,
-  required this.landscape,
+  required final int? widthPx,
+  required final int? heightPx,
+  required final bool landscape,
 }) extends StatelessWidget {
-  final int? widthPx;
-  final int? heightPx;
-  final bool landscape;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -243,12 +231,9 @@ class const _ScreenGlyph({
 
 class const ConnectivityCard({
   super.key,
-  required this.connectivity,
-  required this.cellular,
+  required final DeviceConnectivityInfo connectivity,
+  required final DeviceCellularInfo cellular,
 }) extends StatelessWidget {
-  final DeviceConnectivityInfo connectivity;
-  final DeviceCellularInfo cellular;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -333,12 +318,9 @@ class const ConnectivityCard({
 
 class const SoftwareCard({
   super.key,
-  required this.software,
-  required this.identity,
+  required final DeviceSoftwareInfo software,
+  required final DeviceIdentityInfo identity,
 }) extends StatelessWidget {
-  final DeviceSoftwareInfo software;
-  final DeviceIdentityInfo identity;
-
   @override
   Widget build(BuildContext context) {
     final items = <SpecItem>[
@@ -364,12 +346,9 @@ class const SoftwareCard({
 
 class const RecentInstallsCard({
   super.key,
-  required this.apps,
-  required this.isLoading,
+  required final List<InstalledAppInfo> apps,
+  required final bool isLoading,
 }) extends StatelessWidget {
-  final List<InstalledAppInfo> apps;
-  final bool isLoading;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

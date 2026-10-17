@@ -10,12 +10,9 @@ import '../data/terminal_line.dart';
 /// streaming command can't yank the view away from something being read.
 class const TerminalOutputView({
   super.key,
-  required this.lines,
-  required this.fontSize,
+  required final List<TerminalLine> lines,
+  required final double fontSize,
 }) extends StatefulWidget {
-  final List<TerminalLine> lines;
-  final double fontSize;
-
   @override
   State<TerminalOutputView> createState() => _TerminalOutputViewState();
 }
@@ -94,11 +91,10 @@ class _TerminalOutputViewState extends State<TerminalOutputView> {
   }
 }
 
-class const _TerminalLineView({required this.line, required this.fontSize})
-    extends StatelessWidget {
-  final TerminalLine line;
-  final double fontSize;
-
+class const _TerminalLineView({
+  required final TerminalLine line,
+  required final double fontSize,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -158,9 +154,8 @@ class const _TerminalLineView({required this.line, required this.fontSize})
   }
 }
 
-class const _JumpToLatestPill({required this.onTap}) extends StatelessWidget {
-  final VoidCallback onTap;
-
+class const _JumpToLatestPill({required final VoidCallback onTap})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

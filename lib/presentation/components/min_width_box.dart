@@ -8,12 +8,9 @@ import 'package:flutter/widgets.dart';
 /// errors. At [minWidth] and wider, [child] gets the space unchanged.
 class const MinWidthBox({
   super.key,
-  required this.minWidth,
-  required this.child,
+  required final double minWidth,
+  required final Widget child,
 }) extends StatelessWidget {
-  final double minWidth;
-  final Widget child;
-
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(

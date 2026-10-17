@@ -29,21 +29,15 @@ FilterConditionField? _fieldForKey(FilterKey key) => switch (key) {
 /// One selectable row in the menu: it either runs [onSelected] (adding or
 /// applying something) or, with [insertText], completes the typed text.
 class const FilterMenuOption({
-  required this.icon,
-  required this.label,
-  this.packageName,
-  this.onSelected,
-  this.insertText,
-}) {
-  final IconData icon;
-  final InlineSpan label;
+  required final IconData icon,
+  required final InlineSpan label,
 
   /// Set on an Android package value, whose row then shows the app's icon
   /// (when the Apps pane has cached one) in place of [icon].
-  final String? packageName;
-  final VoidCallback? onSelected;
-  final String? insertText;
-}
+  final String? packageName,
+  final VoidCallback? onSelected,
+  final String? insertText,
+});
 
 /// The menu's sections for [rawQuery], the field's current text; flattened,
 /// their options are the keyboard order.
@@ -321,20 +315,13 @@ List<(String, List<FilterMenuOption>)> filterMenuSections(
 /// [filterMenuSections] builds, with the typed syntax as its footer.
 class const FilterMenu({
   super.key,
-  required this.sections,
-  required this.highlighted,
-  required this.isIos,
-  required this.hasQuery,
-  required this.onHover,
-  required this.onSelect,
+  required final List<(String, List<FilterMenuOption>)> sections,
+  required final int highlighted,
+  required final bool isIos,
+  required final bool hasQuery,
+  required final ValueChanged<int> onHover,
+  required final ValueChanged<FilterMenuOption> onSelect,
 }) extends StatelessWidget {
-  final List<(String, List<FilterMenuOption>)> sections;
-  final int highlighted;
-  final bool isIos;
-  final bool hasQuery;
-  final ValueChanged<int> onHover;
-  final ValueChanged<FilterMenuOption> onSelect;
-
   @override
   Widget build(BuildContext context) {
     final rows = <Widget>[];
@@ -394,9 +381,7 @@ class const FilterMenu({
 }
 
 /// The menu's footer: the typed syntax, so the shortcut is one glance away.
-class const _SyntaxHint({required this.isIos}) extends StatelessWidget {
-  final bool isIos;
-
+class const _SyntaxHint({required final bool isIos}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;

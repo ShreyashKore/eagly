@@ -5,18 +5,13 @@ import 'package:flutter/material.dart';
 /// when the content can actually overflow (i.e. `wrapText == false`).
 class const LogViewerScrollArea({
   super.key,
-  required this.verticalController,
-  required this.horizontalController,
-  required this.wrapText,
-  required this.child,
-}) extends StatelessWidget {
-  final ScrollController verticalController;
-  final ScrollController horizontalController;
-  final bool wrapText;
+  required final ScrollController verticalController,
+  required final ScrollController horizontalController,
+  required final bool wrapText,
 
   /// The log content, already sized to the full content width.
-  final Widget child;
-
+  required final Widget child,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Wrap SingleChildScrollView in a ScrollConfiguration that disables

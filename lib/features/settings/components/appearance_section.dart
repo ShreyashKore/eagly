@@ -6,20 +6,13 @@ import 'settings_section_card.dart';
 /// switch.
 class const AppearanceSection({
   super.key,
-  required this.themeIndex,
-  required this.onThemeChanged,
-  required this.logFontSize,
-  required this.onLogFontSizeChanged,
-  required this.tipsEnabled,
-  required this.onTipsEnabledChanged,
+  required final int themeIndex,
+  required final ValueChanged<int> onThemeChanged,
+  required final double logFontSize,
+  required final ValueChanged<double> onLogFontSizeChanged,
+  required final bool tipsEnabled,
+  required final ValueChanged<bool> onTipsEnabledChanged,
 }) extends StatelessWidget {
-  final int themeIndex;
-  final ValueChanged<int> onThemeChanged;
-  final double logFontSize;
-  final ValueChanged<double> onLogFontSizeChanged;
-  final bool tipsEnabled;
-  final ValueChanged<bool> onTipsEnabledChanged;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

@@ -4,10 +4,8 @@ import 'package:gap/gap.dart';
 import '../../../presentation/theme/app_theme.dart';
 
 /// The emphasized "how to get there" line shown inside the detail dialog.
-class const ActionHint({super.key, required this.text})
+class const ActionHint({super.key, required final String text})
     extends StatelessWidget {
-  final String text;
-
   @override
   Widget build(BuildContext context) {
     final eagly = context.eaglyTheme;

@@ -22,12 +22,10 @@ import 'file_manager_controller.dart';
 /// hides the pane (handled by the device screen).
 class const FileManagerFeatureView({
   super.key,
-  required this.controller,
+  required final FileManagerController controller,
   required VoidCallback onClose,
 }) extends FeatureView {
   this : super(onClose: onClose);
-
-  final FileManagerController controller;
 
   @override
   State<FileManagerFeatureView> createState() => _FileManagerFeatureViewState();

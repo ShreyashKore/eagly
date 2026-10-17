@@ -4,16 +4,11 @@ import '../../../presentation/components/app_icon_button.dart';
 
 class const HeaderAction({
   super.key,
-  required this.icon,
-  required this.tooltip,
-  required this.onPressed,
-  this.busy = false,
+  required final Object? icon,
+  required final String tooltip,
+  required final VoidCallback onPressed,
+  final bool busy = false,
 }) extends StatelessWidget {
-  final Object? icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-  final bool busy;
-
   @override
   Widget build(BuildContext context) {
     final icon = this.icon;

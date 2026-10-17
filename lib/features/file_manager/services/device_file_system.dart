@@ -7,9 +7,7 @@ import 'rust_ios_file_system.dart';
 
 /// Thrown when a device file operation fails. [message] is already
 /// human-readable and safe to surface in the UI.
-class DeviceFileException(this.message) implements Exception {
-  final String message;
-
+class DeviceFileException(final String message) implements Exception {
   @override
   String toString() => message;
 }

@@ -8,20 +8,13 @@ import 'terminal_line.dart';
 /// `idevicesyslog` legitimately stream until the user stops them, so ending the
 /// process is the caller's job ([kill]).
 class TerminalProcessSession({
-  required this.output,
-  required this.exitCode,
-  required this._onKill,
-  required this._onInput,
-}) {
   /// stdout and stderr, line by line, tagged by pipe. Closes when both pipes
   /// are done.
-  final Stream<TerminalOutputChunk> output;
-
-  final Future<int> exitCode;
-
-  final Future<void> Function() _onKill;
-  final void Function(String text) _onInput;
-
+  required final Stream<TerminalOutputChunk> output,
+  required final Future<int> exitCode,
+  required final Future<void> Function() _onKill,
+  required final void Function(String text) _onInput,
+}) {
   /// Terminates the process (SIGTERM, escalating to SIGKILL).
   Future<void> kill() => _onKill();
 

@@ -5,14 +5,10 @@ import '../data/wireless_debug_models.dart';
 /// A wireless ADB device discovered via mDNS, grouping the pairing service and
 /// any connect services advertised for the same host.
 class const DiscoveredWirelessTarget({
-  required this.host,
-  this.pairingService,
-  this.connectServices = const [],
+  required final String host,
+  final WirelessDebugService? pairingService,
+  final List<WirelessDebugService> connectServices = const [],
 }) {
-  final String host;
-  final WirelessDebugService? pairingService;
-  final List<WirelessDebugService> connectServices;
-
   String get title =>
       pairingService?.name ?? connectServices.firstOrNull?.name ?? host;
   String? get pairingAddress => pairingService?.address;

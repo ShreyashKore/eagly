@@ -19,14 +19,10 @@ import 'components/rail_footer.dart';
 /// keep their room as the user zooms rather than being squeezed to fit.
 class const FeatureRail({
   super.key,
-  required this.session,
-  required this.onInstall,
-  required this.onOpenSettings,
+  required final DeviceSessionController session,
+  required final VoidCallback onInstall,
+  required final VoidCallback onOpenSettings,
 }) extends StatelessWidget {
-  final DeviceSessionController session;
-  final VoidCallback onInstall;
-  final VoidCallback onOpenSettings;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

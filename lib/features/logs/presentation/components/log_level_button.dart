@@ -9,10 +9,10 @@ import 'log_filter_parts.dart';
 
 /// The filter bar's **Level** button on its own, for a host that places it
 /// apart from the filter field.
-class const LogLevelButton({super.key, required this.controller})
-    extends StatelessWidget {
-  final LogFilterController controller;
-
+class const LogLevelButton({
+  super.key,
+  required final LogFilterController controller,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: controller,
@@ -20,9 +20,8 @@ class const LogLevelButton({super.key, required this.controller})
   );
 }
 
-class const _LevelButton({required this.controller}) extends StatefulWidget {
-  final LogFilterController controller;
-
+class const _LevelButton({required final LogFilterController controller})
+    extends StatefulWidget {
   @override
   State<_LevelButton> createState() => _LevelButtonState();
 }

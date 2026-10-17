@@ -1,35 +1,26 @@
 class const CpuStats({
-  required this.coreCount,
-  required this.loadAverage1m,
-  required this.loadAverage5m,
-  required this.loadAverage15m,
+  required final int coreCount,
+  required final double loadAverage1m,
+  required final double loadAverage5m,
+  required final double loadAverage15m,
 }) {
-  final int coreCount;
-  final double loadAverage1m;
-  final double loadAverage5m;
-  final double loadAverage15m;
-
   double get utilisationPercent =>
       coreCount > 0 ? (loadAverage1m / coreCount * 100).clamp(0, 100) : 0;
 }
 
 class const MemoryStats({
-  required this.totalKb,
-  required this.availableKb,
-  required this.freeKb,
+  required final int totalKb,
+  required final int availableKb,
+  required final int freeKb,
 }) {
-  final int totalKb;
-  final int availableKb;
-  final int freeKb;
-
   int get usedKb => (totalKb - availableKb).clamp(0, totalKb);
   double get usagePercent =>
       totalKb > 0 ? (usedKb / totalKb * 100).clamp(0, 100) : 0;
 }
 
-class const DevicePerformanceStats({this.cpu, this.memory}) {
-  final CpuStats? cpu;
-  final MemoryStats? memory;
-
+class const DevicePerformanceStats({
+  final CpuStats? cpu,
+  final MemoryStats? memory,
+}) {
   bool get isEmpty => cpu == null && memory == null;
 }

@@ -35,14 +35,10 @@ Future<Map<String, String>?> showUtilityParamsDialog(
 }
 
 class const _UtilityParamsDialog({
-  required this.command,
-  required this.device,
-  required this.initialValues,
+  required final UtilityCommand command,
+  required final Device? device,
+  required final Map<String, String> initialValues,
 }) extends StatefulWidget {
-  final UtilityCommand command;
-  final Device? device;
-  final Map<String, String> initialValues;
-
   @override
   State<_UtilityParamsDialog> createState() => _UtilityParamsDialogState();
 }
@@ -231,12 +227,9 @@ class _UtilityParamsDialogState extends State<_UtilityParamsDialog> {
 /// sentence-case caption at tertiary, and the command at secondary — the
 /// fields and the Run button stay the loudest things in the dialog.
 class const _CommandPreview({
-  required this.commandLine,
-  required this.expectsOutput,
+  required final String? commandLine,
+  required final bool expectsOutput,
 }) extends StatelessWidget {
-  final String? commandLine;
-  final bool expectsOutput;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -289,9 +282,8 @@ class const _CommandPreview({
 
 /// The inline confirmation for a destructive command that also takes input —
 /// shown here instead of stacking a second dialog on top of this one.
-class const _WarningBanner({required this.message}) extends StatelessWidget {
-  final String message;
-
+class const _WarningBanner({required final String message})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

@@ -5,8 +5,7 @@ import 'scrcpy_video_channel.dart';
 
 export 'scrcpy_client.dart' show ScrcpyControl, ScrcpyTouchAction;
 
-class const ScrcpyMirrorException(this.message) implements Exception {
-  final String message;
+class const ScrcpyMirrorException(final String message) implements Exception {
   @override
   String toString() => message;
 }
@@ -14,37 +13,26 @@ class const ScrcpyMirrorException(this.message) implements Exception {
 /// An active embedded mirror: a native texture being fed decoded frames from
 /// scrcpy-server. Render it with `Texture(textureId: session.textureId)`.
 class ScrcpyMirrorSession({
-  required this.serial,
-  required this.textureId,
-  required this.deviceName,
-  required this.width,
-  required this.height,
-  required this.control,
-  required this.exitCode,
-  required this.streamEnded,
-  required this._onStop,
-}) {
   /// adb serial of the mirrored device.
-  final String serial;
-  final int textureId;
-  final String deviceName;
-  final int width;
-  final int height;
+  required final String serial,
+  required final int textureId,
+  required final String deviceName,
+  required final int width,
+  required final int height,
 
   /// Control channel for injecting input, or null if unavailable.
-  final ScrcpyControl? control;
+  required final ScrcpyControl? control,
 
   /// Completes when scrcpy-server exits (0 = clean stop).
-  final Future<int> exitCode;
+  required final Future<int> exitCode,
 
   /// Completes when the video stream ends unexpectedly (e.g. a framing desync
   /// from a device rotation) while the session is still meant to be running.
   /// Never completes on an intentional [stop]. Consumers can await this to
   /// restart the mirror for a clean handshake.
-  final Future<void> streamEnded;
-
-  final Future<void> Function() _onStop;
-
+  required final Future<void> streamEnded,
+  required final Future<void> Function() _onStop,
+}) {
   Future<void> stop() => _onStop();
 }
 

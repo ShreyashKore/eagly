@@ -26,18 +26,12 @@ double appTileHeight(
 /// context menu.
 class const AppTile({
   super.key,
-  required this.controller,
-  required this.app,
-  required this.iconSize,
-  required this.onTap,
-  required this.onSecondaryTap,
+  required final AppsController controller,
+  required final AppInfo app,
+  required final double iconSize,
+  required final VoidCallback? onTap,
+  required final void Function(Offset position) onSecondaryTap,
 }) extends StatelessWidget {
-  final AppsController controller;
-  final AppInfo app;
-  final double iconSize;
-  final VoidCallback? onTap;
-  final void Function(Offset position) onSecondaryTap;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -90,14 +84,10 @@ String appTooltip(AppInfo app) {
 /// icon lazily (cached by [AppsController]) the first time it is built.
 class const AppIconView({
   super.key,
-  required this.controller,
-  required this.app,
-  required this.size,
+  required final AppsController controller,
+  required final AppInfo app,
+  required final double size,
 }) extends StatefulWidget {
-  final AppsController controller;
-  final AppInfo app;
-  final double size;
-
   @override
   State<AppIconView> createState() => _AppIconViewState();
 }
@@ -180,16 +170,11 @@ class _AppIconViewState extends State<AppIconView> {
 }
 
 class const _AppIcon({
-  required this.bytes,
-  required this.app,
-  required this.size,
-  required this.radius,
+  required final Uint8List? bytes,
+  required final AppInfo app,
+  required final double size,
+  required final BorderRadius radius,
 }) extends StatelessWidget {
-  final Uint8List? bytes;
-  final AppInfo app;
-  final double size;
-  final BorderRadius radius;
-
   @override
   Widget build(BuildContext context) {
     final iconBytes = bytes;
@@ -217,14 +202,10 @@ class const _AppIcon({
 /// picked deterministically from the package name so the same app always
 /// gets the same tile across sessions.
 class const _FallbackIcon({
-  required this.app,
-  required this.size,
-  required this.radius,
+  required final AppInfo app,
+  required final double size,
+  required final BorderRadius radius,
 }) extends StatelessWidget {
-  final AppInfo app;
-  final double size;
-  final BorderRadius radius;
-
   static const List<Color> _palette = [
     Color(0xFF5B8DEF),
     Color(0xFF9C6ADE),

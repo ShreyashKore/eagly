@@ -3,17 +3,17 @@ import 'dart:io';
 import 'terminal_tools.dart';
 
 /// Commands the terminal answers itself instead of handing to a device tool.
-enum TerminalBuiltin(this.names, this.summary) {
+enum TerminalBuiltin(
+  /// The word(s) that invoke this built-in; the first is the canonical one.
+  final List<String> names,
+  final String summary,
+) {
   help(['help', '?'], 'Show what this terminal understands'),
   clear(['clear', 'cls'], 'Clear the scrollback'),
   devices(['devices'], 'List every device Eagly can see'),
   use(['use'], 'Pin this tab to a device (`use auto` to unpin)'),
   tools(['tools'], 'List the CLIs this terminal dispatches to'),
   history(['history'], 'Show this tab\'s command history');
-
-  /// The word(s) that invoke this built-in; the first is the canonical one.
-  final List<String> names;
-  final String summary;
 
   static TerminalBuiltin? lookup(String name) {
     for (final builtin in TerminalBuiltin.values) {
@@ -29,44 +29,36 @@ enum TerminalBuiltin(this.names, this.summary) {
 /// aiming a single line at a device other than the tab's target — and is
 /// resolved by the controller, which is the only thing that knows what devices
 /// exist.
-sealed class const TerminalRequest({this.deviceRef}) {
+sealed class const TerminalRequest({
   /// The `@…` prefix the user typed, without the `@`.
-  final String? deviceRef;
-}
+  final String? deviceRef,
+});
 
 /// A terminal built-in ([TerminalBuiltin]) with its arguments.
 final class const TerminalBuiltinRequest(
-  this.builtin, {
-  this.arguments = const [],
+  final TerminalBuiltin builtin, {
+  final List<String> arguments = const [],
   super.deviceRef,
-}) extends TerminalRequest {
-  final TerminalBuiltin builtin;
-  final List<String> arguments;
-}
+}) extends TerminalRequest;
 
 /// A known CLI invoked by name, with the arguments that follow it.
 final class const TerminalToolRequest(
-  this.tool,
-  this.arguments, {
+  final TerminalTool tool,
+  final List<String> arguments, {
   super.deviceRef,
-}) extends TerminalRequest {
-  final TerminalTool tool;
-  final List<String> arguments;
-}
+}) extends TerminalRequest;
 
 /// A line that named no known tool, so it is meant for the device's own shell.
 /// [script] is the raw remainder — the device's `sh` evaluates it, so pipes,
 /// `;` and `$(…)` all work.
-final class const TerminalShellRequest(this.script, {super.deviceRef})
-    extends TerminalRequest {
-  final String script;
-}
+final class const TerminalShellRequest(final String script, {super.deviceRef})
+    extends TerminalRequest;
 
 /// The line could not be read at all (unbalanced quotes, a bare `@`).
-final class const TerminalInvalidRequest(this.message, {super.deviceRef})
-    extends TerminalRequest {
-  final String message;
-}
+final class const TerminalInvalidRequest(
+  final String message, {
+  super.deviceRef,
+}) extends TerminalRequest;
 
 /// Parses one submitted line. Never throws — a malformed line comes back as a
 /// [TerminalInvalidRequest] carrying the message to print.

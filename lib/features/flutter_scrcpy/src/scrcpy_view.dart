@@ -13,30 +13,22 @@ import 'scrcpy_mirror.dart';
 /// shortcuts the rest of the time.
 class const ScrcpyView({
   super.key,
-  required this.textureId,
-  required this.aspectRatio,
-  this.onTouch,
-  this.focusNode,
-  this.onKey,
-  this.onFocusChange,
-}) extends StatelessWidget {
-  final int textureId;
-  final double aspectRatio;
+  required final int textureId,
+  required final double aspectRatio,
 
   /// Called with a normalized (0..1) position within the video rect.
-  final void Function(ScrcpyTouchAction action, double nx, double ny)? onTouch;
+  final void Function(ScrcpyTouchAction action, double nx, double ny)? onTouch,
 
   /// Focus node gating keyboard forwarding. Without one the surface is not
   /// focusable and no keys are forwarded.
-  final FocusNode? focusNode;
+  final FocusNode? focusNode,
 
   /// Called for every key event while the surface has focus. Return
   /// [KeyEventResult.handled] to keep the event away from the host app (and to
   /// stop the platform beeping at an unhandled key).
-  final KeyEventResult Function(KeyEvent event)? onKey;
-
-  final ValueChanged<bool>? onFocusChange;
-
+  final KeyEventResult Function(KeyEvent event)? onKey,
+  final ValueChanged<bool>? onFocusChange,
+}) extends StatelessWidget {
   void _emit(ScrcpyTouchAction action, Offset position, Size size) {
     if (onTouch == null || size.width <= 0 || size.height <= 0) return;
     onTouch!(

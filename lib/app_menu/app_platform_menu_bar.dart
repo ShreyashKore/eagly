@@ -15,10 +15,8 @@ import 'app_menu_state.dart';
 /// Because it only depends on the snapshot, it rebuilds when — and only when —
 /// the snapshot changes, so an open native menu is not torn down by unrelated
 /// app activity.
-class const AppPlatformMenuBar({super.key, required this.child})
+class const AppPlatformMenuBar({super.key, required final Widget child})
     extends StatelessWidget {
-  final Widget child;
-
   @override
   Widget build(BuildContext context) {
     final state = AppMenuScope.stateOf(context);

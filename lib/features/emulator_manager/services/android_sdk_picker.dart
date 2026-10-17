@@ -7,20 +7,16 @@ import '../../../utils/android_sdk_path.dart';
 /// The verdict on a directory the user offered as their Android SDK root.
 @immutable
 class const AndroidSdkChoice({
-  required this.path,
-  required this.accepted,
-  required this.message,
-}) {
-  final String path;
+  required final String path,
 
   /// False when the directory holds nothing an SDK would hold. Saving one of
   /// those breaks the emulator manager silently — the list just stays empty —
   /// so it is refused at the point the user can still fix it.
-  final bool accepted;
+  required final bool accepted,
 
   /// What to tell the user, whether or not it was accepted.
-  final String message;
-}
+  required final String message,
+});
 
 /// Points Eagly at an Android SDK and remembers where.
 ///

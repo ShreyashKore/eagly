@@ -15,22 +15,19 @@ import 'app_icon_button.dart';
 /// the grip draws nothing and the header looks as it always did.
 class const WorkspacePaneScope({
   super.key,
-  required this.controls,
-  required this.isTabbed,
-  required this.canMove,
-  required super.child,
-}) extends InheritedWidget {
+
   /// The pane's moves. One object per pane for the life of the workspace,
   /// so it can be compared by identity.
-  final PaneControls controls;
+  required final PaneControls controls,
 
   /// The pane shares a tab strip, whose chip shows its title and close
   /// button — the header should not repeat them.
-  final bool isTabbed;
+  required final bool isTabbed,
 
   /// Another pane is open, so there is somewhere to move this one to.
-  final bool canMove;
-
+  required final bool canMove,
+  required super.child,
+}) extends InheritedWidget {
   /// Whether the header should lead with a [PaneGrip]: there is somewhere to
   /// move the pane, and no tab chip already serving as its handle.
   bool get showsGrip => canMove && !isTabbed;
@@ -77,20 +74,14 @@ abstract interface class PaneControls {
 /// [children] is non-empty. A null [onSelected] greys the action out.
 @immutable
 class const PaneMenuItem({
-  required this.label,
-  this.icon,
-  this.onSelected,
-  this.children = const [],
-  this.dividerBefore = false,
-}) {
-  final String label;
-  final IconData? icon;
-  final VoidCallback? onSelected;
-  final List<PaneMenuItem> children;
+  required final String label,
+  final IconData? icon,
+  final VoidCallback? onSelected,
+  final List<PaneMenuItem> children = const [],
 
   /// Starts a new group in the menu.
-  final bool dividerBefore;
-
+  final bool dividerBefore = false,
+}) {
   bool get isSubmenu => children.isNotEmpty;
 }
 
@@ -101,9 +92,8 @@ class const PaneMenuItem({
 /// a workspace, while the pane is the only one open, or while it sits in a
 /// tab group, whose chip is then its handle (see
 /// [WorkspacePaneScope.showsGrip]).
-class const PaneGrip({super.key, this.iconSize = 18}) extends StatefulWidget {
-  final double iconSize;
-
+class const PaneGrip({super.key, final double iconSize = 18})
+    extends StatefulWidget {
   @override
   State<PaneGrip> createState() => _PaneGripState();
 }
@@ -165,10 +155,8 @@ class _PaneGripState extends State<PaneGrip> {
 /// Makes [child] a handle that moves the pane it sits in — the grip, or the
 /// title area of a pane header (the way a window is moved by its title
 /// bar). Inert outside a workspace or while the pane is alone.
-class const PaneDragArea({super.key, required this.child})
+class const PaneDragArea({super.key, required final Widget child})
     extends StatelessWidget {
-  final Widget child;
-
   @override
   Widget build(BuildContext context) {
     final scope = WorkspacePaneScope.maybeOf(context);

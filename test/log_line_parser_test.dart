@@ -28,10 +28,10 @@ class _CountingParser implements LogLineParser {
   PendingEntryStatus get pendingEntryStatus => _inner.pendingEntryStatus;
 }
 
-class _ThrowingParser({this.onAddLine = false, this.onFlush = false})
-    implements LogLineParser {
-  final bool onAddLine;
-  final bool onFlush;
+class _ThrowingParser({
+  final bool onAddLine = false,
+  final bool onFlush = false,
+}) implements LogLineParser {
   final _inner = LogcatParser();
 
   @override
@@ -51,7 +51,7 @@ class _ThrowingParser({this.onAddLine = false, this.onFlush = false})
 }
 
 /// Drives [parseLogLines] over a hand-fed line stream inside [FakeAsync].
-class _Harness(this.async, {LogLineParser? parser}) {
+class _Harness(final FakeAsync async, {LogLineParser? parser}) {
   this : parser = parser ?? LogcatParser() {
     subscription = parseLogLines(
       _lines.stream,
@@ -61,7 +61,6 @@ class _Harness(this.async, {LogLineParser? parser}) {
     ).listen(entries.add, onError: errors.add);
   }
 
-  final FakeAsync async;
   final LogLineParser parser;
   final _lines = StreamController<String>();
   final entries = <LogEntry>[];

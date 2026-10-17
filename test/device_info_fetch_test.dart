@@ -16,13 +16,13 @@ import 'package:flutter_test/flutter_test.dart';
 /// plays the device's part: it walks the script and emits each command's
 /// canned output behind the same section marker the real shell would print.
 /// That keeps the section splitting under test rather than stubbed past.
-class _FakeAdbTool(this.responses) extends AdbTool {
+class _FakeAdbTool(
+  /// Canned stdout, keyed by a substring of the command that produces it.
+  final Map<String, String> responses,
+) extends AdbTool {
   this : super(executablePath: '/usr/bin/true');
 
   static const String _marker = '__EAGLY_SECTION__';
-
-  /// Canned stdout, keyed by a substring of the command that produces it.
-  final Map<String, String> responses;
 
   @override
   Future<ToolCommandResult> runTextWithTimeout(
@@ -58,10 +58,9 @@ class _FakeAdbTool(this.responses) extends AdbTool {
   }
 }
 
-class _FakeIdeviceInfoTool(this.responses) extends IdeviceInfoTool {
+class _FakeIdeviceInfoTool(final Map<String, String> responses)
+    extends IdeviceInfoTool {
   this : super(executablePath: '/usr/bin/true');
-
-  final Map<String, String> responses;
 
   @override
   Future<ToolCommandResult> runText(List<String> arguments) async {

@@ -11,7 +11,7 @@ import 'tips_data.dart';
 /// persisted rotation counter, so a different tip surfaces on the next launch —
 /// this is what makes "a new tip every time the app is opened" work without any
 /// timers or per-frame logic.
-class TipsController({this._tips = kTips}) extends ChangeNotifier {
+class TipsController({final List<Tip> _tips = kTips}) extends ChangeNotifier {
   this {
     _enabled = PreferencesService.tipsEnabled;
     if (_tips.isEmpty) {
@@ -27,7 +27,6 @@ class TipsController({this._tips = kTips}) extends ChangeNotifier {
     PreferencesService.tipsEnabledListenable.addListener(_onEnabledChanged);
   }
 
-  final List<Tip> _tips;
   late int _index;
   late bool _enabled;
   bool _dismissed = false;

@@ -19,11 +19,9 @@ import '../../presentation/theme/app_theme.dart';
 /// actions. [onClose] hides the pane (handled by the device screen).
 class const AppsFeatureView({
   super.key,
-  required this.controller,
+  required final AppsController controller,
   required super.onClose,
 }) extends FeatureView {
-  final AppsController controller;
-
   @override
   State<AppsFeatureView> createState() => _AppsFeatureViewState();
 }
@@ -404,11 +402,10 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
   }
 }
 
-class const _Header({required this.controller, required this.onClose})
-    extends StatelessWidget {
-  final AppsController controller;
-  final VoidCallback onClose;
-
+class const _Header({
+  required final AppsController controller,
+  required final VoidCallback onClose,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = controller.loadState == AppLoadState.ready
@@ -437,11 +434,10 @@ class const _Header({required this.controller, required this.onClose})
   }
 }
 
-class const _Toolbar({required this.controller, required this.searchController})
-    extends StatelessWidget {
-  final AppsController controller;
-  final TextEditingController searchController;
-
+class const _Toolbar({
+  required final AppsController controller,
+  required final TextEditingController searchController,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

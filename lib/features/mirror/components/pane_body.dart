@@ -4,10 +4,8 @@ import 'package:gap/gap.dart';
 import '../../flutter_scrcpy/flutter_scrcpy.dart';
 import '../mirror_controller.dart';
 
-class const PaneBody({super.key, required this.controller})
+class const PaneBody({super.key, required final MirrorController controller})
     extends StatelessWidget {
-  final MirrorController controller;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

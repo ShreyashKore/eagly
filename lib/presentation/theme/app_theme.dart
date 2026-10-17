@@ -20,59 +20,33 @@ extension ThemeModeExt on ThemeMode {
 
 @immutable
 class const EaglyTheme({
-  required this.monoStyle,
-  required this.logBodyStyle,
-  required this.logCompactStyle,
-  required this.logHeaderStyle,
-  required this.statusBarStyle,
-  required this.verboseColor,
-  required this.debugColor,
-  required this.infoColor,
-  required this.warningColor,
-  required this.errorColor,
-  required this.logBadgeForeground,
-  required this.searchMatchColor,
-  required this.searchCurrentMatchColor,
-  required this.searchCurrentRowColor,
-  required this.searchHighlightForeground,
-  required this.searchNoResultsFillColor,
-  required this.searchNoResultsTextColor,
-  required this.inlineNoticeBackground,
-  required this.inlineNoticeForeground,
-  required this.statusLiveColor,
-  required this.statusPausedColor,
-  required this.statusStoppedColor,
-  required this.cardShadowColor,
-  required this.secondaryTextColor,
-  required this.tertiaryTextColor,
-}) extends ThemeExtension<EaglyTheme> {
   /// The app's monospace face with no size or height baked in — the base for
   /// anything that must line up in columns (log rows, terminal scrollback).
   /// Prefer this over `fontFamily: 'monospace'`, which resolves to no real
   /// family on macOS/Windows and silently falls back to the UI font.
-  final TextStyle monoStyle;
-  final TextStyle logBodyStyle;
-  final TextStyle logCompactStyle;
-  final TextStyle logHeaderStyle;
-  final TextStyle statusBarStyle;
-  final Color verboseColor;
-  final Color debugColor;
-  final Color infoColor;
-  final Color warningColor;
-  final Color errorColor;
-  final Color logBadgeForeground;
-  final Color searchMatchColor;
-  final Color searchCurrentMatchColor;
-  final Color searchCurrentRowColor;
-  final Color searchHighlightForeground;
-  final Color searchNoResultsFillColor;
-  final Color searchNoResultsTextColor;
-  final Color inlineNoticeBackground;
-  final Color inlineNoticeForeground;
-  final Color statusLiveColor;
-  final Color statusPausedColor;
-  final Color statusStoppedColor;
-  final Color cardShadowColor;
+  required final TextStyle monoStyle,
+  required final TextStyle logBodyStyle,
+  required final TextStyle logCompactStyle,
+  required final TextStyle logHeaderStyle,
+  required final TextStyle statusBarStyle,
+  required final Color verboseColor,
+  required final Color debugColor,
+  required final Color infoColor,
+  required final Color warningColor,
+  required final Color errorColor,
+  required final Color logBadgeForeground,
+  required final Color searchMatchColor,
+  required final Color searchCurrentMatchColor,
+  required final Color searchCurrentRowColor,
+  required final Color searchHighlightForeground,
+  required final Color searchNoResultsFillColor,
+  required final Color searchNoResultsTextColor,
+  required final Color inlineNoticeBackground,
+  required final Color inlineNoticeForeground,
+  required final Color statusLiveColor,
+  required final Color statusPausedColor,
+  required final Color statusStoppedColor,
+  required final Color cardShadowColor,
 
   // ── Text emphasis ──
   // Three tiers, so a row reads in order of importance instead of all at
@@ -81,13 +55,13 @@ class const EaglyTheme({
 
   /// Supporting text that qualifies the primary line: a description under a
   /// label, the package under an app name.
-  final Color secondaryTextColor;
+  required final Color secondaryTextColor,
 
   /// Metadata worth having but not worth reading first: versions, dates,
   /// counts, legends, an echoed command line. Still meets WCAG AA (4.5:1)
   /// on every surface it sits on — see `test/text_emphasis_test.dart`.
-  final Color tertiaryTextColor;
-
+  required final Color tertiaryTextColor,
+}) extends ThemeExtension<EaglyTheme> {
   Color logLevelColor(String level) {
     return switch (LogLevel.fromStored(level).code) {
       'fault' || 'error' => errorColor,

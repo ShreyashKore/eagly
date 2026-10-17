@@ -13,10 +13,10 @@ import '../../../session/device_session_controller.dart';
 /// the bar shows activity, not progress.
 ///
 /// Rebuilds from [session] itself; place it in a [Stack] over the panes.
-class const InstallProgressBanner({super.key, required this.session})
-    extends StatelessWidget {
-  final DeviceSessionController session;
-
+class const InstallProgressBanner({
+  super.key,
+  required final DeviceSessionController session,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -54,16 +54,11 @@ class const InstallProgressBanner({super.key, required this.session})
 
 class const _InstallCard({
   super.key,
-  required this.appName,
-  required this.deviceName,
-  required this.platform,
-  required this.startedAt,
+  required final String? appName,
+  required final String deviceName,
+  required final DevicePlatform platform,
+  required final DateTime startedAt,
 }) extends StatefulWidget {
-  final String? appName;
-  final String deviceName;
-  final DevicePlatform platform;
-  final DateTime startedAt;
-
   @override
   State<_InstallCard> createState() => _InstallCardState();
 }

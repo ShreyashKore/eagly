@@ -9,20 +9,15 @@ enum AppLogLevel { debug, info, success, warning, error }
 
 /// A single structured log entry produced by the app itself (not device logs).
 class AppLogEntry({
-  required this.level,
-  required this.source,
-  required this.message,
-  this.detail,
-  this.sessionTag,
+  required final AppLogLevel level,
+  required final String source,
+  required final String message,
+  final String? detail,
+  final String? sessionTag,
   DateTime? timestamp,
 }) {
   this : timestamp = timestamp ?? DateTime.now();
 
-  final AppLogLevel level;
-  final String source;
-  final String message;
-  final String? detail;
-  final String? sessionTag;
   final DateTime timestamp;
 
   String toExportString() {

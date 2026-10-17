@@ -58,16 +58,11 @@ bool showsFilterAppIcons(
 /// pill editor.
 class const FilterEditorHeader({
   super.key,
-  required this.icon,
-  required this.label,
-  required this.operator,
-  required this.onRemove,
+  required final IconData icon,
+  required final String label,
+  required final Widget operator,
+  required final VoidCallback onRemove,
 }) extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Widget operator;
-  final VoidCallback onRemove;
-
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -93,10 +88,8 @@ class const FilterEditorHeader({
 }
 
 /// A small heading over a group of [FilterMenuRow]s.
-class const FilterMenuSectionLabel(this.text, {super.key})
+class const FilterMenuSectionLabel(final String text, {super.key})
     extends StatelessWidget {
-  final String text;
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -117,25 +110,17 @@ class const FilterMenuSectionLabel(this.text, {super.key})
 /// A rounded, hover-highlighted row in a popover list.
 class const FilterMenuRow({
   super.key,
-  required this.child,
-  required this.onTap,
-  this.icon,
-  this.packageName,
-  this.trailing,
-  this.highlighted = false,
-  this.onHover,
-}) extends StatefulWidget {
-  final Widget child;
-  final VoidCallback onTap;
-  final IconData? icon;
+  required final Widget child,
+  required final VoidCallback onTap,
+  final IconData? icon,
 
   /// A package whose cached app icon replaces [icon], which stays the
   /// fallback until the Apps pane has fetched one.
-  final String? packageName;
-  final Widget? trailing;
-  final bool highlighted;
-  final VoidCallback? onHover;
-
+  final String? packageName,
+  final Widget? trailing,
+  final bool highlighted = false,
+  final VoidCallback? onHover,
+}) extends StatefulWidget {
   @override
   State<FilterMenuRow> createState() => _FilterMenuRowState();
 }

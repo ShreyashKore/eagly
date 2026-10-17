@@ -12,9 +12,9 @@ import '../services/preferences_service.dart';
 /// the window is too small for every floor at once. Keep the floors modest:
 /// a divider between two panes already at their floors cannot move.
 enum WorkspacePane(
-  this.label, {
-  required this.preferredWidth,
-  required this.minWidth,
+  final String label, {
+  required final double preferredWidth,
+  required final double minWidth,
 }) {
   logs('Logs', preferredWidth: 600, minWidth: 260),
   mirror('Mirror', preferredWidth: 340, minWidth: 200),
@@ -24,9 +24,6 @@ enum WorkspacePane(
   utilities('Utilities', preferredWidth: 420, minWidth: 240),
   terminal('Terminal', preferredWidth: 520, minWidth: 240);
 
-  final String label;
-  final double preferredWidth;
-  final double minWidth;
   double get minHeight => 140;
 
   /// The id of this pane's tab in the layout tree, and in a saved layout.

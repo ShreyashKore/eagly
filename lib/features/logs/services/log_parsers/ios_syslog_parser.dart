@@ -210,10 +210,7 @@ class IosSyslogParser({DateTime Function()? now}) implements LogLineParser {
   }
 }
 
-class const _DecodedMetaEscape(this.byte, this.nextIndex) {
-  final int byte;
-  final int nextIndex;
-}
+class const _DecodedMetaEscape(final int byte, final int nextIndex);
 
 class _IosSyslogEntryBuilder {
   _IosSyslogEntryBuilder({

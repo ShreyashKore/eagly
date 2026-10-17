@@ -9,19 +9,15 @@ import 'search_highlight.dart';
 /// One entry in a [ComboField]'s list.
 @immutable
 class const ComboOption({
-  required this.value,
-  required this.label,
-  this.description,
-}) {
   /// What picking the entry writes into the field.
-  final String value;
+  required final String value,
 
   /// What the list shows.
-  final String label;
+  required final String label,
 
   /// Optional second line under [label].
-  final String? description;
-}
+  final String? description,
+});
 
 /// A text field with a searchable list of [options] attached — a combobox.
 ///
@@ -39,28 +35,19 @@ class const ComboOption({
 /// was typed, never a match that merely contains it.
 class const ComboField({
   super.key,
-  required this.controller,
-  required this.options,
-  this.decoration = const InputDecoration(),
-  this.autofocus = false,
-  this.onChanged,
-  this.onSubmitted,
-  this.maxListHeight = 280,
-}) extends StatefulWidget {
-  final TextEditingController controller;
-  final List<ComboOption> options;
-  final InputDecoration decoration;
-  final bool autofocus;
+  required final TextEditingController controller,
+  required final List<ComboOption> options,
+  final InputDecoration decoration = const InputDecoration(),
+  final bool autofocus = false,
 
   /// Called when the text changes, by typing or by picking an option.
-  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onChanged,
 
   /// Enter with the list closed, with nothing highlighted, or on the entry
   /// the field already holds.
-  final ValueChanged<String>? onSubmitted;
-
-  final double maxListHeight;
-
+  final ValueChanged<String>? onSubmitted,
+  final double maxListHeight = 280,
+}) extends StatefulWidget {
   /// Ranks [options] against [query]: label prefix, then a word in the label
   /// or value starting with it, then a plain substring anywhere — and only
   /// when nothing contains the query, a fuzzy (subsequence) match on the
@@ -379,15 +366,12 @@ class _ComboFieldState extends State<ComboField> {
   }
 }
 
-class const _MoveIntent(this.delta) extends Intent {
-  final int delta;
-}
+class const _MoveIntent(final int delta) extends Intent;
 
-class _CloseListAction({required this.isOpen, required this.close})
-    extends Action<DismissIntent> {
-  final bool Function() isOpen;
-  final VoidCallback close;
-
+class _CloseListAction({
+  required final bool Function() isOpen,
+  required final VoidCallback close,
+}) extends Action<DismissIntent> {
   @override
   bool isEnabled(DismissIntent intent) => isOpen();
 
@@ -399,18 +383,12 @@ class _CloseListAction({required this.isOpen, required this.close})
 }
 
 class const _ComboRow({
-  required this.option,
-  required this.query,
-  required this.highlighted,
-  required this.onTap,
-  required this.onHover,
+  required final ComboOption option,
+  required final String query,
+  required final bool highlighted,
+  required final VoidCallback onTap,
+  required final VoidCallback onHover,
 }) extends StatelessWidget {
-  final ComboOption option;
-  final String query;
-  final bool highlighted;
-  final VoidCallback onTap;
-  final VoidCallback onHover;
-
   List<InlineSpan> _spans(BuildContext context, String text, TextStyle style) {
     final matches = <TextSearchMatch>[];
     if (query.isNotEmpty) {

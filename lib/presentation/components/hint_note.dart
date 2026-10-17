@@ -9,16 +9,12 @@ import '../theme/app_theme.dart';
 /// operation has visibly taken longer than expected.
 class const HintNote({
   super.key,
-  required this.text,
-  this.title,
-  this.icon = Icons.lightbulb_outline,
-}) extends StatelessWidget {
-  final String text;
+  required final String text,
 
   /// Optional emphasized first line.
-  final String? title;
-  final IconData icon;
-
+  final String? title,
+  final IconData icon = Icons.lightbulb_outline,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

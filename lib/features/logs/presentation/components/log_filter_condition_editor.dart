@@ -12,16 +12,11 @@ import 'log_filter_parts.dart';
 /// otherwise the card lists recent and known values for the field.
 class const FilterConditionEditor({
   super.key,
-  required this.controller,
-  required this.conditionId,
-  required this.onDone,
-  required this.onRemove,
+  required final LogFilterController controller,
+  required final int conditionId,
+  required final VoidCallback onDone,
+  required final VoidCallback onRemove,
 }) extends StatefulWidget {
-  final LogFilterController controller;
-  final int conditionId;
-  final VoidCallback onDone;
-  final VoidCallback onRemove;
-
   @override
   State<FilterConditionEditor> createState() => _FilterConditionEditorState();
 }
@@ -235,16 +230,11 @@ class _FilterConditionEditorState extends State<FilterConditionEditor> {
 
 /// The "contains ▾" control in an editor header.
 class const _OperatorButton({
-  required this.label,
-  required this.negated,
-  required this.open,
-  required this.onPressed,
+  required final String label,
+  required final bool negated,
+  required final bool open,
+  required final VoidCallback? onPressed,
 }) extends StatelessWidget {
-  final String label;
-  final bool negated;
-  final bool open;
-  final VoidCallback? onPressed;
-
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;

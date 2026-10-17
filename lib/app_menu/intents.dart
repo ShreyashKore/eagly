@@ -44,9 +44,7 @@ class const FocusFilterIntent() extends Intent;
 
 class const ClearFilterIntent() extends Intent;
 
-class const SetLogLevelIntent(this.level) extends Intent {
-  final LogLevel level;
-}
+class const SetLogLevelIntent(final LogLevel level) extends Intent;
 
 // ── View ──────────────────────────────────────────────────────────────────────
 class const ToggleWrapTextIntent() extends Intent;

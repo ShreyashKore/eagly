@@ -93,11 +93,11 @@ class const FileEntryVisuals._() {
 /// Renders an entry's icon. Symlinks use the folder icon with a small link
 /// badge in the corner (they navigate like folders), so they read as
 /// navigable rather than as an unrelated "link" glyph.
-class const FileEntryIcon({super.key, required this.entry, required this.size})
-    extends StatelessWidget {
-  final DeviceFileEntry entry;
-  final double size;
-
+class const FileEntryIcon({
+  super.key,
+  required final DeviceFileEntry entry,
+  required final double size,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;

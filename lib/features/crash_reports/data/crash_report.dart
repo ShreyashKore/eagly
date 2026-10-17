@@ -8,22 +8,16 @@ import 'dart:convert';
 /// falling back to the filename and the file's modified time when metadata is
 /// missing.
 class const CrashReport({
-  required this.fileName,
-  required this.filePath,
-  required this.processName,
-  required this.timestamp,
-  required this.sizeBytes,
-}) {
-  final String fileName;
-  final String filePath;
+  required final String fileName,
+  required final String filePath,
 
   /// Best-effort name of the process/app that crashed.
-  final String processName;
+  required final String processName,
 
   /// When the crash occurred, best-effort. Falls back to the file mtime.
-  final DateTime timestamp;
-  final int sizeBytes;
-
+  required final DateTime timestamp,
+  required final int sizeBytes,
+}) {
   /// Builds a report from a copied crash file. [content] is the raw file text
   /// and [modified] the file's last-modified time (used as a timestamp
   /// fallback).
@@ -127,7 +121,7 @@ class const CrashReport({
   );
 }
 
-class const _CrashHeader({this.processName, this.timestamp}) {
-  final String? processName;
-  final DateTime? timestamp;
-}
+class const _CrashHeader({
+  final String? processName,
+  final DateTime? timestamp,
+});

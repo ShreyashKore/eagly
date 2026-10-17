@@ -9,12 +9,9 @@ import '../../../session/device_session_manager.dart';
 /// status box, or one [AvailableDeviceCard] per detected device.
 class const HomeDeviceList({
   super.key,
-  required this.manager,
-  required this.onShowMessage,
+  required final DeviceSessionManager manager,
+  required final ValueChanged<String> onShowMessage,
 }) extends StatelessWidget {
-  final DeviceSessionManager manager;
-  final ValueChanged<String> onShowMessage;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

@@ -16,38 +16,23 @@ import '../../utils/text_search_pattern.dart';
 /// - Enter to go to next match
 class const TextSearchBar({
   super.key,
-  this.controller,
-  this.focusNode,
-  required this.search,
-  this.hasError = false,
-  this.errorText,
-  this.hintText = 'Search...',
-  required this.onSearchChanged,
-  required this.onSearchOptionsChanged,
-  required this.onNext,
-  required this.onPrevious,
-  required this.onClose,
-  required this.currentMatch,
-  required this.totalMatches,
-  this.width,
-}) extends StatefulWidget {
-  final TextEditingController? controller;
-  final FocusNode? focusNode;
-  final TextSearchConfig search;
-  final bool hasError;
-  final String? errorText;
-  final String hintText;
-  final ValueChanged<TextSearchConfig> onSearchChanged;
-  final ValueChanged<TextSearchConfig> onSearchOptionsChanged;
-  final VoidCallback onNext;
-  final VoidCallback onPrevious;
-  final VoidCallback onClose;
+  final TextEditingController? controller,
+  final FocusNode? focusNode,
+  required final TextSearchConfig search,
+  final bool hasError = false,
+  final String? errorText,
+  final String hintText = 'Search...',
+  required final ValueChanged<TextSearchConfig> onSearchChanged,
+  required final ValueChanged<TextSearchConfig> onSearchOptionsChanged,
+  required final VoidCallback onNext,
+  required final VoidCallback onPrevious,
+  required final VoidCallback onClose,
 
   /// 1-based index of the currently focused match (0 when no matches).
-  final int currentMatch;
-  final int totalMatches;
-  final double? width;
-
+  required final int currentMatch,
+  required final int totalMatches,
+  final double? width,
+}) extends StatefulWidget {
   @override
   State<TextSearchBar> createState() => _TextSearchBarState();
 }
@@ -288,16 +273,11 @@ class _TextSearchBarState extends State<TextSearchBar> {
 }
 
 class const _SearchToggleButton({
-  required this.label,
-  required this.tooltip,
-  required this.value,
-  required this.onPressed,
+  required final String label,
+  required final String tooltip,
+  required final bool value,
+  required final VoidCallback onPressed,
 }) extends StatelessWidget {
-  final String label;
-  final String tooltip;
-  final bool value;
-  final VoidCallback onPressed;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

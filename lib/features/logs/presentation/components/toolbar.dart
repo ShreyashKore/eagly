@@ -20,20 +20,13 @@ import 'toolbar_divider.dart';
 /// the handle and has the close button, so the bar shows neither.
 class const Toolbar({
   super.key,
-  required this.controller,
-  required this.logManager,
-  required this.onImportLog,
-  required this.onExport,
-  required this.onCopyAll,
-  required this.onClose,
+  required final LogController controller,
+  required final LogSessionManager logManager,
+  required final VoidCallback? onImportLog,
+  required final VoidCallback? onExport,
+  required final VoidCallback? onCopyAll,
+  required final VoidCallback? onClose,
 }) extends StatelessWidget {
-  final LogController controller;
-  final LogSessionManager logManager;
-  final VoidCallback? onImportLog;
-  final VoidCallback? onExport;
-  final VoidCallback? onCopyAll;
-  final VoidCallback? onClose;
-
   @override
   Widget build(BuildContext context) {
     final c = controller;

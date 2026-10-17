@@ -4,10 +4,10 @@ import 'package:gap/gap.dart';
 import '../mirror_controller.dart';
 
 /// Compact popup that switches the mirror's encoder quality preset.
-class const QualityButton({super.key, required this.controller})
-    extends StatelessWidget {
-  final MirrorController controller;
-
+class const QualityButton({
+  super.key,
+  required final MirrorController controller,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

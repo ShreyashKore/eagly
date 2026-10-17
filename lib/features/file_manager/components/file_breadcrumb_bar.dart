@@ -6,10 +6,10 @@ import '../../../presentation/theme/app_theme.dart';
 
 /// Clickable path breadcrumb (`/ › sdcard › DCIM`). The leading crumb is the
 /// file system root; each subsequent crumb jumps to that ancestor directory.
-class const FileBreadcrumbBar({super.key, required this.controller})
-    extends StatelessWidget {
-  final FileManagerController controller;
-
+class const FileBreadcrumbBar({
+  super.key,
+  required final FileManagerController controller,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

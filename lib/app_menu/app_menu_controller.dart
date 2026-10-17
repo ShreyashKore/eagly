@@ -18,13 +18,12 @@ import 'app_menu_state.dart';
 ///
 /// It also exposes the (context-free) capture/search/filter/view commands the
 /// menu and keyboard shortcuts invoke, so command behavior lives in one place.
-class AppMenuController(this._manager) extends ChangeNotifier {
+class AppMenuController(final DeviceSessionManager _manager)
+    extends ChangeNotifier {
   this {
     _manager.addListener(_resync);
     _resync();
   }
-
-  final DeviceSessionManager _manager;
 
   // Currently observed links of the chain (so we can detach when they change).
   DeviceSessionController? _session;

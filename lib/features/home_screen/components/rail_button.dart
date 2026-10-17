@@ -4,25 +4,17 @@ import '../../../presentation/theme/app_theme.dart';
 
 class const RailButton({
   super.key,
-  required this.icon,
-  required this.label,
-  required this.isActive,
-  required this.tooltip,
-  required this.onTap,
-  this.enabled = true,
-  this.busy = false,
-}) extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  final String tooltip;
-  final VoidCallback? onTap;
-  final bool enabled;
+  required final IconData icon,
+  required final String label,
+  required final bool isActive,
+  required final String tooltip,
+  required final VoidCallback? onTap,
+  final bool enabled = true,
 
   /// Spins a progress ring around the icon — for a long-running action the
   /// button started, such as an app install.
-  final bool busy;
-
+  final bool busy = false,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;

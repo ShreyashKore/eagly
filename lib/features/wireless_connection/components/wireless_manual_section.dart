@@ -6,14 +6,10 @@ import '../../../presentation/theme/app_theme.dart';
 /// Titled section card used by the manual entry tab.
 class const WirelessManualSection({
   super.key,
-  required this.title,
-  required this.description,
-  required this.child,
+  required final String title,
+  required final String description,
+  required final Widget child,
 }) extends StatelessWidget {
-  final String title;
-  final String description;
-  final Widget child;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
