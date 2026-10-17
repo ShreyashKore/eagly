@@ -179,9 +179,11 @@ class _CatalogEntry {
 /// Loads [AndroidDeviceCatalog] and answers lookups against it.
 ///
 /// The list (~5 MB) is downloaded once and cached under the app support
-/// directory. A lookup never waits on the network: until a copy is on disk it
-/// answers null and starts the download, then notifies listeners once the list
-/// is in so callers can look again. A failed download is retried every
+/// directory. A lookup never waits — not on the network, and not on reading
+/// and parsing the cached copy either, which takes a noticeable moment: until
+/// the list is in memory it answers null and starts loading it (from disk,
+/// else by download), then notifies listeners once it is in so callers can
+/// look again. A failed download is retried every
 /// [retryDelay]. A cached copy past [_cacheMaxAge] keeps answering while a
 /// fresh one downloads.
 class AndroidMarketingNames extends ChangeNotifier {
@@ -211,14 +213,20 @@ class AndroidMarketingNames extends ChangeNotifier {
 
   AndroidDeviceCatalog? _catalog;
   Future<void>? _diskLoad;
+  bool _disposed = false;
   Future<void>? _download;
   Timer? _retryTimer;
 
   /// The marketing name Google Play lists for a device, or null when it is
-  /// not listed or the list isn't available yet.
+  /// not listed or the list isn't in memory yet — in which case loading it
+  /// starts, and listeners hear when it lands.
   Future<String?> lookup({String? brand, String? device, String? model}) async {
-    if (_catalog == null) await (_diskLoad ??= _loadFromDisk());
-    return _catalog?.lookup(brand: brand, device: device, model: model);
+    final catalog = _catalog;
+    if (catalog == null) {
+      _diskLoad ??= _loadFromDisk();
+      return null;
+    }
+    return catalog.lookup(brand: brand, device: device, model: model);
   }
 
   Future<void> _loadFromDisk() async {
@@ -228,6 +236,7 @@ class AndroidMarketingNames extends ChangeNotifier {
         final catalog = await _parseFileInIsolate(file.path);
         if (!catalog.isEmpty) {
           _catalog = catalog;
+          _notify();
           final age = DateTime.now().difference(await file.lastModified());
           if (age > _cacheMaxAge) _startDownload(file);
           return;
@@ -260,7 +269,7 @@ class AndroidMarketingNames extends ChangeNotifier {
       if (catalog.isEmpty) throw const FormatException('Empty device list');
       _catalog = catalog;
       await _writeCache(cacheFile, data);
-      notifyListeners();
+      _notify();
     } catch (_) {
       _retryTimer = Timer(retryDelay, () => _startDownload(cacheFile));
     } finally {
@@ -305,8 +314,14 @@ class AndroidMarketingNames extends ChangeNotifier {
     return File('${directory.path}${Platform.pathSeparator}$_cacheFileName');
   }
 
+  /// Loads finish on their own schedule, possibly after [dispose].
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     _retryTimer?.cancel();
     super.dispose();
   }

@@ -152,7 +152,12 @@ void _loaderTests() {
       _csv,
     );
 
+    // Reading the cached copy is never waited on: the first lookup answers
+    // null, and listeners hear once it is in.
     final relaunched = names();
+    final loaded = changed(relaunched);
+    expect(await relaunched.lookup(model: 'SM-S911B'), isNull);
+    await loaded;
     expect(await relaunched.lookup(model: 'SM-S911B'), 'Galaxy S23');
     expect(requests, 1);
   });

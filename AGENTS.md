@@ -143,8 +143,8 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   Its parsing runs in `Isolate.run` from *static* helpers — a closure built in an instance
   method captures `this`, whose timer and listeners can't cross isolates. A device's own
   `ro.product.marketname` (`AndroidDevice.marketName`) wins over the list, which is only
-  consulted without one. The Android lookup never waits on the download: devices first
-  show their raw model, and `AndroidMarketingNames` notifies `DevicesRepository` to re-describe them when
+  consulted without one. The Android lookup never waits — not on the download, and not on
+  reading the cached copy either (a ~5 MB parse): devices first show their raw model, and `AndroidMarketingNames` notifies `DevicesRepository` to re-describe them when
   the list lands. `DevicesRepository.forTesting` has no lookup unless a test passes one.
 - **Hidden columns persist across tabs and launches** unless the user opts out
   (`PreferencesService.rememberHiddenColumns`, default on; toggled from the column popup's
