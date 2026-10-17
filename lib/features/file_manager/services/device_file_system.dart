@@ -23,7 +23,7 @@ class DeviceFileException(final String message) implements Exception {
 abstract interface class DeviceFileSystem {
   /// Builds the file system appropriate for [device]. [executablePath] lets
   /// tests inject a stub binary; production resolves the bundled tool.
-  factory DeviceFileSystem.forDevice(Device device, {String? executablePath}) {
+  factory forDevice(Device device, {String? executablePath}) {
     return switch (device) {
       AndroidDevice() => AndroidFileSystem(
         deviceId: device.id,

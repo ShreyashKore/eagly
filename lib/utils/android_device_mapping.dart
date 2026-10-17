@@ -30,7 +30,7 @@ class AndroidDeviceCatalog._(
 ) {
   /// Parses the supported-devices CSV, decoded to a string. Rows without a
   /// marketing name are dropped — they have nothing to offer.
-  factory AndroidDeviceCatalog.parse(String csv) {
+  factory parse(String csv) {
     final byDeviceAndModel = <String, List<_CatalogEntry>>{};
     final byModel = <String, List<_CatalogEntry>>{};
     final byDevice = <String, List<_CatalogEntry>>{};
@@ -189,10 +189,8 @@ class AndroidMarketingNames._(
   /// Loads from [url] and caches in [cacheDirectory] instead of Google Play
   /// and the app support directory.
   @visibleForTesting
-  AndroidMarketingNames.forTesting({
-    required Uri url,
-    required Directory cacheDirectory,
-  }) : this._(url, () async => cacheDirectory);
+  new forTesting({required Uri url, required Directory cacheDirectory})
+    : this._(url, () async => cacheDirectory);
 
   static final AndroidMarketingNames instance = AndroidMarketingNames._(
     Uri.parse(_supportedDevicesUrl),

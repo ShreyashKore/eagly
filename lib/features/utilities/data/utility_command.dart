@@ -49,7 +49,7 @@ enum UtilityParamKind { text, choice, suggestion }
 
 /// One user-supplied value a utility needs before it can run.
 class UtilityParam {
-  const UtilityParam({
+  const new({
     required this.key,
     required this.label,
     this.hint,
@@ -60,7 +60,7 @@ class UtilityParam {
     this.helperText,
   });
 
-  const UtilityParam.choice({
+  const new choice({
     required this.key,
     required this.label,
     required this.options,
@@ -72,7 +72,7 @@ class UtilityParam {
 
   /// A text field backed by a list of [options] the user can pick from or
   /// ignore — anything typed is passed through unchanged.
-  const UtilityParam.suggestion({
+  const new suggestion({
     required this.key,
     required this.label,
     required this.options,

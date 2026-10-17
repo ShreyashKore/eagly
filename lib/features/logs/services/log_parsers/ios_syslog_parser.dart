@@ -213,7 +213,7 @@ class IosSyslogParser({DateTime Function()? now}) implements LogLineParser {
 class const _DecodedMetaEscape(final int byte, final int nextIndex);
 
 class _IosSyslogEntryBuilder {
-  _IosSyslogEntryBuilder({
+  new({
     required this.timestamp,
     required this.processLabel,
     required this.pid,
@@ -224,7 +224,7 @@ class _IosSyslogEntryBuilder {
 
   /// Carries on [flushed] under its header, for continuation lines that
   /// arrived after it was flushed; the message starts empty.
-  _IosSyslogEntryBuilder._resumed(_IosSyslogEntryBuilder flushed)
+  new _resumed(_IosSyslogEntryBuilder flushed)
     : timestamp = flushed.timestamp,
       processLabel = flushed.processLabel,
       pid = flushed.pid,

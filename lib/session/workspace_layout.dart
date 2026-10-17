@@ -315,7 +315,7 @@ class WorkspaceLayoutMemory() {
 
   /// Backed by [PreferencesService]. Read lazily: nothing touches the store
   /// until a pane first opens.
-  factory WorkspaceLayoutMemory.persisted() = _PersistedWorkspaceLayoutMemory;
+  factory persisted() = _PersistedWorkspaceLayoutMemory;
 
   /// The remembered arrangement; null when nothing is remembered.
   LayoutNode? arrangement;

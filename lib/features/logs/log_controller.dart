@@ -82,7 +82,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
 
   /// Creates a controller pre-loaded with [entries] from a log file.
   /// Live capture, clear, and start/stop are disabled.
-  factory LogController.imported(
+  factory imported(
     DeviceSessionController session, {
     required LogTabSettings initialSettings,
   }) {

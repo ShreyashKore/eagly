@@ -19,14 +19,14 @@ abstract final class AndroidKeycode {
 /// The desktop modifiers held while a key event was produced. Kept separate
 /// from [HardwareKeyboard] so the translator stays pure and testable.
 class ScrcpyModifiers {
-  const ScrcpyModifiers({
+  const new({
     this.shift = false,
     this.alt = false,
     this.control = false,
     this.meta = false,
   });
 
-  ScrcpyModifiers.fromHardwareKeyboard()
+  new fromHardwareKeyboard()
     : shift = HardwareKeyboard.instance.isShiftPressed,
       alt = HardwareKeyboard.instance.isAltPressed,
       control = HardwareKeyboard.instance.isControlPressed,

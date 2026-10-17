@@ -38,7 +38,7 @@ class DevicesRepository._({
 
   /// Tests get no marketing-name lookup unless they pass one, so they never
   /// download Google Play's device list.
-  factory DevicesRepository.forTesting({
+  factory forTesting({
     AdbTool? adbTool,
     IosDeviceService? iosDeviceService,
     AndroidMarketingNameLookup? androidMarketingName,

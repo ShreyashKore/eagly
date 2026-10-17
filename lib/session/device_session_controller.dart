@@ -63,7 +63,7 @@ class DeviceSessionController._({
   /// True for the synthetic workspace that only shows imported log files.
   final bool isImportedWorkspace = false,
 }) extends ChangeNotifier {
-  DeviceSessionController({
+  new({
     required Device device,
     DeviceSessionRepository? service,
     WorkspaceLayoutMemory? layoutMemory,
@@ -72,7 +72,7 @@ class DeviceSessionController._({
   /// Creates the device-less "Imported Logs" workspace session: a session that
   /// hosts only imported log tabs (no live capture, mirror, files, etc.). It is
   /// backed by a synthetic, never-connected [device].
-  DeviceSessionController.importedWorkspace({
+  new importedWorkspace({
     required Device device,
     DeviceSessionRepository? service,
   }) : this._(device: device, service: service, isImportedWorkspace: true);

@@ -12,14 +12,14 @@ import 'log_controller.dart';
 /// session. The first live tab is permanent; additional live or imported tabs
 /// can be added and closed freely.
 class LogSessionManager extends ChangeNotifier {
-  LogSessionManager({required this._session}) : _importsOnly = false {
+  new({required this._session}) : _importsOnly = false {
     _tabs.add(_createLiveTab());
   }
 
   /// Creates a manager with no permanent live tab, for the device-less
   /// "Imported Logs" workspace. Tabs are added via [addImportedEntries]; the
   /// first imported tab becomes permanent.
-  LogSessionManager.importsOnly({required this._session}) : _importsOnly = true;
+  new importsOnly({required this._session}) : _importsOnly = true;
 
   final DeviceSessionController _session;
 
