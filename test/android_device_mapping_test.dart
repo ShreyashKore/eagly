@@ -146,9 +146,8 @@ void _loaderTests() {
     final files = cacheDirectory.listSync().map((f) => f.uri.pathSegments.last);
     expect(files, ['android_supported_devices.csv']);
     expect(
-      File(
-        '${cacheDirectory.path}/android_supported_devices.csv',
-      ).readAsStringSync(),
+      File('${cacheDirectory.path}/android_supported_devices.csv')
+          .readAsStringSync(),
       _csv,
     );
 

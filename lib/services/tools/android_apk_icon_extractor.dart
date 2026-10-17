@@ -56,9 +56,8 @@ class ApkIconExtractor {
       final arscBytes = _readEntry(archive, 'resources.arsc');
       if (manifestBytes == null) return (icon: null, label: null);
 
-      final application = _AxmlParser.parseElements(
-        manifestBytes,
-      ).firstWhereOrNull((element) => element.name == 'application');
+      final application = _AxmlParser.parseElements(manifestBytes)
+          .firstWhereOrNull((element) => element.name == 'application');
       if (application == null) return (icon: null, label: null);
 
       final table = arscBytes == null ? null : _ResourceTable.parse(arscBytes);

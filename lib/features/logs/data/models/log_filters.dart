@@ -342,9 +342,8 @@ LogFilters _parseFilters(
         tagTerms.add(term);
       case FilterKey.level:
         // Level is a hierarchy threshold; operators/negation don't apply.
-        parsedLevel = LogLevel.fromStored(
-          parsed.value,
-        ).normalizeSelectionForPlatform(isIos: isIosLogContext);
+        parsedLevel = LogLevel.fromStored(parsed.value)
+            .normalizeSelectionForPlatform(isIos: isIosLogContext);
       case FilterKey.age:
         final parsedAge = parseMaxAge(parsed.value);
         if (parsedAge != null) parsedMaxAge = parsedAge;

@@ -92,8 +92,7 @@ class HomeView extends StatelessWidget {
                   GetStartedActionCard(
                     icon: Icons.phone_android_rounded,
                     title: 'Select device',
-                    subtitle:
-                        'Discover connected Android and iOS devices and open a live log stream.',
+                    subtitle: 'Discover connected Android and iOS devices and open a live log stream.',
                     onTap: () => manager.refreshDevices(),
                     secondaryActions: [
                       FilledButton.tonalIcon(

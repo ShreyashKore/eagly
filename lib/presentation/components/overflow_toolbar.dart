@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+
 import '../theme/app_theme.dart';
 import 'app_icon_button.dart';
 
@@ -55,8 +56,10 @@ class ToolbarAction {
 
 /// Builds the in-bar button for an action, so a toolbar can keep its own
 /// button style (e.g. the logs toolbar sizing its `AppIconButton`s).
-typedef ToolbarActionBuilder =
-    Widget Function(BuildContext context, ToolbarAction action);
+typedef ToolbarActionBuilder = Widget Function(
+  BuildContext context,
+  ToolbarAction action,
+);
 
 /// A toolbar row that never overflows: it shows as many [actions] as fit and
 /// collapses the rest — from the end of the list, so put the least important

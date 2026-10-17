@@ -422,9 +422,8 @@ class LogRow extends StatelessWidget {
         .toList();
 
     final isCurrentMatch = currentMatchLogIndex == index;
-    final selectedRowColor = Theme.of(
-      context,
-    ).colorScheme.primary.withValues(alpha: 0.10);
+    final selectedRowColor = Theme.of(context).colorScheme.primary
+        .withValues(alpha: 0.10);
 
     final Color? highlightColor = search.query.isEmpty
         ? null

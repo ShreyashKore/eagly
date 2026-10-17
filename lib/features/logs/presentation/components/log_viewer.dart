@@ -1141,9 +1141,8 @@ class _LogViewerState extends State<LogViewer> {
 
   Widget _buildHeader(double messageWidth) {
     // Column titles label the data; they shouldn't outweigh it.
-    final headerStyle = _applyFont(
-      context.eaglyTheme.logHeaderStyle,
-    ).copyWith(color: context.eaglyTheme.secondaryTextColor);
+    final headerStyle = _applyFont(context.eaglyTheme.logHeaderStyle)
+        .copyWith(color: context.eaglyTheme.secondaryTextColor);
     return LogViewerHeader(
       rowSelectionMode: widget.rowSelectionMode,
       headerStyle: headerStyle,
@@ -1202,9 +1201,8 @@ class _LogViewerState extends State<LogViewer> {
               child: Container(
                 key: const ValueKey('row-selection-rect'),
                 decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.12),
+                  color: Theme.of(context).colorScheme.primary
+                      .withValues(alpha: 0.12),
                   border: Border.all(
                     color: Theme.of(context).colorScheme.primary,
                     width: 1,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+
 import '../../../presentation/theme/app_theme.dart';
 
 /// Titled section card used by the manual entry tab.

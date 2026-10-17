@@ -113,9 +113,9 @@ class DeviceSessionRepository {
                  resolveBundledExecutablePath('adb') ?? adbPath ?? 'adb',
              serverJarPath:
                  '${resolveBundledToolsDirectory()?.path}/scrcpy-server',
-             onLog: (message) => AppLogger(
-               source: 'DeviceSessionService',
-             ).info('[scrcpy] $message'),
+             onLog: (message) =>
+                 AppLogger(source: 'DeviceSessionService')
+                     .info('[scrcpy] $message'),
            );
 
   /// See [_defaultIosLogService] — same reasoning for crash reports.

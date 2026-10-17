@@ -58,9 +58,8 @@ class _ColumnVisibilityMenuState extends State<ColumnVisibilityMenu> {
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = Theme.of(
-      context,
-    ).textTheme.bodySmall?.copyWith(fontSize: 12);
+    final labelStyle = Theme.of(context).textTheme.bodySmall
+        ?.copyWith(fontSize: 12);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,

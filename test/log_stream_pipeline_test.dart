@@ -50,9 +50,10 @@ echo 'single A'
 echo ''
 ''');
 
-      final entries = await AdbTool(
-        executablePath: adb,
-      ).startLogcat('SERIAL').stream.toList();
+      final entries = await AdbTool(executablePath: adb)
+          .startLogcat('SERIAL')
+          .stream
+          .toList();
 
       // A bad argument list surfaces as a tool-error row instead.
       expect(entries.first.type, LogEntryType.notice);
@@ -84,9 +85,10 @@ echo 'Sep 26 23:11:50.009491 camerad(AudioUnits)[136] <Debug>: Initialize'
 ''',
     );
 
-    final entries = await IdeviceSyslogTool(
-      executablePath: syslog,
-    ).start(deviceId: 'UDID', processName: 'iPhone').stream.toList();
+    final entries = await IdeviceSyslogTool(executablePath: syslog)
+        .start(deviceId: 'UDID', processName: 'iPhone')
+        .stream
+        .toList();
 
     final at = '${DateTime.now().year}-09-26 23:11:50';
     expect(_flatten(entries), [

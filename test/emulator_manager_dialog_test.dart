@@ -10,6 +10,7 @@ import 'package:eagly/services/devices_repository.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_manager.dart';
 import 'package:eagly/utils/android_sdk_path.dart';
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';

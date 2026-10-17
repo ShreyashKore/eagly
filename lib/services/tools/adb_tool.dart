@@ -412,12 +412,10 @@ class AdbTool extends ToolProcessRunner {
     final densityMatch =
         RegExp(r'Override density:\s*(\d+)').firstMatch(densityOutput) ??
         RegExp(r'Physical density:\s*(\d+)').firstMatch(densityOutput);
-    final refreshMatch = RegExp(
-      r'refreshRate=([\d.]+)',
-    ).firstMatch(displayDumpOutput);
-    final rotationMatch = RegExp(
-      r'\brotation=(\d)',
-    ).firstMatch(displayDumpOutput);
+    final refreshMatch = RegExp(r'refreshRate=([\d.]+)')
+        .firstMatch(displayDumpOutput);
+    final rotationMatch = RegExp(r'\brotation=(\d)')
+        .firstMatch(displayDumpOutput);
 
     DisplayOrientation? orientation;
     final rotation = rotationMatch != null

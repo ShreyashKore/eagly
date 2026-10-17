@@ -12,8 +12,9 @@ import '../services/device_session_repository.dart';
 import 'device_session_controller.dart';
 import 'workspace_layout.dart';
 
-typedef DeviceSessionServiceFactory =
-    DeviceSessionRepository Function(Device device);
+typedef DeviceSessionServiceFactory = DeviceSessionRepository Function(
+  Device device,
+);
 
 /// App-level coordinator. Listens to the [DevicesRepository] and maintains one
 /// [DeviceSessionController] per detected device, the tab order, and the

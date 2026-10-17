@@ -15,8 +15,11 @@ import 'ios/ios_device_service.dart';
 
 /// Looks up an Android device's marketing name from its `ro.product.brand`,
 /// `ro.product.device` and `ro.product.model`.
-typedef AndroidMarketingNameLookup =
-    Future<String?> Function({String? brand, String? device, String? model});
+typedef AndroidMarketingNameLookup = Future<String?> Function({
+  String? brand,
+  String? device,
+  String? model,
+});
 
 class DevicesRepository extends ChangeNotifier {
   DevicesRepository._({
@@ -319,9 +322,8 @@ class DevicesRepository extends ChangeNotifier {
   /// Extracts the device serial from an mDNS ADB service ID.
   /// Format: `adb-SERIAL-suffix._adb-tls-connect._tcp`
   String? _extractMdnsSerial(String id) {
-    final match = RegExp(
-      r'^adb-([A-Za-z0-9]+)-[^.]+\._adb-tls-',
-    ).firstMatch(id);
+    final match = RegExp(r'^adb-([A-Za-z0-9]+)-[^.]+\._adb-tls-')
+        .firstMatch(id);
     return match?.group(1);
   }
 

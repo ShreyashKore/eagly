@@ -86,9 +86,8 @@ void main() {
   group('catalog wiring', () {
     test('offers every app-targeted command an Android device supports', () {
       final controller = createController();
-      final ids = appUtilityCommandsFor(
-        controller.session,
-      ).map((command) => command.id);
+      final ids = appUtilityCommandsFor(controller.session)
+          .map((command) => command.id);
 
       expect(ids, contains('grant-permission'));
       expect(ids, contains('package-info'));
@@ -274,13 +273,11 @@ void main() {
 /// Matched by predicate rather than [find.byType]: the two menus use
 /// different value types, and `byType` compares the concrete generic type.
 bool _menuItemEnabled(WidgetTester tester, String label) {
-  final item =
-      tester.widget(
-            find.ancestor(
-              of: find.text(label),
-              matching: find.byWidgetPredicate((w) => w is PopupMenuItem),
-            ),
-          )
-          as PopupMenuItem;
+  final item = tester.widget(
+    find.ancestor(
+      of: find.text(label),
+      matching: find.byWidgetPredicate((w) => w is PopupMenuItem),
+    ),
+  ) as PopupMenuItem;
   return item.enabled;
 }

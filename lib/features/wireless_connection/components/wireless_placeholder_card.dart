@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+
 import '../../../presentation/theme/app_theme.dart';
 
 /// Empty-state card shown when a wireless tab has nothing to display yet.

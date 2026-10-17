@@ -321,9 +321,9 @@ void main() {
     );
 
     expect(
-      messageColumnWidths(tester).whereType<double>().any(
-        (width) => width > LogViewer.defaultUnwrappedMessageWidth,
-      ),
+      messageColumnWidths(tester)
+          .whereType<double>()
+          .any((width) => width > LogViewer.defaultUnwrappedMessageWidth),
       isTrue,
     );
   });
@@ -414,8 +414,7 @@ void main() {
       logs: [
         LogEntryUtils.buildLoggingState(
           type: LogEntryType.stopped,
-          message:
-              'Device disconnected; stopped capturing logs for Pixel 8 (emulator-5554) after a very long session message that should remain visually compact.',
+          message: 'Device disconnected; stopped capturing logs for Pixel 8 (emulator-5554) after a very long session message that should remain visually compact.',
           processName: 'Pixel 8 (emulator-5554)',
         ),
       ],

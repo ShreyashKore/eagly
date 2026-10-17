@@ -2,6 +2,7 @@ import 'package:eagly/features/home_screen/components/context_menu_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:window_manager/window_manager.dart';
+
 import '../../presentation/theme/app_theme.dart';
 import '../../session/device_session_manager.dart';
 import '../updates/update_chip.dart';

@@ -471,8 +471,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
           title: _manualConnectAddresses.isNotEmpty
               ? 'Pair and connect'
               : 'Pair with code',
-          description:
-              'Enter the pairing address from the device screen and the pairing code shown on the device. If a connect address is available, connection will continue automatically.',
+          description: 'Enter the pairing address from the device screen and the pairing code shown on the device. If a connect address is available, connection will continue automatically.',
           child: Column(
             children: [
               TextField(

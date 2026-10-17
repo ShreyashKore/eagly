@@ -146,8 +146,7 @@ Widget? _guidanceForDevice(Device device) {
       'locked' => const IosGuidance(
         icon: Icons.lock_outline,
         title: 'iPhone Locked',
-        message:
-            'Your iPhone is locked. Unlock it and trust this computer to continue.',
+        message: 'Your iPhone is locked. Unlock it and trust this computer to continue.',
         steps: [
           'Unlock your iPhone with Face ID, Touch ID, or passcode',
           'If prompted, tap "Trust" on the "Trust This Computer?" alert',

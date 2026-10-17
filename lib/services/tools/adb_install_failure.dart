@@ -43,9 +43,8 @@ const _uninstallLosesData =
 String? _explain(String code, String detail) {
   switch (code) {
     case 'INSTALL_FAILED_VERSION_DOWNGRADE':
-      final versions = RegExp(
-        r'version code (\d+) is older than current (\d+)',
-      ).firstMatch(detail);
+      final versions = RegExp(r'version code (\d+) is older than current (\d+)')
+          .firstMatch(detail);
       if (versions == null) {
         return 'A newer version of this app is already installed. Install '
             'a newer build, or uninstall it first. $_uninstallLosesData';

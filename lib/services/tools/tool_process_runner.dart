@@ -75,12 +75,10 @@ abstract class ToolProcessRunner {
     );
     return ToolCommandResult(
       exitCode: result.exitCode,
-      stdout: Utf8Decoder(
-        allowMalformed: true,
-      ).convert(result.stdout as List<int>),
-      stderr: Utf8Decoder(
-        allowMalformed: true,
-      ).convert(result.stderr as List<int>),
+      stdout: Utf8Decoder(allowMalformed: true)
+          .convert(result.stdout as List<int>),
+      stderr: Utf8Decoder(allowMalformed: true)
+          .convert(result.stderr as List<int>),
     );
   }
 
@@ -127,10 +125,8 @@ abstract class ToolProcessRunner {
     // `avdmanager.bat`, an adb server spawned on first use) keeps them open
     // after the process itself is gone, so waiting for EOF is bounded too —
     // otherwise that one call never returns and the timeout means nothing.
-    await Future.wait([
-      stdoutDone.future,
-      stderrDone.future,
-    ]).timeout(_pipeDrainTimeout, onTimeout: () => const []);
+    await Future.wait([stdoutDone.future, stderrDone.future])
+        .timeout(_pipeDrainTimeout, onTimeout: () => const []);
     unawaited(stdoutSubscription.cancel());
     unawaited(stderrSubscription.cancel());
 
