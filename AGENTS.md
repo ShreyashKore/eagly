@@ -221,6 +221,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     would both act on one drop. `DeviceScreen`'s single target hit-tests for the zone under
     the pointer (`DropZone.at`, via `MetaData`) and hands it the drop — which is also why
     the screen-wide `DropOverlay` sits in an `IgnorePointer`.
+  - **Android failure text:** `describeAdbInstallFailure` (`services/tools/adb_install_failure.dart`)
+    reduces adb's output to the package manager's `INSTALL_FAILED_*` code, explained with a
+    fix for the common ones (downgrade, signature mismatch, minSdk, storage…) and passed
+    through as `CODE: first line` otherwise. That sentence is what the snackbar shows; the raw
+    output still goes to the log. Add a case there when a new code shows up as unreadable.
 - **Apps pane names:** Android's package manager reports no app names, so the label is
   read out of the same pulled APK as the icon (`ApkIconExtractor.extractDetails`, default
   locale first) and cached across sessions by `AppIconCache` (`app_labels.json`). A label
