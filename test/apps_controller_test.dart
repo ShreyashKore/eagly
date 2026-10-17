@@ -236,7 +236,7 @@ void main() {
       const app = AppInfo(packageName: 'com.example.a', appName: 'Alpha');
       final cached = Uint8List.fromList([9]);
       iconCache.seed('com.example.a', cached);
-      service.iconToReturn = null;
+      service.appPullFails = true;
 
       controller.ensureIconLoaded(app);
       async.elapse(const Duration(milliseconds: 1));
@@ -250,13 +250,53 @@ void main() {
       AppsController.iconRetryBaseDelay = const Duration(milliseconds: 1);
       AppsController.iconRetryMaxDelay = const Duration(milliseconds: 4);
       final controller = createController();
-      service.iconToReturn = null;
+      service.appPullFails = true;
       const app = AppInfo(packageName: 'com.example.a', appName: 'Alpha');
 
       controller.ensureIconLoaded(app);
       async.elapse(const Duration(seconds: 1));
 
       expect(service.iconFetchRequests, List.filled(5, 'com.example.a'));
+      expect(controller.iconFor('com.example.a'), isNull);
+
+      // Given up until the app changes: a tile rebuilt for the same app
+      // (scrolled back into view, or a refresh) doesn't start over.
+      controller.ensureIconLoaded(
+        const AppInfo(packageName: 'com.example.a', appName: 'Alpha'),
+      );
+      async.elapse(const Duration(seconds: 1));
+      expect(service.iconFetchRequests, hasLength(5));
+
+      // An update does earn a fresh attempt.
+      service.appPullFails = false;
+      service.iconToReturn = Uint8List.fromList([1]);
+      controller.ensureIconLoaded(
+        const AppInfo(
+          packageName: 'com.example.a',
+          appName: 'Alpha',
+          versionName: '2.0',
+        ),
+      );
+      async.elapse(Duration.zero);
+      expect(service.iconFetchRequests, hasLength(6));
+      expect(controller.iconFor('com.example.a'), [1]);
+    });
+  });
+
+  test('does not retry an APK that has no icon to extract', () {
+    fakeAsync((async) {
+      AppsController.iconRetryBaseDelay = const Duration(milliseconds: 1);
+      final controller = createController();
+      service.iconToReturn = null;
+      service.labelsToReturn = {'com.example.a': 'Alpha Game'};
+      const app = AppInfo(packageName: 'com.example.a', appName: 'Alpha');
+
+      controller.ensureIconLoaded(app);
+      async.elapse(const Duration(seconds: 1));
+      controller.ensureIconLoaded(app);
+      async.elapse(const Duration(seconds: 1));
+
+      expect(service.iconFetchRequests, ['com.example.a']);
       expect(controller.iconFor('com.example.a'), isNull);
     });
   });

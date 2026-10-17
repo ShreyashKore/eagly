@@ -34,7 +34,8 @@ class AppsController extends FeatureController {
   static const int recentAppsLimit = 12;
 
   /// Maximum consecutive failed fetches before an app's icon is left alone for
-  /// the rest of the session (its cached icon, if any, keeps showing).
+  /// the rest of the session, until the app itself changes (its cached icon,
+  /// if any, keeps showing).
   static const int _maxIconRetries = 5;
 
   /// Backoff base: how long to wait after a failed icon fetch before retrying,
@@ -72,8 +73,10 @@ class AppsController extends FeatureController {
   /// only hit the disk once per package per session.
   final Set<String> _iconDiskChecked = {};
 
-  /// Signature (version + recency) we've successfully fetched per package, so
-  /// an unchanged app isn't re-fetched within a session.
+  /// Signature (version + recency) we're done with per package — fetched,
+  /// found to have no extractable icon, or given up on — so an unchanged app
+  /// isn't pulled again within a session. An update changes the signature
+  /// and earns a fresh attempt.
   final Map<String, String> _iconFetchedSignature = {};
 
   /// Packages still awaiting a successful fetch this session → the signature
@@ -443,12 +446,16 @@ class AppsController extends FeatureController {
       if (label != null) _applyLabel(package, label);
       final bytes = details?.icon;
       if (bytes != null) {
-        _iconPending.remove(package);
-        _iconFailures.remove(package);
+        _settleIcon(package, signature);
         _iconCache[package] = bytes;
-        if (signature != null) _iconFetchedSignature[package] = signature;
         unawaited(_iconStore.store(package, bytes));
         _notify();
+      } else if (details != null) {
+        // The pull worked but the APK has no raster icon to extract (a
+        // vector-only adaptive icon, say). Pulling it again won't change
+        // that, and each try copies the whole APK over adb.
+        _settleIcon(package, signature);
+        if (label != null) _notify();
       } else {
         if (label != null) _notify();
         _handleIconFailure(package);
@@ -462,8 +469,10 @@ class AppsController extends FeatureController {
     final failures = (_iconFailures[package] ?? 0) + 1;
     _iconFailures[package] = failures;
     if (failures >= _maxIconRetries) {
-      // Give up for the session — the cached icon (if any) keeps showing.
-      _iconPending.remove(package);
+      // Give up until the app changes — the cached icon (if any) keeps
+      // showing. Settling records the signature, so a tile scrolled back
+      // into view doesn't start five more pulls.
+      _settleIcon(package, _iconPending[package]);
       _iconRetryTimers.remove(package);
       return;
     }
@@ -472,6 +481,14 @@ class AppsController extends FeatureController {
       _iconRetryTimers.remove(package);
       _scheduleIconAttempt(package);
     });
+  }
+
+  /// Ends the attempts for [package] and marks [signature] done, so
+  /// [_requestFreshIcon] leaves it alone until the app changes.
+  void _settleIcon(String package, String? signature) {
+    _iconPending.remove(package);
+    _iconFailures.remove(package);
+    if (signature != null) _iconFetchedSignature[package] = signature;
   }
 
   Duration _iconRetryDelay(int failures) {

@@ -191,6 +191,10 @@ class FakeSessionService extends DeviceSessionRepository {
   Uint8List? iconToReturn;
   Map<String, String> labelsToReturn = {};
 
+  /// Makes [fetchAppDetails] return null, as the real one does when the APK
+  /// can't be pulled — as opposed to a pulled APK with no icon to extract.
+  bool appPullFails = false;
+
   /// When set, [fetchAppDetails] waits on this before resolving — lets tests hold
   /// icon fetches in flight to observe concurrency/priority ordering.
   Completer<void>? iconGate;
@@ -237,6 +241,7 @@ class FakeSessionService extends DeviceSessionRepository {
     iconFetchRequests.add(packageName);
     final gate = iconGate;
     if (gate != null) await gate.future;
+    if (appPullFails) return null;
     return (icon: iconToReturn, label: labelsToReturn[packageName]);
   }
 
