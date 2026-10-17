@@ -7,6 +7,8 @@ edition = "2021"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
+# `clock` for `Local`: os_trace_relay timestamps arrive as UTC and are shown in host time.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 flutter_rust_bridge = "=2.13.0"
 idevice = { version = "=0.1.65", default-features = false, features = ["usbmuxd", "tcp", "pair", "syslog_relay", "installation_proxy", "crashreportcopymobile", "afc"] }
 plist = "1.8"
