@@ -388,19 +388,37 @@ pub struct IosAppInfo {
 /// Only user apps, matching what `ideviceinstaller` reports — so everything
 /// returned is uninstallable. Ordering and capping are presentation concerns
 /// and are applied above, identically for both backends.
+///
+/// Uses `Browse`, as `ideviceinstaller` does, rather than the client's
+/// `get_apps` (`Lookup`): that returns a `HashMap`, whose iteration order is
+/// randomized per process, and the device-home card takes the first few.
 pub async fn list_ios_apps(udid: String) -> Result<Vec<IosAppInfo>, IosError> {
     let mut client = installation_proxy(&udid).await?;
 
-    // `Some("User")` is the filter `ideviceinstaller` applies by default.
-    let apps = client.get_apps(Some("User"), None).await?;
+    const ATTRIBUTES: [&str; 4] = [
+        "CFBundleIdentifier",
+        "CFBundleDisplayName",
+        "CFBundleName",
+        "CFBundleShortVersionString",
+    ];
+    let mut options = plist::Dictionary::new();
+    // "User" is the filter `ideviceinstaller` applies by default.
+    options.insert("ApplicationType".into(), "User".into());
+    options.insert(
+        "ReturnAttributes".into(),
+        Value::Array(ATTRIBUTES.iter().map(|&key| key.into()).collect()),
+    );
+    let apps = client.browse(Some(Value::Dictionary(options))).await?;
 
     Ok(apps
-        .into_iter()
-        .map(|(bundle_id, value)| IosAppInfo {
-            name: string_value(&value, "CFBundleDisplayName")
-                .or_else(|| string_value(&value, "CFBundleName")),
-            version: string_value(&value, "CFBundleShortVersionString"),
-            bundle_id,
+        .iter()
+        .filter_map(|value| {
+            Some(IosAppInfo {
+                bundle_id: string_value(value, "CFBundleIdentifier")?,
+                name: string_value(value, "CFBundleDisplayName")
+                    .or_else(|| string_value(value, "CFBundleName")),
+                version: string_value(value, "CFBundleShortVersionString"),
+            })
         })
         .collect())
 }
