@@ -105,7 +105,8 @@ if [ ${#rstaged[@]} -gt 0 ]; then
     RUST_EDITION="$(sed -n 's/^edition *= *"\([0-9]*\)".*/\1/p' rust/Cargo.toml | head -n 1)"
     RUSTFMT=(rustfmt --edition "${RUST_EDITION:-2021}")
     tmp="$(mktemp)"
-    trap 'rm -f "$tmp"' EXIT
+      err="$(mktemp)"
+    trap 'rm -f "$tmp" "$err"' EXIT
     redo=()
     for file in "${rstaged[@]}"; do
       [ -f "$file" ] || continue
@@ -120,9 +121,11 @@ if [ ${#rstaged[@]} -gt 0 ]; then
         fi
         continue
       fi
-      if ! (cd "$REPO_ROOT/rust" && "${RUSTFMT[@]}") <"$file" >"$tmp" 2>&1; then
+      # stderr kept apart: a warning on a successful run would otherwise land
+      # in the formatted source and be staged with it.
+      if ! (cd "$REPO_ROOT/rust" && "${RUSTFMT[@]}") <"$file" >"$tmp" 2>"$err"; then
         echo "pre-commit: rustfmt failed on $file:" >&2
-        cat "$tmp" >&2
+        cat "$err" >&2
         status=1
       elif ! cmp -s "$file" "$tmp"; then
         cat "$tmp" >"$file"
