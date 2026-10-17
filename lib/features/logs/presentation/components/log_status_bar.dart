@@ -24,14 +24,12 @@ import 'log_lines_limit_editor.dart';
 /// Bottom status bar: log/filtered/selected counts, memory usage, the
 /// max-lines editor, and the live/imported status indicator. Scrolls sideways
 /// in a narrow pane rather than dropping readouts (see [FeatureStatusBar]).
-class LogStatusBar extends StatelessWidget {
-  const LogStatusBar({
-    super.key,
-    required this.controller,
-    required this.appMemoryBytes,
-    required this.deviceDisplayName,
-  });
-
+class const LogStatusBar({
+  super.key,
+  required this.controller,
+  required this.appMemoryBytes,
+  required this.deviceDisplayName,
+}) extends StatelessWidget {
   final LogController controller;
   final int appMemoryBytes;
   final String deviceDisplayName;

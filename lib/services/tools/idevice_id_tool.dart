@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 
 import 'tool_process_runner.dart';
 
-class IdeviceIdTool extends ToolProcessRunner {
-  IdeviceIdTool({super.executablePath}) : super(executableName: 'idevice_id');
+class IdeviceIdTool({super.executablePath}) extends ToolProcessRunner {
+  this : super(executableName: 'idevice_id');
 
   // libimobiledevice prints this (and exits non-zero) when it cannot reach
   // usbmuxd — distinct from "no devices attached", which exits 0 with empty

@@ -5,18 +5,16 @@ import '../../../presentation/theme/app_theme.dart';
 
 /// A single chip in the terminal tab strip: label, a live dot while that tab
 /// has a command running, and an optional close button.
-class TerminalTabChip extends StatelessWidget {
-  const TerminalTabChip({
-    super.key,
-    required this.label,
-    required this.selected,
-    required this.isRunning,
-    required this.isPinned,
-    required this.onTap,
-    required this.onClose,
-    this.tooltip,
-  });
-
+class const TerminalTabChip({
+  super.key,
+  required this.label,
+  required this.selected,
+  required this.isRunning,
+  required this.isPinned,
+  required this.onTap,
+  required this.onClose,
+  this.tooltip,
+}) extends StatelessWidget {
   final String label;
   final bool selected;
 

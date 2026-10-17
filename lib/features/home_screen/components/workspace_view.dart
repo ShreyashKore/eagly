@@ -20,13 +20,11 @@ import 'workspace_chrome.dart';
 /// pane's own header needs to act as its title bar ([WorkspacePaneScope]),
 /// the drag those headers start, and the label that follows the pointer
 /// saying where a drop would land. See docs/WORKSPACE_LAYOUT.md.
-class WorkspaceView extends StatefulWidget {
-  const WorkspaceView({
-    super.key,
-    required this.layout,
-    required this.paneBuilder,
-  });
-
+class const WorkspaceView({
+  super.key,
+  required this.layout,
+  required this.paneBuilder,
+}) extends StatefulWidget {
   final WorkspaceLayout layout;
 
   /// Builds [pane]'s content. Called for every open pane, including ones
@@ -244,9 +242,7 @@ class _WorkspaceViewState extends State<WorkspaceView> {
 
 /// One pane's [PaneControls], kept for the life of the view so a pane's
 /// [WorkspacePaneScope] compares equal from frame to frame.
-class _PaneControls implements PaneControls {
-  _PaneControls(this._view, this.pane);
-
+class _PaneControls(this._view, this.pane) implements PaneControls {
   final _WorkspaceViewState _view;
   final WorkspacePane pane;
 
@@ -324,13 +320,11 @@ class _PaneControls implements PaneControls {
 
 /// The label that follows the pointer during a drag: what is moving and
 /// where it would land if dropped now — the words for the shaded preview.
-class _DragLabel extends StatelessWidget {
-  const _DragLabel({
-    required this.layout,
-    required this.pointer,
-    required this.bounds,
-  });
-
+class const _DragLabel({
+  required this.layout,
+  required this.pointer,
+  required this.bounds,
+}) extends StatelessWidget {
   final WorkspaceLayout layout;
   final ValueListenable<Offset?> pointer;
   final Size bounds;

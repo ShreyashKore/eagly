@@ -5,9 +5,8 @@ import '../../log_controller.dart';
 import 'log_lines_limit_input.dart';
 
 /// Status-bar "Max lines" label that turns into an inline editor on tap.
-class LogLinesLimitEditor extends StatelessWidget {
-  const LogLinesLimitEditor({super.key, required this.controller});
-
+class const LogLinesLimitEditor({super.key, required this.controller})
+    extends StatelessWidget {
   final LogController controller;
 
   @override

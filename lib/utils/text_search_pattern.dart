@@ -1,14 +1,12 @@
 import 'package:flutter/foundation.dart';
 
 @immutable
-class TextSearchConfig {
-  const TextSearchConfig({
-    this.query = '',
-    this.caseSensitive = false,
-    this.wholeWord = false,
-    this.regex = false,
-  });
-
+class const TextSearchConfig({
+  this.query = '',
+  this.caseSensitive = false,
+  this.wholeWord = false,
+  this.regex = false,
+}) {
   final String query;
   final bool caseSensitive;
   final bool wholeWord;
@@ -45,9 +43,7 @@ class TextSearchConfig {
 }
 
 @immutable
-class TextSearchMatch {
-  const TextSearchMatch({required this.start, required this.end});
-
+class const TextSearchMatch({required this.start, required this.end}) {
   final int start;
   final int end;
 
@@ -55,7 +51,14 @@ class TextSearchMatch {
 }
 
 @immutable
-class TextSearchPattern {
+class const TextSearchPattern._({
+  required this.query,
+  required this.caseSensitive,
+  required this.wholeWord,
+  required this.regex,
+  this.regExp,
+  this.errorText,
+}) {
   factory TextSearchPattern.fromConfig(TextSearchConfig config) {
     return TextSearchPattern(
       query: config.query,
@@ -113,15 +116,6 @@ class TextSearchPattern {
       );
     }
   }
-
-  const TextSearchPattern._({
-    required this.query,
-    required this.caseSensitive,
-    required this.wholeWord,
-    required this.regex,
-    this.regExp,
-    this.errorText,
-  });
 
   final String query;
   final bool caseSensitive;

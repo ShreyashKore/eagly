@@ -6,14 +6,12 @@ import '../data/device.dart';
 import '../utils/utils.dart';
 import 'preferences_service.dart';
 
-class AppInstallSelectionResult {
-  const AppInstallSelectionResult({
-    this.filePath,
-    this.fileName,
-    this.error,
-    this.cancelled = false,
-  });
-
+class const AppInstallSelectionResult({
+  this.filePath,
+  this.fileName,
+  this.error,
+  this.cancelled = false,
+}) {
   final String? filePath;
   final String? fileName;
   final String? error;
@@ -40,15 +38,13 @@ class AppInstallSelectionResult {
   }
 }
 
-class AppInstallResult {
-  const AppInstallResult({
-    this.fileName,
-    this.device,
-    this.message,
-    this.error,
-    this.cancelled = false,
-  });
-
+class const AppInstallResult({
+  this.fileName,
+  this.device,
+  this.message,
+  this.error,
+  this.cancelled = false,
+}) {
   final String? fileName;
   final Device? device;
   final String? message;

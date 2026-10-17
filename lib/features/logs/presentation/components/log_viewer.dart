@@ -76,7 +76,31 @@ List<ContextMenuButtonItem> buildLogViewerContextMenuItems({
   ];
 }
 
-class LogViewer extends StatefulWidget {
+class const LogViewer({
+  super.key,
+  required this.logs,
+  required this.scrollController,
+  required this.wrapText,
+  this.onLogRowTap,
+  this.rowSelectionMode = false,
+  this.selectedRowIndices = const <int>{},
+  this.onRowSelectionStart,
+  this.onSelectedRowsChanged,
+  this.onRowSelectionChanged,
+  this.onRowCopyAction,
+  this.onCopyAll,
+  this.onToggleRowSelectionMode,
+  this.onClearRowSelection,
+  this.search = const TextSearchConfig(),
+  this.currentMatchLogIndex,
+  this.onSelectedTextChanged,
+  this.onUserScroll,
+  this.onHiddenColumnsChanged,
+  this.columnWidths = const <String, double>{},
+  this.hiddenColumns = const <String>{},
+  this.onColumnWidthsChanged,
+  this.isIos = false,
+}) extends StatefulWidget {
   static const double columnSpacing = 8;
   static const double defaultUnwrappedMessageWidth = 1000;
 
@@ -119,32 +143,6 @@ class LogViewer extends StatefulWidget {
   final ValueChanged<Map<String, double>>? onColumnWidthsChanged;
 
   final bool isIos;
-
-  const LogViewer({
-    super.key,
-    required this.logs,
-    required this.scrollController,
-    required this.wrapText,
-    this.onLogRowTap,
-    this.rowSelectionMode = false,
-    this.selectedRowIndices = const <int>{},
-    this.onRowSelectionStart,
-    this.onSelectedRowsChanged,
-    this.onRowSelectionChanged,
-    this.onRowCopyAction,
-    this.onCopyAll,
-    this.onToggleRowSelectionMode,
-    this.onClearRowSelection,
-    this.search = const TextSearchConfig(),
-    this.currentMatchLogIndex,
-    this.onSelectedTextChanged,
-    this.onUserScroll,
-    this.onHiddenColumnsChanged,
-    this.columnWidths = const <String, double>{},
-    this.hiddenColumns = const <String>{},
-    this.onColumnWidthsChanged,
-    this.isIos = false,
-  });
 
   @override
   State<LogViewer> createState() => _LogViewerState();
@@ -1236,22 +1234,18 @@ class _LogViewerState extends State<LogViewer> {
   }
 }
 
-class _HorizontalRevealTarget {
-  const _HorizontalRevealTarget({required this.left, required this.right});
-
+class const _HorizontalRevealTarget({required this.left, required this.right}) {
   final double left;
   final double right;
 }
 
-class _RowBoundsReporter extends StatefulWidget {
-  const _RowBoundsReporter({
-    required this.index,
-    required this.onMounted,
-    required this.onUnmounted,
-    required this.child,
-    required super.key,
-  });
-
+class const _RowBoundsReporter({
+  required this.index,
+  required this.onMounted,
+  required this.onUnmounted,
+  required this.child,
+  required super.key,
+}) extends StatefulWidget {
   final int index;
   final void Function(int index, BuildContext context) onMounted;
   final void Function(int index, BuildContext context) onUnmounted;

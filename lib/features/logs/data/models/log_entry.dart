@@ -1,7 +1,7 @@
 import '../../../../data/device.dart';
 import '../../../../utils/log_entry_id_generator.dart';
 
-enum LogEntryType {
+enum LogEntryType(this.label) {
   log('Log'),
   started('Started'),
   resumed('Resumed'),
@@ -9,8 +9,6 @@ enum LogEntryType {
   stopped('Stopped'),
   error('Error occurred'),
   notice('Notice');
-
-  const LogEntryType(this.label);
 
   final String label;
 
@@ -25,7 +23,20 @@ final RegExp _shortTimestampPattern = RegExp(
   r'^(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d+))?$',
 );
 
-class LogEntry {
+class LogEntry({
+  int? id,
+  this.type = LogEntryType.log,
+  this.platform = DevicePlatform.android,
+  required this.timestamp,
+  required this.pid,
+  required this.tid,
+  required this.level,
+  required this.tag,
+  required this.message,
+  this.packageName,
+  this.processName,
+  DateTime? now,
+}) {
   final int id;
   final LogEntryType type;
   final DevicePlatform platform;
@@ -39,21 +50,7 @@ class LogEntry {
   String? processName;
   final DateTime? _referenceTime;
 
-  LogEntry({
-    int? id,
-    this.type = LogEntryType.log,
-    this.platform = DevicePlatform.android,
-    required this.timestamp,
-    required this.pid,
-    required this.tid,
-    required this.level,
-    required this.tag,
-    required this.message,
-    this.packageName,
-    this.processName,
-    DateTime? now,
-  }) : id = id ?? LogEntryIdGenerator.instance.next(),
-       _referenceTime = now;
+  this : id = id ?? LogEntryIdGenerator.instance.next(), _referenceTime = now;
 
   /// Lowercased concatenation of all searchable fields, used by raw-term
   /// filtering. Computed once on first access (after [packageName] /

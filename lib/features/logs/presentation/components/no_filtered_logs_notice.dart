@@ -4,9 +4,8 @@ import '../../../../presentation/theme/app_theme.dart';
 
 /// Centered notice shown when logs are flowing but the active filter hides
 /// all of them. Offers a one-tap filter reset.
-class NoFilteredLogsNotice extends StatelessWidget {
-  const NoFilteredLogsNotice({super.key, required this.onClearFilter});
-
+class const NoFilteredLogsNotice({super.key, required this.onClearFilter})
+    extends StatelessWidget {
   final VoidCallback onClearFilter;
 
   @override

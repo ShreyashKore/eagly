@@ -10,18 +10,16 @@ import 'fuzzy_match.dart';
 /// `command_palette_items.dart`). The palette UI itself knows nothing about
 /// where an item came from, so adding a new source never touches it.
 @immutable
-class CommandPaletteItem {
-  const CommandPaletteItem({
-    required this.id,
-    required this.label,
-    required this.category,
-    required this.icon,
-    required this.run,
-    this.subtitle,
-    this.shortcutLabel,
-    this.keywords = const [],
-  });
-
+class const CommandPaletteItem({
+  required this.id,
+  required this.label,
+  required this.category,
+  required this.icon,
+  required this.run,
+  this.subtitle,
+  this.shortcutLabel,
+  this.keywords = const [],
+}) {
   final String id;
   final String label;
 

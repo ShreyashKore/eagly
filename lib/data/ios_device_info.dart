@@ -1,13 +1,11 @@
-class IosDeviceInfo {
-  const IosDeviceInfo({
-    required this.deviceId,
-    required this.status,
-    this.deviceName,
-    this.productName,
-    this.hardwareModel,
-    this.productType,
-  });
-
+class const IosDeviceInfo({
+  required this.deviceId,
+  required this.status,
+  this.deviceName,
+  this.productName,
+  this.hardwareModel,
+  this.productType,
+}) {
   final String deviceId;
   final String status;
   final String? deviceName;

@@ -102,16 +102,14 @@ LogEntry? _parseSectionSeparator(String line) {
   );
 }
 
-class _LogcatEntryBuilder {
-  _LogcatEntryBuilder({
-    required this.timestamp,
-    required this.pid,
-    required this.tid,
-    required this.level,
-    required this.tag,
-    this.isResumed = false,
-  });
-
+class _LogcatEntryBuilder({
+  required this.timestamp,
+  required this.pid,
+  required this.tid,
+  required this.level,
+  required this.tag,
+  this.isResumed = false,
+}) {
   final String timestamp;
   final String pid;
   final String tid;

@@ -15,16 +15,14 @@ import '../../../presentation/theme/app_theme.dart';
 
 /// A dashboard card: small icon + title header, optional [trailing] action,
 /// then [child]. Padding is deliberately tight — this screen packs a lot.
-class SectionCard extends StatelessWidget {
-  const SectionCard({
-    super.key,
-    required this.title,
-    required this.icon,
-    required this.child,
-    this.trailing,
-    this.padding = const EdgeInsets.fromLTRB(14, 12, 14, 14),
-  });
-
+class const SectionCard({
+  super.key,
+  required this.title,
+  required this.icon,
+  required this.child,
+  this.trailing,
+  this.padding = const EdgeInsets.fromLTRB(14, 12, 14, 14),
+}) extends StatelessWidget {
   final String title;
   final IconData icon;
   final Widget child;
@@ -71,14 +69,14 @@ class SectionCard extends StatelessWidget {
 
 /// One label/value pair rendered stacked — label above, value below — which
 /// packs far denser than a two-column row at desktop widths.
-class SpecItem {
-  const SpecItem(
-    this.label,
-    this.value, {
-    bool copyable = false,
-    this.copyValue,
-    this.mono,
-  }) : copyable = copyable || copyValue != null;
+class const SpecItem(
+  this.label,
+  this.value, {
+  bool copyable = false,
+  this.copyValue,
+  this.mono,
+}) {
+  this : copyable = copyable || copyValue != null;
 
   final String label;
   final String value;
@@ -93,9 +91,11 @@ class SpecItem {
 }
 
 /// Lays [items] out in as many columns as the available width allows.
-class SpecGrid extends StatelessWidget {
-  const SpecGrid({super.key, required this.items, this.minColumnWidth = 132});
-
+class const SpecGrid({
+  super.key,
+  required this.items,
+  this.minColumnWidth = 132,
+}) extends StatelessWidget {
   final List<SpecItem> items;
   final double minColumnWidth;
 
@@ -127,9 +127,7 @@ class SpecGrid extends StatelessWidget {
   }
 }
 
-class _SpecTile extends StatelessWidget {
-  const _SpecTile({required this.item});
-
+class const _SpecTile({required this.item}) extends StatelessWidget {
   final SpecItem item;
 
   @override
@@ -174,9 +172,7 @@ class _SpecTile extends StatelessWidget {
 }
 
 /// Keyboard accelerator hint rendered as a small key cap.
-class KeyCap extends StatelessWidget {
-  const KeyCap({super.key, required this.label});
-
+class const KeyCap({super.key, required this.label}) extends StatelessWidget {
   final String label;
 
   @override
@@ -218,9 +214,8 @@ String formatClockTime(DateTime time) {
 }
 
 /// Compact copy-to-clipboard affordance used next to ids and serials.
-class CopyButton extends StatelessWidget {
-  const CopyButton({super.key, required this.value, required this.label});
-
+class const CopyButton({super.key, required this.value, required this.label})
+    extends StatelessWidget {
   final String value;
   final String label;
 
@@ -266,17 +261,15 @@ extension StatusToneColor on StatusTone {
 
 /// Small pill: tinted dot (or icon) + text. The workhorse for the metadata
 /// strip in the hero card and the readiness chips.
-class StatusPill extends StatelessWidget {
-  const StatusPill({
-    super.key,
-    required this.label,
-    this.tone = StatusTone.neutral,
-    this.icon,
-    this.showDot = false,
-    this.mono = false,
-    this.trailing,
-  });
-
+class const StatusPill({
+  super.key,
+  required this.label,
+  this.tone = StatusTone.neutral,
+  this.icon,
+  this.showDot = false,
+  this.mono = false,
+  this.trailing,
+}) extends StatelessWidget {
   final String label;
   final StatusTone tone;
   final IconData? icon;
@@ -333,9 +326,7 @@ class StatusPill extends StatelessWidget {
   }
 }
 
-class _Dot extends StatelessWidget {
-  const _Dot({required this.color});
-
+class const _Dot({required this.color}) extends StatelessWidget {
   final Color color;
 
   @override
@@ -356,14 +347,12 @@ class _Dot extends StatelessWidget {
 
 /// On/off capability tile (Wi-Fi, Bluetooth, …) — an icon that reads at a
 /// glance instead of a "Wi-Fi: On" text row.
-class ToggleTile extends StatelessWidget {
-  const ToggleTile({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.enabled,
-  });
-
+class const ToggleTile({
+  super.key,
+  required this.icon,
+  required this.label,
+  required this.enabled,
+}) extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool enabled;
@@ -422,16 +411,14 @@ class ToggleTile extends StatelessWidget {
 // ── Gauges & charts ──────────────────────────────────────────────────────
 
 /// Animated 270° arc gauge with a value in the middle.
-class MetricGauge extends StatelessWidget {
-  const MetricGauge({
-    super.key,
-    required this.value,
-    required this.color,
-    this.size = 68,
-    this.stroke = 6,
-    this.center,
-  });
-
+class const MetricGauge({
+  super.key,
+  required this.value,
+  required this.color,
+  this.size = 68,
+  this.stroke = 6,
+  this.center,
+}) extends StatelessWidget {
   /// 0..1; `null` renders an empty track (data unavailable).
   final double? value;
   final Color color;
@@ -465,14 +452,12 @@ class MetricGauge extends StatelessWidget {
   }
 }
 
-class _GaugePainter extends CustomPainter {
-  _GaugePainter({
-    required this.value,
-    required this.color,
-    required this.track,
-    required this.stroke,
-  });
-
+class _GaugePainter({
+  required this.value,
+  required this.color,
+  required this.track,
+  required this.stroke,
+}) extends CustomPainter {
   final double value;
   final Color color;
   final Color track;
@@ -512,14 +497,12 @@ class _GaugePainter extends CustomPainter {
 }
 
 /// Tiny filled line chart of recent samples (0..1 each).
-class Sparkline extends StatelessWidget {
-  const Sparkline({
-    super.key,
-    required this.samples,
-    required this.color,
-    this.height = 26,
-  });
-
+class const Sparkline({
+  super.key,
+  required this.samples,
+  required this.color,
+  this.height = 26,
+}) extends StatelessWidget {
   final List<double> samples;
   final Color color;
   final double height;
@@ -536,9 +519,8 @@ class Sparkline extends StatelessWidget {
   }
 }
 
-class _SparklinePainter extends CustomPainter {
-  _SparklinePainter({required this.samples, required this.color});
-
+class _SparklinePainter({required this.samples, required this.color})
+    extends CustomPainter {
   final List<double> samples;
   final Color color;
 
@@ -589,14 +571,12 @@ class _SparklinePainter extends CustomPainter {
 }
 
 /// Horizontal usage bar with a label row above it.
-class MeterBar extends StatelessWidget {
-  const MeterBar({
-    super.key,
-    required this.value,
-    required this.color,
-    this.height = 6,
-  });
-
+class const MeterBar({
+  super.key,
+  required this.value,
+  required this.color,
+  this.height = 6,
+}) extends StatelessWidget {
   final double value;
   final Color color;
   final double height;

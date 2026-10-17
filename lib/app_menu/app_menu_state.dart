@@ -7,20 +7,18 @@ import '../features/logs/log_controller.dart' show LogcatState;
 /// listeners **only when this snapshot actually changes** (it has value
 /// equality). That lets the menu bar rebuild — and stay reactive to app state —
 /// without closing the open native menu on every unrelated notification.
-class AppMenuState {
-  const AppMenuState({
-    required this.hasActiveLog,
-    required this.isImported,
-    required this.deviceConnected,
-    required this.logcatState,
-    required this.hasLogs,
-    required this.isIos,
-    required this.selectedLogLevel,
-    required this.wrapText,
-    required this.autoScroll,
-    required this.searchBarVisible,
-  });
-
+class const AppMenuState({
+  required this.hasActiveLog,
+  required this.isImported,
+  required this.deviceConnected,
+  required this.logcatState,
+  required this.hasLogs,
+  required this.isIos,
+  required this.selectedLogLevel,
+  required this.wrapText,
+  required this.autoScroll,
+  required this.searchBarVisible,
+}) {
   /// State when no device is selected (Home screen / no active log tab).
   static const empty = AppMenuState(
     hasActiveLog: false,

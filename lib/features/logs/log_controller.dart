@@ -30,7 +30,8 @@ enum LogcatState { stopped, running, paused }
 /// Per-device logging feature: captures logcat / syslog, buffers + filters +
 /// searches log entries, and manages row selection / copy / export. Holds no
 /// device-selection or mirror state.
-class LogController extends FeatureController {
+class LogController(super.session, {required LogTabSettings initialSettings})
+    extends FeatureController {
   /// Upper bound for entries waiting for the next UI flush.  A full queue is
   /// flushed as one batch rather than appending the next entry immediately:
   /// immediate appends notify and rebuild the viewer once per log line.
@@ -54,7 +55,7 @@ class LogController extends FeatureController {
   @visibleForTesting
   static Duration recoveryBackoff = const Duration(seconds: 2);
 
-  LogController(super.session, {required LogTabSettings initialSettings})
+  this
     : _settings = initialSettings,
       _logsBuffer = LogBuffer<LogEntry>(
         baseCapacity: initialSettings.logLinesLimit,

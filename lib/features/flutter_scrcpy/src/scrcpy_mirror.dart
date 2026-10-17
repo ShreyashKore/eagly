@@ -5,8 +5,7 @@ import 'scrcpy_video_channel.dart';
 
 export 'scrcpy_client.dart' show ScrcpyControl, ScrcpyTouchAction;
 
-class ScrcpyMirrorException implements Exception {
-  const ScrcpyMirrorException(this.message);
+class const ScrcpyMirrorException(this.message) implements Exception {
   final String message;
   @override
   String toString() => message;
@@ -14,19 +13,17 @@ class ScrcpyMirrorException implements Exception {
 
 /// An active embedded mirror: a native texture being fed decoded frames from
 /// scrcpy-server. Render it with `Texture(textureId: session.textureId)`.
-class ScrcpyMirrorSession {
-  ScrcpyMirrorSession({
-    required this.serial,
-    required this.textureId,
-    required this.deviceName,
-    required this.width,
-    required this.height,
-    required this.control,
-    required this.exitCode,
-    required this.streamEnded,
-    required this._onStop,
-  });
-
+class ScrcpyMirrorSession({
+  required this.serial,
+  required this.textureId,
+  required this.deviceName,
+  required this.width,
+  required this.height,
+  required this.control,
+  required this.exitCode,
+  required this.streamEnded,
+  required this._onStop,
+}) {
   /// adb serial of the mirrored device.
   final String serial;
   final int textureId;
@@ -53,21 +50,22 @@ class ScrcpyMirrorSession {
 
 /// Orchestrates an embedded screen mirror: allocate a native texture, connect
 /// the [ScrcpyClient], and pump decoded access units into the texture.
-class ScrcpyMirror {
-  ScrcpyMirror({
-    required String serverJarPath,
-    String adbExecutablePath = 'adb',
-    ScrcpyVideoChannel? channel,
-    ScrcpyClient? client,
-    void Function(String message)? onLog,
-  }) : _channel = channel ?? const ScrcpyVideoChannel(),
-       _client =
-           client ??
-           ScrcpyClient(
-             adbExecutablePath: adbExecutablePath,
-             serverJarPath: serverJarPath,
-             onLog: onLog,
-           );
+class ScrcpyMirror({
+  required String serverJarPath,
+  String adbExecutablePath = 'adb',
+  ScrcpyVideoChannel? channel,
+  ScrcpyClient? client,
+  void Function(String message)? onLog,
+}) {
+  this
+    : _channel = channel ?? const ScrcpyVideoChannel(),
+      _client =
+          client ??
+          ScrcpyClient(
+            adbExecutablePath: adbExecutablePath,
+            serverJarPath: serverJarPath,
+            onLog: onLog,
+          );
 
   final ScrcpyVideoChannel _channel;
   final ScrcpyClient _client;

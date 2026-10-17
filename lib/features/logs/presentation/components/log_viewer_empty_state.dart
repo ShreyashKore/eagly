@@ -5,13 +5,11 @@ import '../../log_controller.dart';
 
 /// Placeholder shown when the tab has no logs yet — waiting, ready, or an
 /// empty imported file.
-class LogViewerEmptyState extends StatelessWidget {
-  const LogViewerEmptyState({
-    super.key,
-    required this.controller,
-    required this.deviceDisplayName,
-  });
-
+class const LogViewerEmptyState({
+  super.key,
+  required this.controller,
+  required this.deviceDisplayName,
+}) extends StatelessWidget {
   final LogController controller;
   final String deviceDisplayName;
 

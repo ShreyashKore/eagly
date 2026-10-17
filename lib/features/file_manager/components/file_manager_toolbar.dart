@@ -17,17 +17,15 @@ import '../../../presentation/theme/app_theme.dart';
 /// after navigation drags the pane like a title bar; while the pane sits in
 /// a tab group its chip is the handle and has the close button, so the bar
 /// shows neither.
-class FileManagerToolbar extends StatelessWidget {
-  const FileManagerToolbar({
-    super.key,
-    required this.controller,
-    required this.onUpload,
-    required this.onNewFolder,
-    required this.onDownloadSelected,
-    required this.onDeleteSelected,
-    required this.onClose,
-  });
-
+class const FileManagerToolbar({
+  super.key,
+  required this.controller,
+  required this.onUpload,
+  required this.onNewFolder,
+  required this.onDownloadSelected,
+  required this.onDeleteSelected,
+  required this.onClose,
+}) extends StatelessWidget {
   final FileManagerController controller;
   final VoidCallback onUpload;
   final VoidCallback onNewFolder;

@@ -8,16 +8,14 @@ import 'app_utility_menu.dart';
 /// The app actions that need dialogs or snackbars. Owned by the feature view
 /// and invoked from the context menu, so the menu helper stays free of
 /// dialog logic.
-class AppActions {
-  const AppActions({
-    required this.onLaunch,
-    required this.onForceStop,
-    required this.onClearData,
-    required this.onAppInfo,
-    required this.onViewLogs,
-    required this.onUninstall,
-  });
-
+class const AppActions({
+  required this.onLaunch,
+  required this.onForceStop,
+  required this.onClearData,
+  required this.onAppInfo,
+  required this.onViewLogs,
+  required this.onUninstall,
+}) {
   final void Function(AppInfo app) onLaunch;
   final void Function(AppInfo app) onForceStop;
   final void Function(AppInfo app) onClearData;
@@ -163,16 +161,14 @@ RelativeRect _positionFrom(Offset globalPosition) => RelativeRect.fromLTRB(
   globalPosition.dy,
 );
 
-class _MenuRow extends StatelessWidget {
-  const _MenuRow(
-    this.icon,
-    this.label, {
-    this.color,
-    this.trailing,
-    this.blocked = false,
-    this.blockedReason,
-  });
-
+class const _MenuRow(
+  this.icon,
+  this.label, {
+  this.color,
+  this.trailing,
+  this.blocked = false,
+  this.blockedReason,
+}) extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color? color;

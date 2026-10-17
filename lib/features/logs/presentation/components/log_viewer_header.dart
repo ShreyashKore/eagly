@@ -4,22 +4,20 @@ import '../../../../presentation/theme/app_theme.dart';
 import '../../data/models/log_column.dart';
 import '../log_viewer_constants.dart';
 
-class LogViewerHeader extends StatelessWidget {
-  const LogViewerHeader({
-    super.key,
-    required this.rowSelectionMode,
-    required this.headerStyle,
-    required this.visibleFixedColumns,
-    required this.messageVisible,
-    required this.messageWidth,
-    required this.wrapText,
-    required this.widthOf,
-    required this.onFixedColumnResize,
-    required this.onMessageResize,
-    required this.onShowColumnVisibilityMenu,
-    this.isIos = false,
-  });
-
+class const LogViewerHeader({
+  super.key,
+  required this.rowSelectionMode,
+  required this.headerStyle,
+  required this.visibleFixedColumns,
+  required this.messageVisible,
+  required this.messageWidth,
+  required this.wrapText,
+  required this.widthOf,
+  required this.onFixedColumnResize,
+  required this.onMessageResize,
+  required this.onShowColumnVisibilityMenu,
+  this.isIos = false,
+}) extends StatelessWidget {
   final bool rowSelectionMode;
   final TextStyle headerStyle;
   final List<LogColumn> visibleFixedColumns;
@@ -83,13 +81,11 @@ class LogViewerHeader extends StatelessWidget {
   }
 }
 
-class _HeaderCell extends StatelessWidget {
-  const _HeaderCell({
-    required this.text,
-    required this.width,
-    required this.style,
-  });
-
+class const _HeaderCell({
+  required this.text,
+  required this.width,
+  required this.style,
+}) extends StatelessWidget {
   final String text;
   final double width;
   final TextStyle style;
@@ -109,9 +105,7 @@ class _HeaderCell extends StatelessWidget {
   }
 }
 
-class _ColumnDragHandle extends StatelessWidget {
-  const _ColumnDragHandle({required this.onDrag});
-
+class const _ColumnDragHandle({required this.onDrag}) extends StatelessWidget {
   final ValueChanged<double> onDrag;
 
   @override

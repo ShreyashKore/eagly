@@ -12,13 +12,11 @@ import 'home_primitives.dart';
 
 // ── Debug readiness ──────────────────────────────────────────────────────
 
-class ReadinessCard extends StatelessWidget {
-  const ReadinessCard({
-    super.key,
-    required this.device,
-    required this.developerState,
-  });
-
+class const ReadinessCard({
+  super.key,
+  required this.device,
+  required this.developerState,
+}) extends StatelessWidget {
   final Device device;
   final DeviceDeveloperStateInfo developerState;
 
@@ -84,9 +82,11 @@ class ReadinessCard extends StatelessWidget {
 
 // ── Hardware ─────────────────────────────────────────────────────────────
 
-class HardwareCard extends StatelessWidget {
-  const HardwareCard({super.key, required this.device, required this.identity});
-
+class const HardwareCard({
+  super.key,
+  required this.device,
+  required this.identity,
+}) extends StatelessWidget {
   final Device device;
   final DeviceIdentityInfo identity;
 
@@ -135,9 +135,8 @@ class HardwareCard extends StatelessWidget {
 
 // ── Display ──────────────────────────────────────────────────────────────
 
-class DisplayCard extends StatelessWidget {
-  const DisplayCard({super.key, required this.display});
-
+class const DisplayCard({super.key, required this.display})
+    extends StatelessWidget {
   final DeviceDisplayInfo display;
 
   @override
@@ -174,13 +173,11 @@ class DisplayCard extends StatelessWidget {
 
 /// A to-scale outline of the device screen — communicates aspect ratio and
 /// orientation instantly, which "1080 × 2400" alone does not.
-class _ScreenGlyph extends StatelessWidget {
-  const _ScreenGlyph({
-    required this.widthPx,
-    required this.heightPx,
-    required this.landscape,
-  });
-
+class const _ScreenGlyph({
+  required this.widthPx,
+  required this.heightPx,
+  required this.landscape,
+}) extends StatelessWidget {
   final int? widthPx;
   final int? heightPx;
   final bool landscape;
@@ -244,13 +241,11 @@ class _ScreenGlyph extends StatelessWidget {
 
 // ── Connectivity ─────────────────────────────────────────────────────────
 
-class ConnectivityCard extends StatelessWidget {
-  const ConnectivityCard({
-    super.key,
-    required this.connectivity,
-    required this.cellular,
-  });
-
+class const ConnectivityCard({
+  super.key,
+  required this.connectivity,
+  required this.cellular,
+}) extends StatelessWidget {
   final DeviceConnectivityInfo connectivity;
   final DeviceCellularInfo cellular;
 
@@ -336,13 +331,11 @@ class ConnectivityCard extends StatelessWidget {
 
 // ── Software ─────────────────────────────────────────────────────────────
 
-class SoftwareCard extends StatelessWidget {
-  const SoftwareCard({
-    super.key,
-    required this.software,
-    required this.identity,
-  });
-
+class const SoftwareCard({
+  super.key,
+  required this.software,
+  required this.identity,
+}) extends StatelessWidget {
   final DeviceSoftwareInfo software;
   final DeviceIdentityInfo identity;
 
@@ -369,13 +362,11 @@ class SoftwareCard extends StatelessWidget {
 
 // ── Recent installs ──────────────────────────────────────────────────────
 
-class RecentInstallsCard extends StatelessWidget {
-  const RecentInstallsCard({
-    super.key,
-    required this.apps,
-    required this.isLoading,
-  });
-
+class const RecentInstallsCard({
+  super.key,
+  required this.apps,
+  required this.isLoading,
+}) extends StatelessWidget {
   final List<InstalledAppInfo> apps;
   final bool isLoading;
 

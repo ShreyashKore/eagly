@@ -9,14 +9,12 @@ import 'dart:typed_data';
 /// [data] is raw Annex-B (start-code prefixed NAL units). The first packet of
 /// a stream is a [isConfig] packet carrying SPS + PPS; subsequent [isKeyFrame]
 /// packets are IDR frames and the rest are non-key slices.
-class ScrcpyPacket {
-  const ScrcpyPacket({
-    required this.isConfig,
-    required this.isKeyFrame,
-    required this.ptsMicros,
-    required this.data,
-  });
-
+class const ScrcpyPacket({
+  required this.isConfig,
+  required this.isKeyFrame,
+  required this.ptsMicros,
+  required this.data,
+}) {
   final bool isConfig;
   final bool isKeyFrame;
 
@@ -28,16 +26,14 @@ class ScrcpyPacket {
 }
 
 /// Options controlling how scrcpy-server encodes the video stream.
-class ScrcpyVideoOptions {
-  const ScrcpyVideoOptions({
-    this.codec = 'h264',
-    this.maxSize,
-    this.maxFps,
-    this.videoBitRate,
-    this.control = false,
-    this.logLevel = 'info',
-  });
-
+class const ScrcpyVideoOptions({
+  this.codec = 'h264',
+  this.maxSize,
+  this.maxFps,
+  this.videoBitRate,
+  this.control = false,
+  this.logLevel = 'info',
+}) {
   final String codec;
   final int? maxSize;
   final int? maxFps;
@@ -48,18 +44,16 @@ class ScrcpyVideoOptions {
 
 /// An active scrcpy video session: the parsed handshake metadata plus a stream
 /// of [ScrcpyPacket]s. Call [stop] to tear everything down.
-class ScrcpyStream {
-  ScrcpyStream({
-    required this.deviceName,
-    required this.codecId,
-    required this.width,
-    required this.height,
-    required this.packets,
-    required this.control,
-    required this._serverExitCode,
-    required this._onStop,
-  });
-
+class ScrcpyStream({
+  required this.deviceName,
+  required this.codecId,
+  required this.width,
+  required this.height,
+  required this.packets,
+  required this.control,
+  required this._serverExitCode,
+  required this._onStop,
+}) {
   final String deviceName;
   final String codecId;
 
@@ -80,8 +74,7 @@ class ScrcpyStream {
   Future<void> stop() => _onStop();
 }
 
-class ScrcpyClientException implements Exception {
-  const ScrcpyClientException(this.message);
+class const ScrcpyClientException(this.message) implements Exception {
   final String message;
   @override
   String toString() => 'ScrcpyClientException: $message';
@@ -94,8 +87,8 @@ enum ScrcpyKey { back, home, appSwitch, power, volumeUp, volumeDown }
 
 /// Encodes and sends scrcpy control messages on the control socket, and
 /// parses incoming device→client messages (currently just clipboard sync).
-class ScrcpyControl {
-  ScrcpyControl(this._socket) {
+class ScrcpyControl(this._socket) {
+  this {
     _subscription = _socket.listen(
       _onData,
       onError: (_) {},
@@ -350,13 +343,12 @@ class ScrcpyControl {
 /// This deliberately bypasses the `scrcpy` desktop binary (which muxes into a
 /// container and renders in its own SDL window). We want the raw encoded
 /// frames so a native decoder can render them into a Flutter texture.
-class ScrcpyClient {
-  ScrcpyClient({
-    String adbExecutablePath = 'adb',
-    required String serverJarPath,
-    this.onLog,
-  }) : _adb = adbExecutablePath,
-       _serverJar = serverJarPath;
+class ScrcpyClient({
+  String adbExecutablePath = 'adb',
+  required String serverJarPath,
+  this.onLog,
+}) {
+  this : _adb = adbExecutablePath, _serverJar = serverJarPath;
 
   /// Path to the `adb` executable. Defaults to `adb` on the host PATH; pass an
   /// absolute path to use a bundled adb instead.
@@ -792,16 +784,18 @@ class ScrcpyClient {
   }
 }
 
-class _FirstPacket {
-  const _FirstPacket({required this.dimensions, required this.firstPacket});
+class const _FirstPacket({
+  required this.dimensions,
+  required this.firstPacket,
+}) {
   final (int, int) dimensions;
   final ScrcpyPacket firstPacket;
 }
 
 /// Pull-based reader that yields exactly N bytes from a byte stream, buffering
 /// chunks and completing reads as data arrives.
-class _ByteReader {
-  _ByteReader(Stream<Uint8List> source) {
+class _ByteReader(Stream<Uint8List> source) {
+  this {
     _sub = source.listen(
       _onData,
       onError: _onError,

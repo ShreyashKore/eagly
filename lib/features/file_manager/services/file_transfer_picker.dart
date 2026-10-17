@@ -8,9 +8,7 @@ import '../../../services/preferences_service.dart';
 /// choosing local files to upload to the device, and choosing a destination
 /// folder for downloads. Reuses the app-wide "last dialog directory" so the
 /// pickers reopen where the user last was.
-class FileTransferPicker {
-  const FileTransferPicker._();
-
+class const FileTransferPicker._() {
   /// Opens a multi-select file picker; returns the chosen absolute paths, or an
   /// empty list if cancelled.
   static Future<List<String>> pickFilesToUpload(String deviceLabel) async {

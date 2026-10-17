@@ -56,15 +56,13 @@ bool showsFilterAppIcons(
 
 /// Icon, field name, operator and a delete button — the top line of every
 /// pill editor.
-class FilterEditorHeader extends StatelessWidget {
-  const FilterEditorHeader({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.operator,
-    required this.onRemove,
-  });
-
+class const FilterEditorHeader({
+  super.key,
+  required this.icon,
+  required this.label,
+  required this.operator,
+  required this.onRemove,
+}) extends StatelessWidget {
   final IconData icon;
   final String label;
   final Widget operator;
@@ -95,9 +93,8 @@ class FilterEditorHeader extends StatelessWidget {
 }
 
 /// A small heading over a group of [FilterMenuRow]s.
-class FilterMenuSectionLabel extends StatelessWidget {
-  const FilterMenuSectionLabel(this.text, {super.key});
-
+class const FilterMenuSectionLabel(this.text, {super.key})
+    extends StatelessWidget {
   final String text;
 
   @override
@@ -118,18 +115,16 @@ class FilterMenuSectionLabel extends StatelessWidget {
 }
 
 /// A rounded, hover-highlighted row in a popover list.
-class FilterMenuRow extends StatefulWidget {
-  const FilterMenuRow({
-    super.key,
-    required this.child,
-    required this.onTap,
-    this.icon,
-    this.packageName,
-    this.trailing,
-    this.highlighted = false,
-    this.onHover,
-  });
-
+class const FilterMenuRow({
+  super.key,
+  required this.child,
+  required this.onTap,
+  this.icon,
+  this.packageName,
+  this.trailing,
+  this.highlighted = false,
+  this.onHover,
+}) extends StatefulWidget {
   final Widget child;
   final VoidCallback onTap;
   final IconData? icon;
@@ -197,9 +192,7 @@ class _FilterMenuRowState extends State<FilterMenuRow> {
 }
 
 /// The ↵ glyph at the end of the highlighted row: what Enter will pick.
-class FilterEnterHint extends StatelessWidget {
-  const FilterEnterHint({super.key});
-
+class const FilterEnterHint({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Icon(

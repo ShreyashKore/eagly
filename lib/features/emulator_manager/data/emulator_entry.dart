@@ -31,13 +31,11 @@ enum EmulatorRunState {
 /// halves apart lets the poll rebuild the runtime one every couple of seconds
 /// without touching the disk again.
 @immutable
-class EmulatorEntry {
-  const EmulatorEntry({
-    required this.emulator,
-    this.runState = EmulatorRunState.stopped,
-    this.serial,
-  });
-
+class const EmulatorEntry({
+  required this.emulator,
+  this.runState = EmulatorRunState.stopped,
+  this.serial,
+}) {
   final AndroidEmulator emulator;
   final EmulatorRunState runState;
 

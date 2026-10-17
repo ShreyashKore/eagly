@@ -14,14 +14,12 @@ import 'feature_rail.dart';
 /// The screen shown for the selected device tab: the feature rail on the far
 /// left, then Home or the open feature panes, arranged however the user left
 /// them.
-class DeviceScreen extends StatefulWidget {
-  const DeviceScreen({
-    super.key,
-    required this.session,
-    required this.appMemoryBytesListenable,
-    required this.onOpenSettings,
-  });
-
+class const DeviceScreen({
+  super.key,
+  required this.session,
+  required this.appMemoryBytesListenable,
+  required this.onOpenSettings,
+}) extends StatefulWidget {
   final DeviceSessionController session;
   final ValueListenable<int> appMemoryBytesListenable;
   final VoidCallback onOpenSettings;

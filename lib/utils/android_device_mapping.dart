@@ -23,9 +23,11 @@ const _downloadTimeout = Duration(seconds: 30);
 
 /// Marketing names for Android devices ("Galaxy S23" for `SM-S911B`), built
 /// from Google Play's supported-devices list.
-class AndroidDeviceCatalog {
-  AndroidDeviceCatalog._(this._byDeviceAndModel, this._byModel, this._byDevice);
-
+class AndroidDeviceCatalog._(
+  this._byDeviceAndModel,
+  this._byModel,
+  this._byDevice,
+) {
   /// Parses the supported-devices CSV, decoded to a string. Rows without a
   /// marketing name are dropped — they have nothing to offer.
   factory AndroidDeviceCatalog.parse(String csv) {
@@ -168,9 +170,10 @@ class AndroidDeviceCatalog {
   }
 }
 
-class _CatalogEntry {
-  const _CatalogEntry({required this.branding, required this.marketingName});
-
+class const _CatalogEntry({
+  required this.branding,
+  required this.marketingName,
+}) {
   /// Lower-cased "Retail Branding", compared against `ro.product.brand`.
   final String branding;
   final String marketingName;
@@ -186,9 +189,8 @@ class _CatalogEntry {
 /// look again. A failed download is retried every
 /// [retryDelay]. A cached copy past [_cacheMaxAge] keeps answering while a
 /// fresh one downloads.
-class AndroidMarketingNames extends ChangeNotifier {
-  AndroidMarketingNames._(this._url, this._cacheDirectory);
-
+class AndroidMarketingNames._(this._url, this._cacheDirectory)
+    extends ChangeNotifier {
   /// Loads from [url] and caches in [cacheDirectory] instead of Google Play
   /// and the app support directory.
   @visibleForTesting

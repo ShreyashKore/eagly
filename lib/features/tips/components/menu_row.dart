@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class MenuRow extends StatelessWidget {
-  const MenuRow(this.icon, this.label, {super.key});
+class const MenuRow(this.icon, this.label, {super.key})
+    extends StatelessWidget {
   final IconData icon;
   final String label;
 

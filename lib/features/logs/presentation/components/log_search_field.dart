@@ -17,13 +17,11 @@ import 'filter_bar_shared.dart';
 /// show the match-case / whole-word / regex toggles, the match count and
 /// previous / next. Escape (or ×) clears it. Narrower than [showOptionsWidth]
 /// it leaves the three toggles out; narrower still, it clips its right edge.
-class LogSearchField extends StatefulWidget {
-  const LogSearchField({
-    super.key,
-    required this.controller,
-    this.fillWidth = false,
-  });
-
+class const LogSearchField({
+  super.key,
+  required this.controller,
+  this.fillWidth = false,
+}) extends StatefulWidget {
   final LogController controller;
 
   /// Take all the width offered instead of the collapsed / expanded widths —
@@ -310,14 +308,12 @@ class _LogSearchFieldState extends State<LogSearchField> {
   }
 }
 
-class _OptionToggle extends StatelessWidget {
-  const _OptionToggle({
-    required this.label,
-    required this.tooltip,
-    required this.value,
-    required this.onPressed,
-  });
-
+class const _OptionToggle({
+  required this.label,
+  required this.tooltip,
+  required this.value,
+  required this.onPressed,
+}) extends StatelessWidget {
   final String label;
   final String tooltip;
   final bool value;
@@ -354,13 +350,11 @@ class _OptionToggle extends StatelessWidget {
   }
 }
 
-class _IconAction extends StatelessWidget {
-  const _IconAction({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
+class const _IconAction({
+  required this.icon,
+  required this.tooltip,
+  required this.onPressed,
+}) extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback? onPressed;

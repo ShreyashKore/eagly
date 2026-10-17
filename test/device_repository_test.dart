@@ -218,8 +218,8 @@ void main() {
   );
 }
 
-class _FakeAdbTool extends AdbTool {
-  _FakeAdbTool() : super(executablePath: '/usr/bin/true');
+class _FakeAdbTool() extends AdbTool {
+  this : super(executablePath: '/usr/bin/true');
 
   List<Device> androidDevices = const [];
   final Map<String, Device> androidDescriptions = {};

@@ -24,9 +24,9 @@ enum AppLoadState { idle, loading, ready, error }
 ///
 /// Pane *visibility* lives on the owning [DeviceSessionController]; this
 /// controller only manages the feature's own data.
-class AppsController extends FeatureController {
-  AppsController(super.session, {AppIconCache? iconCache})
-    : _iconStore = iconCache ?? AppIconCache.instance;
+class AppsController(super.session, {AppIconCache? iconCache})
+    extends FeatureController {
+  this : _iconStore = iconCache ?? AppIconCache.instance;
 
   static const int _maxConcurrentIconFetches = 4;
 

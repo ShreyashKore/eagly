@@ -7,14 +7,12 @@ import 'terminal_line.dart';
 /// Unlike a utility run, a terminal command has no timeout: `adb logcat` and
 /// `idevicesyslog` legitimately stream until the user stops them, so ending the
 /// process is the caller's job ([kill]).
-class TerminalProcessSession {
-  TerminalProcessSession({
-    required this.output,
-    required this.exitCode,
-    required this._onKill,
-    required this._onInput,
-  });
-
+class TerminalProcessSession({
+  required this.output,
+  required this.exitCode,
+  required this._onKill,
+  required this._onInput,
+}) {
   /// stdout and stderr, line by line, tagged by pipe. Closes when both pipes
   /// are done.
   final Stream<TerminalOutputChunk> output;

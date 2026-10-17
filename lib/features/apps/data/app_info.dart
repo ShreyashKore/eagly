@@ -3,19 +3,17 @@
 /// installed" list) — this carries everything the app-management UI and its
 /// context-menu actions need. Icons are *not* stored here — they're fetched
 /// lazily and cached by `AppsController`, keyed by [packageName].
-class AppInfo {
-  const AppInfo({
-    required this.packageName,
-    this.appName,
-    this.versionName,
-    this.versionCode,
-    this.isSystemApp = false,
-    this.isEnabled = true,
-    this.apkPath,
-    this.installTime,
-    this.updateTime,
-  });
-
+class const AppInfo({
+  required this.packageName,
+  this.appName,
+  this.versionName,
+  this.versionCode,
+  this.isSystemApp = false,
+  this.isEnabled = true,
+  this.apkPath,
+  this.installTime,
+  this.updateTime,
+}) {
   /// Android package name (`com.example.app`) or iOS bundle identifier.
   final String packageName;
   final String? appName;

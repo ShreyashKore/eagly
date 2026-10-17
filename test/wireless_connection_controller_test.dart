@@ -317,8 +317,8 @@ Future<void> _waitFor(
   }
 }
 
-class _FakeWirelessSessionService extends WirelessConnectionService {
-  _FakeWirelessSessionService() : super(adbPath: '/usr/bin/true');
+class _FakeWirelessSessionService() extends WirelessConnectionService {
+  this : super(adbPath: '/usr/bin/true');
 
   final List<(String, String)> pairRequests = [];
   final List<String> connectRequests = [];
@@ -346,8 +346,8 @@ class _FakeWirelessSessionService extends WirelessConnectionService {
   }
 }
 
-class _FakeWirelessAdbTool extends AdbTool {
-  _FakeWirelessAdbTool() : super(executablePath: '/usr/bin/true');
+class _FakeWirelessAdbTool() extends AdbTool {
+  this : super(executablePath: '/usr/bin/true');
 
   List<Device> androidDevices = const [];
   WirelessServiceDiscoveryResult discoveryResult =

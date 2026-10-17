@@ -81,22 +81,20 @@ List<Widget> buildFilterPills(
 /// field and how it matches ("Tag · excludes") floats over the value
 /// ("Chatty"), so a chip is as wide as the longer of the two rather than the
 /// whole sentence. Clicking it opens [editorBuilder] in a popover underneath.
-class _FilterPill extends StatefulWidget {
-  const _FilterPill({
-    super.key,
-    required this.fieldLabel,
-    required this.operatorLabel,
-    required this.description,
-    required this.value,
-    required this.onRemove,
-    required this.onEditorClosed,
-    required this.editorBuilder,
-    this.negated = false,
-    this.armed = false,
-    this.error,
-    this.openOnMount = false,
-  });
-
+class const _FilterPill({
+  super.key,
+  required this.fieldLabel,
+  required this.operatorLabel,
+  required this.description,
+  required this.value,
+  required this.onRemove,
+  required this.onEditorClosed,
+  required this.editorBuilder,
+  this.negated = false,
+  this.armed = false,
+  this.error,
+  this.openOnMount = false,
+}) extends StatefulWidget {
   final String fieldLabel;
 
   /// The operator's short form, for the label line.

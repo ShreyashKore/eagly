@@ -11,17 +11,15 @@ import 'scrcpy_mirror.dart';
 /// Keyboard forwarding is focus-gated: keys only reach the device while the
 /// surface holds focus (click it to take focus), so the host app keeps its own
 /// shortcuts the rest of the time.
-class ScrcpyView extends StatelessWidget {
-  const ScrcpyView({
-    super.key,
-    required this.textureId,
-    required this.aspectRatio,
-    this.onTouch,
-    this.focusNode,
-    this.onKey,
-    this.onFocusChange,
-  });
-
+class const ScrcpyView({
+  super.key,
+  required this.textureId,
+  required this.aspectRatio,
+  this.onTouch,
+  this.focusNode,
+  this.onKey,
+  this.onFocusChange,
+}) extends StatelessWidget {
   final int textureId;
   final double aspectRatio;
 

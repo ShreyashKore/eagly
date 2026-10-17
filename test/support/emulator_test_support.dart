@@ -59,8 +59,8 @@ class FakeEmulatorAdbTool extends FakeAdbTool {
   }
 }
 
-class FakeEmulatorTool extends EmulatorTool {
-  FakeEmulatorTool() : super(executablePath: '/usr/bin/true');
+class FakeEmulatorTool() extends EmulatorTool {
+  this : super(executablePath: '/usr/bin/true');
 
   List<String> avdNames = const [];
   var listCallCount = 0;
@@ -87,10 +87,10 @@ class FakeEmulatorTool extends EmulatorTool {
   }
 }
 
-class FakeAvdMetadataReader extends AvdMetadataReader {
+class FakeAvdMetadataReader() extends AvdMetadataReader {
   // A path that cannot exist, so an unstubbed read is a visible mistake rather
   // than a silent trip through the developer's own ~/.android/avd.
-  FakeAvdMetadataReader() : super(avdHome: '/nonexistent/avd/home');
+  this : super(avdHome: '/nonexistent/avd/home');
 
   final Map<String, AndroidEmulator> emulators = {};
 
@@ -99,8 +99,8 @@ class FakeAvdMetadataReader extends AvdMetadataReader {
       emulators[name] ?? AndroidEmulator(name: name);
 }
 
-class FakeAvdManagerTool extends AvdManagerTool {
-  FakeAvdManagerTool() : super(executablePath: '/usr/bin/true');
+class FakeAvdManagerTool() extends AvdManagerTool {
+  this : super(executablePath: '/usr/bin/true');
 
   List<DeviceProfile> profiles = const [];
   var listProfilesCallCount = 0;

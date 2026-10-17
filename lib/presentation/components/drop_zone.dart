@@ -10,9 +10,8 @@ import 'package:flutter/widgets.dart';
 /// as its ancestor and both would act on it. The screen's target asks
 /// [DropZone.at] which zone — if any — is under the pointer and hands the
 /// drop to it.
-class DropZone extends StatefulWidget {
-  const DropZone({super.key, required this.onDrop, required this.builder});
-
+class const DropZone({super.key, required this.onDrop, required this.builder})
+    extends StatefulWidget {
   /// Receives the dropped local paths (never empty).
   final Future<void> Function(List<String> paths) onDrop;
 

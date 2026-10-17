@@ -13,14 +13,12 @@ import '../../../presentation/theme/app_theme.dart';
 
 /// Top-of-screen identity banner: who the device is, whether it is ready to
 /// work with, and the one action most sessions start with (install a build).
-class DeviceHeroCard extends StatelessWidget {
-  const DeviceHeroCard({
-    super.key,
-    required this.session,
-    required this.homeController,
-    required this.info,
-  });
-
+class const DeviceHeroCard({
+  super.key,
+  required this.session,
+  required this.homeController,
+  required this.info,
+}) extends StatelessWidget {
   final DeviceSessionController session;
   final DeviceHomeController homeController;
   final DeviceInfo info;
@@ -124,9 +122,7 @@ class DeviceHeroCard extends StatelessWidget {
   }
 }
 
-class _PlatformBadge extends StatelessWidget {
-  const _PlatformBadge({required this.device});
-
+class const _PlatformBadge({required this.device}) extends StatelessWidget {
   final Device device;
 
   @override
@@ -157,9 +153,8 @@ class _PlatformBadge extends StatelessWidget {
   }
 }
 
-class _InstallAction extends StatelessWidget {
-  const _InstallAction({required this.session, required this.onInstall});
-
+class const _InstallAction({required this.session, required this.onInstall})
+    extends StatelessWidget {
   final DeviceSessionController session;
   final VoidCallback onInstall;
 

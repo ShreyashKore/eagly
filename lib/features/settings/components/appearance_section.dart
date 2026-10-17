@@ -4,17 +4,15 @@ import 'settings_section_card.dart';
 
 /// 'Appearance' section: theme toggle, log font size, and the feature-tips
 /// switch.
-class AppearanceSection extends StatelessWidget {
-  const AppearanceSection({
-    super.key,
-    required this.themeIndex,
-    required this.onThemeChanged,
-    required this.logFontSize,
-    required this.onLogFontSizeChanged,
-    required this.tipsEnabled,
-    required this.onTipsEnabledChanged,
-  });
-
+class const AppearanceSection({
+  super.key,
+  required this.themeIndex,
+  required this.onThemeChanged,
+  required this.logFontSize,
+  required this.onLogFontSizeChanged,
+  required this.tipsEnabled,
+  required this.onTipsEnabledChanged,
+}) extends StatelessWidget {
   final int themeIndex;
   final ValueChanged<int> onThemeChanged;
   final double logFontSize;

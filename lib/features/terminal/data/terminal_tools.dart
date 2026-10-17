@@ -12,16 +12,14 @@ import '../../../data/device.dart';
 ///
 /// Growing the table is the only thing needed to make another bundled binary
 /// reachable from the terminal.
-class TerminalTool {
-  const TerminalTool(
-    this.executable, {
-    this.deviceFlag,
-    this.selectorFlags = const {},
-    this.deviceLessSubcommands = const {},
-    this.platform,
-    required this.summary,
-  });
-
+class const TerminalTool(
+  this.executable, {
+  this.deviceFlag,
+  this.selectorFlags = const {},
+  this.deviceLessSubcommands = const {},
+  this.platform,
+  required this.summary,
+}) {
   /// An `adb`-style tool: global options (device selector included) precede a
   /// subcommand.
   const TerminalTool.adb()
@@ -154,9 +152,10 @@ TerminalTool? lookupTerminalTool(String name) => _toolsByName[name];
 
 /// One process the terminal is about to start: the resolved executable and the
 /// complete argv, device selector included.
-class TerminalInvocation {
-  const TerminalInvocation({required this.executable, required this.arguments});
-
+class const TerminalInvocation({
+  required this.executable,
+  required this.arguments,
+}) {
   final String executable;
   final List<String> arguments;
 

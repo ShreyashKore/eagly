@@ -4,14 +4,12 @@ import 'package:gap/gap.dart';
 import '../../../presentation/theme/app_theme.dart';
 
 /// Single `label: value` info row with a leading icon.
-class WirelessDetailRow extends StatelessWidget {
-  const WirelessDetailRow({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
+class const WirelessDetailRow({
+  super.key,
+  required this.icon,
+  required this.label,
+  required this.value,
+}) extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;

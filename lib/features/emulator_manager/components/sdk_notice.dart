@@ -11,9 +11,8 @@ import '../../../utils/android_sdk_path.dart';
 /// different screens rather than one message with a conditional clause: a
 /// missing SDK sends the user looking for one, while a missing `emulator`
 /// package sends them back to the SDK they already have.
-class SdkNotice extends StatelessWidget {
-  const SdkNotice({super.key, required this.sdk, required this.onLocate});
-
+class const SdkNotice({super.key, required this.sdk, required this.onLocate})
+    extends StatelessWidget {
   final AndroidSdkLocation sdk;
 
   /// Opens the folder picker. Offered from both states — a wrong-but-plausible
@@ -43,9 +42,7 @@ class SdkNotice extends StatelessWidget {
 /// Names every place that was searched, rather than leaving the user to guess
 /// where Eagly looked — which is the whole difficulty of a path that is only
 /// wrong by one directory.
-class _NoSdkFound extends StatelessWidget {
-  const _NoSdkFound({required this.onLocate});
-
+class const _NoSdkFound({required this.onLocate}) extends StatelessWidget {
   final VoidCallback onLocate;
 
   @override
@@ -106,9 +103,8 @@ class _NoSdkFound extends StatelessWidget {
   }
 }
 
-class _LocateButton extends StatelessWidget {
-  const _LocateButton({required this.onPressed, required this.label});
-
+class const _LocateButton({required this.onPressed, required this.label})
+    extends StatelessWidget {
   final VoidCallback onPressed;
   final String label;
 

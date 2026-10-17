@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 
-class GetStartedActionCard extends StatelessWidget {
-  const GetStartedActionCard({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.secondaryActions = const [],
-    this.children = const [],
-  });
-
+class const GetStartedActionCard({
+  super.key,
+  required this.icon,
+  required this.title,
+  required this.subtitle,
+  required this.onTap,
+  this.secondaryActions = const [],
+  this.children = const [],
+}) extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;

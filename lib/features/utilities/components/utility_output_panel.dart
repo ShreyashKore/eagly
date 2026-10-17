@@ -11,14 +11,12 @@ import '../data/utility_command.dart';
 ///
 /// It is labelled "Result" and pinned to the bottom of the pane so it reads as
 /// the answer to the tile that was just clicked, rather than as a second list.
-class UtilityOutputPanel extends StatelessWidget {
-  const UtilityOutputPanel({
-    super.key,
-    required this.result,
-    required this.onClose,
-    this.onRerun,
-  });
-
+class const UtilityOutputPanel({
+  super.key,
+  required this.result,
+  required this.onClose,
+  this.onRerun,
+}) extends StatelessWidget {
   final UtilityRunResult result;
   final VoidCallback onClose;
 
@@ -143,13 +141,11 @@ class UtilityOutputPanel extends StatelessWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({
-    required this.color,
-    required this.icon,
-    required this.label,
-  });
-
+class const _StatusPill({
+  required this.color,
+  required this.icon,
+  required this.label,
+}) extends StatelessWidget {
   final Color color;
   final IconData icon;
   final String label;

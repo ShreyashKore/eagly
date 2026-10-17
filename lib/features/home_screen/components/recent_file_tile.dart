@@ -4,14 +4,12 @@ import 'package:gap/gap.dart';
 import '../../../presentation/components/app_icon_button.dart';
 import '../../../utils/utils.dart';
 
-class RecentFileTile extends StatelessWidget {
-  const RecentFileTile({
-    super.key,
-    required this.path,
-    required this.onOpen,
-    required this.onRemove,
-  });
-
+class const RecentFileTile({
+  super.key,
+  required this.path,
+  required this.onOpen,
+  required this.onRemove,
+}) extends StatelessWidget {
   final String path;
   final VoidCallback onOpen;
   final VoidCallback onRemove;

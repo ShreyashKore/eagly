@@ -3,15 +3,13 @@ import 'package:flutter/material.dart';
 /// Wraps the log content in the horizontal scroller and the explicit
 /// vertical/horizontal scrollbars. The horizontal scrollbar is only shown
 /// when the content can actually overflow (i.e. `wrapText == false`).
-class LogViewerScrollArea extends StatelessWidget {
-  const LogViewerScrollArea({
-    super.key,
-    required this.verticalController,
-    required this.horizontalController,
-    required this.wrapText,
-    required this.child,
-  });
-
+class const LogViewerScrollArea({
+  super.key,
+  required this.verticalController,
+  required this.horizontalController,
+  required this.wrapText,
+  required this.child,
+}) extends StatelessWidget {
   final ScrollController verticalController;
   final ScrollController horizontalController;
   final bool wrapText;

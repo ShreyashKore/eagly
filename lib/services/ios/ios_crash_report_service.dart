@@ -10,17 +10,16 @@ import 'rust_ios_crash_report_service.dart';
 /// The result of pulling crash reports off a device: the reports themselves and
 /// the temporary directory they were copied into (so the caller can clean it up
 /// once it is done reading the files).
-class CrashReportPullResult {
-  const CrashReportPullResult({required this.reports, required this.outputDir});
-
+class const CrashReportPullResult({
+  required this.reports,
+  required this.outputDir,
+}) {
   final List<CrashReport> reports;
   final Directory outputDir;
 }
 
 /// Thrown when crash reports cannot be read from the device.
-class CrashReportException implements Exception {
-  CrashReportException(this.message);
-
+class CrashReportException(this.message) implements Exception {
   final String message;
 
   @override

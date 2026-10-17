@@ -17,16 +17,14 @@ import 'window_controls.dart';
 /// Top app header: logo + name, the horizontal device-tab strip (auto-created
 /// per detected device), home/load/wireless/emulator actions, and a GitHub
 /// link.
-class AppHeader extends StatelessWidget {
-  const AppHeader({
-    super.key,
-    required this.manager,
-    required this.tipsController,
-    required this.onOpenSettings,
-    required this.onShowWireless,
-    required this.onShowEmulators,
-  });
-
+class const AppHeader({
+  super.key,
+  required this.manager,
+  required this.tipsController,
+  required this.onOpenSettings,
+  required this.onShowWireless,
+  required this.onShowEmulators,
+}) extends StatelessWidget {
   final DeviceSessionManager manager;
   final TipsController tipsController;
   final VoidCallback onOpenSettings;

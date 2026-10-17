@@ -20,13 +20,11 @@ export 'log_level_button.dart' show LogLevelButton;
 ///   marks the last pill, a second Backspace removes it.
 ///
 /// Fully driven by a [LogFilterController]; it owns no filter state.
-class LogFilterBar extends StatelessWidget {
-  const LogFilterBar({
-    super.key,
-    required this.controller,
-    this.showLevel = true,
-  });
-
+class const LogFilterBar({
+  super.key,
+  required this.controller,
+  this.showLevel = true,
+}) extends StatelessWidget {
   final LogFilterController controller;
 
   /// False when the host lays the [LogLevelButton] out elsewhere — the

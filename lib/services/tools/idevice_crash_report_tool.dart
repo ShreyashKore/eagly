@@ -4,9 +4,8 @@ import '../ios/ios_crash_report_service.dart';
 import '../../utils/utils.dart';
 import 'tool_process_runner.dart';
 
-class IdeviceCrashReportTool extends ToolProcessRunner {
-  IdeviceCrashReportTool({super.executablePath})
-    : super(executableName: 'idevicecrashreport');
+class IdeviceCrashReportTool({super.executablePath}) extends ToolProcessRunner {
+  this : super(executableName: 'idevicecrashreport');
 
   /// Copies (non-destructively, with `-k`) and extracts (`-e`) crash reports
   /// from [deviceId] into a fresh temp directory, then parses each report file.

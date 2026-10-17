@@ -6,9 +6,11 @@ import 'package:flutter/widgets.dart';
 /// space is narrower — a workspace pane can be dragged far narrower than a
 /// row of fixed-size controls fits, and squeezing them throws layout overflow
 /// errors. At [minWidth] and wider, [child] gets the space unchanged.
-class MinWidthBox extends StatelessWidget {
-  const MinWidthBox({super.key, required this.minWidth, required this.child});
-
+class const MinWidthBox({
+  super.key,
+  required this.minWidth,
+  required this.child,
+}) extends StatelessWidget {
   final double minWidth;
   final Widget child;
 

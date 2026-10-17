@@ -7,17 +7,15 @@ import '../../data/models/log_column.dart';
 /// Owns a working copy of the hidden-column set so toggling a row updates the
 /// popup in place — the menu stays open until the user dismisses it, letting
 /// several columns be shown/hidden in one go.
-class ColumnVisibilityMenu extends StatefulWidget {
-  const ColumnVisibilityMenu({
-    super.key,
-    required this.columns,
-    required this.hiddenColumns,
-    required this.isIos,
-    required this.onChanged,
-    this.rememberForNewTabs = false,
-    this.onRememberForNewTabsChanged,
-  });
-
+class const ColumnVisibilityMenu({
+  super.key,
+  required this.columns,
+  required this.hiddenColumns,
+  required this.isIos,
+  required this.onChanged,
+  this.rememberForNewTabs = false,
+  this.onRememberForNewTabsChanged,
+}) extends StatefulWidget {
   /// Columns offered for toggling, in display order.
   final List<LogColumn> columns;
 
@@ -90,14 +88,12 @@ class _ColumnVisibilityMenuState extends State<ColumnVisibilityMenu> {
 }
 
 /// One tappable checkbox row; the row, not the checkbox, handles the tap.
-class _CheckRow extends StatelessWidget {
-  const _CheckRow({
-    required this.label,
-    required this.value,
-    required this.style,
-    required this.onTap,
-  });
-
+class const _CheckRow({
+  required this.label,
+  required this.value,
+  required this.style,
+  required this.onTap,
+}) extends StatelessWidget {
   final String label;
   final bool value;
   final TextStyle? style;

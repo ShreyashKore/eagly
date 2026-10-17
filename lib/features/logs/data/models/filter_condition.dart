@@ -27,7 +27,12 @@ enum FilterConditionField {
 
 /// A filter pill's comparison: a [FilterMatchMode] plus negation, named the
 /// way a person reads the pill ("Tag is not Chatty").
-enum FilterOperator {
+enum FilterOperator(
+  this.mode, {
+  required this.negate,
+  required this.label,
+  required this.shortLabel,
+}) {
   contains(
     FilterMatchMode.contains,
     negate: false,
@@ -60,13 +65,6 @@ enum FilterOperator {
     shortLabel: 'not regex',
   );
 
-  const FilterOperator(
-    this.mode, {
-    required this.negate,
-    required this.label,
-    required this.shortLabel,
-  });
-
   final FilterMatchMode mode;
   final bool negate;
 
@@ -82,14 +80,12 @@ enum FilterOperator {
 
 /// One filter pill. A pill whose [value] is still blank is a draft:
 /// it is shown while being edited but contributes no [FilterTerm].
-class FilterCondition {
-  const FilterCondition({
-    required this.id,
-    required this.field,
-    this.operator = FilterOperator.contains,
-    this.value = '',
-  });
-
+class const FilterCondition({
+  required this.id,
+  required this.field,
+  this.operator = FilterOperator.contains,
+  this.value = '',
+}) {
   /// Stable identity across edits, so an open editor keeps its pill.
   final int id;
   final FilterConditionField field;

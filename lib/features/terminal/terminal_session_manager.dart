@@ -12,9 +12,9 @@ import 'terminal_controller.dart';
 /// Each tab is an independent [TerminalController] with its own scrollback,
 /// history and target device — so one tab can sit on `adb logcat` while another
 /// pokes at a second device.
-class TerminalSessionManager extends ChangeNotifier {
-  TerminalSessionManager({required DeviceSessionController session})
-    : _session = session {
+class TerminalSessionManager({required DeviceSessionController session})
+    extends ChangeNotifier {
+  this : _session = session {
     _tabs.add(TerminalController(session));
   }
 

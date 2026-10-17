@@ -6,15 +6,13 @@ import '../../data/device.dart';
 import 'device_presentation.dart';
 import 'layout_constants.dart';
 
-class AvailableDeviceCard extends StatelessWidget {
-  const AvailableDeviceCard({
-    super.key,
-    required this.device,
-    required this.onSelected,
-    this.onInstallApp,
-    this.onShowMessage,
-  });
-
+class const AvailableDeviceCard({
+  super.key,
+  required this.device,
+  required this.onSelected,
+  this.onInstallApp,
+  this.onShowMessage,
+}) extends StatelessWidget {
   final Device device;
   final VoidCallback onSelected;
   final VoidCallback? onInstallApp;

@@ -3,9 +3,7 @@ import 'package:gap/gap.dart';
 
 import '../../../presentation/theme/app_theme.dart';
 
-class StepList extends StatelessWidget {
-  const StepList({super.key, required this.steps});
-
+class const StepList({super.key, required this.steps}) extends StatelessWidget {
   final List<String> steps;
 
   @override

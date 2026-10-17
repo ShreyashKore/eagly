@@ -22,13 +22,11 @@ import 'utility_runner.dart';
 /// Because a click can lead to three different places, every tile carries a
 /// chip saying which (see [UtilityTile]) and the pane keeps a one-line legend
 /// under the search box explaining them.
-class UtilitiesFeatureView extends FeatureView {
-  const UtilitiesFeatureView({
-    super.key,
-    required this.controller,
-    required super.onClose,
-  });
-
+class const UtilitiesFeatureView({
+  super.key,
+  required this.controller,
+  required super.onClose,
+}) extends FeatureView {
   final UtilitiesController controller;
 
   @override
@@ -156,9 +154,7 @@ class _UtilitiesFeatureViewState
 
 /// One-line key to the tile chips. Cheap to read, and it is the difference
 /// between "why did that just reboot my phone" and an informed click.
-class _Legend extends StatelessWidget {
-  const _Legend();
-
+class const _Legend() extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -198,13 +194,11 @@ class _Legend extends StatelessWidget {
   }
 }
 
-class _LegendItem extends StatelessWidget {
-  const _LegendItem({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
+class const _LegendItem({
+  required this.icon,
+  required this.label,
+  required this.color,
+}) extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
@@ -230,9 +224,7 @@ class _LegendItem extends StatelessWidget {
 }
 
 /// Inline strip explaining why every tile is dimmed.
-class _DisconnectedNotice extends StatelessWidget {
-  const _DisconnectedNotice();
-
+class const _DisconnectedNotice() extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -264,14 +256,12 @@ class _DisconnectedNotice extends StatelessWidget {
   }
 }
 
-class _GroupHeader extends StatelessWidget {
-  const _GroupHeader({
-    required this.title,
-    required this.icon,
-    required this.count,
-    required this.isFirst,
-  });
-
+class const _GroupHeader({
+  required this.title,
+  required this.icon,
+  required this.count,
+  required this.isFirst,
+}) extends StatelessWidget {
   final String title;
   final IconData icon;
   final int count;
@@ -316,13 +306,11 @@ class _GroupHeader extends StatelessWidget {
   }
 }
 
-class _SearchField extends StatelessWidget {
-  const _SearchField({
-    required this.controller,
-    required this.onChanged,
-    required this.onClear,
-  });
-
+class const _SearchField({
+  required this.controller,
+  required this.onChanged,
+  required this.onClear,
+}) extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final VoidCallback? onClear;

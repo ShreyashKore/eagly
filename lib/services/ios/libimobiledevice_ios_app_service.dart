@@ -4,9 +4,10 @@ import '../tools/ideviceinstaller_tool.dart';
 import 'ios_app_service.dart';
 
 /// [IosAppService] backed by the bundled `ideviceinstaller` CLI.
-class LibimobiledeviceIosAppService implements IosAppService {
-  LibimobiledeviceIosAppService({IdeviceInstallerTool? ideviceInstallerTool})
-    : _tool = ideviceInstallerTool ?? IdeviceInstallerTool();
+class LibimobiledeviceIosAppService({
+  IdeviceInstallerTool? ideviceInstallerTool,
+}) implements IosAppService {
+  this : _tool = ideviceInstallerTool ?? IdeviceInstallerTool();
 
   final IdeviceInstallerTool _tool;
 

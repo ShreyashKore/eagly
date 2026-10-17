@@ -9,23 +9,21 @@ import 'package:flutter/foundation.dart';
 /// reports but whose config cannot be read is still perfectly launchable, so
 /// it appears with everything else null rather than being dropped.
 @immutable
-class AndroidEmulator {
-  const AndroidEmulator({
-    required this.name,
-    this.displayName,
-    this.avdPath,
-    this.deviceProfile,
-    this.manufacturer,
-    this.apiLevel,
-    this.tagDisplay,
-    this.abi,
-    this.ramMb,
-    this.screenWidthPx,
-    this.screenHeightPx,
-    this.densityDpi,
-    this.hasPlayStore = false,
-  });
-
+class const AndroidEmulator({
+  required this.name,
+  this.displayName,
+  this.avdPath,
+  this.deviceProfile,
+  this.manufacturer,
+  this.apiLevel,
+  this.tagDisplay,
+  this.abi,
+  this.ramMb,
+  this.screenWidthPx,
+  this.screenHeightPx,
+  this.densityDpi,
+  this.hasPlayStore = false,
+}) {
   /// The AVD id — what `emulator -avd` and `avdmanager` take. Never localised
   /// and never contains spaces, which is why it is a poor label.
   final String name;

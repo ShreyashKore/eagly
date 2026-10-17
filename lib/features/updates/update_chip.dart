@@ -13,9 +13,7 @@ import 'components/update_pill.dart';
 /// Only *actionable* states render anything: available, downloading, and
 /// ready-to-install. Checking / up-to-date / dismissed / error all collapse to
 /// nothing, so the header never nags on a normal or offline launch.
-class AppUpdateChip extends StatelessWidget {
-  const AppUpdateChip({super.key});
-
+class const AppUpdateChip({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!AppUpdateService.isSupported) return const SizedBox.shrink();

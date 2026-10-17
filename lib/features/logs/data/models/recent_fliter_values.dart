@@ -2,9 +2,7 @@ import 'package:eagly/features/logs/data/models/log_filters.dart';
 
 /// In-memory, per-field history of recently applied filter values, offered as
 /// autocomplete suggestions. Never persisted to disk.
-class RecentFilterValues {
-  RecentFilterValues({this.maxPerField = 8});
-
+class RecentFilterValues({this.maxPerField = 8}) {
   /// Maximum values retained per field.
   final int maxPerField;
 

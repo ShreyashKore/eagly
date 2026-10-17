@@ -12,17 +12,15 @@ import 'home_primitives.dart';
 /// The four live vitals — battery, storage, CPU, memory — as gauges. This is
 /// the top-priority block: everything here is a number that changes while you
 /// work, so it is shown graphically rather than as label/value text.
-class VitalsRow extends StatelessWidget {
-  const VitalsRow({
-    super.key,
-    required this.battery,
-    required this.storage,
-    required this.stats,
-    required this.cpuHistory,
-    required this.memoryHistory,
-    this.isStale = false,
-  });
-
+class const VitalsRow({
+  super.key,
+  required this.battery,
+  required this.storage,
+  required this.stats,
+  required this.cpuHistory,
+  required this.memoryHistory,
+  this.isStale = false,
+}) extends StatelessWidget {
   final DeviceBatteryInfo battery;
   final DeviceStorageInfo storage;
   final DevicePerformanceStats stats;
@@ -72,19 +70,17 @@ class VitalsRow extends StatelessWidget {
 
 /// Common shell for a vitals tile: gauge on the left, headline + detail on
 /// the right, optional sparkline strip underneath.
-class _VitalTile extends StatelessWidget {
-  const _VitalTile({
-    required this.label,
-    required this.value,
-    required this.headline,
-    required this.detail,
-    required this.color,
-    required this.centerIcon,
-    this.stale = false,
-    this.history,
-    this.badge,
-  });
-
+class const _VitalTile({
+  required this.label,
+  required this.value,
+  required this.headline,
+  required this.detail,
+  required this.color,
+  required this.centerIcon,
+  this.stale = false,
+  this.history,
+  this.badge,
+}) extends StatelessWidget {
   final String label;
   final double? value;
   final String headline;
@@ -190,9 +186,8 @@ class _VitalTile extends StatelessWidget {
   }
 }
 
-class _BatteryTile extends StatelessWidget {
-  const _BatteryTile({required this.battery, required this.stale});
-
+class const _BatteryTile({required this.battery, required this.stale})
+    extends StatelessWidget {
   final DeviceBatteryInfo battery;
   final bool stale;
 
@@ -245,9 +240,8 @@ class _BatteryTile extends StatelessWidget {
   };
 }
 
-class _StorageTile extends StatelessWidget {
-  const _StorageTile({required this.storage, required this.stale});
-
+class const _StorageTile({required this.storage, required this.stale})
+    extends StatelessWidget {
   final DeviceStorageInfo storage;
   final bool stale;
 
@@ -275,13 +269,11 @@ class _StorageTile extends StatelessWidget {
   }
 }
 
-class _CpuTile extends StatelessWidget {
-  const _CpuTile({
-    required this.cpu,
-    required this.history,
-    required this.stale,
-  });
-
+class const _CpuTile({
+  required this.cpu,
+  required this.history,
+  required this.stale,
+}) extends StatelessWidget {
   final CpuStats cpu;
   final List<double> history;
   final bool stale;
@@ -306,13 +298,11 @@ class _CpuTile extends StatelessWidget {
   }
 }
 
-class _MemoryTile extends StatelessWidget {
-  const _MemoryTile({
-    required this.memory,
-    required this.history,
-    required this.stale,
-  });
-
+class const _MemoryTile({
+  required this.memory,
+  required this.history,
+  required this.stale,
+}) extends StatelessWidget {
   final MemoryStats memory;
   final List<double> history;
   final bool stale;

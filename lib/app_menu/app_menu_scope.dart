@@ -9,12 +9,12 @@ import 'app_menu_state.dart';
 /// when the controller notifies — i.e. when the [AppMenuState] snapshot
 /// changes. Use [maybeOf]/[of] to reach the controller without passing it down
 /// explicitly.
-class AppMenuScope extends InheritedNotifier<AppMenuController> {
-  const AppMenuScope({
-    super.key,
-    required AppMenuController controller,
-    required super.child,
-  }) : super(notifier: controller);
+class const AppMenuScope({
+  super.key,
+  required AppMenuController controller,
+  required super.child,
+}) extends InheritedNotifier<AppMenuController> {
+  this : super(notifier: controller);
 
   static AppMenuController? maybeOf(BuildContext context) {
     return context.dependOnInheritedWidgetOfExactType<AppMenuScope>()?.notifier;

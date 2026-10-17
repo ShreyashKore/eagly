@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 
 /// Collapses/expands a section along [axis] by sliding the child out while
 /// the container shrinks. The child is never scaled — it clips at the edge.
-class AnimatedSection extends StatelessWidget {
-  const AnimatedSection({
-    required this.visible,
-    required this.child,
-    this.axis = Axis.horizontal,
-    this.fade = false,
-    super.key,
-  });
-
+class const AnimatedSection({
+  required this.visible,
+  required this.child,
+  this.axis = Axis.horizontal,
+  this.fade = false,
+  super.key,
+}) extends StatelessWidget {
   final bool visible;
   final Widget child;
   final Axis axis;
@@ -39,13 +37,11 @@ class AnimatedSection extends StatelessWidget {
   }
 }
 
-class AnimatedContent extends StatelessWidget {
-  const AnimatedContent({
-    this.duration = const Duration(milliseconds: 250),
-    required this.child,
-    super.key,
-  });
-
+class const AnimatedContent({
+  this.duration = const Duration(milliseconds: 250),
+  required this.child,
+  super.key,
+}) extends StatelessWidget {
   final Duration duration;
   final Widget child;
 

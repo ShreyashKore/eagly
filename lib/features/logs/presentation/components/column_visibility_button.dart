@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// Column-visibility button — pinned top-right over the log viewer header.
-class ColumnVisibilityButton extends StatelessWidget {
-  const ColumnVisibilityButton({super.key, required this.onTap});
-
+class const ColumnVisibilityButton({super.key, required this.onTap})
+    extends StatelessWidget {
   final VoidCallback onTap;
 
   @override

@@ -21,14 +21,12 @@ import 'workspace_layout.dart';
 /// Summary of a drag-and-drop onto a device: which apps were installed, which
 /// files were copied (into [copyDirectory]) and any per-item [errors]. Build a
 /// user-facing string from [message].
-class DropHandlingResult {
-  const DropHandlingResult({
-    this.installed = const [],
-    this.copied = const [],
-    this.copyDirectory,
-    this.errors = const [],
-  });
-
+class const DropHandlingResult({
+  this.installed = const [],
+  this.copied = const [],
+  this.copyDirectory,
+  this.errors = const [],
+}) {
   final List<String> installed;
   final List<String> copied;
   final String? copyDirectory;
@@ -62,7 +60,12 @@ class DropHandlingResult {
 /// connectivity, the [DeviceSessionRepository], and (lazily) the per-feature
 /// controllers. It does not own feature state — that lives in the feature
 /// controllers.
-class DeviceSessionController extends ChangeNotifier {
+class DeviceSessionController._({
+  required Device device,
+  DeviceSessionRepository? service,
+  WorkspaceLayoutMemory? layoutMemory,
+  this.isImportedWorkspace = false,
+}) extends ChangeNotifier {
   DeviceSessionController({
     required Device device,
     DeviceSessionRepository? service,
@@ -77,14 +80,10 @@ class DeviceSessionController extends ChangeNotifier {
     DeviceSessionRepository? service,
   }) : this._(device: device, service: service, isImportedWorkspace: true);
 
-  DeviceSessionController._({
-    required Device device,
-    DeviceSessionRepository? service,
-    WorkspaceLayoutMemory? layoutMemory,
-    this.isImportedWorkspace = false,
-  }) : _device = device,
-       service = service ?? DeviceSessionRepository(device: device),
-       workspaceLayout = WorkspaceLayout(memory: layoutMemory) {
+  this
+    : _device = device,
+      service = service ?? DeviceSessionRepository(device: device),
+      workspaceLayout = WorkspaceLayout(memory: layoutMemory) {
     this.service.sessionLabel = device.id;
     workspaceLayout.addListener(_handleWorkspaceChanged);
   }

@@ -19,35 +19,33 @@ extension ThemeModeExt on ThemeMode {
 }
 
 @immutable
-class EaglyTheme extends ThemeExtension<EaglyTheme> {
-  const EaglyTheme({
-    required this.monoStyle,
-    required this.logBodyStyle,
-    required this.logCompactStyle,
-    required this.logHeaderStyle,
-    required this.statusBarStyle,
-    required this.verboseColor,
-    required this.debugColor,
-    required this.infoColor,
-    required this.warningColor,
-    required this.errorColor,
-    required this.logBadgeForeground,
-    required this.searchMatchColor,
-    required this.searchCurrentMatchColor,
-    required this.searchCurrentRowColor,
-    required this.searchHighlightForeground,
-    required this.searchNoResultsFillColor,
-    required this.searchNoResultsTextColor,
-    required this.inlineNoticeBackground,
-    required this.inlineNoticeForeground,
-    required this.statusLiveColor,
-    required this.statusPausedColor,
-    required this.statusStoppedColor,
-    required this.cardShadowColor,
-    required this.secondaryTextColor,
-    required this.tertiaryTextColor,
-  });
-
+class const EaglyTheme({
+  required this.monoStyle,
+  required this.logBodyStyle,
+  required this.logCompactStyle,
+  required this.logHeaderStyle,
+  required this.statusBarStyle,
+  required this.verboseColor,
+  required this.debugColor,
+  required this.infoColor,
+  required this.warningColor,
+  required this.errorColor,
+  required this.logBadgeForeground,
+  required this.searchMatchColor,
+  required this.searchCurrentMatchColor,
+  required this.searchCurrentRowColor,
+  required this.searchHighlightForeground,
+  required this.searchNoResultsFillColor,
+  required this.searchNoResultsTextColor,
+  required this.inlineNoticeBackground,
+  required this.inlineNoticeForeground,
+  required this.statusLiveColor,
+  required this.statusPausedColor,
+  required this.statusStoppedColor,
+  required this.cardShadowColor,
+  required this.secondaryTextColor,
+  required this.tertiaryTextColor,
+}) extends ThemeExtension<EaglyTheme> {
   /// The app's monospace face with no size or height baked in — the base for
   /// anything that must line up in columns (log rows, terminal scrollback).
   /// Prefer this over `fontFamily: 'monospace'`, which resolves to no real

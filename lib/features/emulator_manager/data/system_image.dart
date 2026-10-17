@@ -6,16 +6,14 @@ import 'package:flutter/foundation.dart';
 /// entirely — `sdkmanager`, licence acceptance and a multi-gigabyte transfer —
 /// while creating an AVD from one already on disk is a single command.
 @immutable
-class SystemImage {
-  const SystemImage({
-    required this.packagePath,
-    required this.apiLevel,
-    required this.tagId,
-    required this.tagDisplay,
-    required this.abi,
-    this.vendorDisplay,
-  });
-
+class const SystemImage({
+  required this.packagePath,
+  required this.apiLevel,
+  required this.tagId,
+  required this.tagDisplay,
+  required this.abi,
+  this.vendorDisplay,
+}) {
   /// What `avdmanager create avd -k` takes, e.g.
   /// `system-images;android-34;google_apis_playstore;arm64-v8a`.
   final String packagePath;

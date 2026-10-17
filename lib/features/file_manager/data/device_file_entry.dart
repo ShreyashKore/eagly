@@ -7,19 +7,17 @@ enum DeviceFileType { directory, file, symlink, other }
 /// for symlinks – the link target). The platform-specific file systems parse
 /// their tool output into this shared shape so the UI never has to care whether
 /// it is talking to `adb` or `afcclient`.
-class DeviceFileEntry {
-  const DeviceFileEntry({
-    required this.name,
-    required this.path,
-    required this.type,
-    this.sizeBytes,
-    this.modified,
-    this.permissions,
-    this.owner,
-    this.group,
-    this.linkTarget,
-  });
-
+class const DeviceFileEntry({
+  required this.name,
+  required this.path,
+  required this.type,
+  this.sizeBytes,
+  this.modified,
+  this.permissions,
+  this.owner,
+  this.group,
+  this.linkTarget,
+}) {
   /// The entry's base name (no directory component).
   final String name;
 

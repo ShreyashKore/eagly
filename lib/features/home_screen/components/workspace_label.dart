@@ -3,9 +3,8 @@ import 'package:gap/gap.dart';
 
 /// Leading content for the synthetic "Imported Logs" workspace tab: a file
 /// icon and label instead of a device's connection dot + platform label.
-class WorkspaceLabel extends StatelessWidget {
-  const WorkspaceLabel({super.key, required this.theme});
-
+class const WorkspaceLabel({super.key, required this.theme})
+    extends StatelessWidget {
   final ThemeData theme;
 
   @override

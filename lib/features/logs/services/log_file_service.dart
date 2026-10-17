@@ -8,9 +8,11 @@ import '../../../utils/utils.dart';
 import 'log_formats/log_formats.dart';
 import '../../../services/preferences_service.dart';
 
-class LogExportResult {
-  const LogExportResult({this.fileName, this.error, this.cancelled = false});
-
+class const LogExportResult({
+  this.fileName,
+  this.error,
+  this.cancelled = false,
+}) {
   final String? fileName;
   final String? error;
   final bool cancelled;
@@ -30,15 +32,13 @@ class LogExportResult {
   }
 }
 
-class LogImportResult {
-  const LogImportResult({
-    this.logs,
-    this.fileName,
-    this.filePath,
-    this.error,
-    this.cancelled = false,
-  });
-
+class const LogImportResult({
+  this.logs,
+  this.fileName,
+  this.filePath,
+  this.error,
+  this.cancelled = false,
+}) {
   final List<LogEntry>? logs;
   final String? fileName;
 

@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../../../../presentation/components/app_icon_button.dart';
 
-class LogLinesLimitInput extends StatefulWidget {
+class const LogLinesLimitInput({
+  super.key,
+  required this.setEditingLogLinesLimit,
+  required this.submitLogLinesLimit,
+  required this.logLinesLimit,
+  required this.isEditing,
+}) extends StatefulWidget {
   final void Function(bool) setEditingLogLinesLimit;
   final Function(int) submitLogLinesLimit;
   final int logLinesLimit;
   final bool isEditing;
-  const LogLinesLimitInput({
-    super.key,
-    required this.setEditingLogLinesLimit,
-    required this.submitLogLinesLimit,
-    required this.logLinesLimit,
-    required this.isEditing,
-  });
 
   @override
   State<LogLinesLimitInput> createState() => _LogLinesLimitInputState();

@@ -26,9 +26,7 @@ import 'package:collection/collection.dart';
 /// ([extractDetails]): `android:label` on `<application>` is either a literal
 /// string or a reference into resources.arsc, resolved from the default
 /// (locale-less) configuration.
-class ApkIconExtractor {
-  const ApkIconExtractor._();
-
+class const ApkIconExtractor._() {
   static const int _androidAttrLabel = 0x01010001;
   static const int _androidAttrIcon = 0x01010002;
   static const int _androidAttrRoundIcon = 0x0101021c;
@@ -173,14 +171,12 @@ class ApkIconExtractor {
 
 // ── Binary XML (AXML) — just enough to read start-element attributes ───────
 
-class _TypedValue {
-  const _TypedValue(this.dataType, this.data);
+class const _TypedValue(this.dataType, this.data) {
   final int dataType;
   final int data;
 }
 
-class _AxmlElement {
-  const _AxmlElement(this.name, this.attributesByResId, this._pool);
+class const _AxmlElement(this.name, this.attributesByResId, this._pool) {
   final String name;
   final Map<int, _TypedValue> attributesByResId;
   final _StringPool _pool;
@@ -281,9 +277,12 @@ class _AxmlParser {
 
 /// Shared string pool decoder (used for both AXML and the ARSC's global
 /// pool) — UTF-8 or UTF-16LE, chosen per the pool's flags.
-class _StringPool {
-  _StringPool(this._bytes, this._offsets, this._stringsStart, this._isUtf8);
-
+class _StringPool(
+  this._bytes,
+  this._offsets,
+  this._stringsStart,
+  this._isUtf8,
+) {
   final Uint8List _bytes;
   final List<int> _offsets;
   final int _stringsStart;
@@ -364,14 +363,12 @@ class _StringPool {
 // ── Compiled resource table (ARSC) — resolves a resource id to candidate
 // file paths across every density/config variant it has. ───────────────────
 
-class _FileCandidate {
-  const _FileCandidate(this.density, this.path);
+class const _FileCandidate(this.density, this.path) {
   final int density;
   final String path;
 }
 
-class _ResourceTable {
-  _ResourceTable(this._globalStrings, this._packages);
+class _ResourceTable(this._globalStrings, this._packages) {
   final _StringPool _globalStrings;
   final List<_ArscPackage> _packages;
 
@@ -462,8 +459,7 @@ class _ResourceTable {
   }
 }
 
-class _ArscPackage {
-  _ArscPackage(this.id, this.types);
+class _ArscPackage(this.id, this.types) {
   final int id;
   final List<_ArscType> types;
 
@@ -494,7 +490,17 @@ class _ArscPackage {
   }
 }
 
-class _ArscType {
+class _ArscType(
+  this.id,
+  this.density,
+  this.language,
+  this._bytes,
+  this._offsetsStart,
+  this._entriesStart,
+  this._entryCount,
+  this._sparse,
+  this._offset16,
+) {
   final int id;
   final int density;
 
@@ -556,18 +562,6 @@ class _ArscType {
       (flags & 0x02) != 0, // FLAG_OFFSET16
     );
   }
-
-  _ArscType(
-    this.id,
-    this.density,
-    this.language,
-    this._bytes,
-    this._offsetsStart,
-    this._entriesStart,
-    this._entryCount,
-    this._sparse,
-    this._offset16,
-  );
 
   _TypedValue? resolveEntryValue(int entryId) {
     final data = ByteData.sublistView(_bytes);

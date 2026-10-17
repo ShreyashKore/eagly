@@ -26,15 +26,13 @@ Future<void> showAppLogDialog(
   );
 }
 
-class AppLogTriggerButton extends StatelessWidget {
-  const AppLogTriggerButton({
-    super.key,
-    this.sessionTag,
-    required this.title,
-    required this.tooltip,
-    this.iconSize = 15,
-  });
-
+class const AppLogTriggerButton({
+  super.key,
+  this.sessionTag,
+  required this.title,
+  required this.tooltip,
+  this.iconSize = 15,
+}) extends StatelessWidget {
   final String? sessionTag;
   final String title;
   final String tooltip;
@@ -102,14 +100,12 @@ class AppLogTriggerButton extends StatelessWidget {
   };
 }
 
-class AppLogPanel extends StatefulWidget {
-  const AppLogPanel({
-    super.key,
-    this.sessionTag,
-    required this.title,
-    this.allowClear = false,
-  });
-
+class const AppLogPanel({
+  super.key,
+  this.sessionTag,
+  required this.title,
+  this.allowClear = false,
+}) extends StatefulWidget {
   final String? sessionTag;
   final String title;
   final bool allowClear;
@@ -299,14 +295,12 @@ class _AppLogPanelState extends State<AppLogPanel> {
   }
 }
 
-class _HeaderButton extends StatelessWidget {
-  const _HeaderButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-    this.label,
-  });
-
+class const _HeaderButton({
+  required this.icon,
+  required this.tooltip,
+  required this.onTap,
+  this.label,
+}) extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
@@ -347,9 +341,8 @@ class _HeaderButton extends StatelessWidget {
   }
 }
 
-class _LogEntryRow extends StatelessWidget {
-  const _LogEntryRow({required this.entry, required this.showSessionTag});
-
+class const _LogEntryRow({required this.entry, required this.showSessionTag})
+    extends StatelessWidget {
   final AppLogEntry entry;
   final bool showSessionTag;
 

@@ -2,9 +2,10 @@ import 'package:flutter/foundation.dart';
 
 /// How an AVD should be started.
 @immutable
-class EmulatorLaunchOptions {
-  const EmulatorLaunchOptions({this.coldBoot = false, this.wipeData = false});
-
+class const EmulatorLaunchOptions({
+  this.coldBoot = false,
+  this.wipeData = false,
+}) {
   /// The plain "just start it" launch: resume the saved snapshot if there is
   /// one, keep user data.
   static const normal = EmulatorLaunchOptions();
@@ -47,9 +48,11 @@ class EmulatorLaunchOptions {
 /// emulator is launched detached and reports nothing back, so a booted device
 /// is confirmed by watching for it to appear in `adb devices`.
 @immutable
-class EmulatorLaunchOutcome {
-  const EmulatorLaunchOutcome({required this.started, this.pid, this.error});
-
+class const EmulatorLaunchOutcome({
+  required this.started,
+  this.pid,
+  this.error,
+}) {
   const EmulatorLaunchOutcome.success(int pid) : this(started: true, pid: pid);
 
   const EmulatorLaunchOutcome.failure(String error)

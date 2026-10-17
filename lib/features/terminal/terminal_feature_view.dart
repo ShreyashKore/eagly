@@ -16,12 +16,12 @@ import 'terminal_session_manager.dart';
 /// The pane itself holds no terminal knowledge — every tab is a
 /// [TerminalController] that knows which device its commands go to and adds the
 /// device selector on the way out.
-class TerminalFeatureView extends FeatureView {
-  const TerminalFeatureView({
-    super.key,
-    required this.manager,
-    required VoidCallback onClose,
-  }) : super(onClose: onClose);
+class const TerminalFeatureView({
+  super.key,
+  required this.manager,
+  required VoidCallback onClose,
+}) extends FeatureView {
+  this : super(onClose: onClose);
 
   final TerminalSessionManager manager;
 

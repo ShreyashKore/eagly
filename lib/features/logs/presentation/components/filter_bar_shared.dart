@@ -70,9 +70,8 @@ InputDecoration bareFilterInputDecoration({
 );
 
 /// A small outlined keyboard shortcut, e.g. `⌘F`, shown in an idle control.
-class FilterKeyHint extends StatelessWidget {
-  const FilterKeyHint({super.key, required this.label});
-
+class const FilterKeyHint({super.key, required this.label})
+    extends StatelessWidget {
   final String label;
 
   @override
@@ -98,8 +97,8 @@ class FilterKeyHint extends StatelessWidget {
 
 /// The fill, border and label style every filter row control shares, so the
 /// search field and the Filter / Level buttons read as one family.
-class FilterControlStyle {
-  FilterControlStyle.of(BuildContext context) : _theme = Theme.of(context);
+class FilterControlStyle.of(BuildContext context) {
+  this : _theme = Theme.of(context);
 
   final ThemeData _theme;
 
@@ -129,18 +128,16 @@ class FilterControlStyle {
 }
 
 /// A rounded, filled, icon-and-label button in the filter row.
-class FilterControlButton extends StatefulWidget {
-  const FilterControlButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    this.trailing,
-    this.active = false,
-    this.focusNode,
-    this.tooltip,
-  });
-
+class const FilterControlButton({
+  super.key,
+  required this.icon,
+  required this.label,
+  required this.onPressed,
+  this.trailing,
+  this.active = false,
+  this.focusNode,
+  this.tooltip,
+}) extends StatefulWidget {
   final IconData icon;
   final Widget label;
   final Widget? trailing;

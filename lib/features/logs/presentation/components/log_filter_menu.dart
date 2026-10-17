@@ -28,15 +28,13 @@ FilterConditionField? _fieldForKey(FilterKey key) => switch (key) {
 
 /// One selectable row in the menu: it either runs [onSelected] (adding or
 /// applying something) or, with [insertText], completes the typed text.
-class FilterMenuOption {
-  const FilterMenuOption({
-    required this.icon,
-    required this.label,
-    this.packageName,
-    this.onSelected,
-    this.insertText,
-  });
-
+class const FilterMenuOption({
+  required this.icon,
+  required this.label,
+  this.packageName,
+  this.onSelected,
+  this.insertText,
+}) {
   final IconData icon;
   final InlineSpan label;
 
@@ -321,17 +319,15 @@ List<(String, List<FilterMenuOption>)> filterMenuSections(
 
 /// The "Filter by…" menu under the filter field, drawing the sections
 /// [filterMenuSections] builds, with the typed syntax as its footer.
-class FilterMenu extends StatelessWidget {
-  const FilterMenu({
-    super.key,
-    required this.sections,
-    required this.highlighted,
-    required this.isIos,
-    required this.hasQuery,
-    required this.onHover,
-    required this.onSelect,
-  });
-
+class const FilterMenu({
+  super.key,
+  required this.sections,
+  required this.highlighted,
+  required this.isIos,
+  required this.hasQuery,
+  required this.onHover,
+  required this.onSelect,
+}) extends StatelessWidget {
   final List<(String, List<FilterMenuOption>)> sections;
   final int highlighted;
   final bool isIos;
@@ -398,9 +394,7 @@ class FilterMenu extends StatelessWidget {
 }
 
 /// The menu's footer: the typed syntax, so the shortcut is one glance away.
-class _SyntaxHint extends StatelessWidget {
-  const _SyntaxHint({required this.isIos});
-
+class const _SyntaxHint({required this.isIos}) extends StatelessWidget {
   final bool isIos;
 
   @override

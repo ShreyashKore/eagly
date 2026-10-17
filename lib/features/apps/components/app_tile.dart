@@ -24,16 +24,14 @@ double appTileHeight(
 /// One app in the Apps grid (and the recently-installed row): icon over its
 /// display name. Tap launches it (when supported); secondary-tap opens the
 /// context menu.
-class AppTile extends StatelessWidget {
-  const AppTile({
-    super.key,
-    required this.controller,
-    required this.app,
-    required this.iconSize,
-    required this.onTap,
-    required this.onSecondaryTap,
-  });
-
+class const AppTile({
+  super.key,
+  required this.controller,
+  required this.app,
+  required this.iconSize,
+  required this.onTap,
+  required this.onSecondaryTap,
+}) extends StatelessWidget {
   final AppsController controller;
   final AppInfo app;
   final double iconSize;
@@ -90,14 +88,12 @@ String appTooltip(AppInfo app) {
 
 /// An app's icon at [size], with the disabled and busy overlays. Fetches the
 /// icon lazily (cached by [AppsController]) the first time it is built.
-class AppIconView extends StatefulWidget {
-  const AppIconView({
-    super.key,
-    required this.controller,
-    required this.app,
-    required this.size,
-  });
-
+class const AppIconView({
+  super.key,
+  required this.controller,
+  required this.app,
+  required this.size,
+}) extends StatefulWidget {
   final AppsController controller;
   final AppInfo app;
   final double size;
@@ -183,14 +179,12 @@ class _AppIconViewState extends State<AppIconView> {
   }
 }
 
-class _AppIcon extends StatelessWidget {
-  const _AppIcon({
-    required this.bytes,
-    required this.app,
-    required this.size,
-    required this.radius,
-  });
-
+class const _AppIcon({
+  required this.bytes,
+  required this.app,
+  required this.size,
+  required this.radius,
+}) extends StatelessWidget {
   final Uint8List? bytes;
   final AppInfo app;
   final double size;
@@ -222,13 +216,11 @@ class _AppIcon extends StatelessWidget {
 /// iOS with no extraction support at all): a colored initial, the color
 /// picked deterministically from the package name so the same app always
 /// gets the same tile across sessions.
-class _FallbackIcon extends StatelessWidget {
-  const _FallbackIcon({
-    required this.app,
-    required this.size,
-    required this.radius,
-  });
-
+class const _FallbackIcon({
+  required this.app,
+  required this.size,
+  required this.radius,
+}) extends StatelessWidget {
   final AppInfo app;
   final double size;
   final BorderRadius radius;

@@ -34,23 +34,24 @@ import 'services/system_image_scanner.dart';
 /// dispose, and never let it notify listeners on a tick where nothing changed —
 /// a 2 s unconditional rebuild pulls the ground out from under any text field
 /// the dialog has open.
-class EmulatorManagerController extends ChangeNotifier {
-  EmulatorManagerController({
-    DevicesRepository? devicesRepository,
-    AdbTool? adbTool,
-    AvdMetadataReader? metadataReader,
-    AndroidSdkLocation Function()? locateSdk,
-    EmulatorTool Function(String executablePath)? createEmulatorTool,
-    AvdManagerTool Function(String executablePath)? createAvdManagerTool,
-    SystemImageScanner? systemImageScanner,
-    this.onEmulatorReady,
-  }) : _devicesRepository = devicesRepository ?? DevicesRepository.instance,
-       _adbTool = adbTool ?? AdbTool(),
-       _metadataReader = metadataReader ?? AvdMetadataReader(),
-       _locateSdk = locateSdk ?? AndroidSdkPath.locate,
-       _createEmulatorTool = createEmulatorTool ?? _defaultEmulatorTool,
-       _createAvdManagerTool = createAvdManagerTool ?? _defaultAvdManagerTool,
-       _systemImageScanner = systemImageScanner ?? const SystemImageScanner();
+class EmulatorManagerController({
+  DevicesRepository? devicesRepository,
+  AdbTool? adbTool,
+  AvdMetadataReader? metadataReader,
+  AndroidSdkLocation Function()? locateSdk,
+  EmulatorTool Function(String executablePath)? createEmulatorTool,
+  AvdManagerTool Function(String executablePath)? createAvdManagerTool,
+  SystemImageScanner? systemImageScanner,
+  this.onEmulatorReady,
+}) extends ChangeNotifier {
+  this
+    : _devicesRepository = devicesRepository ?? DevicesRepository.instance,
+      _adbTool = adbTool ?? AdbTool(),
+      _metadataReader = metadataReader ?? AvdMetadataReader(),
+      _locateSdk = locateSdk ?? AndroidSdkPath.locate,
+      _createEmulatorTool = createEmulatorTool ?? _defaultEmulatorTool,
+      _createAvdManagerTool = createAvdManagerTool ?? _defaultAvdManagerTool,
+      _systemImageScanner = systemImageScanner ?? const SystemImageScanner();
 
   static EmulatorTool _defaultEmulatorTool(String executablePath) =>
       EmulatorTool(executablePath: executablePath);

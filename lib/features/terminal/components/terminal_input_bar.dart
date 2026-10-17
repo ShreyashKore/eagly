@@ -17,13 +17,11 @@ import '../terminal_controller.dart';
 /// new command, which is what makes interactive tools (`adb shell` with no
 /// arguments) usable. ↑/↓ walk the history, Ctrl+C stops the running command
 /// and Ctrl+L clears the scrollback.
-class TerminalInputBar extends StatefulWidget {
-  const TerminalInputBar({
-    super.key,
-    required this.controller,
-    required this.fontSize,
-  });
-
+class const TerminalInputBar({
+  super.key,
+  required this.controller,
+  required this.fontSize,
+}) extends StatefulWidget {
   final TerminalController controller;
   final double fontSize;
 
@@ -194,14 +192,12 @@ class _TerminalInputBarState extends State<TerminalInputBar> {
 }
 
 /// The `<device> $` prefix, dimmed while the device is unreachable.
-class _PromptLabel extends StatelessWidget {
-  const _PromptLabel({
-    required this.device,
-    required this.isPinned,
-    required this.isRunning,
-    required this.style,
-  });
-
+class const _PromptLabel({
+  required this.device,
+  required this.isPinned,
+  required this.isRunning,
+  required this.style,
+}) extends StatelessWidget {
   final Device device;
   final bool isPinned;
   final bool isRunning;

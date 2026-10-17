@@ -1,11 +1,9 @@
-class CpuStats {
-  const CpuStats({
-    required this.coreCount,
-    required this.loadAverage1m,
-    required this.loadAverage5m,
-    required this.loadAverage15m,
-  });
-
+class const CpuStats({
+  required this.coreCount,
+  required this.loadAverage1m,
+  required this.loadAverage5m,
+  required this.loadAverage15m,
+}) {
   final int coreCount;
   final double loadAverage1m;
   final double loadAverage5m;
@@ -15,13 +13,11 @@ class CpuStats {
       coreCount > 0 ? (loadAverage1m / coreCount * 100).clamp(0, 100) : 0;
 }
 
-class MemoryStats {
-  const MemoryStats({
-    required this.totalKb,
-    required this.availableKb,
-    required this.freeKb,
-  });
-
+class const MemoryStats({
+  required this.totalKb,
+  required this.availableKb,
+  required this.freeKb,
+}) {
   final int totalKb;
   final int availableKb;
   final int freeKb;
@@ -31,9 +27,7 @@ class MemoryStats {
       totalKb > 0 ? (usedKb / totalKb * 100).clamp(0, 100) : 0;
 }
 
-class DevicePerformanceStats {
-  const DevicePerformanceStats({this.cpu, this.memory});
-
+class const DevicePerformanceStats({this.cpu, this.memory}) {
   final CpuStats? cpu;
   final MemoryStats? memory;
 

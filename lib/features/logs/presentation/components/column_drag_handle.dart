@@ -4,9 +4,8 @@ import '../log_viewer_constants.dart';
 
 /// Draggable divider between header cells that resizes the column to its
 /// left via [onDrag] deltas.
-class ColumnDragHandle extends StatelessWidget {
-  const ColumnDragHandle({super.key, required this.onDrag});
-
+class const ColumnDragHandle({super.key, required this.onDrag})
+    extends StatelessWidget {
   final ValueChanged<double> onDrag;
 
   @override

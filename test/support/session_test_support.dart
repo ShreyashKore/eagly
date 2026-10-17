@@ -60,8 +60,8 @@ LogEntry testLogEntry({
 
 /// Fake [DeviceSessionRepository] that records calls and lets tests emit log
 /// entries on the live stream.
-class FakeSessionService extends DeviceSessionRepository {
-  FakeSessionService(Device device)
+class FakeSessionService(Device device) extends DeviceSessionRepository {
+  this
     : super(
         device: device,
         adbPath: '/usr/bin/true',
@@ -346,8 +346,8 @@ class FakeTerminalProcess {
   }
 }
 
-class FakeAdbTool extends AdbTool {
-  FakeAdbTool() : super(executablePath: '/usr/bin/true');
+class FakeAdbTool() extends AdbTool {
+  this : super(executablePath: '/usr/bin/true');
 
   List<Device> androidDevices = const [];
   WirelessServiceDiscoveryResult discoveryResult =
@@ -395,16 +395,14 @@ class FakeIosDeviceService implements IosDeviceService {
   bool get usbmuxdUnavailable => usbmuxdUnavailableValue;
 }
 
-class FakeIdeviceInfoTool extends IdeviceInfoTool {
-  FakeIdeviceInfoTool() : super(executablePath: '/usr/bin/true');
+class FakeIdeviceInfoTool() extends IdeviceInfoTool {
+  this : super(executablePath: '/usr/bin/true');
 }
 
 /// A [ScrcpyControl] wired to a loopback socket, so a test can read back the
 /// control messages a controller wrote. `ScrcpyControl` speaks to a real
 /// `Socket`, and faking one is more code (and less proof) than connecting two.
-class FakeScrcpyControlChannel {
-  FakeScrcpyControlChannel._(this._server, this._peer, this.control);
-
+class FakeScrcpyControlChannel._(this._server, this._peer, this.control) {
   static Future<FakeScrcpyControlChannel> open() async {
     final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     final client = await Socket.connect(server.address, server.port);

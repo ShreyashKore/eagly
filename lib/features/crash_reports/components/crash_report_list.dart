@@ -4,9 +4,8 @@ import '../crash_report_controller.dart';
 
 import '../utils.dart';
 
-class CrashReportList extends StatelessWidget {
-  const CrashReportList({super.key, required this.controller});
-
+class const CrashReportList({super.key, required this.controller})
+    extends StatelessWidget {
   final CrashReportController controller;
 
   @override

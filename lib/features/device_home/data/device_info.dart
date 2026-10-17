@@ -12,18 +12,16 @@ enum BatteryHealth { good, overheat, dead, overVoltage, cold }
 
 enum DisplayOrientation { portrait, landscape }
 
-class DeviceIdentityInfo {
-  const DeviceIdentityInfo({
-    this.deviceName,
-    this.manufacturer,
-    this.model,
-    this.osName,
-    this.osVersion,
-    this.buildVersion,
-    this.serialNumber,
-    this.cpuArchitecture,
-  });
-
+class const DeviceIdentityInfo({
+  this.deviceName,
+  this.manufacturer,
+  this.model,
+  this.osName,
+  this.osVersion,
+  this.buildVersion,
+  this.serialNumber,
+  this.cpuArchitecture,
+}) {
   final String? deviceName;
   final String? manufacturer;
   final String? model;
@@ -44,14 +42,12 @@ class DeviceIdentityInfo {
       cpuArchitecture == null;
 }
 
-class DeviceBatteryInfo {
-  const DeviceBatteryInfo({
-    this.percentage,
-    this.chargingState,
-    this.health,
-    this.temperatureCelsius,
-  });
-
+class const DeviceBatteryInfo({
+  this.percentage,
+  this.chargingState,
+  this.health,
+  this.temperatureCelsius,
+}) {
   /// 0–100.
   final int? percentage;
   final BatteryChargingState? chargingState;
@@ -65,13 +61,11 @@ class DeviceBatteryInfo {
       temperatureCelsius == null;
 }
 
-class DeviceStorageInfo {
-  const DeviceStorageInfo({
-    this.totalBytes,
-    this.usedBytes,
-    this.availableBytes,
-  });
-
+class const DeviceStorageInfo({
+  this.totalBytes,
+  this.usedBytes,
+  this.availableBytes,
+}) {
   final int? totalBytes;
   final int? usedBytes;
   final int? availableBytes;
@@ -87,15 +81,13 @@ class DeviceStorageInfo {
       totalBytes == null && usedBytes == null && availableBytes == null;
 }
 
-class DeviceDisplayInfo {
-  const DeviceDisplayInfo({
-    this.widthPx,
-    this.heightPx,
-    this.densityDpi,
-    this.refreshRateHz,
-    this.orientation,
-  });
-
+class const DeviceDisplayInfo({
+  this.widthPx,
+  this.heightPx,
+  this.densityDpi,
+  this.refreshRateHz,
+  this.orientation,
+}) {
   final int? widthPx;
   final int? heightPx;
   final int? densityDpi;
@@ -110,14 +102,12 @@ class DeviceDisplayInfo {
       orientation == null;
 }
 
-class DeviceConnectivityInfo {
-  const DeviceConnectivityInfo({
-    this.usbConnected,
-    this.wifiEnabled,
-    this.bluetoothEnabled,
-    this.ipAddress,
-  });
-
+class const DeviceConnectivityInfo({
+  this.usbConnected,
+  this.wifiEnabled,
+  this.bluetoothEnabled,
+  this.ipAddress,
+}) {
   final bool? usbConnected;
   final bool? wifiEnabled;
   final bool? bluetoothEnabled;
@@ -130,16 +120,14 @@ class DeviceConnectivityInfo {
       ipAddress == null;
 }
 
-class DeviceCellularInfo {
-  const DeviceCellularInfo({
-    this.carrierName,
-    this.simOperatorName,
-    this.networkType,
-    this.simState,
-    this.mcc,
-    this.mnc,
-  });
-
+class const DeviceCellularInfo({
+  this.carrierName,
+  this.simOperatorName,
+  this.networkType,
+  this.simState,
+  this.mcc,
+  this.mnc,
+}) {
   final String? carrierName;
   final String? simOperatorName;
   final String? networkType;
@@ -156,14 +144,12 @@ class DeviceCellularInfo {
       mnc == null;
 }
 
-class DeviceDeveloperStateInfo {
-  const DeviceDeveloperStateInfo({
-    this.developerModeEnabled,
-    this.adbEnabled,
-    this.debuggingReady,
-    this.pairingState,
-  });
-
+class const DeviceDeveloperStateInfo({
+  this.developerModeEnabled,
+  this.adbEnabled,
+  this.debuggingReady,
+  this.pairingState,
+}) {
   /// Android only — `Settings > Developer options` master toggle.
   final bool? developerModeEnabled;
 
@@ -184,14 +170,12 @@ class DeviceDeveloperStateInfo {
       pairingState == null;
 }
 
-class DeviceSoftwareInfo {
-  const DeviceSoftwareInfo({
-    this.sdkLevel,
-    this.securityPatch,
-    this.locale,
-    this.timeZone,
-  });
-
+class const DeviceSoftwareInfo({
+  this.sdkLevel,
+  this.securityPatch,
+  this.locale,
+  this.timeZone,
+}) {
   /// Android only.
   final int? sdkLevel;
 
@@ -207,18 +191,16 @@ class DeviceSoftwareInfo {
       timeZone == null;
 }
 
-class DeviceInfo {
-  const DeviceInfo({
-    this.identity = const DeviceIdentityInfo(),
-    this.battery = const DeviceBatteryInfo(),
-    this.storage = const DeviceStorageInfo(),
-    this.display = const DeviceDisplayInfo(),
-    this.connectivity = const DeviceConnectivityInfo(),
-    this.cellular = const DeviceCellularInfo(),
-    this.developerState = const DeviceDeveloperStateInfo(),
-    this.software = const DeviceSoftwareInfo(),
-  });
-
+class const DeviceInfo({
+  this.identity = const DeviceIdentityInfo(),
+  this.battery = const DeviceBatteryInfo(),
+  this.storage = const DeviceStorageInfo(),
+  this.display = const DeviceDisplayInfo(),
+  this.connectivity = const DeviceConnectivityInfo(),
+  this.cellular = const DeviceCellularInfo(),
+  this.developerState = const DeviceDeveloperStateInfo(),
+  this.software = const DeviceSoftwareInfo(),
+}) {
   final DeviceIdentityInfo identity;
   final DeviceBatteryInfo battery;
   final DeviceStorageInfo storage;

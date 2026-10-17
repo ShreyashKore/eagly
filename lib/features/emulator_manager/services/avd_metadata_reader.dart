@@ -17,9 +17,8 @@ import '../data/android_emulator.dart';
 /// unreadable still yields an [AndroidEmulator] carrying just its name,
 /// because `emulator -avd <name>` will launch it regardless and dropping it
 /// from the list would be a lie.
-class AvdMetadataReader {
-  AvdMetadataReader({String? avdHome})
-    : _avdHome = avdHome ?? AndroidSdkPath.avdHome();
+class AvdMetadataReader({String? avdHome}) {
+  this : _avdHome = avdHome ?? AndroidSdkPath.avdHome();
 
   final String? _avdHome;
 

@@ -11,7 +11,11 @@ import '../services/preferences_service.dart';
 /// edge. [minWidth] and [minHeight] are hard floors the solver keeps unless
 /// the window is too small for every floor at once. Keep the floors modest:
 /// a divider between two panes already at their floors cannot move.
-enum WorkspacePane {
+enum WorkspacePane(
+  this.label, {
+  required this.preferredWidth,
+  required this.minWidth,
+}) {
   logs('Logs', preferredWidth: 600, minWidth: 260),
   mirror('Mirror', preferredWidth: 340, minWidth: 200),
   crashReports('Crash Reports', preferredWidth: 360, minWidth: 240),
@@ -19,12 +23,6 @@ enum WorkspacePane {
   apps('Apps', preferredWidth: 420, minWidth: 240),
   utilities('Utilities', preferredWidth: 420, minWidth: 240),
   terminal('Terminal', preferredWidth: 520, minWidth: 240);
-
-  const WorkspacePane(
-    this.label, {
-    required this.preferredWidth,
-    required this.minWidth,
-  });
 
   final String label;
   final double preferredWidth;
@@ -62,9 +60,8 @@ enum WorkspacePane {
 /// - **Arrangement verbs** for menus and the command palette: [moveToEdge],
 ///   [stackWith], [reset]. Taking a tab back out of its group is fl_panel's
 ///   own (drag its chip, or the chip's Split menu).
-class WorkspaceLayout extends ChangeNotifier {
-  WorkspaceLayout({WorkspaceLayoutMemory? memory})
-    : memory = memory ?? WorkspaceLayoutMemory() {
+class WorkspaceLayout({WorkspaceLayoutMemory? memory}) extends ChangeNotifier {
+  this : memory = memory ?? WorkspaceLayoutMemory() {
     panels.onSettled = _remember;
     panels.addListener(_handlePanelsChanged);
   }
@@ -315,9 +312,9 @@ class WorkspaceLayout extends ChangeNotifier {
 /// [WorkspaceLayout] rewrites it after every settled change and reads it to
 /// decide where a reopened pane goes. [WorkspaceLayoutMemory.persisted]
 /// keeps it in preferences, so placement also survives a restart.
-class WorkspaceLayoutMemory {
+class WorkspaceLayoutMemory() {
   /// Kept in memory only — what tests and stand-alone sessions use.
-  WorkspaceLayoutMemory();
+  this;
 
   /// Backed by [PreferencesService]. Read lazily: nothing touches the store
   /// until a pane first opens.

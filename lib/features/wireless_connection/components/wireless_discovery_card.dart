@@ -5,14 +5,12 @@ import 'discovered_wireless_target.dart';
 import '../../../presentation/theme/app_theme.dart';
 
 /// Selectable card summarizing one discovered wireless ADB device.
-class WirelessDiscoveryCard extends StatelessWidget {
-  const WirelessDiscoveryCard({
-    super.key,
-    required this.target,
-    required this.selected,
-    required this.onTap,
-  });
-
+class const WirelessDiscoveryCard({
+  super.key,
+  required this.target,
+  required this.selected,
+  required this.onTap,
+}) extends StatelessWidget {
   final DiscoveredWirelessTarget target;
   final bool selected;
   final VoidCallback onTap;

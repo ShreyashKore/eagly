@@ -3,9 +3,7 @@ import 'package:gap/gap.dart';
 
 import 'step_list.dart';
 
-class AndroidUnauthorizedGuidance extends StatelessWidget {
-  const AndroidUnauthorizedGuidance({super.key});
-
+class const AndroidUnauthorizedGuidance({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

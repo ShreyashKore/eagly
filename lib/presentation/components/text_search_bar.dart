@@ -14,7 +14,23 @@ import '../../utils/text_search_pattern.dart';
 /// - Occurrence count display ("3 / 15")
 /// - Escape to close
 /// - Enter to go to next match
-class TextSearchBar extends StatefulWidget {
+class const TextSearchBar({
+  super.key,
+  this.controller,
+  this.focusNode,
+  required this.search,
+  this.hasError = false,
+  this.errorText,
+  this.hintText = 'Search...',
+  required this.onSearchChanged,
+  required this.onSearchOptionsChanged,
+  required this.onNext,
+  required this.onPrevious,
+  required this.onClose,
+  required this.currentMatch,
+  required this.totalMatches,
+  this.width,
+}) extends StatefulWidget {
   final TextEditingController? controller;
   final FocusNode? focusNode;
   final TextSearchConfig search;
@@ -31,24 +47,6 @@ class TextSearchBar extends StatefulWidget {
   final int currentMatch;
   final int totalMatches;
   final double? width;
-
-  const TextSearchBar({
-    super.key,
-    this.controller,
-    this.focusNode,
-    required this.search,
-    this.hasError = false,
-    this.errorText,
-    this.hintText = 'Search...',
-    required this.onSearchChanged,
-    required this.onSearchOptionsChanged,
-    required this.onNext,
-    required this.onPrevious,
-    required this.onClose,
-    required this.currentMatch,
-    required this.totalMatches,
-    this.width,
-  });
 
   @override
   State<TextSearchBar> createState() => _TextSearchBarState();
@@ -289,14 +287,12 @@ class _TextSearchBarState extends State<TextSearchBar> {
   }
 }
 
-class _SearchToggleButton extends StatelessWidget {
-  const _SearchToggleButton({
-    required this.label,
-    required this.tooltip,
-    required this.value,
-    required this.onPressed,
-  });
-
+class const _SearchToggleButton({
+  required this.label,
+  required this.tooltip,
+  required this.value,
+  required this.onPressed,
+}) extends StatelessWidget {
   final String label;
   final String tooltip;
   final bool value;

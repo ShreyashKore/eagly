@@ -17,25 +17,26 @@ import '../theme/app_theme.dart';
 /// a focus ring while navigating by keyboard, activation with Enter or Space,
 /// button semantics, a [busy] spinner, a tinted [isActive] state, and smooth
 /// transitions when the icon or its colour changes.
-class AppIconButton extends StatefulWidget {
-  const AppIconButton({
-    super.key,
-    this.icon,
-    this.child,
-    this.tooltip,
-    this.onPressed,
-    this.isActive = false,
-    this.busy = false,
-    this.iconSize = defaultIconSize,
-    this.padding = defaultPadding,
-    this.color,
-    this.focusNode,
-    this.autofocus = false,
-    this.mouseCursor,
-  }) : assert(
-         (icon == null) != (child == null),
-         'Pass exactly one of icon or child.',
-       );
+class const AppIconButton({
+  super.key,
+  this.icon,
+  this.child,
+  this.tooltip,
+  this.onPressed,
+  this.isActive = false,
+  this.busy = false,
+  this.iconSize = defaultIconSize,
+  this.padding = defaultPadding,
+  this.color,
+  this.focusNode,
+  this.autofocus = false,
+  this.mouseCursor,
+}) extends StatefulWidget {
+  this
+    : assert(
+        (icon == null) != (child == null),
+        'Pass exactly one of icon or child.',
+      );
 
   /// Icon size of a standard button, before zoom.
   static const double defaultIconSize = 18;

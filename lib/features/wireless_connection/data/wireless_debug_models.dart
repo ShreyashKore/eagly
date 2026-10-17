@@ -1,13 +1,11 @@
 enum WirelessDebugServiceType { connect, pairing, unknown }
 
-class WirelessDebugService {
-  const WirelessDebugService({
-    required this.name,
-    required this.type,
-    required this.host,
-    required this.port,
-  });
-
+class const WirelessDebugService({
+  required this.name,
+  required this.type,
+  required this.host,
+  required this.port,
+}) {
   final String name;
   final WirelessDebugServiceType type;
   final String host;
@@ -22,9 +20,10 @@ class WirelessDebugService {
   };
 }
 
-class WirelessServiceDiscoveryResult {
-  const WirelessServiceDiscoveryResult({this.services = const [], this.error});
-
+class const WirelessServiceDiscoveryResult({
+  this.services = const [],
+  this.error,
+}) {
   final List<WirelessDebugService> services;
   final String? error;
 
@@ -41,9 +40,7 @@ class WirelessServiceDiscoveryResult {
   }
 }
 
-class DeviceCommandResult {
-  const DeviceCommandResult({this.message, this.error});
-
+class const DeviceCommandResult({this.message, this.error}) {
   final String? message;
   final String? error;
 

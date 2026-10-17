@@ -16,8 +16,8 @@ import '../../utils/utils.dart';
 import 'adb_install_failure.dart';
 import 'tool_process_runner.dart';
 
-class AdbTool extends ToolProcessRunner {
-  AdbTool({super.executablePath}) : super(executableName: 'adb');
+class AdbTool({super.executablePath}) extends ToolProcessRunner {
+  this : super(executableName: 'adb');
 
   static const int _defaultServerPort = 5037;
 

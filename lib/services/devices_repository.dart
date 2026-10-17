@@ -21,14 +21,15 @@ typedef AndroidMarketingNameLookup = Future<String?> Function({
   String? model,
 });
 
-class DevicesRepository extends ChangeNotifier {
-  DevicesRepository._({
-    AdbTool? adbTool,
-    IosDeviceService? iosDeviceService,
-    this._androidMarketingName,
-    this._androidMarketingNamesChanged,
-  }) : _adbTool = adbTool ?? AdbTool(),
-       _iosDeviceService = iosDeviceService ?? createIosDeviceService() {
+class DevicesRepository._({
+  AdbTool? adbTool,
+  IosDeviceService? iosDeviceService,
+  this._androidMarketingName,
+  this._androidMarketingNamesChanged,
+}) extends ChangeNotifier {
+  this
+    : _adbTool = adbTool ?? AdbTool(),
+      _iosDeviceService = iosDeviceService ?? createIosDeviceService() {
     _androidMarketingNamesChanged?.addListener(_onAndroidMarketingNamesChanged);
   }
 
@@ -553,14 +554,12 @@ class DevicesRepository extends ChangeNotifier {
   }
 }
 
-class _CachedAndroidDeviceDescription {
-  const _CachedAndroidDeviceDescription({
-    this.brand,
-    this.model,
-    this.name,
-    this.serialNumber,
-  });
-
+class const _CachedAndroidDeviceDescription({
+  this.brand,
+  this.model,
+  this.name,
+  this.serialNumber,
+}) {
   final String? brand;
   final String? model;
   final String? name;
@@ -579,9 +578,7 @@ class _CachedAndroidDeviceDescription {
   }
 }
 
-class _CachedIosDeviceDescription {
-  const _CachedIosDeviceDescription({this.name, this.model});
-
+class const _CachedIosDeviceDescription({this.name, this.model}) {
   final String? name;
   final String? model;
 

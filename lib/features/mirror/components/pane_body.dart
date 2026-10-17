@@ -4,9 +4,8 @@ import 'package:gap/gap.dart';
 import '../../flutter_scrcpy/flutter_scrcpy.dart';
 import '../mirror_controller.dart';
 
-class PaneBody extends StatelessWidget {
-  const PaneBody({super.key, required this.controller});
-
+class const PaneBody({super.key, required this.controller})
+    extends StatelessWidget {
   final MirrorController controller;
 
   @override

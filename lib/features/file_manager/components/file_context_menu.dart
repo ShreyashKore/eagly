@@ -7,15 +7,13 @@ import '../file_manager_controller.dart';
 /// The file actions that need dialogs / pickers / snackbars. These are owned by
 /// the feature view and invoked from both the toolbar and the context menus, so
 /// the menu helpers stay free of dialog logic.
-class FileManagerActions {
-  const FileManagerActions({
-    required this.onDownload,
-    required this.onRename,
-    required this.onDelete,
-    required this.onUpload,
-    required this.onNewFolder,
-  });
-
+class const FileManagerActions({
+  required this.onDownload,
+  required this.onRename,
+  required this.onDelete,
+  required this.onUpload,
+  required this.onNewFolder,
+}) {
   final void Function(DeviceFileEntry entry) onDownload;
   final void Function(DeviceFileEntry entry) onRename;
   final void Function(DeviceFileEntry entry) onDelete;
@@ -150,9 +148,8 @@ RelativeRect _positionFrom(Offset globalPosition) => RelativeRect.fromLTRB(
   globalPosition.dy,
 );
 
-class _MenuRow extends StatelessWidget {
-  const _MenuRow(this.icon, this.label, {this.color});
-
+class const _MenuRow(this.icon, this.label, {this.color})
+    extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color? color;

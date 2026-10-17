@@ -13,15 +13,13 @@ import 'app_icon_button.dart';
 /// [showsOwnTitle] / [showsOwnClose] whether a tab chip already shows those.
 /// Outside a workspace (a test, the imported-logs screen) there is no scope,
 /// the grip draws nothing and the header looks as it always did.
-class WorkspacePaneScope extends InheritedWidget {
-  const WorkspacePaneScope({
-    super.key,
-    required this.controls,
-    required this.isTabbed,
-    required this.canMove,
-    required super.child,
-  });
-
+class const WorkspacePaneScope({
+  super.key,
+  required this.controls,
+  required this.isTabbed,
+  required this.canMove,
+  required super.child,
+}) extends InheritedWidget {
   /// The pane's moves. One object per pane for the life of the workspace,
   /// so it can be compared by identity.
   final PaneControls controls;
@@ -78,15 +76,13 @@ abstract interface class PaneControls {
 /// One entry of a pane's layout menu: an action, or a submenu when
 /// [children] is non-empty. A null [onSelected] greys the action out.
 @immutable
-class PaneMenuItem {
-  const PaneMenuItem({
-    required this.label,
-    this.icon,
-    this.onSelected,
-    this.children = const [],
-    this.dividerBefore = false,
-  });
-
+class const PaneMenuItem({
+  required this.label,
+  this.icon,
+  this.onSelected,
+  this.children = const [],
+  this.dividerBefore = false,
+}) {
   final String label;
   final IconData? icon;
   final VoidCallback? onSelected;
@@ -105,9 +101,7 @@ class PaneMenuItem {
 /// a workspace, while the pane is the only one open, or while it sits in a
 /// tab group, whose chip is then its handle (see
 /// [WorkspacePaneScope.showsGrip]).
-class PaneGrip extends StatefulWidget {
-  const PaneGrip({super.key, this.iconSize = 18});
-
+class const PaneGrip({super.key, this.iconSize = 18}) extends StatefulWidget {
   final double iconSize;
 
   @override
@@ -171,9 +165,8 @@ class _PaneGripState extends State<PaneGrip> {
 /// Makes [child] a handle that moves the pane it sits in — the grip, or the
 /// title area of a pane header (the way a window is moved by its title
 /// bar). Inert outside a workspace or while the pane is alone.
-class PaneDragArea extends StatelessWidget {
-  const PaneDragArea({super.key, required this.child});
-
+class const PaneDragArea({super.key, required this.child})
+    extends StatelessWidget {
   final Widget child;
 
   @override
@@ -210,9 +203,7 @@ const double paneDragSlop = 20;
 /// the gesture arena after 2 px, which turns a slightly shaky click on the
 /// grip into a drag that goes nowhere, instead of opening its menu — and a
 /// brush across a pane's title area into a move to a new spot.
-class _PaneDragRecognizer extends PanGestureRecognizer {
-  _PaneDragRecognizer({super.debugOwner});
-
+class _PaneDragRecognizer({super.debugOwner}) extends PanGestureRecognizer {
   @override
   bool hasSufficientGlobalDistanceToAccept(
     PointerDeviceKind pointerDeviceKind,

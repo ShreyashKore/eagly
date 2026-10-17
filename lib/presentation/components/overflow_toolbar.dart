@@ -11,19 +11,17 @@ import 'app_icon_button.dart';
 /// description has to serve both: [icon] + [tooltip] in the bar, [icon] +
 /// [label] in the menu.
 @immutable
-class ToolbarAction {
-  const ToolbarAction({
-    required this.icon,
-    required this.label,
-    this.tooltip,
-    this.onPressed,
-    this.isActive = false,
-    this.color,
-    this.iconOverride,
-    this.dividerBefore = false,
-    this.barBuilder,
-  });
-
+class const ToolbarAction({
+  required this.icon,
+  required this.label,
+  this.tooltip,
+  this.onPressed,
+  this.isActive = false,
+  this.color,
+  this.iconOverride,
+  this.dividerBefore = false,
+  this.barBuilder,
+}) {
   final IconData icon;
 
   /// Text in the overflow menu; also the fallback tooltip in the bar.
@@ -70,21 +68,19 @@ typedef ToolbarActionBuilder = Widget Function(
 /// close button); [flexible] takes whatever width is left over (a search field,
 /// or `const SizedBox.shrink()` used as a spacer) and never shrinks below
 /// [flexibleMinWidth] — actions collapse before it does.
-class OverflowToolbar extends StatefulWidget {
-  const OverflowToolbar({
-    super.key,
-    required this.actions,
-    this.leading = const [],
-    this.flexible,
-    this.flexibleMinWidth = 0,
-    this.trailing = const [],
-    this.spacing = 4,
-    this.iconSize = 20,
-    this.actionBuilder,
-    this.overflowIcon = Icons.more_horiz,
-    this.overflowTooltip = 'More actions',
-  });
-
+class const OverflowToolbar({
+  super.key,
+  required this.actions,
+  this.leading = const [],
+  this.flexible,
+  this.flexibleMinWidth = 0,
+  this.trailing = const [],
+  this.spacing = 4,
+  this.iconSize = 20,
+  this.actionBuilder,
+  this.overflowIcon = Icons.more_horiz,
+  this.overflowTooltip = 'More actions',
+}) extends StatefulWidget {
   /// Collapsible actions, in display order. The last ones collapse first.
   final List<ToolbarAction> actions;
 
@@ -242,17 +238,15 @@ class _OverflowStatus {
 /// Children are laid out in a fixed order: [leadingCount] leading widgets, the
 /// optional flexible child, [actionCount] actions, the overflow button, then
 /// the trailing widgets.
-class _ToolbarLayout extends MultiChildRenderObjectWidget {
-  const _ToolbarLayout({
-    required this.leadingCount,
-    required this.hasFlexible,
-    required this.actionCount,
-    required this.flexibleMinWidth,
-    required this.spacing,
-    required this.status,
-    required super.children,
-  });
-
+class const _ToolbarLayout({
+  required this.leadingCount,
+  required this.hasFlexible,
+  required this.actionCount,
+  required this.flexibleMinWidth,
+  required this.spacing,
+  required this.status,
+  required super.children,
+}) extends MultiChildRenderObjectWidget {
   final int leadingCount;
   final bool hasFlexible;
   final int actionCount;
@@ -292,19 +286,17 @@ class _ToolbarParentData extends ContainerBoxParentData<RenderBox> {
   bool visible = true;
 }
 
-class _RenderToolbarLayout extends RenderBox
+class _RenderToolbarLayout({
+  required this._leadingCount,
+  required this._hasFlexible,
+  required this._actionCount,
+  required this._flexibleMinWidth,
+  required this._spacing,
+  required this._status,
+}) extends RenderBox
     with
         ContainerRenderObjectMixin<RenderBox, _ToolbarParentData>,
         RenderBoxContainerDefaultsMixin<RenderBox, _ToolbarParentData> {
-  _RenderToolbarLayout({
-    required this._leadingCount,
-    required this._hasFlexible,
-    required this._actionCount,
-    required this._flexibleMinWidth,
-    required this._spacing,
-    required this._status,
-  });
-
   int _leadingCount;
   set leadingCount(int value) {
     if (_leadingCount == value) return;

@@ -18,14 +18,12 @@ enum AndroidSdkStatus {
 
 /// Where the Android SDK is and which of its tools can actually be run.
 @immutable
-class AndroidSdkLocation {
-  const AndroidSdkLocation({
-    required this.status,
-    this.sdkPath,
-    this.emulatorExecutable,
-    this.avdManagerExecutable,
-  });
-
+class const AndroidSdkLocation({
+  required this.status,
+  this.sdkPath,
+  this.emulatorExecutable,
+  this.avdManagerExecutable,
+}) {
   const AndroidSdkLocation.missing()
     : this(status: AndroidSdkStatus.sdkMissing);
 
@@ -63,9 +61,7 @@ class AndroidSdkLocation {
 /// environment rather than a shell's, so `ANDROID_HOME` is usually unset even
 /// on a machine where the SDK is installed and Android Studio works fine.
 /// That is why the default path matters and why the override exists.
-class AndroidSdkPath {
-  const AndroidSdkPath._();
-
+class const AndroidSdkPath._() {
   /// The process environment. Swappable because Dart cannot mutate the real
   /// one, and the precedence rules above are worth testing.
   @visibleForTesting

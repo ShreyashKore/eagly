@@ -6,9 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// Stubs the process boundary by overriding [runText] (a regular, overridable
 /// instance method) so [IdeviceInstallerTool]'s real parsing runs against
 /// canned `ideviceinstaller` output.
-class _FakeIdeviceInstallerTool extends IdeviceInstallerTool {
-  _FakeIdeviceInstallerTool(this.stdout)
-    : super(executablePath: '/usr/bin/true');
+class _FakeIdeviceInstallerTool(this.stdout) extends IdeviceInstallerTool {
+  this : super(executablePath: '/usr/bin/true');
 
   final String stdout;
 
@@ -21,9 +20,9 @@ class _FakeIdeviceInstallerTool extends IdeviceInstallerTool {
 /// Simulates a real `ideviceinstaller` binary of one CLI generation: it
 /// rejects the *other* generation's arguments the way the real tools do
 /// (option parsing fails long before the device is touched).
-class _CliGenerationFake extends IdeviceInstallerTool {
-  _CliGenerationFake({required this.legacyBinary, this.stdout = ''})
-    : super(executablePath: '/usr/bin/true');
+class _CliGenerationFake({required this.legacyBinary, this.stdout = ''})
+    extends IdeviceInstallerTool {
+  this : super(executablePath: '/usr/bin/true');
 
   final bool legacyBinary;
   final String stdout;

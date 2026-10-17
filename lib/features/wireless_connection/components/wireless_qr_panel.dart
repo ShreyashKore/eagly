@@ -11,16 +11,14 @@ import '../../../presentation/theme/app_theme.dart';
 /// The code is always on screen — it is generated locally, so there is nothing
 /// to wait for and no generate button. The troubleshooting note stays hidden
 /// until scanning has visibly taken a while.
-class WirelessQrPanel extends StatelessWidget {
-  const WirelessQrPanel({
-    super.key,
-    required this.payload,
-    required this.waiting,
-    required this.pairing,
-    required this.onRegenerate,
-    this.hintDelay = const Duration(seconds: 12),
-  });
-
+class const WirelessQrPanel({
+  super.key,
+  required this.payload,
+  required this.waiting,
+  required this.pairing,
+  required this.onRegenerate,
+  this.hintDelay = const Duration(seconds: 12),
+}) extends StatelessWidget {
   /// QR payload from the active pairing session.
   final String? payload;
 
@@ -104,9 +102,7 @@ class WirelessQrPanel extends StatelessWidget {
   }
 }
 
-class _QrCode extends StatelessWidget {
-  const _QrCode({required this.payload});
-
+class const _QrCode({required this.payload}) extends StatelessWidget {
   final String? payload;
 
   @override
@@ -132,9 +128,8 @@ class _QrCode extends StatelessWidget {
   }
 }
 
-class _StatusLine extends StatelessWidget {
-  const _StatusLine({required this.waiting, required this.pairing});
-
+class const _StatusLine({required this.waiting, required this.pairing})
+    extends StatelessWidget {
   final bool waiting;
   final bool pairing;
 

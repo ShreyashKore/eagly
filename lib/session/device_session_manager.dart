@@ -23,13 +23,14 @@ typedef DeviceSessionServiceFactory = DeviceSessionRepository Function(
 /// Disconnected devices keep their session (so logs survive and the device can
 /// reconnect). Closing a disconnected tab dismisses it permanently until the
 /// device reconnects.
-class DeviceSessionManager extends ChangeNotifier {
-  DeviceSessionManager({
-    DevicesRepository? repository,
-    this._serviceFactory,
-    WorkspaceLayoutMemory? layoutMemory,
-  }) : _repository = repository ?? DevicesRepository.instance,
-       _layoutMemory = layoutMemory ?? WorkspaceLayoutMemory.persisted() {
+class DeviceSessionManager({
+  DevicesRepository? repository,
+  this._serviceFactory,
+  WorkspaceLayoutMemory? layoutMemory,
+}) extends ChangeNotifier {
+  this
+    : _repository = repository ?? DevicesRepository.instance,
+      _layoutMemory = layoutMemory ?? WorkspaceLayoutMemory.persisted() {
     _repository.addListener(_sync);
     unawaited(_repository.ensureStarted(refreshImmediately: true));
     _sync();

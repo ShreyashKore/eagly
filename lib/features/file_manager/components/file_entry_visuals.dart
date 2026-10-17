@@ -5,9 +5,7 @@ import '../data/device_file_entry.dart';
 
 /// Icon, colour and text formatting helpers shared by the list and grid views
 /// so an entry renders identically in both.
-class FileEntryVisuals {
-  const FileEntryVisuals._();
-
+class const FileEntryVisuals._() {
   static IconData iconFor(DeviceFileEntry entry) {
     if (entry.isDirectory) return Icons.folder_rounded;
     if (entry.isSymlink) return Icons.link_rounded;
@@ -95,9 +93,8 @@ class FileEntryVisuals {
 /// Renders an entry's icon. Symlinks use the folder icon with a small link
 /// badge in the corner (they navigate like folders), so they read as
 /// navigable rather than as an unrelated "link" glyph.
-class FileEntryIcon extends StatelessWidget {
-  const FileEntryIcon({super.key, required this.entry, required this.size});
-
+class const FileEntryIcon({super.key, required this.entry, required this.size})
+    extends StatelessWidget {
   final DeviceFileEntry entry;
   final double size;
 

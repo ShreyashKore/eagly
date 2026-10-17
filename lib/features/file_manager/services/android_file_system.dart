@@ -12,9 +12,10 @@ import 'device_file_system.dart';
 /// Browsing starts at `/sdcard` (internal storage, readable on stock devices)
 /// but the user can navigate up to the real root `/`; directories that require
 /// root simply surface a permission error from the tool.
-class AndroidFileSystem extends ToolProcessRunner implements DeviceFileSystem {
-  AndroidFileSystem({required this.deviceId, super.executablePath})
-    : super(executableName: 'adb');
+class AndroidFileSystem({required this.deviceId, super.executablePath})
+    extends ToolProcessRunner
+    implements DeviceFileSystem {
+  this : super(executableName: 'adb');
 
   final String deviceId;
 

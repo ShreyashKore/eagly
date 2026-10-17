@@ -15,15 +15,13 @@ import '../theme/app_theme.dart';
 /// [fallback] shows instead. A package's first lookup is one small file read;
 /// after that the cache answers from memory, so a reopened dropdown paints its
 /// icons in the first frame.
-class PackageIcon extends StatefulWidget {
-  const PackageIcon({
-    super.key,
-    required this.packageName,
-    required this.size,
-    required this.fallback,
-    this.cache,
-  });
-
+class const PackageIcon({
+  super.key,
+  required this.packageName,
+  required this.size,
+  required this.fallback,
+  this.cache,
+}) extends StatefulWidget {
   /// A package or process name. A process suffix (`com.app:remote`) is dropped
   /// before the lookup, since icons are cached per package.
   final String packageName;

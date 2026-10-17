@@ -7,15 +7,13 @@ import 'dart:convert';
 /// `Process:` / `Date/Time:` preamble. [CrashReport.fromFile] parses either,
 /// falling back to the filename and the file's modified time when metadata is
 /// missing.
-class CrashReport {
-  const CrashReport({
-    required this.fileName,
-    required this.filePath,
-    required this.processName,
-    required this.timestamp,
-    required this.sizeBytes,
-  });
-
+class const CrashReport({
+  required this.fileName,
+  required this.filePath,
+  required this.processName,
+  required this.timestamp,
+  required this.sizeBytes,
+}) {
   final String fileName;
   final String filePath;
 
@@ -129,9 +127,7 @@ class CrashReport {
   );
 }
 
-class _CrashHeader {
-  const _CrashHeader({this.processName, this.timestamp});
-
+class const _CrashHeader({this.processName, this.timestamp}) {
   final String? processName;
   final DateTime? timestamp;
 }

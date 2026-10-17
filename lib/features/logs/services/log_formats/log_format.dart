@@ -2,10 +2,8 @@ import '../../../../data/device.dart';
 import '../../data/models/log_entry.dart';
 
 /// Identifies a supported log file format.
-enum LogFormatId {
+enum LogFormatId(this.displayName, this.fileExtensions) {
   androidLogcat('Android Logcat JSON', ['json', 'logcat']);
-
-  const LogFormatId(this.displayName, this.fileExtensions);
 
   /// Human-readable label shown in UI pickers and menus.
   final String displayName;
@@ -15,12 +13,10 @@ enum LogFormatId {
 }
 
 /// Result of serialising a list of [LogEntry] objects into bytes / a string.
-class LogFormatExportResult {
-  const LogFormatExportResult({
-    required this.content,
-    required this.suggestedFileName,
-  });
-
+class const LogFormatExportResult({
+  required this.content,
+  required this.suggestedFileName,
+}) {
   /// The serialised representation ready to be written to disk.
   final String content;
 
@@ -29,9 +25,7 @@ class LogFormatExportResult {
 }
 
 /// Result of parsing a file's content into [LogEntry] objects.
-class LogFormatParseResult {
-  const LogFormatParseResult({required this.logs});
-
+class const LogFormatParseResult({required this.logs}) {
   final List<LogEntry> logs;
 }
 
@@ -43,9 +37,7 @@ class LogFormatParseResult {
 ///
 /// Implement this class to add support for a new file format
 /// (e.g. plain text, CSV, iOS syslog JSON, …).
-abstract class LogFormat {
-  const LogFormat();
-
+abstract class const LogFormat() {
   /// Stable identifier for this format.
   LogFormatId get id;
 

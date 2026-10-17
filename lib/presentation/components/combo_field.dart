@@ -8,13 +8,11 @@ import 'search_highlight.dart';
 
 /// One entry in a [ComboField]'s list.
 @immutable
-class ComboOption {
-  const ComboOption({
-    required this.value,
-    required this.label,
-    this.description,
-  });
-
+class const ComboOption({
+  required this.value,
+  required this.label,
+  this.description,
+}) {
   /// What picking the entry writes into the field.
   final String value;
 
@@ -39,18 +37,16 @@ class ComboOption {
 /// the pointer) chooses an entry — only the field's current value, when it is
 /// one of the options — so Enter after typing calls [onSubmitted] with what
 /// was typed, never a match that merely contains it.
-class ComboField extends StatefulWidget {
-  const ComboField({
-    super.key,
-    required this.controller,
-    required this.options,
-    this.decoration = const InputDecoration(),
-    this.autofocus = false,
-    this.onChanged,
-    this.onSubmitted,
-    this.maxListHeight = 280,
-  });
-
+class const ComboField({
+  super.key,
+  required this.controller,
+  required this.options,
+  this.decoration = const InputDecoration(),
+  this.autofocus = false,
+  this.onChanged,
+  this.onSubmitted,
+  this.maxListHeight = 280,
+}) extends StatefulWidget {
   final TextEditingController controller;
   final List<ComboOption> options;
   final InputDecoration decoration;
@@ -383,15 +379,12 @@ class _ComboFieldState extends State<ComboField> {
   }
 }
 
-class _MoveIntent extends Intent {
-  const _MoveIntent(this.delta);
-
+class const _MoveIntent(this.delta) extends Intent {
   final int delta;
 }
 
-class _CloseListAction extends Action<DismissIntent> {
-  _CloseListAction({required this.isOpen, required this.close});
-
+class _CloseListAction({required this.isOpen, required this.close})
+    extends Action<DismissIntent> {
   final bool Function() isOpen;
   final VoidCallback close;
 
@@ -405,15 +398,13 @@ class _CloseListAction extends Action<DismissIntent> {
   }
 }
 
-class _ComboRow extends StatelessWidget {
-  const _ComboRow({
-    required this.option,
-    required this.query,
-    required this.highlighted,
-    required this.onTap,
-    required this.onHover,
-  });
-
+class const _ComboRow({
+  required this.option,
+  required this.query,
+  required this.highlighted,
+  required this.onTap,
+  required this.onHover,
+}) extends StatelessWidget {
   final ComboOption option;
   final String query;
   final bool highlighted;

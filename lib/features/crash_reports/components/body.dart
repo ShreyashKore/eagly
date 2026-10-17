@@ -5,9 +5,8 @@ import '../crash_report_controller.dart';
 import 'crash_report_detail.dart';
 import 'crash_report_list.dart';
 
-class Body extends StatelessWidget {
-  const Body({super.key, required this.controller});
-
+class const Body({super.key, required this.controller})
+    extends StatelessWidget {
   final CrashReportController controller;
 
   @override

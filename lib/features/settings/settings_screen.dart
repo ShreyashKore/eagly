@@ -22,9 +22,7 @@ Future<void> showSettingsDialog(BuildContext context) {
   );
 }
 
-class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
-
+class const SettingsScreen({super.key}) extends StatefulWidget {
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }

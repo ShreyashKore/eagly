@@ -11,9 +11,8 @@ import '../services/capture_storage.dart';
 
 /// Vertical strip on the pane's right edge: session actions (screenshot,
 /// record, rotate, quality) at the top, then device hardware/navigation keys.
-class MirrorControlStrip extends StatelessWidget {
-  const MirrorControlStrip({super.key, required this.controller});
-
+class const MirrorControlStrip({super.key, required this.controller})
+    extends StatelessWidget {
   final MirrorController controller;
 
   @override

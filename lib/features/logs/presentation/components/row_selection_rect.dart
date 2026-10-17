@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Translucent rectangle painted over the rows covered by an in-progress
 /// drag selection. Purely visual — pointer events pass through.
-class RowSelectionRect extends StatelessWidget {
-  const RowSelectionRect({super.key});
-
+class const RowSelectionRect({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(

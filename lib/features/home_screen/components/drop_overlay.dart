@@ -5,9 +5,8 @@ import '../../../data/device.dart';
 import '../../../session/device_session_controller.dart';
 
 /// Full-screen hint shown while files are dragged over the device screen.
-class DropOverlay extends StatelessWidget {
-  const DropOverlay({super.key, required this.session});
-
+class const DropOverlay({super.key, required this.session})
+    extends StatelessWidget {
   final DeviceSessionController session;
 
   @override

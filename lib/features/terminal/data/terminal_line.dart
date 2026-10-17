@@ -21,9 +21,7 @@ enum TerminalLineKind {
 }
 
 /// One line of terminal scrollback.
-class TerminalLine {
-  const TerminalLine(this.kind, this.text, {this.prompt, this.resolved});
-
+class const TerminalLine(this.kind, this.text, {this.prompt, this.resolved}) {
   const TerminalLine.command(
     String text, {
     required String prompt,
@@ -55,9 +53,7 @@ class TerminalLine {
 }
 
 /// One chunk of live process output, tagged by the pipe it arrived on.
-class TerminalOutputChunk {
-  const TerminalOutputChunk(this.text, {required this.isError});
-
+class const TerminalOutputChunk(this.text, {required this.isError}) {
   final String text;
   final bool isError;
 }

@@ -10,18 +10,16 @@ import 'app_icon_button.dart';
 /// content area that is sized for a desktop window rather than a full screen.
 ///
 /// Use [showEaglyDialog] to present one.
-class EaglyDialog extends StatelessWidget {
-  const EaglyDialog({
-    super.key,
-    required this.title,
-    required this.child,
-    this.icon,
-    this.headerActions = const [],
-    this.width = 720,
-    this.height,
-    this.contentPadding = const EdgeInsets.fromLTRB(24, 20, 24, 24),
-  });
-
+class const EaglyDialog({
+  super.key,
+  required this.title,
+  required this.child,
+  this.icon,
+  this.headerActions = const [],
+  this.width = 720,
+  this.height,
+  this.contentPadding = const EdgeInsets.fromLTRB(24, 20, 24, 24),
+}) extends StatelessWidget {
   /// Title shown in the header.
   final String title;
 

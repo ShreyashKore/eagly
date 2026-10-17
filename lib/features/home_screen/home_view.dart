@@ -15,17 +15,15 @@ import 'components/recent_files_list.dart';
 /// Landing screen shown when no device tab is selected. Lets the user load
 /// devices, connect wirelessly, start an Android emulator, and pick a detected
 /// device to open its tab.
-class HomeView extends StatelessWidget {
-  const HomeView({
-    super.key,
-    required this.manager,
-    required this.onShowWireless,
-    required this.onShowEmulators,
-    required this.onShowMessage,
-    required this.onImportLog,
-    required this.onOpenRecent,
-  });
-
+class const HomeView({
+  super.key,
+  required this.manager,
+  required this.onShowWireless,
+  required this.onShowEmulators,
+  required this.onShowMessage,
+  required this.onImportLog,
+  required this.onOpenRecent,
+}) extends StatelessWidget {
   final DeviceSessionManager manager;
   final VoidCallback onShowWireless;
   final VoidCallback onShowEmulators;

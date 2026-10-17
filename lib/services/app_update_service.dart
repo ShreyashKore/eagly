@@ -14,9 +14,7 @@ import 'tools/tool_process_runner.dart';
 /// (`.github/workflows/release.yml`): `eagly-macos.dmg`,
 /// `eagly-windows-setup.exe`, and `eagly-linux.deb`. Because those names are
 /// identical on every release, the download URL only needs the tag.
-class AppUpdateService {
-  const AppUpdateService._();
-
+class const AppUpdateService._() {
   /// Auto-update only makes sense on the packaged desktop builds we ship.
   static bool get isSupported =>
       Platform.isMacOS || Platform.isWindows || Platform.isLinux;

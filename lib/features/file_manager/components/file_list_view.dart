@@ -16,13 +16,11 @@ import '../../../presentation/theme/app_theme.dart';
 ///
 /// Names read first: Size and Modified are secondary text, Permissions —
 /// rarely what anyone came for — tertiary.
-class FileListView extends StatelessWidget {
-  const FileListView({
-    super.key,
-    required this.controller,
-    required this.actions,
-  });
-
+class const FileListView({
+  super.key,
+  required this.controller,
+  required this.actions,
+}) extends StatelessWidget {
   final FileManagerController controller;
   final FileManagerActions actions;
 
@@ -146,14 +144,12 @@ class FileListView extends StatelessWidget {
   }
 }
 
-class _FileRow extends StatelessWidget {
-  const _FileRow({
-    required this.controller,
-    required this.entry,
-    required this.actions,
-    required this.columns,
-  });
-
+class const _FileRow({
+  required this.controller,
+  required this.entry,
+  required this.actions,
+  required this.columns,
+}) extends StatelessWidget {
   final FileManagerController controller;
   final DeviceFileEntry entry;
   final FileManagerActions actions;
@@ -252,13 +248,11 @@ class _FileRow extends StatelessWidget {
 /// Which trailing columns fit beside a Name column of at least
 /// [FileListView._minNameWidth]. They drop from the right: Permissions, then
 /// Modified, then Size.
-class _FileColumns {
-  const _FileColumns({
-    required this.size,
-    required this.modified,
-    required this.perms,
-  });
-
+class const _FileColumns({
+  required this.size,
+  required this.modified,
+  required this.perms,
+}) {
   factory _FileColumns.fitting(double width) {
     var used = FileListView._minNameWidth + FileListView._sizeWidth;
     final size = width >= used;

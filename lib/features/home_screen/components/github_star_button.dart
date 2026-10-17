@@ -8,9 +8,7 @@ import '../../../utils/url_launcher.dart';
 /// A quiet "Star" pill linking to the GitHub repo. The word invites a star
 /// without the loud styling of a promo banner — it sits among the other muted
 /// header actions and only warms up on hover.
-class GitHubStarButton extends StatefulWidget {
-  const GitHubStarButton({super.key});
-
+class const GitHubStarButton({super.key}) extends StatefulWidget {
   @override
   State<GitHubStarButton> createState() => _GitHubStarButtonState();
 }

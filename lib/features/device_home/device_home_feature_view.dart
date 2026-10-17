@@ -18,13 +18,11 @@ import 'device_home_controller.dart';
 /// Layout priority, top to bottom: who the device is and the primary action
 /// (install), the feature launcher, live vitals as gauges, then the slower
 /// reference facts in a responsive card grid.
-class DeviceHomeFeatureView extends FeatureView {
-  const DeviceHomeFeatureView({
-    super.key,
-    required this.session,
-    required this.homeController,
-  });
-
+class const DeviceHomeFeatureView({
+  super.key,
+  required this.session,
+  required this.homeController,
+}) extends FeatureView {
   final DeviceSessionController session;
   final DeviceHomeController homeController;
 
@@ -186,13 +184,11 @@ class _DeviceHomeFeatureViewState
 /// percent of the accent over the page, which lifts the tray just above the
 /// background while leaving the tiles (drawn on `surface`) sitting above it —
 /// distinction by depth rather than by colour.
-class _QuickAccessTray extends StatelessWidget {
-  const _QuickAccessTray({
-    required this.label,
-    required this.child,
-    this.trailing,
-  });
-
+class const _QuickAccessTray({
+  required this.label,
+  required this.child,
+  this.trailing,
+}) extends StatelessWidget {
   final String label;
   final Widget child;
   final Widget? trailing;
@@ -224,9 +220,7 @@ class _QuickAccessTray extends StatelessWidget {
 
 /// Balanced multi-column layout for the detail cards — column count follows
 /// the window width, cards fill round-robin so no column runs long.
-class _CardGrid extends StatelessWidget {
-  const _CardGrid({required this.children});
-
+class const _CardGrid({required this.children}) extends StatelessWidget {
   final List<Widget> children;
 
   /// Wide enough that a two-column [SpecGrid] still fits inside a card.
@@ -276,9 +270,8 @@ class _CardGrid extends StatelessWidget {
 
 /// Small uppercase heading with an optional trailing action, used to give the
 /// launcher strip a home for the command-palette hint.
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({required this.label, this.trailing});
-
+class const _SectionHeading({required this.label, this.trailing})
+    extends StatelessWidget {
   final String label;
   final Widget? trailing;
 
@@ -306,9 +299,7 @@ class _SectionHeading extends StatelessWidget {
   }
 }
 
-class _LoadingStrip extends StatelessWidget {
-  const _LoadingStrip();
-
+class const _LoadingStrip() extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

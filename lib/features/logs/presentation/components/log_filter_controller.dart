@@ -9,15 +9,13 @@ import '../../data/models/log_level.dart';
 /// Suggestion lists offered to a filter bar, keyed by field. Getters are pulled
 /// lazily (only while a bar builds its suggestions) so the owner can back them
 /// with live, cached data without paying a per-frame cost.
-class LogFilterSuggestions {
-  const LogFilterSuggestions({
-    required this.recentMessageFilters,
-    required this.recentPackageFilters,
-    required this.knownPackageFilters,
-    required this.recentPidTidFilters,
-    required this.recentTagFilters,
-  });
-
+class const LogFilterSuggestions({
+  required this.recentMessageFilters,
+  required this.recentPackageFilters,
+  required this.knownPackageFilters,
+  required this.recentPidTidFilters,
+  required this.recentTagFilters,
+}) {
   final ValueGetter<List<String>> recentMessageFilters;
   final ValueGetter<List<String>> recentPackageFilters;
   final ValueGetter<List<String>> knownPackageFilters;
@@ -42,14 +40,14 @@ class LogFilterSuggestions {
 /// [_syncPills]. The owner seeds the initial state and receives
 /// updated state via [onStateChanged]; it can push external changes back in
 /// with [updateState] (which never re-emits, avoiding feedback loops).
-class LogFilterController extends ChangeNotifier {
-  LogFilterController({
-    required LogFilters initialState,
-    required this.suggestions,
-    required this.onStateChanged,
-    required this.isIos,
-    this.debounce = const Duration(milliseconds: 300),
-  }) : _state = initialState {
+class LogFilterController({
+  required LogFilters initialState,
+  required this.suggestions,
+  required this.onStateChanged,
+  required this.isIos,
+  this.debounce = const Duration(milliseconds: 300),
+}) extends ChangeNotifier {
+  this : _state = initialState {
     _syncPills();
   }
 

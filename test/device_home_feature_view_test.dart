@@ -9,9 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'support/session_test_support.dart';
 
-class _StatsService extends FakeSessionService {
-  _StatsService(super.device);
-
+class _StatsService(super.device) extends FakeSessionService {
   @override
   Future<DevicePerformanceStats> fetchPerformanceStats() async {
     return const DevicePerformanceStats(

@@ -41,17 +41,15 @@ class PopoverController extends ChangeNotifier {
 /// Text fields in the card or the anchor take [textContextMenuBuilder] as
 /// their `contextMenuBuilder`, or a click in their right-click menu closes the
 /// card.
-class AnchoredPopover extends StatefulWidget {
-  const AnchoredPopover({
-    super.key,
-    required this.controller,
-    required this.popoverBuilder,
-    required this.child,
-    this.width = 300,
-    this.onClosed,
-    this.tapGroupId,
-  });
-
+class const AnchoredPopover({
+  super.key,
+  required this.controller,
+  required this.popoverBuilder,
+  required this.child,
+  this.width = 300,
+  this.onClosed,
+  this.tapGroupId,
+}) extends StatefulWidget {
   final PopoverController controller;
   final WidgetBuilder popoverBuilder;
   final Widget child;
@@ -93,9 +91,8 @@ class AnchoredPopover extends StatefulWidget {
 }
 
 /// Tells [AnchoredPopover.textContextMenuBuilder] which card a field is in.
-class _PopoverTapGroup extends InheritedWidget {
-  const _PopoverTapGroup({required this.groupId, required super.child});
-
+class const _PopoverTapGroup({required this.groupId, required super.child})
+    extends InheritedWidget {
   final Object groupId;
 
   @override
@@ -215,9 +212,8 @@ class _AnchoredPopoverState extends State<AnchoredPopover> {
 /// Puts the card [gap] below [anchor], left-aligned with it — or right-aligned
 /// when that would run off the overlay — and caps its height to the room left
 /// below.
-class _PopoverLayout extends SingleChildLayoutDelegate {
-  const _PopoverLayout({required this.anchor, required this.width});
-
+class const _PopoverLayout({required this.anchor, required this.width})
+    extends SingleChildLayoutDelegate {
   final Rect anchor;
   final double width;
 

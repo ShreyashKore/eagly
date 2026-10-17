@@ -1,5 +1,5 @@
-class LogEntryIdGenerator {
-  LogEntryIdGenerator({int initialValue = 0}) : _nextValue = initialValue;
+class LogEntryIdGenerator({int initialValue = 0}) {
+  this : _nextValue = initialValue;
 
   static final LogEntryIdGenerator instance = LogEntryIdGenerator();
 

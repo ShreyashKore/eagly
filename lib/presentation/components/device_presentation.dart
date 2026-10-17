@@ -10,14 +10,12 @@ IconData devicePlatformIcon(Device device) {
 }
 
 /// Platform icon, with a subtle Wi-Fi badge for wireless Android devices.
-class DevicePlatformIconWidget extends StatelessWidget {
-  const DevicePlatformIconWidget({
-    super.key,
-    required this.device,
-    required this.color,
-    required this.size,
-  });
-
+class const DevicePlatformIconWidget({
+  super.key,
+  required this.device,
+  required this.color,
+  required this.size,
+}) extends StatelessWidget {
   final Device device;
   final Color color;
   final double size;
@@ -51,17 +49,15 @@ class DevicePlatformIconWidget extends StatelessWidget {
   }
 }
 
-class DeviceLabel extends StatelessWidget {
-  const DeviceLabel({
-    super.key,
-    required this.device,
-    this.textStyle,
-    this.iconColor,
-    this.maxWidth,
-    this.showStatus = false,
-    this.iconSize,
-  });
-
+class const DeviceLabel({
+  super.key,
+  required this.device,
+  this.textStyle,
+  this.iconColor,
+  this.maxWidth,
+  this.showStatus = false,
+  this.iconSize,
+}) extends StatelessWidget {
   final Device device;
   final TextStyle? textStyle;
   final Color? iconColor;
@@ -133,18 +129,16 @@ class DeviceLabel extends StatelessWidget {
   }
 }
 
-class DeviceSelectionLabel extends StatelessWidget {
-  const DeviceSelectionLabel({
-    super.key,
-    required this.device,
-    this.textStyle,
-    this.secondaryTextStyle,
-    this.iconColor,
-    this.maxWidth,
-    this.iconSize,
-    this.showSecondary = true,
-  });
-
+class const DeviceSelectionLabel({
+  super.key,
+  required this.device,
+  this.textStyle,
+  this.secondaryTextStyle,
+  this.iconColor,
+  this.maxWidth,
+  this.iconSize,
+  this.showSecondary = true,
+}) extends StatelessWidget {
   final Device device;
   final TextStyle? textStyle;
   final TextStyle? secondaryTextStyle;

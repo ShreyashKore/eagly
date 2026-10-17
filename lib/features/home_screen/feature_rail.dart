@@ -17,14 +17,12 @@ import 'components/rail_footer.dart';
 ///
 /// Its width and padding follow the app zoom (a text scale), so the labels
 /// keep their room as the user zooms rather than being squeezed to fit.
-class FeatureRail extends StatelessWidget {
-  const FeatureRail({
-    super.key,
-    required this.session,
-    required this.onInstall,
-    required this.onOpenSettings,
-  });
-
+class const FeatureRail({
+  super.key,
+  required this.session,
+  required this.onInstall,
+  required this.onOpenSettings,
+}) extends StatelessWidget {
   final DeviceSessionController session;
   final VoidCallback onInstall;
   final VoidCallback onOpenSettings;

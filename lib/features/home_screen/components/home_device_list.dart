@@ -7,13 +7,11 @@ import '../../../session/device_session_manager.dart';
 
 /// The device section of the landing screen: a "searching / none found"
 /// status box, or one [AvailableDeviceCard] per detected device.
-class HomeDeviceList extends StatelessWidget {
-  const HomeDeviceList({
-    super.key,
-    required this.manager,
-    required this.onShowMessage,
-  });
-
+class const HomeDeviceList({
+  super.key,
+  required this.manager,
+  required this.onShowMessage,
+}) extends StatelessWidget {
   final DeviceSessionManager manager;
   final ValueChanged<String> onShowMessage;
 

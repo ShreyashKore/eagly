@@ -4,9 +4,7 @@ import 'package:flutter/services.dart';
 
 /// Dart side of the native scrcpy video decoder (macOS VideoToolbox →
 /// Flutter texture). See `macos/Runner/ScrcpyVideoPlugin.swift`.
-class ScrcpyVideoChannel {
-  const ScrcpyVideoChannel();
-
+class const ScrcpyVideoChannel() {
   static const MethodChannel _method = MethodChannel('flutter_scrcpy/video');
   static const BasicMessageChannel<ByteData?> _feed =
       BasicMessageChannel<ByteData?>(

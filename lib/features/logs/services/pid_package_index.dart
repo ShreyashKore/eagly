@@ -9,9 +9,7 @@ import 'filter_utils.dart';
 /// process — or after it exited — reach us with no package at all. Keeping the
 /// mapping here lets a package filter still recognise those entries by their
 /// PID instead of dropping them.
-class PidPackageIndex {
-  PidPackageIndex({this._fallback});
-
+class PidPackageIndex({this._fallback}) {
   /// Consulted for a PID no entry ever resolved — in practice the session
   /// repository's own polled `ps -A` map. It covers the process that logged
   /// only in the window before the first poll saw it and then went quiet: the

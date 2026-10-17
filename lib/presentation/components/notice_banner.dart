@@ -13,18 +13,16 @@ import '../theme/app_theme.dart';
 /// the real text and buttons, so it holds at any zoom and message length. A
 /// row of buttons beside the text in a narrow pane squeezes the text into a
 /// tall, thin column, which is what made the old banners take so much height.
-class NoticeBanner extends StatelessWidget {
-  const NoticeBanner({
-    super.key,
-    required this.icon,
-    required this.title,
-    this.message,
-    this.actions = const [],
-    this.color,
-    this.edgeToEdge = false,
-    this.textWidth = 440,
-  });
-
+class const NoticeBanner({
+  super.key,
+  required this.icon,
+  required this.title,
+  this.message,
+  this.actions = const [],
+  this.color,
+  this.edgeToEdge = false,
+  this.textWidth = 440,
+}) extends StatelessWidget {
   final IconData icon;
   final String title;
   final String? message;
@@ -136,15 +134,13 @@ class NoticeBanner extends StatelessWidget {
 
 /// A small button for a [NoticeBanner]: tonal when [primary], plain text
 /// otherwise.
-class NoticeButton extends StatelessWidget {
-  const NoticeButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    this.primary = false,
-  });
-
+class const NoticeButton({
+  super.key,
+  required this.icon,
+  required this.label,
+  required this.onPressed,
+  this.primary = false,
+}) extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;

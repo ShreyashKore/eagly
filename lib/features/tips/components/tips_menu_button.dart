@@ -5,9 +5,8 @@ import 'confirm_disable_tips.dart';
 import 'menu_row.dart';
 
 /// The three-dot options menu for the tips panel.
-class TipsMenuButton extends StatelessWidget {
-  const TipsMenuButton({super.key, required this.controller});
-
+class const TipsMenuButton({super.key, required this.controller})
+    extends StatelessWidget {
   final TipsController controller;
 
   @override

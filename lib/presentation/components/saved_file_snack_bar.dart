@@ -21,9 +21,8 @@ void showSavedFileSnackBar(
     );
 }
 
-class _SavedFileContent extends StatelessWidget {
-  const _SavedFileContent({required this.message, required this.path});
-
+class const _SavedFileContent({required this.message, required this.path})
+    extends StatelessWidget {
   final String message;
   final String path;
 

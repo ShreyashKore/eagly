@@ -9,12 +9,12 @@ import 'crash_report_controller.dart';
 /// Crash-report feature pane (iOS). Lists crash reports pulled off the device
 /// and shows the selected report's body. [onClose] hides the pane (handled by
 /// the device screen).
-class CrashReportFeatureView extends FeatureView {
-  const CrashReportFeatureView({
-    super.key,
-    required this.controller,
-    required VoidCallback onClose,
-  }) : super(onClose: onClose);
+class const CrashReportFeatureView({
+  super.key,
+  required this.controller,
+  required VoidCallback onClose,
+}) extends FeatureView {
+  this : super(onClose: onClose);
 
   final CrashReportController controller;
 

@@ -20,13 +20,11 @@ import 'workspace_view.dart';
 /// action, otherwise Home or the feature workspace — whichever of Logs,
 /// Mirror, Crash Reports, Files, Apps, Utilities and Terminal are open, in
 /// the arrangement the user gave them.
-class DeviceScreenContent extends StatelessWidget {
-  const DeviceScreenContent({
-    super.key,
-    required this.session,
-    required this.appMemoryBytesListenable,
-  });
-
+class const DeviceScreenContent({
+  super.key,
+  required this.session,
+  required this.appMemoryBytesListenable,
+}) extends StatelessWidget {
   final DeviceSessionController session;
   final ValueListenable<int> appMemoryBytesListenable;
 
@@ -70,12 +68,10 @@ class DeviceScreenContent extends StatelessWidget {
   }
 }
 
-class _Workspace extends StatelessWidget {
-  const _Workspace({
-    required this.session,
-    required this.appMemoryBytesListenable,
-  });
-
+class const _Workspace({
+  required this.session,
+  required this.appMemoryBytesListenable,
+}) extends StatelessWidget {
   final DeviceSessionController session;
   final ValueListenable<int> appMemoryBytesListenable;
 

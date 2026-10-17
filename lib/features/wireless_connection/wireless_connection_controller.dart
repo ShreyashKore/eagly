@@ -8,15 +8,13 @@ import '../../data/device.dart';
 import 'data/wireless_debug_models.dart';
 import '../../services/devices_repository.dart';
 
-class WirelessPairResult {
-  const WirelessPairResult({
-    required this.paired,
-    this.autoConnected = false,
-    this.connectAddresses = const [],
-    this.message,
-    this.error,
-  });
-
+class const WirelessPairResult({
+  required this.paired,
+  this.autoConnected = false,
+  this.connectAddresses = const [],
+  this.message,
+  this.error,
+}) {
   final bool paired;
   final bool autoConnected;
   final List<String> connectAddresses;
@@ -61,12 +59,10 @@ class WirelessPairResult {
 ///
 /// There is no server side and therefore no expiry: a code stays valid until it
 /// is used. It is single-use, though — regenerate after a pair attempt.
-class WirelessQrPairingSession {
-  const WirelessQrPairingSession({
-    required this.serviceName,
-    required this.password,
-  });
-
+class const WirelessQrPairingSession({
+  required this.serviceName,
+  required this.password,
+}) {
   final String serviceName;
   final String password;
 
@@ -82,17 +78,15 @@ class WirelessQrPairingSession {
 /// independent operations meant one starved the other — opening the QR pane
 /// while a discovery was in flight left the code ungenerated for ~10 s. Nothing
 /// here should reintroduce a second poller or widen [isWirelessBusy].
-class WirelessConnectionController extends ChangeNotifier {
-  WirelessConnectionController({
-    required this._devicesRepository,
-    required this._onDevicesApplied,
-    required this._onActivateDevice,
-    this.isDeviceSelectedInAnotherTab,
-    this.selectedDeviceIdProvider,
-    this.isRunningProvider,
-    this._onQrPairingCompleted,
-  });
-
+class WirelessConnectionController({
+  required this._devicesRepository,
+  required this._onDevicesApplied,
+  required this._onActivateDevice,
+  this.isDeviceSelectedInAnotherTab,
+  this.selectedDeviceIdProvider,
+  this.isRunningProvider,
+  this._onQrPairingCompleted,
+}) extends ChangeNotifier {
   final DevicesRepository _devicesRepository;
   final Future<void> Function(List<Device> devices) _onDevicesApplied;
   final Future<void> Function(Device device) _onActivateDevice;

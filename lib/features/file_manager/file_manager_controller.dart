@@ -14,13 +14,11 @@ import 'services/file_transfer_picker.dart';
 /// Outcome of copying externally-dropped files onto the device. [copied] holds
 /// the file names that landed in [directory]; [errors] are human-readable
 /// per-file failures.
-class FileDropCopyResult {
-  const FileDropCopyResult({
-    required this.directory,
-    this.copied = const [],
-    this.errors = const [],
-  });
-
+class const FileDropCopyResult({
+  required this.directory,
+  this.copied = const [],
+  this.errors = const [],
+}) {
   final String directory;
   final List<String> copied;
   final List<String> errors;
@@ -40,9 +38,7 @@ enum FileSortField { name, size, modified, type }
 ///
 /// Pane *visibility* lives on the owning [DeviceSessionController]; this
 /// controller only manages the feature's own state.
-class FileManagerController extends FeatureController {
-  FileManagerController(super.session);
-
+class FileManagerController(super.session) extends FeatureController {
   /// Replaces [DeviceFileSystem.forDevice] so tests can copy without a device.
   @visibleForTesting
   static DeviceFileSystem Function(Device device)? fileSystemFactory;

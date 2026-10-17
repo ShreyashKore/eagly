@@ -26,16 +26,14 @@ enum EmulatorTileAction {
 /// Exactly one action is offered per state rather than showing Start and Stop
 /// together with one greyed out — a mid-boot emulator has nothing useful to
 /// press, and a disabled Stop invites clicking at it repeatedly.
-class EmulatorTile extends StatelessWidget {
-  const EmulatorTile({
-    super.key,
-    required this.entry,
-    required this.onAction,
-    required this.onStop,
-    this.enabled = true,
-    this.canDelete = false,
-  });
-
+class const EmulatorTile({
+  super.key,
+  required this.entry,
+  required this.onAction,
+  required this.onStop,
+  this.enabled = true,
+  this.canDelete = false,
+}) extends StatelessWidget {
   final EmulatorEntry entry;
   final ValueChanged<EmulatorTileAction> onAction;
   final VoidCallback onStop;
@@ -206,9 +204,7 @@ class EmulatorTile extends StatelessWidget {
   }
 }
 
-class _PendingAction extends StatelessWidget {
-  const _PendingAction({required this.label});
-
+class const _PendingAction({required this.label}) extends StatelessWidget {
   final String label;
 
   @override
@@ -236,9 +232,8 @@ class _PendingAction extends StatelessWidget {
   }
 }
 
-class _MenuRow extends StatelessWidget {
-  const _MenuRow(this.icon, this.label, this.subtitle);
-
+class const _MenuRow(this.icon, this.label, this.subtitle)
+    extends StatelessWidget {
   final IconData icon;
   final String label;
   final String subtitle;

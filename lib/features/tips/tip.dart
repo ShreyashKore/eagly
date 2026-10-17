@@ -5,15 +5,13 @@ import 'package:flutter/material.dart';
 /// [title] is the short, one-line headline shown inline in the header;
 /// [detail] is the longer explanation revealed in the tap-through dialog.
 @immutable
-class Tip {
-  const Tip({
-    required this.id,
-    required this.icon,
-    required this.title,
-    required this.detail,
-    this.actionHint,
-  });
-
+class const Tip({
+  required this.id,
+  required this.icon,
+  required this.title,
+  required this.detail,
+  this.actionHint,
+}) {
   /// Stable identifier (handy for tests and analytics).
   final String id;
 

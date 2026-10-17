@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 import '../../features/logs/data/models/log_level.dart';
 
 @immutable
-class LogLevelVisualStyle {
-  const LogLevelVisualStyle({required this.icon, required this.color});
-
+class const LogLevelVisualStyle({required this.icon, required this.color}) {
   final IconData icon;
   final Color color;
 
@@ -34,19 +32,17 @@ LogLevelVisualStyle resolveLogLevelVisualStyle(
   return LogLevelVisualStyle(icon: icon, color: accentColor);
 }
 
-class LogLevelLabel extends StatelessWidget {
-  const LogLevelLabel({
-    super.key,
-    required this.level,
-    required this.isIos,
-    this.text,
-    this.includeValueInLabel = false,
-    this.compact = false,
-    this.colorizeText = true,
-    this.textStyle,
-    this.mainAxisSize = MainAxisSize.min,
-  });
-
+class const LogLevelLabel({
+  super.key,
+  required this.level,
+  required this.isIos,
+  this.text,
+  this.includeValueInLabel = false,
+  this.compact = false,
+  this.colorizeText = true,
+  this.textStyle,
+  this.mainAxisSize = MainAxisSize.min,
+}) extends StatelessWidget {
   final LogLevel level;
   final bool isIos;
   final String? text;

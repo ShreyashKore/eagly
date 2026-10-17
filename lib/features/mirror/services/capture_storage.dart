@@ -9,9 +9,7 @@ import '../../../services/preferences_service.dart';
 /// By default captures land in a fixed folder (`<Pictures>/Eagly`, overridable
 /// from Settings) and no dialog is shown; turning on
 /// [PreferencesService.captureAskEveryTime] restores the save-file dialog.
-class CaptureStorage {
-  const CaptureStorage._();
-
+class const CaptureStorage._() {
   /// Sub-folder created inside the user's pictures folder by default.
   static const _defaultFolderName = 'Eagly';
 

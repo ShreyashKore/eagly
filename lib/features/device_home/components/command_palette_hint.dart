@@ -7,9 +7,7 @@ import '../../../command_palette/shortcut_label.dart';
 
 /// Opens the global command palette — surfaced here so its shortcut is
 /// discoverable from the device's landing screen.
-class CommandPaletteHint extends StatelessWidget {
-  const CommandPaletteHint({super.key});
-
+class const CommandPaletteHint({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

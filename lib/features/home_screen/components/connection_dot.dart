@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
-class ConnectionDot extends StatelessWidget {
-  const ConnectionDot({super.key, required this.connected});
-
+class const ConnectionDot({super.key, required this.connected})
+    extends StatelessWidget {
   final bool connected;
 
   @override

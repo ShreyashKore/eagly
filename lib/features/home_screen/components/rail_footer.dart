@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../services/eagly_info_service.dart';
 
 /// Bottom-pinned separator and the app version, shown unobtrusively.
-class RailFooter extends StatelessWidget {
-  const RailFooter({super.key});
-
+class const RailFooter({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;

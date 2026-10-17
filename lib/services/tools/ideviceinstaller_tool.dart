@@ -20,9 +20,8 @@ enum _InstallerCli {
   legacy,
 }
 
-class IdeviceInstallerTool extends ToolProcessRunner {
-  IdeviceInstallerTool({super.executablePath})
-    : super(executableName: 'ideviceinstaller');
+class IdeviceInstallerTool({super.executablePath}) extends ToolProcessRunner {
+  this : super(executableName: 'ideviceinstaller');
 
   /// Markers both generations print when they reject the *other* one's
   /// arguments (`ideviceinstaller: invalid option -- i`, `ERROR: No

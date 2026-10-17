@@ -19,8 +19,11 @@ import 'data/terminal_tools.dart';
 /// `@device` pointed it at) and the `-s`/`-u` flag is added on the way out. A
 /// line that selects a device itself is passed through untouched, so anything
 /// the user already knows how to type still works verbatim.
-class TerminalController extends FeatureController {
-  TerminalController(super.session, {List<Device> Function()? availableDevices})
+class TerminalController(
+  super.session, {
+  List<Device> Function()? availableDevices,
+}) extends FeatureController {
+  this
     : _availableDevices =
           availableDevices ?? (() => DevicesRepository.instance.devices) {
     _push(

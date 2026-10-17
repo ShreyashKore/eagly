@@ -6,12 +6,13 @@ import 'ios_device_service.dart';
 
 /// [IosDeviceService] backed by the bundled libimobiledevice CLIs. The default,
 /// and the reference the Rust backend is compared against.
-class LibimobiledeviceIosDeviceService implements IosDeviceService {
-  LibimobiledeviceIosDeviceService({
-    IdeviceIdTool? ideviceIdTool,
-    IdeviceInfoTool? ideviceInfoTool,
-  }) : _ideviceIdTool = ideviceIdTool ?? IdeviceIdTool(),
-       _ideviceInfoTool = ideviceInfoTool ?? IdeviceInfoTool();
+class LibimobiledeviceIosDeviceService({
+  IdeviceIdTool? ideviceIdTool,
+  IdeviceInfoTool? ideviceInfoTool,
+}) implements IosDeviceService {
+  this
+    : _ideviceIdTool = ideviceIdTool ?? IdeviceIdTool(),
+      _ideviceInfoTool = ideviceInfoTool ?? IdeviceInfoTool();
 
   final IdeviceIdTool _ideviceIdTool;
   final IdeviceInfoTool _ideviceInfoTool;

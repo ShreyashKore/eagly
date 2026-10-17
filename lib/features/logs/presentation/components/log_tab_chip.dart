@@ -5,17 +5,15 @@ import '../../../../presentation/theme/app_theme.dart';
 
 /// A single chip in the log tab strip: label, optional imported marker, and
 /// an optional close button.
-class LogTabChip extends StatelessWidget {
-  const LogTabChip({
-    super.key,
-    required this.label,
-    required this.isImported,
-    required this.selected,
-    required this.canClose,
-    required this.onTap,
-    required this.onClose,
-  });
-
+class const LogTabChip({
+  super.key,
+  required this.label,
+  required this.isImported,
+  required this.selected,
+  required this.canClose,
+  required this.onTap,
+  required this.onClose,
+}) extends StatelessWidget {
   final String label;
   final bool isImported;
   final bool selected;

@@ -40,7 +40,22 @@ import 'tools/tool_process_runner.dart';
 /// One instance is created per detected device and owned by its
 /// [DeviceSessionController]. It exposes platform-agnostic device operations and
 /// holds no feature state — feature controllers own their own state.
-class DeviceSessionRepository {
+class DeviceSessionRepository({
+  required this.device,
+  String? adbPath,
+  String? ideviceInstallerPath,
+  String? ideviceSyslogPath,
+  String? ideviceCrashReportPath,
+  AdbTool? adbTool,
+  IdeviceInstallerTool? ideviceInstallerTool,
+  IdeviceSyslogTool? ideviceSyslogTool,
+  IdeviceCrashReportTool? ideviceCrashReportTool,
+  IosAppService? iosAppService,
+  IosCrashReportService? iosCrashReportService,
+  IosDeviceService? iosDeviceService,
+  IosLogService? iosLogService,
+  ScrcpyMirror? scrcpyMirror,
+}) {
   final Device device;
   final AdbTool _adbTool;
   final IosAppService _iosAppService;
@@ -77,46 +92,32 @@ class DeviceSessionRepository {
 
   String get _deviceId => device.id;
 
-  DeviceSessionRepository({
-    required this.device,
-    String? adbPath,
-    String? ideviceInstallerPath,
-    String? ideviceSyslogPath,
-    String? ideviceCrashReportPath,
-    AdbTool? adbTool,
-    IdeviceInstallerTool? ideviceInstallerTool,
-    IdeviceSyslogTool? ideviceSyslogTool,
-    IdeviceCrashReportTool? ideviceCrashReportTool,
-    IosAppService? iosAppService,
-    IosCrashReportService? iosCrashReportService,
-    IosDeviceService? iosDeviceService,
-    IosLogService? iosLogService,
-    ScrcpyMirror? scrcpyMirror,
-  }) : _adbTool = adbTool ?? AdbTool(executablePath: adbPath),
-       _iosAppService =
-           iosAppService ??
-           _defaultIosAppService(ideviceInstallerTool, ideviceInstallerPath),
-       _iosCrashReportService =
-           iosCrashReportService ??
-           _defaultIosCrashReportService(
-             ideviceCrashReportTool,
-             ideviceCrashReportPath,
-           ),
-       _iosDeviceService = iosDeviceService ?? createIosDeviceService(),
-       _iosLogService =
-           iosLogService ??
-           _defaultIosLogService(ideviceSyslogTool, ideviceSyslogPath),
-       _scrcpyMirror =
-           scrcpyMirror ??
-           ScrcpyMirror(
-             adbExecutablePath:
-                 resolveBundledExecutablePath('adb') ?? adbPath ?? 'adb',
-             serverJarPath:
-                 '${resolveBundledToolsDirectory()?.path}/scrcpy-server',
-             onLog: (message) =>
-                 AppLogger(source: 'DeviceSessionService')
-                     .info('[scrcpy] $message'),
-           );
+  this
+    : _adbTool = adbTool ?? AdbTool(executablePath: adbPath),
+      _iosAppService =
+          iosAppService ??
+          _defaultIosAppService(ideviceInstallerTool, ideviceInstallerPath),
+      _iosCrashReportService =
+          iosCrashReportService ??
+          _defaultIosCrashReportService(
+            ideviceCrashReportTool,
+            ideviceCrashReportPath,
+          ),
+      _iosDeviceService = iosDeviceService ?? createIosDeviceService(),
+      _iosLogService =
+          iosLogService ??
+          _defaultIosLogService(ideviceSyslogTool, ideviceSyslogPath),
+      _scrcpyMirror =
+          scrcpyMirror ??
+          ScrcpyMirror(
+            adbExecutablePath:
+                resolveBundledExecutablePath('adb') ?? adbPath ?? 'adb',
+            serverJarPath:
+                '${resolveBundledToolsDirectory()?.path}/scrcpy-server',
+            onLog: (message) =>
+                AppLogger(source: 'DeviceSessionService')
+                    .info('[scrcpy] $message'),
+          );
 
   /// See [_defaultIosLogService] — same reasoning for crash reports.
   static IosCrashReportService _defaultIosCrashReportService(
@@ -790,14 +791,12 @@ class DeviceSessionRepository {
 
 /// A running on-device `screenrecord`. Stop it with [stopAndPull] to finalize
 /// the mp4 and copy it to the host, or [cancel] to discard it.
-class ScreenRecordingSession {
-  ScreenRecordingSession({
-    required this._adbTool,
-    required this.deviceId,
-    required this.devicePath,
-    required this.process,
-  });
-
+class ScreenRecordingSession({
+  required this._adbTool,
+  required this.deviceId,
+  required this.devicePath,
+  required this.process,
+}) {
   final AdbTool _adbTool;
   final String deviceId;
   final String devicePath;

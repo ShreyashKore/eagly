@@ -6,14 +6,12 @@ import 'log_filter_controller.dart';
 import 'log_filter_parts.dart';
 
 /// Edits the age limit: a preset, or a custom `1h30m`-style duration.
-class FilterAgeEditor extends StatefulWidget {
-  const FilterAgeEditor({
-    super.key,
-    required this.controller,
-    required this.onDone,
-    required this.onRemove,
-  });
-
+class const FilterAgeEditor({
+  super.key,
+  required this.controller,
+  required this.onDone,
+  required this.onRemove,
+}) extends StatefulWidget {
   final LogFilterController controller;
   final VoidCallback onDone;
   final VoidCallback onRemove;
@@ -115,13 +113,11 @@ class _FilterAgeEditorState extends State<FilterAgeEditor> {
   }
 }
 
-class _PresetChip extends StatelessWidget {
-  const _PresetChip({
-    required this.label,
-    required this.selected,
-    required this.onPressed,
-  });
-
+class const _PresetChip({
+  required this.label,
+  required this.selected,
+  required this.onPressed,
+}) extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onPressed;

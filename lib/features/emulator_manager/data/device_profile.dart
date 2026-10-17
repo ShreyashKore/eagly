@@ -3,14 +3,12 @@ import 'package:flutter/foundation.dart';
 /// A hardware profile `avdmanager create avd -d` accepts — screen size,
 /// density and the rest of what makes a "Pixel 7" a Pixel 7.
 @immutable
-class DeviceProfile {
-  const DeviceProfile({
-    required this.id,
-    required this.name,
-    this.oem,
-    this.tag,
-  });
-
+class const DeviceProfile({
+  required this.id,
+  required this.name,
+  this.oem,
+  this.tag,
+}) {
   /// What `-d` takes. Usually a slug (`pixel_7`), but older profiles carry
   /// their display name instead, spaces and all (`Galaxy Nexus`) — which is
   /// why arguments are passed as a list and never through a shell.

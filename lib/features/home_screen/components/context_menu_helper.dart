@@ -121,8 +121,7 @@ enum _HeaderMenuAction { wireless, emulators, refresh, settings }
 
 enum _TabMenuAction { reload, copyName, copyId, close }
 
-class _MenuRow extends StatelessWidget {
-  const _MenuRow(this.icon, this.label);
+class const _MenuRow(this.icon, this.label) extends StatelessWidget {
   final IconData icon;
   final String label;
 

@@ -5,7 +5,7 @@ import '../../../data/device.dart';
 /// A bundled CLI a utility can run through, plus the flag that selects a
 /// device on it (`adb -s <serial>` vs. `idevicefoo -u <udid>`). Adding a new
 /// backing tool is a one-line change here — the runner is generic.
-enum UtilityTool {
+enum UtilityTool(this.executable, this.deviceFlag) {
   adb('adb', '-s'),
   ideviceinfo('ideviceinfo', '-u'),
   idevicediagnostics('idevicediagnostics', '-u'),
@@ -13,8 +13,6 @@ enum UtilityTool {
   idevicedate('idevicedate', '-u'),
   idevicepair('idevicepair', '-u'),
   idevicesetlocation('idevicesetlocation', '-u');
-
-  const UtilityTool(this.executable, this.deviceFlag);
 
   final String executable;
 
@@ -24,9 +22,7 @@ enum UtilityTool {
 
 /// One concrete tool invocation: the arguments that follow the device
 /// selector, which the runner prepends.
-class UtilityInvocation {
-  const UtilityInvocation(this.tool, this.arguments);
-
+class const UtilityInvocation(this.tool, this.arguments) {
   /// `adb -s <id> <arguments>`.
   const UtilityInvocation.adb(List<String> arguments)
     : this(UtilityTool.adb, arguments);
@@ -98,9 +94,7 @@ class UtilityParam {
   final String? helperText;
 }
 
-class UtilityOption {
-  const UtilityOption(this.value, this.label, {this.description});
-
+class const UtilityOption(this.value, this.label, {this.description}) {
   final String value;
   final String label;
 
@@ -111,9 +105,7 @@ class UtilityOption {
 /// The collected parameter values, read positionally by a command's builder.
 /// Missing keys read as an empty string so a builder can be called with no
 /// values at all to probe platform support (see [UtilityCommand.supports]).
-class UtilityArgs {
-  const UtilityArgs([this._values = const {}]);
-
+class const UtilityArgs([this._values = const {}]) {
   final Map<String, String> _values;
 
   String operator [](String key) => (_values[key] ?? '').trim();
@@ -127,21 +119,19 @@ class UtilityArgs {
 /// Everything else (grouping, search, params, confirmation, output) is
 /// platform-agnostic, so adding an iOS counterpart to an Android command means
 /// extending its builder, not touching the controller or the view.
-class UtilityCommand {
-  const UtilityCommand({
-    required this.id,
-    required this.label,
-    required this.description,
-    required this.icon,
-    required this.build,
-    this.params = const [],
-    this.confirmation,
-    this.expectsOutput = true,
-    this.successMessage,
-    this.packageParamKey,
-    this.systemAppSafe = false,
-  });
-
+class const UtilityCommand({
+  required this.id,
+  required this.label,
+  required this.description,
+  required this.icon,
+  required this.build,
+  this.params = const [],
+  this.confirmation,
+  this.expectsOutput = true,
+  this.successMessage,
+  this.packageParamKey,
+  this.systemAppSafe = false,
+}) {
   final String id;
   final String label;
 
@@ -206,14 +196,12 @@ class UtilityCommand {
 }
 
 /// A titled section of the catalog.
-class UtilityGroup {
-  const UtilityGroup({
-    required this.id,
-    required this.title,
-    required this.icon,
-    required this.commands,
-  });
-
+class const UtilityGroup({
+  required this.id,
+  required this.title,
+  required this.icon,
+  required this.commands,
+}) {
   final String id;
   final String title;
   final IconData icon;
@@ -224,17 +212,15 @@ class UtilityGroup {
 }
 
 /// The outcome of one run, rendered by the output panel.
-class UtilityRunResult {
-  const UtilityRunResult({
-    required this.commandId,
-    required this.label,
-    required this.commandLine,
-    required this.exitCode,
-    required this.output,
-    required this.finishedAt,
-    this.failure,
-  });
-
+class const UtilityRunResult({
+  required this.commandId,
+  required this.label,
+  required this.commandLine,
+  required this.exitCode,
+  required this.output,
+  required this.finishedAt,
+  this.failure,
+}) {
   final String commandId;
   final String label;
   final String commandLine;

@@ -14,9 +14,8 @@ import 'workspace_pane_scope.dart';
 /// plumbing for free: the [onClose] callback, a rebuild whenever
 /// [FeatureViewState.listenable] notifies, a snackbar helper, and the standard
 /// pane chrome ([FeaturePane], [FeatureViewHeader], [FeatureStatusBar]).
-abstract class FeatureView extends StatefulWidget {
-  const FeatureView({super.key, this.onClose});
-
+abstract class const FeatureView({super.key, this.onClose})
+    extends StatefulWidget {
   /// Hides the pane (handled by the device screen). `null` for panes that
   /// cannot be closed (e.g. device home).
   final VoidCallback? onClose;
@@ -62,14 +61,12 @@ abstract class FeatureViewState<T extends FeatureView> extends State<T> {
 
 /// The standard feature-pane shell: [header] on top, [body] filling the rest,
 /// and an optional [statusBar] at the bottom, on the pane background color.
-class FeaturePane extends StatelessWidget {
-  const FeaturePane({
-    super.key,
-    this.header,
-    required this.body,
-    this.statusBar,
-  });
-
+class const FeaturePane({
+  super.key,
+  this.header,
+  required this.body,
+  this.statusBar,
+}) extends StatelessWidget {
   final Widget? header;
   final Widget body;
   final Widget? statusBar;
@@ -100,17 +97,15 @@ class FeaturePane extends StatelessWidget {
 /// sits in a tab group its tab chip is the title bar — title, close button,
 /// drag handle — so the header keeps only its actions, and is not drawn at
 /// all when it has none (see [WorkspacePaneScope]).
-class FeatureViewHeader extends StatelessWidget {
-  const FeatureViewHeader({
-    super.key,
-    required this.title,
-    this.leading,
-    this.actions = const [],
-    this.trailing = const [],
-    this.onClose,
-    this.closeTooltip = 'Close pane',
-  });
-
+class const FeatureViewHeader({
+  super.key,
+  required this.title,
+  this.leading,
+  this.actions = const [],
+  this.trailing = const [],
+  this.onClose,
+  this.closeTooltip = 'Close pane',
+}) extends StatelessWidget {
   final String title;
 
   /// Optional widget before the title (e.g. a back button).
@@ -190,13 +185,11 @@ class FeatureViewHeader extends StatelessWidget {
 /// longer fit — nothing is dropped or truncated. While they do fit the row
 /// behaves normally, so a [Spacer] still pushes the trailing group to the
 /// right edge.
-class FeatureStatusBar extends StatelessWidget {
-  const FeatureStatusBar({
-    super.key,
-    required this.children,
-    this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-  });
-
+class const FeatureStatusBar({
+  super.key,
+  required this.children,
+  this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+}) extends StatelessWidget {
   final List<Widget> children;
   final EdgeInsetsGeometry padding;
 

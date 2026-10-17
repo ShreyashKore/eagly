@@ -12,12 +12,10 @@ enum AppsViewMode {
 
 /// App icon size in the Apps pane, shared by the grid, the list and the
 /// recently-installed row.
-enum AppIconSize {
+enum AppIconSize(this.extent, this.label) {
   small(40, 'Small'),
   medium(52, 'Medium'),
   large(72, 'Large');
-
-  const AppIconSize(this.extent, this.label);
 
   /// Icon edge length in logical pixels.
   final double extent;

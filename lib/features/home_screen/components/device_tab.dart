@@ -13,18 +13,16 @@ import 'context_menu_helper.dart';
 import 'entrance_reveal.dart';
 import 'workspace_label.dart';
 
-class DeviceTab extends StatefulWidget {
-  const DeviceTab({
-    super.key,
-    required this.session,
-    this.disambiguate = false,
-    required this.selected,
-    required this.animateIn,
-    required this.onSelect,
-    required this.onReload,
-    required this.onClose,
-  });
-
+class const DeviceTab({
+  super.key,
+  required this.session,
+  this.disambiguate = false,
+  required this.selected,
+  required this.animateIn,
+  required this.onSelect,
+  required this.onReload,
+  required this.onClose,
+}) extends StatefulWidget {
   /// A tab is as wide as its label needs, up to [maxWidth] — twice the
   /// widest a tab used to be (a 160 px label plus its dot, icon and close
   /// button). When the strip runs out of room the widest tabs shrink first,
@@ -219,9 +217,8 @@ class _DeviceTabState extends State<DeviceTab> with TickerProviderStateMixin {
 
 /// Paints a one-shot shimmer band that sweeps across the tab plus a soft glow
 /// border that pulses in and out — the "highlight wave" for a new device.
-class _HighlightWavePainter extends CustomPainter {
-  _HighlightWavePainter({required this.progress, required this.color});
-
+class _HighlightWavePainter({required this.progress, required this.color})
+    extends CustomPainter {
   /// 0 → 1 over the life of the wave.
   final double progress;
   final Color color;

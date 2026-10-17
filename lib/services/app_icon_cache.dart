@@ -20,9 +20,7 @@ import 'package:path_provider/path_provider.dart';
 ///
 /// Purely cosmetic — every operation is best-effort and never throws, so a
 /// missing directory or a corrupt file can't disturb the Apps feature itself.
-class AppIconCache {
-  AppIconCache._();
-
+class AppIconCache._() {
   /// Process-wide instance used by [AppsController]. Shared so controllers for
   /// different devices read the same in-memory copy.
   static final AppIconCache instance = AppIconCache._();

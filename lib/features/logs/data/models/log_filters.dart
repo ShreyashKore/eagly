@@ -9,13 +9,11 @@ enum FilterMatchMode { contains, exact, regex }
 
 /// A single filter value, how it should be matched, and whether the result is
 /// negated. Matching is always case-insensitive.
-class FilterTerm {
-  FilterTerm(
-    this.value, {
-    this.mode = FilterMatchMode.contains,
-    this.negate = false,
-  });
-
+class FilterTerm(
+  this.value, {
+  this.mode = FilterMatchMode.contains,
+  this.negate = false,
+}) {
   final String value;
   final FilterMatchMode mode;
   final bool negate;
@@ -66,21 +64,19 @@ class FilterTerm {
   String get signature => '${negate ? '!' : ''}${mode.index}:$value';
 }
 
-class LogFilters {
-  const LogFilters({
-    required this.messageText,
-    required this.packageText,
-    required this.pidTidText,
-    required this.tagText,
-    required this.messageTerms,
-    required this.rawTerms,
-    required this.packageTerms,
-    required this.pidTidTerms,
-    required this.tagTerms,
-    required this.level,
-    this.maxAge,
-  });
-
+class const LogFilters({
+  required this.messageText,
+  required this.packageText,
+  required this.pidTidText,
+  required this.tagText,
+  required this.messageTerms,
+  required this.rawTerms,
+  required this.packageTerms,
+  required this.pidTidTerms,
+  required this.tagTerms,
+  required this.level,
+  this.maxAge,
+}) {
   final String messageText;
   final String packageText;
   final String pidTidText;
@@ -363,9 +359,7 @@ LogFilters _parseFilters(
 
 /// The key, value, match mode, and negation extracted from a single typed
 /// token shaped `[-]key[=|~]:value`.
-class KeyedFilterToken {
-  const KeyedFilterToken(this.key, this.value, this.mode, this.negate);
-
+class const KeyedFilterToken(this.key, this.value, this.mode, this.negate) {
   final FilterKey key;
   final String value;
   final FilterMatchMode mode;

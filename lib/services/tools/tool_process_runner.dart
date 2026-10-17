@@ -7,13 +7,11 @@ import '../../features/app_log/app_logger.dart';
 import '../../utils/tools_path.dart';
 import '../../utils/log_entry_utils.dart';
 
-class ToolCommandResult {
-  const ToolCommandResult({
-    required this.exitCode,
-    required this.stdout,
-    required this.stderr,
-  });
-
+class const ToolCommandResult({
+  required this.exitCode,
+  required this.stdout,
+  required this.stderr,
+}) {
   factory ToolCommandResult.fromProcessResult(ProcessResult result) {
     return ToolCommandResult(
       exitCode: result.exitCode,
@@ -38,17 +36,18 @@ class ToolCommandResult {
   }
 }
 
-class ToolStreamSession<T> {
-  ToolStreamSession({required this.stream, required this._onStop});
-
+class ToolStreamSession<T>({required this.stream, required this._onStop}) {
   final Stream<T> stream;
   final Future<void> Function() _onStop;
 
   Future<void> stop() => _onStop();
 }
 
-abstract class ToolProcessRunner {
-  ToolProcessRunner({required this.executableName, String? executablePath})
+abstract class ToolProcessRunner({
+  required this.executableName,
+  String? executablePath,
+}) {
+  this
     : executable =
           executablePath ??
           resolveBundledExecutablePath(executableName) ??

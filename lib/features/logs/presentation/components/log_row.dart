@@ -8,7 +8,27 @@ import '../../../../utils/text_search_pattern.dart';
 import '../log_viewer_constants.dart';
 import 'log_viewer.dart';
 
-class LogRow extends StatelessWidget {
+class const LogRow({
+  super.key,
+  required this.log,
+  required this.index,
+  required this.messageWidth,
+  required this.isSelected,
+  required this.widthOf,
+  required this.isVisible,
+  required this.lastVisibleColumn,
+  required this.search,
+  required this.currentMatchLogIndex,
+  required this.wrapText,
+  required this.monoStyle,
+  required this.wholeRowSelectionEnabled,
+  required this.allowSelectionStart,
+  this.onRowSelectionChanged,
+  this.onSelectionPointerDown,
+  this.onSelectionPointerMove,
+  this.onRowContextMenuRequested,
+  required this.contentValueForColumn,
+}) extends StatelessWidget {
   final LogEntry log;
   final int index;
   final double messageWidth;
@@ -27,28 +47,6 @@ class LogRow extends StatelessWidget {
   final ValueChanged<PointerMoveEvent>? onSelectionPointerMove;
   final ValueChanged<Offset>? onRowContextMenuRequested;
   final String Function(LogColumn) contentValueForColumn;
-
-  const LogRow({
-    super.key,
-    required this.log,
-    required this.index,
-    required this.messageWidth,
-    required this.isSelected,
-    required this.widthOf,
-    required this.isVisible,
-    required this.lastVisibleColumn,
-    required this.search,
-    required this.currentMatchLogIndex,
-    required this.wrapText,
-    required this.monoStyle,
-    required this.wholeRowSelectionEnabled,
-    required this.allowSelectionStart,
-    this.onRowSelectionChanged,
-    this.onSelectionPointerDown,
-    this.onSelectionPointerMove,
-    this.onRowContextMenuRequested,
-    required this.contentValueForColumn,
-  });
 
   Color _specialAccentColor(BuildContext context) {
     final theme = context.eaglyTheme;

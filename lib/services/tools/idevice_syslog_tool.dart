@@ -7,9 +7,8 @@ import '../../features/logs/services/log_parsers/ios_syslog_parser.dart';
 import '../../features/logs/services/log_parsers/log_line_parser.dart';
 import 'tool_process_runner.dart';
 
-class IdeviceSyslogTool extends ToolProcessRunner {
-  IdeviceSyslogTool({super.executablePath})
-    : super(executableName: 'idevicesyslog');
+class IdeviceSyslogTool({super.executablePath}) extends ToolProcessRunner {
+  this : super(executableName: 'idevicesyslog');
 
   ToolStreamSession<LogEntry> start({
     required String deviceId,

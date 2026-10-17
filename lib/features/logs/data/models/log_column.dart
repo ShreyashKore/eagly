@@ -1,4 +1,4 @@
-enum LogColumn {
+enum LogColumn(this.label, this.defaultWidth, this.maxWidth) {
   timestamp('Timestamp', 170.0, 250.0),
   pid('Package', 150.0, 200.0),
   tid('PID/TID', 65.0, 100.0),
@@ -9,8 +9,6 @@ enum LogColumn {
   final String label;
   final double defaultWidth;
   final double maxWidth;
-
-  const LogColumn(this.label, this.defaultWidth, this.maxWidth);
 
   static const double minWidth = 30.0;
 

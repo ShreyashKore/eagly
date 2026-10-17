@@ -2,18 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../../../presentation/theme/app_theme.dart';
 
-class RailButton extends StatelessWidget {
-  const RailButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.isActive,
-    required this.tooltip,
-    required this.onTap,
-    this.enabled = true,
-    this.busy = false,
-  });
-
+class const RailButton({
+  super.key,
+  required this.icon,
+  required this.label,
+  required this.isActive,
+  required this.tooltip,
+  required this.onTap,
+  this.enabled = true,
+  this.busy = false,
+}) extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool isActive;

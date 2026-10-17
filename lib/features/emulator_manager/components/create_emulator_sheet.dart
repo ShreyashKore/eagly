@@ -9,13 +9,11 @@ import '../data/system_image.dart';
 
 /// What the user filled in.
 @immutable
-class CreateEmulatorRequest {
-  const CreateEmulatorRequest({
-    required this.name,
-    required this.packagePath,
-    this.deviceProfileId,
-  });
-
+class const CreateEmulatorRequest({
+  required this.name,
+  required this.packagePath,
+  this.deviceProfileId,
+}) {
   final String name;
   final String packagePath;
   final String? deviceProfileId;
@@ -28,15 +26,13 @@ class CreateEmulatorRequest {
 /// `sdkmanager`, a licence prompt and gigabytes of transfer — a different
 /// feature, deliberately out of scope, so an SDK with no images says so
 /// instead of pretending.
-class CreateEmulatorSheet extends StatefulWidget {
-  const CreateEmulatorSheet({
-    super.key,
-    required this.systemImages,
-    required this.deviceProfiles,
-    required this.isLoading,
-    required this.existingNames,
-  });
-
+class const CreateEmulatorSheet({
+  super.key,
+  required this.systemImages,
+  required this.deviceProfiles,
+  required this.isLoading,
+  required this.existingNames,
+}) extends StatefulWidget {
   final List<SystemImage> systemImages;
   final List<DeviceProfile> deviceProfiles;
   final bool isLoading;
