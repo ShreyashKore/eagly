@@ -309,11 +309,25 @@ pub async fn start_ios_syslog(
     udid: String,
     session_id: String,
 ) -> Result<(), IosError> {
-    let provider = provider_for(&udid).await?;
-    let mut client = SyslogRelayClient::connect(&provider).await?;
-
-    let token = CancellationToken::new();
-    register_syslog_session(&session_id, token.clone());
+    // Claimed before connecting, which takes a while: a stop that lands in the
+    // meantime has to find a token to cancel rather than a missing entry.
+    let token = claim_syslog_session(&session_id);
+    let connected = async {
+        let provider = provider_for(&udid).await?;
+        Ok::<_, IosError>(SyslogRelayClient::connect(&provider).await?)
+    }
+    .await;
+    let mut client = match connected {
+        Ok(client) => client,
+        Err(error) => {
+            forget_syslog_session(&session_id);
+            return Err(error);
+        }
+    };
+    if token.is_cancelled() {
+        forget_syslog_session(&session_id);
+        return Ok(());
+    }
 
     tokio::spawn(async move {
         loop {
@@ -347,24 +361,31 @@ pub async fn start_ios_syslog(
     Ok(())
 }
 
-/// Stops the stream started under `session_id`. Idempotent, and a no-op for a
-/// stream that already ended on its own.
+/// Stops the stream started under `session_id`. Idempotent.
+///
+/// Bridge calls run concurrently, so this can overtake the
+/// [`start_ios_syslog`] it follows. With nothing registered yet it leaves a
+/// cancelled token behind for that start to claim and give up on — which is
+/// also why Dart only calls this for a stream that has not already ended: a
+/// stop with no start to follow would leave that token behind for good.
 pub async fn stop_ios_syslog(session_id: String) {
-    let token = SYSLOG_SESSIONS
-        .lock()
-        .expect("syslog session registry poisoned")
-        .remove(&session_id);
-
-    if let Some(token) = token {
-        token.cancel();
-    }
-}
-
-fn register_syslog_session(session_id: &str, token: CancellationToken) {
     SYSLOG_SESSIONS
         .lock()
         .expect("syslog session registry poisoned")
-        .insert(session_id.to_string(), token);
+        .entry(session_id)
+        .or_default()
+        .cancel();
+}
+
+/// The token for `session_id`: a fresh one, or the cancelled one a stop that
+/// arrived first left behind.
+fn claim_syslog_session(session_id: &str) -> CancellationToken {
+    SYSLOG_SESSIONS
+        .lock()
+        .expect("syslog session registry poisoned")
+        .entry(session_id.to_string())
+        .or_default()
+        .clone()
 }
 
 fn forget_syslog_session(session_id: &str) {
