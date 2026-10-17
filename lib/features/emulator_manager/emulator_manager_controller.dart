@@ -97,7 +97,8 @@ class EmulatorManagerController extends ChangeNotifier {
   List<SystemImage> _systemImages = const [];
   List<DeviceProfile> _deviceProfiles = const [];
   var _loadingCreationOptions = false;
-  var _hasLoadedCreationOptions = false;
+  // The SDK the creation options were read from; null until they are.
+  String? _creationOptionsSdkPath;
 
   var _loading = false;
   var _busy = false;
@@ -154,7 +155,7 @@ class EmulatorManagerController extends ChangeNotifier {
   List<DeviceProfile> get deviceProfiles => List.unmodifiable(_deviceProfiles);
 
   bool get isLoadingCreationOptions => _loadingCreationOptions;
-  bool get hasLoadedCreationOptions => _hasLoadedCreationOptions;
+  bool get hasLoadedCreationOptions => _creationOptionsSdkPath != null;
 
   /// Names of AVDs whose launch has been fired but whose device has not booted
   /// yet.
@@ -195,6 +196,14 @@ class EmulatorManagerController extends ChangeNotifier {
       // two screens.
       final sdk = _locateSdk();
       _sdk = sdk;
+      // Images and profiles belong to one SDK; a new path makes them stale,
+      // and the next [loadCreationOptions] reads the new one's.
+      if (_creationOptionsSdkPath != null &&
+          _creationOptionsSdkPath != sdk.sdkPath) {
+        _creationOptionsSdkPath = null;
+        _systemImages = const [];
+        _deviceProfiles = const [];
+      }
 
       if (!sdk.isReady) {
         _emulators = const [];
@@ -365,10 +374,9 @@ class EmulatorManagerController extends ChangeNotifier {
   /// itself changes under it.
   Future<void> loadCreationOptions({bool force = false}) async {
     if (_disposed || _loadingCreationOptions) return;
-    if (_hasLoadedCreationOptions && !force) return;
-
     final sdk = _sdk;
     if (sdk == null || !sdk.isReady) return;
+    if (_creationOptionsSdkPath == sdk.sdkPath && !force) return;
 
     _loadingCreationOptions = true;
     _notify();
@@ -383,7 +391,7 @@ class EmulatorManagerController extends ChangeNotifier {
           : await avdManager.listDeviceProfiles();
       if (_disposed) return;
 
-      _hasLoadedCreationOptions = true;
+      _creationOptionsSdkPath = sdk.sdkPath;
     } finally {
       _loadingCreationOptions = false;
       _notify();
