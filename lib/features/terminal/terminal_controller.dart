@@ -247,8 +247,16 @@ class TerminalController extends FeatureController {
 
     StreamSubscription<TerminalOutputChunk>? subscription;
     try {
-      final process = await service.startTerminalProcess(invocation);
+      final process = await service.startTerminalProcess(
+        invocation,
+        isCancelled: () => _cancelRequested || _disposed,
+      );
       _starting = false;
+      if (process == null) {
+        // Cancelled before the command was launched at all.
+        _push(const TerminalLine.notice('Stopped.'));
+        return;
+      }
       if (_disposed) {
         unawaited(process.kill());
         return;

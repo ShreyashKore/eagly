@@ -261,11 +261,13 @@ class FakeSessionService extends DeviceSessionRepository {
   Completer<void>? terminalStartGate;
 
   @override
-  Future<TerminalProcessSession> startTerminalProcess(
-    TerminalInvocation invocation,
-  ) async {
+  Future<TerminalProcessSession?> startTerminalProcess(
+    TerminalInvocation invocation, {
+    bool Function()? isCancelled,
+  }) async {
     terminalRequests.add(invocation);
     await terminalStartGate?.future;
+    if (isCancelled?.call() ?? false) return null;
     final error = terminalStartError;
     if (error != null) throw error;
     final process = FakeTerminalProcess();

@@ -628,14 +628,20 @@ class DeviceSessionRepository {
   /// the one this repository is bound to. Nothing here rewrites the command;
   /// this only owns process startup, output merging and teardown. Throws when
   /// the tool cannot be started at all.
-  Future<TerminalProcessSession> startTerminalProcess(
-    TerminalInvocation invocation,
-  ) async {
+  ///
+  /// Returns `null` when [isCancelled] turns true while the adb server is
+  /// still starting: the command is never launched, so a cancelled
+  /// `adb reboot` doesn't get to run before it is killed.
+  Future<TerminalProcessSession?> startTerminalProcess(
+    TerminalInvocation invocation, {
+    bool Function()? isCancelled,
+  }) async {
     final runner = _toolRunner(invocation.executable);
     _sessionLogger.info('Terminal: ${invocation.displayCommand}');
     if (invocation.executable == _adbExecutableName) {
       await _adbTool.ensureServerRunning();
     }
+    if (isCancelled?.call() ?? false) return null;
 
     final process = await runner.startProcess(invocation.arguments);
     final output = StreamController<TerminalOutputChunk>();

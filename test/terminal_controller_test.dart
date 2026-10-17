@@ -374,7 +374,7 @@ void main() {
       },
     );
 
-    test('cancel while starting kills the process once it exists', () async {
+    test('cancel while starting never launches the command', () async {
       createController();
       final gate = service.terminalStartGate = Completer<void>();
       final pending = controller.submit('adb logcat');
@@ -384,7 +384,7 @@ void main() {
       gate.complete();
       await pending;
 
-      expect(service.terminalProcesses.single.killed, isTrue);
+      expect(service.terminalProcesses, isEmpty);
       expect(textOf(TerminalLineKind.notice), contains('Stopped.'));
       expect(controller.isRunning, isFalse);
     });
