@@ -122,6 +122,11 @@ class LogController extends FeatureController {
   /// buffer for each of them would cost a full rescan per frame.
   int _packageIndexRelevance = 0;
 
+  /// Set when a learned mapping left the buffer's retention flags stale.
+  /// Re-flagging rescans every stored entry, so it waits for the next append
+  /// rather than running once per learned PID.
+  bool _logBufferFilterDirty = false;
+
   StreamSubscription<LogEntry>? _logSub;
   StreamSubscription<Map<String, String>>? _pidPackageUpdatesSub;
   Timer? _flushTimer;
@@ -877,7 +882,8 @@ class LogController extends FeatureController {
   void _learnPidPackage(LogEntry entry) {
     final learned = _pidPackages.record(entry);
     if (learned != null && _bearsOnPackageFilter(learned)) {
-      _applyRelevantPidPackage();
+      _packageIndexRelevance++;
+      _logBufferFilterDirty = true;
     }
   }
 
@@ -933,7 +939,13 @@ class LogController extends FeatureController {
       _hasActiveRetentionFilter ? _matchesLogFilters : null;
 
   void _syncLogBufferFilter() {
+    _logBufferFilterDirty = false;
     _logsBuffer.setFilter(_retentionFilter);
+  }
+
+  /// Re-flags stored entries before an append can evict by stale flags.
+  void _syncLogBufferFilterIfDirty() {
+    if (_logBufferFilterDirty) _syncLogBufferFilter();
   }
 
   void _replaceStoredLogs(Iterable<LogEntry> entries) {
@@ -988,6 +1000,7 @@ class LogController extends FeatureController {
   }
 
   void _appendImmediateLogEntry(LogEntry entry) {
+    _syncLogBufferFilterIfDirty();
     final evictedLogs = _logsBuffer.append(entry);
     final addedBytes = estimateLogEntryBytes(entry);
     final evictedBytes = estimateLogsBytes(evictedLogs);
@@ -1111,6 +1124,7 @@ class LogController extends FeatureController {
     final pendingLogsMemoryBytes = _pendingLogsMemoryBytes;
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
+    _syncLogBufferFilterIfDirty();
 
     var evictedMemoryBytes = 0;
     var didEvictStoredLogs = false;

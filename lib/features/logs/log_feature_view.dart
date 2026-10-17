@@ -206,7 +206,7 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
   }
 
   Widget _buildFilterArea(BuildContext context, LogController controller) =>
-      LogFilterArea(controller: controller);
+      LogFilterArea(key: ObjectKey(controller), controller: controller);
 
   Widget _buildViewerArea(BuildContext context, LogController controller) {
     final filtered = controller.filteredLogs;
