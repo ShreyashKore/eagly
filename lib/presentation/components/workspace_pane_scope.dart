@@ -201,6 +201,11 @@ class PaneDragArea extends StatelessWidget {
   }
 }
 
+/// How far the pointer must travel on a pane's handle — its grip, its title
+/// area, its tab chip — before a press becomes a move. Far enough that a
+/// shaky click, or a brush across a header, leaves the layout alone.
+const double paneDragSlop = 20;
+
 /// A pan that needs a deliberate move to begin. A mouse pan normally wins
 /// the gesture arena after 2 px, which turns a slightly shaky click on the
 /// grip into a drag that goes nowhere, instead of opening its menu — and a
@@ -208,13 +213,14 @@ class PaneDragArea extends StatelessWidget {
 class _PaneDragRecognizer extends PanGestureRecognizer {
   _PaneDragRecognizer({super.debugOwner});
 
-  static const double _slop = 20;
-
   @override
   bool hasSufficientGlobalDistanceToAccept(
     PointerDeviceKind pointerDeviceKind,
     double? deviceTouchSlop,
   ) =>
       globalDistanceMoved.abs() >
-      math.max(_slop, computePanSlop(pointerDeviceKind, gestureSettings));
+      math.max(
+        paneDragSlop,
+        computePanSlop(pointerDeviceKind, gestureSettings),
+      );
 }

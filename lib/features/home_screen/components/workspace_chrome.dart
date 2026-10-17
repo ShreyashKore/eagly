@@ -2,6 +2,8 @@ import 'package:fl_panel/fl_panel.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../../../presentation/components/workspace_pane_scope.dart';
+
 /// How the device workspace draws fl_panel's chrome — everything that is
 /// not a pane's own content.
 ///
@@ -9,7 +11,8 @@ import 'package:flutter/material.dart';
 ///   title bar, and its `PaneGrip` / title area is what drags it, so the
 ///   header fl_panel would draw above a single panel is zero-height.
 /// - **A tab strip only for a real group.** A group of one (what a tab
-///   dragged out of a strip becomes) looks exactly like a single panel.
+///   dragged out of a strip becomes) looks exactly like a single panel. Its
+///   chips move their tabs only after [paneDragSlop], like a pane header.
 /// - **A visible divider** with a grip in the middle, so resizing is
 ///   discoverable, lighting up under the pointer.
 class WorkspaceChrome extends DefaultPanelChrome {
@@ -32,7 +35,10 @@ class WorkspaceChrome extends DefaultPanelChrome {
     if (group.tabs.length < 2) return const SizedBox.shrink();
     return MetaData(
       metaData: WorkspaceStripSlot(group.id, group.tabs.length),
-      child: super.buildStrip(context, scope),
+      child: _DeliberateDragStrip(
+        scope: scope,
+        builder: (context, scope) => super.buildStrip(context, scope),
+      ),
     );
   }
 
@@ -51,6 +57,137 @@ class WorkspaceChrome extends DefaultPanelChrome {
       ),
     ),
   );
+}
+
+/// Holds back the drags fl_panel's strip starts — from a chip or the strip's
+/// background — until the pointer is [paneDragSlop] from where it was
+/// pressed. fl_panel starts them after a mouse pan's 2 px, which a shaky click
+/// on a chip reaches, and no gesture setting moves that for a mouse; so the
+/// strip is handed callbacks that wait instead.
+class _DeliberateDragStrip extends StatefulWidget {
+  const _DeliberateDragStrip({required this.scope, required this.builder});
+
+  final StripScope scope;
+  final Widget Function(BuildContext context, StripScope scope) builder;
+
+  @override
+  State<_DeliberateDragStrip> createState() => _DeliberateDragStripState();
+}
+
+class _DeliberateDragStripState extends State<_DeliberateDragStrip> {
+  /// Built once per fl_panel callbacks object, which the host keeps across
+  /// frames, so the strip still sees equal inputs and its gesture state
+  /// survives a rebuild mid-press.
+  late ChromeCallbacks _callbacks;
+
+  ChromeCallbacks get _host => widget.scope.callbacks;
+
+  /// Where the latest press went down. A pan reports where it won the
+  /// arena, already some way along, so the distance is measured from here.
+  Offset? _down;
+
+  // The press under way: which chip (or strip) it is on, where it began,
+  // and whether it has gone far enough to be handed to fl_panel.
+  String? _tabId;
+  String? _leafId;
+  Offset? _origin;
+  bool _dragging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _callbacks = _hold(_host);
+  }
+
+  @override
+  void didUpdateWidget(_DeliberateDragStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(_host, oldWidget.scope.callbacks)) {
+      _callbacks = _hold(_host);
+    }
+  }
+
+  ChromeCallbacks _hold(ChromeCallbacks host) => ChromeCallbacks(
+    onActivate: host.onActivate,
+    onClose: host.onClose,
+    onCloseLeaf: host.onCloseLeaf,
+    onFocusLeaf: host.onFocusLeaf,
+    onDragTabStart: (tabId, global) => _press(global, tabId: tabId),
+    onDragLeafStart: (leafId, global) => _press(global, leafId: leafId),
+    onDragUpdate: _move,
+    onDragEnd: _release,
+    onDragCancel: _cancel,
+    onTabSecondaryTap: host.onTabSecondaryTap,
+    onStripSecondaryTap: host.onStripSecondaryTap,
+    onHeaderSecondaryTap: host.onHeaderSecondaryTap,
+  );
+
+  void _press(Offset global, {String? tabId, String? leafId}) {
+    _tabId = tabId;
+    _leafId = leafId;
+    _origin = _down ?? global;
+    _dragging = false;
+  }
+
+  void _move(Offset global) {
+    final origin = _origin;
+    if (origin == null) return;
+    if (_dragging) return _host.onDragUpdate(global);
+    if ((global - origin).distance <= paneDragSlop) return;
+    _dragging = true;
+    // Starting hit-tests at [global] too, so no update is needed with it.
+    if (_tabId case final tabId?) {
+      _host.onDragTabStart(tabId, global);
+    } else if (_leafId case final leafId?) {
+      _host.onDragLeafStart(leafId, global);
+    }
+  }
+
+  void _release() {
+    if (_dragging) {
+      _host.onDragEnd();
+    } else if (_tabId case final tabId?) {
+      // The pan took the press from the chip's tap at 2 px, so a click that
+      // wobbled less than the slop lands here; it still selects the tab.
+      _host.onActivate(tabId);
+    }
+    _reset();
+  }
+
+  void _cancel() {
+    if (_dragging) _host.onDragCancel();
+    _reset();
+  }
+
+  void _reset() {
+    _tabId = null;
+    _leafId = null;
+    _origin = null;
+    _dragging = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = widget.scope;
+    final strip = widget.builder(
+      context,
+      StripScope(
+        windowId: scope.windowId,
+        theme: scope.theme,
+        callbacks: _callbacks,
+        decorations: scope.decorations,
+        titleOf: scope.titleOf,
+        focused: scope.focused,
+        group: scope.group,
+        scrollController: scope.scrollController,
+        reveal: scope.reveal,
+      ),
+    );
+    return Listener(
+      onPointerDown: (event) => _down = event.position,
+      child: strip,
+    );
+  }
 }
 
 /// Marks a tab strip for the workspace's own drop hit-test — the one a drag
