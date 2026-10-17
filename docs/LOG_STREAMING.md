@@ -70,7 +70,7 @@ single A
 
 ```
 
-**Why not `-v threadtime`** (what Eagly used until `e155775`): it repeats the header on
+**Why not `-v threadtime`** (what Eagly used until `e6db4ad`): it repeats the header on
 *every* line of a multi-line message —
 
 ```
@@ -131,7 +131,7 @@ sent to Dart is one **complete message**, embedded newlines included:
 Sep 26 23:13:41.123456 softwareupdateservicesd(MobileSoftwareUpdate)[243] <Notice>: … state:{\n    ActionText = "…";\n}
 ```
 
-Feeding that to a line parser was the bug fixed in `8b63d95`: the header regex doesn't match
+Feeding that to a line parser was the bug fixed in `5de89c2`: the header regex doesn't match
 a string containing `\n`, so a multi-line message was appended to the *previous* entry, under
 its timestamp and PID. `parseLogRecords` splits each record on `\n`, feeds the pieces, and
 flushes at the record boundary — the one place where the end of an entry is known for certain.
@@ -277,9 +277,8 @@ platform-tools/macos/idevicesyslog | head -50
 
 ## Known limitations
 
-> **Open review findings** (PR #66, 2026-10-17) — including that some tests cited above are not
-> on this branch yet and that the `LogController` ordering rule is not implemented — are tracked
-> in docs/IOS_RUST_MIGRATION.md → *Open issues*.
+> Open review findings on the Rust iOS path (PR #66) are tracked in
+> docs/IOS_RUST_MIGRATION.md → *Open issues*.
 
 - **A split entry shows as two rows with the same header.** Only when a tool pauses for over
   100–200 ms mid-entry (iOS CLI), or over ~1 s before the logcat footer. Seen once in about
