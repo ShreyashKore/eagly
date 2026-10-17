@@ -75,7 +75,7 @@ void main() {
       tester.getCenter(gripOf(pane)),
       kind: PointerDeviceKind.mouse,
     );
-    await gesture.moveBy(const Offset(12, 0));
+    await gesture.moveBy(const Offset(24, 0));
     await tester.pump();
     await gesture.moveTo(to);
     await tester.pump();
@@ -215,7 +215,7 @@ void main() {
         tester.getCenter(gripOf(WorkspacePane.logs)),
         kind: PointerDeviceKind.mouse,
       );
-      await gesture.moveBy(const Offset(3, 2));
+      await gesture.moveBy(const Offset(12, 8));
       await gesture.up();
       await tester.pumpAndSettle();
 
@@ -461,7 +461,7 @@ void main() {
         tester.getCenter(title('Terminal')),
         kind: PointerDeviceKind.mouse,
       );
-      await gesture.moveBy(const Offset(-12, 0));
+      await gesture.moveBy(const Offset(-24, 0));
       await tester.pump();
       await gesture.moveTo(Offset(utilities.center.dx, utilities.bottom - 120));
       await tester.pump();
