@@ -532,11 +532,14 @@ class AppTheme {
       // selection fill — the way platform label colors do. Contrast falls
       // off differently per polarity, so each brightness has its own steps;
       // test/text_emphasis_test.dart holds them apart and above AA.
+      // Tertiary sits just above AA on surfaceContainerHighest, and secondary
+      // just far enough above it to read as its own step; neither can drop
+      // further without the test failing.
       secondaryTextColor: colorScheme.onSurface.withValues(
-        alpha: isDark ? 0.72 : 0.76,
+        alpha: isDark ? 0.68 : 0.70,
       ),
       tertiaryTextColor: colorScheme.onSurface.withValues(
-        alpha: isDark ? 0.58 : 0.64,
+        alpha: isDark ? 0.56 : 0.62,
       ),
     );
   }
