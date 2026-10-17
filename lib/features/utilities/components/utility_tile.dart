@@ -4,11 +4,15 @@ import 'package:gap/gap.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../data/utility_command.dart';
 
-/// One row in the utilities list: a tinted icon, the label + description, and
-/// a trailing chip that spells out what clicking will do next — open a
+/// One row in the utilities list: an icon, the label + description, and a
+/// trailing chip that spells out what clicking will do next — open a
 /// parameters dialog, ask for confirmation, or run straight away. The chip is
 /// the whole point of the row's right-hand side: a new user should never have
 /// to click a utility to find out whether it is about to do something.
+///
+/// Color is kept for what needs a second look: a destructive command's icon
+/// and chip. Everything else is neutral and steps down in emphasis — label,
+/// then description, then the chip, which comes up to full strength on hover.
 class UtilityTile extends StatefulWidget {
   const UtilityTile({
     super.key,
@@ -38,10 +42,11 @@ class _UtilityTileState extends State<UtilityTile> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final command = widget.command;
+    final eaglyTheme = context.eaglyTheme;
     final destructive = command.isDestructive;
     final accent = destructive
         ? theme.colorScheme.error
-        : theme.colorScheme.primary;
+        : eaglyTheme.secondaryTextColor;
 
     final row = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -68,7 +73,7 @@ class _UtilityTileState extends State<UtilityTile> {
                 Text(
                   command.description,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: eaglyTheme.secondaryTextColor,
                     height: 1.3,
                   ),
                   maxLines: 2,
@@ -124,7 +129,9 @@ class _IconBadge extends StatelessWidget {
       height: context.scaled(30),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        // Off the color's own hue at full strength: a translucent text
+        // color would otherwise give a neutral badge a near-invisible fill.
+        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(8),
       ),
       child: isRunning
@@ -152,28 +159,30 @@ class _ActionChip extends StatelessWidget {
     final theme = Theme.of(context);
     final eaglyTheme = context.eaglyTheme;
 
+    // The same neutral chip repeats on most rows, so it sits at tertiary
+    // until the row is hovered; the warning chip is always at full strength.
+    final neutral = highlighted
+        ? theme.colorScheme.onSurface
+        : eaglyTheme.tertiaryTextColor;
     final (IconData icon, String label, Color color) = switch (command) {
       _ when command.isDestructive => (
         Icons.warning_amber_rounded,
         command.needsInput ? 'Set up' : 'Confirm',
         eaglyTheme.warningColor,
       ),
-      _ when command.needsInput => (
-        Icons.tune,
-        'Options',
-        theme.colorScheme.onSurfaceVariant,
-      ),
-      _ => (
-        Icons.play_arrow_rounded,
-        'Run',
-        theme.colorScheme.onSurfaceVariant,
-      ),
+      _ when command.needsInput => (Icons.tune, 'Options', neutral),
+      _ => (Icons.play_arrow_rounded, 'Run', neutral),
     };
+    final fill = command.isDestructive ? color : theme.colorScheme.onSurface;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: highlighted ? 0.16 : 0.08),
+        color: fill.withValues(
+          alpha: command.isDestructive
+              ? (highlighted ? 0.16 : 0.08)
+              : (highlighted ? 0.10 : 0.05),
+        ),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(

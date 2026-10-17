@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../presentation/components/app_icon_button.dart';
+import '../../../../presentation/theme/app_theme.dart';
 
 /// A single chip in the log tab strip: label, optional imported marker, and
 /// an optional close button.
@@ -34,7 +35,7 @@ class LogTabChip extends StatelessWidget {
 
     final fg = selected
         ? (isImported ? cs.onTertiaryContainer : cs.onSecondaryContainer)
-        : cs.onSurfaceVariant;
+        : context.eaglyTheme.secondaryTextColor;
 
     return Padding(
       padding: const EdgeInsets.only(right: 4),

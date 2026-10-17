@@ -110,7 +110,7 @@ class _UtilityParamsDialogState extends State<_UtilityParamsDialog> {
             Text(
               command.description,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+                color: context.eaglyTheme.secondaryTextColor,
               ),
             ),
             if (confirmation != null) ...[
@@ -227,6 +227,11 @@ class _UtilityParamsDialogState extends State<_UtilityParamsDialog> {
 }
 
 /// Shows the exact line that will run, so the dialog is never a black box.
+///
+/// It is there for whoever wants to check, not something to read before
+/// every run, so it stays a footnote: a faint well with no border, a
+/// sentence-case caption at tertiary, and the command at secondary — the
+/// fields and the Run button stay the loudest things in the dialog.
 class _CommandPreview extends StatelessWidget {
   const _CommandPreview({
     required this.commandLine,
@@ -239,14 +244,18 @@ class _CommandPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final eaglyTheme = context.eaglyTheme;
     if (commandLine == null) return const SizedBox.shrink();
 
+    final caption = theme.textTheme.labelSmall?.copyWith(
+      color: eaglyTheme.tertiaryTextColor,
+    );
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
+        color: theme.colorScheme.onSurface.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -255,33 +264,25 @@ class _CommandPreview extends StatelessWidget {
             children: [
               Icon(
                 Icons.terminal,
-                size: 13,
-                color: theme.colorScheme.onSurfaceVariant,
+                size: 12,
+                color: eaglyTheme.tertiaryTextColor,
               ),
               const Gap(6),
-              Text(
-                'WILL RUN',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.6,
-                ),
-              ),
+              Text('Will run', style: caption),
               const Spacer(),
               Text(
                 expectsOutput ? 'Shows output below' : 'No output',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+                style: caption,
               ),
             ],
           ),
-          const Gap(6),
+          const Gap(4),
           SelectableText(
             commandLine!,
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontFamily: 'monospace',
+            style: eaglyTheme.monoStyle.copyWith(
               fontSize: 11.5,
+              height: 1.35,
+              color: eaglyTheme.secondaryTextColor,
             ),
           ),
         ],

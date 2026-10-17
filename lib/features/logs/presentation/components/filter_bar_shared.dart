@@ -87,7 +87,10 @@ class FilterKeyHint extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
+        style: TextStyle(
+          fontSize: 11,
+          color: context.eaglyTheme.tertiaryTextColor,
+        ),
       ),
     );
   }
@@ -118,7 +121,7 @@ class FilterControlStyle {
   );
 
   TextStyle? get hint => label?.copyWith(
-    color: _colors.onSurfaceVariant,
+    color: _theme.extension<EaglyTheme>()!.tertiaryTextColor,
     fontWeight: FontWeight.w400,
   );
 

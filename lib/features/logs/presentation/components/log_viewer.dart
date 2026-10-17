@@ -1140,7 +1140,10 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   Widget _buildHeader(double messageWidth) {
-    final headerStyle = _applyFont(context.eaglyTheme.logHeaderStyle);
+    // Column titles label the data; they shouldn't outweigh it.
+    final headerStyle = _applyFont(
+      context.eaglyTheme.logHeaderStyle,
+    ).copyWith(color: context.eaglyTheme.secondaryTextColor);
     return LogViewerHeader(
       rowSelectionMode: widget.rowSelectionMode,
       headerStyle: headerStyle,

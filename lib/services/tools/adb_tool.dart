@@ -13,6 +13,7 @@ import '../../features/device_home/data/installed_app_info.dart';
 import '../../features/logs/data/models/log_entry.dart';
 import '../../features/wireless_connection/data/wireless_debug_models.dart';
 import '../../utils/utils.dart';
+import 'adb_install_failure.dart';
 import 'tool_process_runner.dart';
 
 class AdbTool extends ToolProcessRunner {
@@ -587,7 +588,16 @@ class AdbTool extends ToolProcessRunner {
     required String apkPath,
   }) async {
     try {
-      final result = await runText(['-s', deviceId, 'install', '-r', apkPath]);
+      // -r replaces an installed copy; -t accepts android:testOnly builds,
+      // which is what Android Studio's Run button produces.
+      final result = await runText([
+        '-s',
+        deviceId,
+        'install',
+        '-r',
+        '-t',
+        apkPath,
+      ]);
       final output = result.combinedOutput;
       final failed = !result.isSuccess || _looksLikeInstallFailure(output);
 
@@ -597,7 +607,9 @@ class AdbTool extends ToolProcessRunner {
           result,
         );
         logError('APK install failed for $deviceId', details);
-        return DeviceCommandResult.failure(error: details);
+        return DeviceCommandResult.failure(
+          error: describeAdbInstallFailure(output) ?? details,
+        );
       }
 
       return DeviceCommandResult.success(

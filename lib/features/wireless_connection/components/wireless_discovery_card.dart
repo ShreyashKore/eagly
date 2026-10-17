@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import 'discovered_wireless_target.dart';
+import '../../../presentation/theme/app_theme.dart';
 
 /// Selectable card summarizing one discovered wireless ADB device.
 class WirelessDiscoveryCard extends StatelessWidget {
@@ -50,7 +51,7 @@ class WirelessDiscoveryCard extends StatelessWidget {
                       Icons.phone_android,
                       color: selected
                           ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
+                          : context.eaglyTheme.tertiaryTextColor,
                     ),
                     const Gap(8),
                     Expanded(
@@ -70,7 +71,7 @@ class WirelessDiscoveryCard extends StatelessWidget {
                 Text(
                   target.title,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: context.eaglyTheme.secondaryTextColor,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

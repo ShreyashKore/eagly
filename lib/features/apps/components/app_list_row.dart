@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../presentation/theme/app_theme.dart';
 import '../apps_controller.dart';
 import '../data/app_info.dart';
 import 'app_tile.dart';
@@ -9,6 +10,10 @@ import 'app_tile.dart';
 /// and a details line (version, install and update times) — everything the
 /// grid only shows on hover. Tap launches (when supported); secondary-tap
 /// opens the context menu.
+///
+/// The lines step down in emphasis so a scan reads names first: the name at
+/// full strength, the package as secondary text, the details and badges as
+/// tertiary.
 class AppListRow extends StatelessWidget {
   const AppListRow({
     super.key,
@@ -28,7 +33,7 @@ class AppListRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
+    final eaglyTheme = context.eaglyTheme;
     final busy = controller.isBusyWith(app.packageName);
     final details = appDetailsLine(app);
     final hasName = app.appName != null && app.appName != app.packageName;
@@ -75,7 +80,7 @@ class AppListRow extends StatelessWidget {
                       Text(
                         app.packageName,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: muted,
+                          color: eaglyTheme.secondaryTextColor,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -84,7 +89,7 @@ class AppListRow extends StatelessWidget {
                       Text(
                         details,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: muted,
+                          color: eaglyTheme.tertiaryTextColor,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -147,6 +152,9 @@ String formatAppTime(DateTime time, [DateTime? now]) {
   return '${time.day} ${_months[time.month - 1]} ${time.year}';
 }
 
+/// A quiet tag after the name. Most rows on a device are system apps, so a
+/// bordered chip on each one turned the list into a column of boxes; a faint
+/// fill is enough to set the word apart from the name.
 class _Badge extends StatelessWidget {
   const _Badge(this.label);
 
@@ -156,16 +164,15 @@ class _Badge extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
+        color: theme.colorScheme.onSurface.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Text(
         label,
         style: theme.textTheme.labelSmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
+          color: context.eaglyTheme.tertiaryTextColor,
         ),
       ),
     );

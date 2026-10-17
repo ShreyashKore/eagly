@@ -112,7 +112,9 @@ class _TerminalLineView extends StatelessWidget {
       TerminalLineKind.input => theme.colorScheme.tertiary,
       TerminalLineKind.stdout => theme.colorScheme.onSurface,
       TerminalLineKind.stderr => eaglyTheme.errorColor,
-      TerminalLineKind.notice => theme.colorScheme.onSurfaceVariant,
+      // The terminal's own voice (exit codes, built-ins) sits a step below
+      // what the device printed.
+      TerminalLineKind.notice => eaglyTheme.secondaryTextColor,
       TerminalLineKind.error => eaglyTheme.errorColor,
     };
     final isEmphasised =
@@ -133,6 +135,7 @@ class _TerminalLineView extends StatelessWidget {
 
     // Prompt lines get the device label and a `$`, and — when a device
     // selector was injected — a tooltip with the command as actually run.
+    // The prefix is neutral tertiary so the command itself is what reads.
     final prefix = line.kind == TerminalLineKind.command
         ? '${line.prompt} \$ '
         : '> ';
@@ -142,7 +145,7 @@ class _TerminalLineView extends StatelessWidget {
           TextSpan(
             text: prefix,
             style: style.copyWith(
-              color: color.withValues(alpha: 0.65),
+              color: eaglyTheme.tertiaryTextColor,
               fontWeight: FontWeight.normal,
             ),
           ),

@@ -75,7 +75,7 @@ void main() {
       tester.getCenter(gripOf(pane)),
       kind: PointerDeviceKind.mouse,
     );
-    await gesture.moveBy(const Offset(12, 0));
+    await gesture.moveBy(const Offset(24, 0));
     await tester.pump();
     await gesture.moveTo(to);
     await tester.pump();
@@ -215,7 +215,7 @@ void main() {
         tester.getCenter(gripOf(WorkspacePane.logs)),
         kind: PointerDeviceKind.mouse,
       );
-      await gesture.moveBy(const Offset(3, 2));
+      await gesture.moveBy(const Offset(12, 8));
       await gesture.up();
       await tester.pumpAndSettle();
 
@@ -301,6 +301,58 @@ void main() {
       expect(layout.openPanes, {WorkspacePane.logs});
       expect(find.byType(TabChip), findsNothing);
       expect(gripOf(WorkspacePane.logs), findsNothing);
+    });
+
+    Finder chipOf(String title) =>
+        find.ancestor(of: find.text(title), matching: find.byType(TabChip));
+
+    testWidgets('a short wobble on a tab chip selects it, without moving it', (
+      tester,
+    ) async {
+      useWindow(tester);
+      final layout = createLayout([WorkspacePane.logs, WorkspacePane.mirror]);
+      layout.stackWith(WorkspacePane.mirror, WorkspacePane.logs);
+      await pumpWorkspace(tester, layout);
+      expect(describe(layout.root), 'tabs(logs, *mirror)');
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(chipOf('Logs')),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.moveBy(const Offset(12, 8));
+      await tester.pump();
+      expect(layout.panels.drag, isNull);
+      await gesture.up();
+      await tester.pump();
+
+      expect(describe(layout.root), 'tabs(*logs, mirror)');
+    });
+
+    testWidgets('a tab chip drags its tab out once moved far enough', (
+      tester,
+    ) async {
+      useWindow(tester);
+      final layout = createLayout([WorkspacePane.logs, WorkspacePane.mirror]);
+      layout.stackWith(WorkspacePane.mirror, WorkspacePane.logs);
+      await pumpWorkspace(tester, layout);
+      final group = tester.getRect(paneOf(WorkspacePane.mirror));
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(chipOf('Mirror')),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.moveBy(const Offset(0, 12));
+      await tester.pump();
+      expect(layout.panels.drag, isNull);
+      await gesture.moveBy(const Offset(0, 12));
+      await tester.pump();
+      expect(layout.panels.drag, isNotNull);
+      await gesture.moveTo(Offset(group.center.dx, group.bottom - 40));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+
+      expect(describe(layout.root), 'column(logs, mirror)');
     });
   });
 
@@ -461,7 +513,7 @@ void main() {
         tester.getCenter(title('Terminal')),
         kind: PointerDeviceKind.mouse,
       );
-      await gesture.moveBy(const Offset(-12, 0));
+      await gesture.moveBy(const Offset(-24, 0));
       await tester.pump();
       await gesture.moveTo(Offset(utilities.center.dx, utilities.bottom - 120));
       await tester.pump();

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import '../../../presentation/theme/app_theme.dart';
 
 /// Titled section card used by the manual entry tab.
 class WirelessManualSection extends StatelessWidget {
@@ -34,7 +35,7 @@ class WirelessManualSection extends StatelessWidget {
           Text(
             description,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: context.eaglyTheme.secondaryTextColor,
             ),
           ),
           const Gap(14),

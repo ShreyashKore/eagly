@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import '../../../presentation/theme/app_theme.dart';
 
 /// Empty-state card shown when a wireless tab has nothing to display yet.
 class WirelessPlaceholderCard extends StatelessWidget {
@@ -39,7 +40,7 @@ class WirelessPlaceholderCard extends StatelessWidget {
           Text(
             description,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: context.eaglyTheme.secondaryTextColor,
             ),
             textAlign: TextAlign.center,
           ),

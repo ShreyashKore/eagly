@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import '../../../presentation/theme/app_theme.dart';
 
 /// Single `label: value` info row with a leading icon.
 class WirelessDetailRow extends StatelessWidget {
@@ -25,10 +26,12 @@ class WirelessDetailRow extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: theme.colorScheme.primary),
           const Gap(8),
+          // The label names the value; the value is what was asked for.
           Text(
             '$label: ',
             style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
+              color: context.eaglyTheme.secondaryTextColor,
             ),
           ),
           Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),

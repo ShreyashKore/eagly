@@ -33,7 +33,9 @@ class TerminalTabChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final fg = selected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+    final fg = selected
+        ? cs.onSecondaryContainer
+        : context.eaglyTheme.secondaryTextColor;
 
     return Padding(
       padding: const EdgeInsets.only(right: 4),

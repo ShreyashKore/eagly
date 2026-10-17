@@ -1,3 +1,7 @@
+<div align="center">
+
+<img src="assets/app_icon.png" width="128" height="128" alt="Eagly app icon">
+
 # Eagly — Universal Logcat & Console for Android and iOS
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
@@ -6,15 +10,25 @@
 [![Size](https://img.shields.io/badge/Download-under%2050%20MB-brightgreen)](#download)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
+</div>
+
 **Eagly** is a lightweight, cross-platform **desktop log viewer** for **Android** and
 **iOS** devices. View **logcat** and **iOS device logs & crash reports** on **Windows,
 macOS, and Linux** — no Android Studio, no Xcode, and no command-line setup required.
 It works as a **universal ADB** and **universal logcat** console: stream live logs,
 mirror and control the screen, browse files, read iOS crashes, and install apps. `adb`
-and `libimobiledevice` come bundled, the whole app is **under 50 MB**, and it stays
-light on memory.
+comes bundled, iOS support is built in through a native Rust library, the whole app is
+**under 50 MB**, and it stays light on memory.
 
-**Jump to:** [Download](#download) · [Why Eagly?](#why-eagly) · [Features](#features) · [Screenshots](#screenshots) · [Usage](#usage) · [Build from Source](#building-from-source)
+<p align="center">
+  <a href="https://youtu.be/J2qIVXgC3Fk">
+    <img src="https://img.youtube.com/vi/J2qIVXgC3Fk/maxresdefault.jpg" width="720" alt="Eagly demo video — viewing Android and iOS logs on Windows, Linux and macOS">
+  </a>
+  <br>
+  <sub>▶️ <a href="https://youtu.be/J2qIVXgC3Fk"><b>Watch the demo on YouTube</b></a></sub>
+</p>
+
+**Jump to:** [Download](#download) · [What's new](#whats-new) · [Why Eagly?](#why-eagly) · [Features](#features) · [Screenshots](#screenshots) · [Usage](#usage) · [Build from Source](#building-from-source)
 
 ---
 
@@ -59,10 +73,40 @@ light on memory.
 
 For all versions and changelogs, see the [Releases](https://github.com/ShreyashKore/eagly/releases) page.
 
-Every build is **under 50 MB** and runs with a low memory footprint. Eagly bundles all
-required Android and iOS communication tools, including `adb` and `libimobiledevice`, so
-there's nothing else to install. **On Windows, iTunes must be installed for iOS device
+Every build is **under 50 MB** and runs with a low memory footprint. Eagly bundles `adb`
+and talks to iOS devices through a built-in native library, so there's nothing else to
+install. **On Windows, iTunes must be installed for iOS device
 support.**
+
+---
+
+## What's new
+
+- 🦀 **Native iOS support, written in Rust** — Eagly now talks to iPhones and iPads through
+  the built-in [`idevice`](https://github.com/jkcoxson/idevice) Rust library instead of
+  external command-line tools. Device discovery, live logs, crash reports, installing and
+  uninstalling apps, and the file manager all run natively — and the iOS file manager now
+  works out of the box.
+- 🌗 **Light and dark themes** — pick **Light**, **Dark**, or **Auto** to follow your
+  system, under **Settings → Appearance**. Both themes were reworked with a calmer text
+  hierarchy, so names and values stand out and secondary details step back.
+- 🔎 **A new filter bar** — every filter is a pill. Pick a field (package, tag, PID / TID,
+  message or any field), choose how it matches (*contains*, *does not contain*, exact or
+  regex), and stack as many as you need. Prefer typing? `tag:Auth` or `-message~:heartbeat`
+  turns into a pill as you press Space. Search now sits right beside the filter, and package
+  suggestions show each app's icon.
+- 🪟 **A refreshed, IDE-style workspace** — drag a pane's header to split, stack or tab Logs,
+  Mirror, Files, Apps and more side by side; Eagly remembers your layout. The whole UI
+  scales with the **Zoom level** setting.
+- 📦 **Apps** — see installed apps with their real names and icons; open, force-stop, clear
+  data or uninstall from a right-click.
+- 🧰 **Utilities** — common device commands with a simple form: reboot, battery and storage
+  status, show taps, animation scale, grant or revoke permissions, simulate a location, and
+  more.
+- 💻 **Terminal** — run `adb` and `libimobiledevice` commands with the device already
+  selected for you.
+- ⌨️ **Command palette** — press **⌘⇧P** (**Ctrl+Shift+P** on Windows / Linux) and fuzzy-search
+  any action.
 
 ---
 
@@ -84,16 +128,20 @@ support.**
 | | |
 |---|---|
 | 📲 **Screen mirror & control** | Mirror an Android device's screen in-app and drive it with mouse & keyboard. |
-| 🔍 **Live logs** | Stream Android (`adb logcat`) and iOS (`idevicesyslog`) logs with full multi-line support. |
-| 🔎 **Filter & search** | Filter by log level, tag, process, or free-text — plus regex search. |
+| 🔍 **Live logs** | Stream Android (`adb logcat`) and iOS device logs with full multi-line support. |
+| 🔎 **Filter & search** | Pick a log level, then add filter pills for package, tag, PID / TID or message — each matching by *contains*, *excludes*, exact or regex — with search right alongside. |
 | 🐞 **iOS crash reports** | Browse and inspect crash logs pulled straight from connected iPhones & iPads. |
-| 📂 **File manager** | Browse, upload, download and delete files on Android (single-level browsing on iOS). |
-| 📦 **Install apps** | Drag & drop an `.apk` (Android) or `.ipa` (iOS) onto the window to install. |
+| 📂 **File manager** | Browse, upload, download and delete files on Android, and in the media storage of iPhones and iPads (DCIM, Downloads, …). |
+| 📦 **Apps** | List installed apps with names and icons; open, force-stop, clear data or uninstall. Drag & drop an `.apk` (Android) or `.ipa` (iOS) onto the window to install. |
+| 🧰 **Utilities** | Reboot, battery & storage status, show taps, permissions, simulated location and more — no commands to remember. |
+| 💻 **Terminal** | Run `adb` and `libimobiledevice` commands against the selected device. |
 | 🌐 **Wireless debugging** | Connect to Android devices over Wi-Fi — no cable needed. |
 | 🤖 **Android emulators** | Start, cold-boot, wipe, create or delete AVDs from your installed Android SDK — no Android Studio needed. |
 | 🗂️ **Import / export** | Open saved log files in dedicated tabs or export captured logs. |
-| 🎨 **Tabbed sessions & themes** | View multiple devices side by side, with light and dark themes. |
-| 🛠️ **No external tools** | `adb` and `libimobiledevice` are bundled — nothing to install separately. |
+| 🪟 **Flexible workspace** | Split, stack or tab panes by dragging their headers, with tabs for multiple devices and logs. |
+| 🌗 **Light, dark & auto themes** | Follow your system or pick one, plus adjustable zoom and log font size. |
+| ⌨️ **Command palette** | **⌘⇧P** / **Ctrl+Shift+P** to fuzzy-search any action. |
+| 🛠️ **No external tools** | `adb` is bundled and iOS support is built in through a native Rust library — nothing to install separately. |
 
 ---
 
@@ -187,10 +235,14 @@ not bundle it); if it isn't found automatically, point Eagly at it under
 
 ### Filtering logs
 
-Click the filter icon at the left of the filter bar to switch to the inline filter, then type
-`key:value` terms. Keys are `tag` (`category` on iOS), `package`, `pid`, `message`, `level`
-and `age`; bare words search the whole entry. Prefix a term with `-` to exclude matches, and
-add `=` or `~` after the key for an exact or regex match:
+Click the filter field (or press **⌘L** / **Ctrl+L**) and pick a field from the
+**Filter by…** menu to add a pill, then choose how it matches and enter a value. Every pill
+must match, so adding more pills narrows the logs.
+
+You can also type filters straight into the field — each term becomes a pill when you press
+Space or Enter. Keys are `tag` (`category` on iOS), `package`, `pid`, `message`, `level` and
+`age`; bare words match any field. Prefix a term with `-` to exclude matches, and add `=` or
+`~` after the key for an exact or regex match:
 
 ```
 package:com.myapp level:W -tag:AudioTrackImpl -message~:heartbeat

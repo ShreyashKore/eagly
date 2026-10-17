@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../../../data/device.dart';
+import '../../../presentation/theme/app_theme.dart';
 import '../../../session/device_session_controller.dart';
 
 /// The feature launcher strip — every pane the app offers for this device,
@@ -248,9 +249,12 @@ class _ShortcutTileState extends State<_ShortcutTile> {
                             spec.sublabel,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                            // A gloss on a name that already says what the
+                            // pane is — tertiary, so the row of tiles reads
+                            // as names first.
                             style: theme.textTheme.labelSmall?.copyWith(
                               fontSize: 10.5,
-                              color: theme.colorScheme.onSurfaceVariant,
+                              color: context.eaglyTheme.tertiaryTextColor,
                             ),
                           ),
                       ],

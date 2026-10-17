@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/drop_zone.dart';
 import '../../presentation/components/feature_view.dart';
+import '../../presentation/theme/app_theme.dart';
 import '../../services/app_install_service.dart';
 import '../../utils/utils.dart';
 import 'components/file_breadcrumb_bar.dart';
@@ -405,14 +406,15 @@ class _FileManagerFeatureViewState
   Widget _buildStatusBar(BuildContext context) {
     final theme = Theme.of(context);
     final selected = controller.selectedEntry;
+    final style = theme.textTheme.bodySmall?.copyWith(
+      color: context.eaglyTheme.tertiaryTextColor,
+    );
     return FeatureStatusBar(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       children: [
         Text(
           '${controller.directoryCount} folders · ${controller.fileCount} files',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          style: style,
         ),
         const Spacer(),
         if (selected != null)
@@ -420,9 +422,7 @@ class _FileManagerFeatureViewState
             child: Text(
               selected.name,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              style: style,
             ),
           ),
       ],

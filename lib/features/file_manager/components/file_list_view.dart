@@ -13,6 +13,9 @@ import '../../../presentation/theme/app_theme.dart';
 ///
 /// A narrow pane drops the trailing columns, Permissions first, so Name keeps
 /// at least [_minNameWidth]; narrower still, the table clips its right edge.
+///
+/// Names read first: Size and Modified are secondary text, Permissions —
+/// rarely what anyone came for — tertiary.
 class FileListView extends StatelessWidget {
   const FileListView({
     super.key,
@@ -125,7 +128,7 @@ class FileListView extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 color: active
                     ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant,
+                    : context.eaglyTheme.secondaryTextColor,
               ),
             ),
           ),
@@ -159,7 +162,11 @@ class _FileRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final eaglyTheme = context.eaglyTheme;
     final selected = controller.selectedEntry?.path == entry.path;
+    final detailStyle = theme.textTheme.bodySmall?.copyWith(
+      color: eaglyTheme.secondaryTextColor,
+    );
 
     return InkWell(
       onTap: () => controller.selectEntry(entry),
@@ -210,9 +217,7 @@ class _FileRow extends StatelessWidget {
                 child: Text(
                   FileEntryVisuals.formatSize(entry),
                   textAlign: TextAlign.end,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                  style: detailStyle,
                 ),
               ),
             if (columns.modified)
@@ -222,9 +227,7 @@ class _FileRow extends StatelessWidget {
                   padding: const EdgeInsets.only(left: 12),
                   child: Text(
                     FileEntryVisuals.formatModified(entry.modified),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                    style: detailStyle,
                   ),
                 ),
               ),
@@ -233,9 +236,9 @@ class _FileRow extends StatelessWidget {
                 width: FileListView._permsWidth,
                 child: Text(
                   entry.permissions ?? entry.typeLabel,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontFamily: 'monospace',
-                    color: theme.colorScheme.onSurfaceVariant,
+                  style: eaglyTheme.monoStyle.copyWith(
+                    fontSize: theme.textTheme.bodySmall?.fontSize,
+                    color: eaglyTheme.tertiaryTextColor,
                   ),
                 ),
               ),

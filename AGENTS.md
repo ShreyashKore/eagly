@@ -221,6 +221,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     would both act on one drop. `DeviceScreen`'s single target hit-tests for the zone under
     the pointer (`DropZone.at`, via `MetaData`) and hands it the drop — which is also why
     the screen-wide `DropOverlay` sits in an `IgnorePointer`.
+  - **Android failure text:** `describeAdbInstallFailure` (`services/tools/adb_install_failure.dart`)
+    reduces adb's output to the package manager's `INSTALL_FAILED_*` code, explained with a
+    fix for the common ones (downgrade, signature mismatch, minSdk, storage…) and passed
+    through as `CODE: first line` otherwise. That sentence is what the snackbar shows; the raw
+    output still goes to the log. Add a case there when a new code shows up as unreadable.
 - **Apps pane names:** Android's package manager reports no app names, so the label is
   read out of the same pulled APK as the icon (`ApkIconExtractor.extractDetails`, default
   locale first) and cached across sessions by `AppIconCache` (`app_labels.json`). A label
@@ -378,6 +383,18 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   dividers, private helpers prefixed `_`, `unawaited(...)` for fire-and-forget futures.
 - Theme tokens come from the `EaglyTheme` extension: `context.eaglyTheme.<token>` (status
   colors, `warningColor`, `inlineNotice*`). Don't hardcode colors.
+- **Text emphasis has three tiers**, so a row reads in order of importance: primary
+  (`onSurface`, the default) for names and values, `eaglyTheme.secondaryTextColor` for
+  supporting text (descriptions, a package under an app name), `tertiaryTextColor` for
+  metadata (versions, dates, counts, legends, echoed command lines). Both are alpha over
+  `onSurface`, and `test/text_emphasis_test.dart` keeps them apart and above WCAG AA. Prefer
+  them to `colorScheme.onSurfaceVariant`: in the light theme that is `#262626` against
+  `#181818` text — no visible step. Views are being moved over one at a time (Apps, Utilities,
+  Device home's Quick access, Logs, Files, Terminal, Emulators, Wireless ADB, Settings so far).
+  `ListTile` subtitles default to `onSurfaceVariant` too; Settings overrides them with a
+  `ListTileTheme.merge`. Keep color for meaning (destructive, status), not for every row's
+  icon — a log row carries its level color on the badge and the message only; package/tag are
+  secondary, timestamp and PID/TID tertiary (`LogRow._cellStyle`).
 - Icon-only buttons are `AppIconButton` (`presentation/components/app_icon_button.dart`),
   never Material's `IconButton` — `test/app_icon_button_test.dart` fails on one in `lib/`.
   Icons follow the app zoom, and `IconButton`'s theme-clamped box pushed a zoomed glyph

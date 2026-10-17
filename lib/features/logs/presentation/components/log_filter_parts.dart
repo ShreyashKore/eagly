@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../presentation/components/app_icon_button.dart';
 import '../../../../presentation/components/package_icon.dart';
+import '../../../../presentation/theme/app_theme.dart';
 import '../../data/models/filter_condition.dart';
 import 'filter_bar_shared.dart';
 import 'log_filter_controller.dart';
@@ -109,7 +110,7 @@ class FilterMenuSectionLabel extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.2,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          color: context.eaglyTheme.secondaryTextColor,
         ),
       ),
     );
@@ -227,7 +228,10 @@ InputDecoration filterCardInputDecoration(
     filled: true,
     fillColor: colors.surfaceContainerHigh,
     hintText: hintText,
-    hintStyle: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
+    hintStyle: TextStyle(
+      fontSize: 13,
+      color: context.eaglyTheme.tertiaryTextColor,
+    ),
     errorText: errorText,
     errorStyle: const TextStyle(fontSize: 11),
     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),

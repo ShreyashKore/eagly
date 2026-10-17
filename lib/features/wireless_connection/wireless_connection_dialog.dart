@@ -15,6 +15,7 @@ import 'components/wireless_manual_section.dart';
 import 'components/wireless_qr_panel.dart';
 import 'components/wireless_selected_device_panel.dart';
 import 'wireless_connection_controller.dart';
+import '../../presentation/theme/app_theme.dart';
 
 /// Wireless ADB pairing dialog.
 ///
@@ -392,7 +393,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
               : 'Already paired with this computer? Pick a device to connect '
                     'without scanning anything.',
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+            color: context.eaglyTheme.secondaryTextColor,
           ),
         ),
         const Gap(12),
@@ -462,7 +463,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
         Text(
           'Use this only when discovery is unavailable or you already know the pairing and connect addresses.',
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+            color: context.eaglyTheme.secondaryTextColor,
           ),
         ),
         const Gap(16),

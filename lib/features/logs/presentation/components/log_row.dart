@@ -323,7 +323,7 @@ class LogRow extends StatelessWidget {
       alpha: Theme.of(context).brightness == Brightness.dark ? 0.07 : 0.045,
     );
     final captionStyle = monoStyle.copyWith(
-      color: colorScheme.onSurfaceVariant,
+      color: context.eaglyTheme.tertiaryTextColor,
       fontSize: (monoStyle.fontSize ?? 12) - 1,
     );
     final messageStyle = monoStyle.copyWith(color: colorScheme.onSurface);
@@ -398,6 +398,20 @@ class LogRow extends StatelessWidget {
     );
   }
 
+  /// The level's color is carried by the badge and the message; repeating it
+  /// on every cell made a row one solid stripe. The other cells step down:
+  /// who logged it (package, tag) at secondary, when and which thread at
+  /// tertiary — still there to scan, but the message reads first.
+  TextStyle _cellStyle(EaglyTheme theme, LogColumn column, TextStyle message) {
+    return switch (column) {
+      LogColumn.pid ||
+      LogColumn.tag => monoStyle.copyWith(color: theme.secondaryTextColor),
+      LogColumn.timestamp ||
+      LogColumn.tid => monoStyle.copyWith(color: theme.tertiaryTextColor),
+      LogColumn.level || LogColumn.message => message,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final logTheme = context.eaglyTheme;
@@ -442,7 +456,7 @@ class LogRow extends StatelessWidget {
             context,
             contentValueForColumn(col),
             widthOf(col),
-            rowStyle,
+            _cellStyle(logTheme, col, rowStyle),
             highlightColor: highlightColor,
             appendCellSeparator: lastVisibleColumn != col,
             appendRowTerminator: lastVisibleColumn == col,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../../../presentation/components/centered_state_message.dart';
+import '../../../presentation/theme/app_theme.dart';
 import '../../../utils/android_sdk_path.dart';
 
 /// What the emulator list shows instead of AVDs when the SDK cannot be used.
@@ -65,7 +66,7 @@ class _NoSdkFound extends StatelessWidget {
             Text(
               candidates.length == 1 ? 'Looked in:' : 'Looked in, in order:',
               style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+                color: context.eaglyTheme.secondaryTextColor,
               ),
             ),
             const Gap(6),
@@ -87,9 +88,9 @@ class _NoSdkFound extends StatelessWidget {
                         candidate,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontFamily: 'monospace',
-                          color: theme.colorScheme.onSurfaceVariant,
+                        style: context.eaglyTheme.monoStyle.copyWith(
+                          fontSize: theme.textTheme.bodySmall?.fontSize,
+                          color: context.eaglyTheme.tertiaryTextColor,
                         ),
                       ),
                     ),

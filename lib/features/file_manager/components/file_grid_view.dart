@@ -73,7 +73,7 @@ class FileGridView extends StatelessWidget {
   static TextStyle? _nameStyle(ThemeData theme) => theme.textTheme.bodySmall;
 
   static TextStyle? _sizeStyle(ThemeData theme) => theme.textTheme.labelSmall
-      ?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+      ?.copyWith(color: theme.extension<EaglyTheme>()!.tertiaryTextColor);
 }
 
 class _GridTile extends StatelessWidget {
