@@ -792,11 +792,11 @@ class DeviceSessionRepository {
 /// the mp4 and copy it to the host, or [cancel] to discard it.
 class ScreenRecordingSession {
   ScreenRecordingSession({
-    required AdbTool adbTool,
+    required this._adbTool,
     required this.deviceId,
     required this.devicePath,
     required this.process,
-  }) : _adbTool = adbTool;
+  });
 
   final AdbTool _adbTool;
   final String deviceId;

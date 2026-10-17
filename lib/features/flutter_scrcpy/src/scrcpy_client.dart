@@ -56,10 +56,9 @@ class ScrcpyStream {
     required this.height,
     required this.packets,
     required this.control,
-    required Future<int> serverExitCode,
-    required Future<void> Function() onStop,
-  }) : _serverExitCode = serverExitCode,
-       _onStop = onStop;
+    required this._serverExitCode,
+    required this._onStop,
+  });
 
   final String deviceName;
   final String codecId;

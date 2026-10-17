@@ -297,18 +297,13 @@ class _RenderToolbarLayout extends RenderBox
         ContainerRenderObjectMixin<RenderBox, _ToolbarParentData>,
         RenderBoxContainerDefaultsMixin<RenderBox, _ToolbarParentData> {
   _RenderToolbarLayout({
-    required int leadingCount,
-    required bool hasFlexible,
-    required int actionCount,
-    required double flexibleMinWidth,
-    required double spacing,
-    required _OverflowStatus status,
-  }) : _leadingCount = leadingCount,
-       _hasFlexible = hasFlexible,
-       _actionCount = actionCount,
-       _flexibleMinWidth = flexibleMinWidth,
-       _spacing = spacing,
-       _status = status;
+    required this._leadingCount,
+    required this._hasFlexible,
+    required this._actionCount,
+    required this._flexibleMinWidth,
+    required this._spacing,
+    required this._status,
+  });
 
   int _leadingCount;
   set leadingCount(int value) {

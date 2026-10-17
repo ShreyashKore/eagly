@@ -10,7 +10,7 @@ import 'filter_utils.dart';
 /// mapping here lets a package filter still recognise those entries by their
 /// PID instead of dropping them.
 class PidPackageIndex {
-  PidPackageIndex({PackageForPid? fallback}) : _fallback = fallback;
+  PidPackageIndex({this._fallback});
 
   /// Consulted for a PID no entry ever resolved — in practice the session
   /// repository's own polled `ps -A` map. It covers the process that logged

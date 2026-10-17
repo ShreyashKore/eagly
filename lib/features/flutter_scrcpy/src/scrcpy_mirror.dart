@@ -24,8 +24,8 @@ class ScrcpyMirrorSession {
     required this.control,
     required this.exitCode,
     required this.streamEnded,
-    required Future<void> Function() onStop,
-  }) : _onStop = onStop;
+    required this._onStop,
+  });
 
   /// adb serial of the mirrored device.
   final String serial;

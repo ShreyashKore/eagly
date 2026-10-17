@@ -11,10 +11,9 @@ class TerminalProcessSession {
   TerminalProcessSession({
     required this.output,
     required this.exitCode,
-    required Future<void> Function() onKill,
-    required void Function(String text) onInput,
-  }) : _onKill = onKill,
-       _onInput = onInput;
+    required this._onKill,
+    required this._onInput,
+  });
 
   /// stdout and stderr, line by line, tagged by pipe. Closes when both pipes
   /// are done.

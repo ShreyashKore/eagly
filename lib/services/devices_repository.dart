@@ -25,12 +25,10 @@ class DevicesRepository extends ChangeNotifier {
   DevicesRepository._({
     AdbTool? adbTool,
     IosDeviceService? iosDeviceService,
-    AndroidMarketingNameLookup? androidMarketingName,
-    Listenable? androidMarketingNamesChanged,
+    this._androidMarketingName,
+    this._androidMarketingNamesChanged,
   }) : _adbTool = adbTool ?? AdbTool(),
-       _iosDeviceService = iosDeviceService ?? createIosDeviceService(),
-       _androidMarketingName = androidMarketingName,
-       _androidMarketingNamesChanged = androidMarketingNamesChanged {
+       _iosDeviceService = iosDeviceService ?? createIosDeviceService() {
     _androidMarketingNamesChanged?.addListener(_onAndroidMarketingNamesChanged);
   }
 

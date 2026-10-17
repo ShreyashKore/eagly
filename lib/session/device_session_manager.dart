@@ -26,10 +26,9 @@ typedef DeviceSessionServiceFactory = DeviceSessionRepository Function(
 class DeviceSessionManager extends ChangeNotifier {
   DeviceSessionManager({
     DevicesRepository? repository,
-    DeviceSessionServiceFactory? serviceFactory,
+    this._serviceFactory,
     WorkspaceLayoutMemory? layoutMemory,
   }) : _repository = repository ?? DevicesRepository.instance,
-       _serviceFactory = serviceFactory,
        _layoutMemory = layoutMemory ?? WorkspaceLayoutMemory.persisted() {
     _repository.addListener(_sync);
     unawaited(_repository.ensureStarted(refreshImmediately: true));

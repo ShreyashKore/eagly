@@ -12,7 +12,7 @@ import 'tips_data.dart';
 /// this is what makes "a new tip every time the app is opened" work without any
 /// timers or per-frame logic.
 class TipsController extends ChangeNotifier {
-  TipsController({List<Tip> tips = kTips}) : _tips = tips {
+  TipsController({this._tips = kTips}) {
     _enabled = PreferencesService.tipsEnabled;
     if (_tips.isEmpty) {
       _index = 0;

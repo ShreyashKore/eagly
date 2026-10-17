@@ -84,17 +84,14 @@ class WirelessQrPairingSession {
 /// here should reintroduce a second poller or widen [isWirelessBusy].
 class WirelessConnectionController extends ChangeNotifier {
   WirelessConnectionController({
-    required DevicesRepository devicesRepository,
-    required Future<void> Function(List<Device> devices) onDevicesApplied,
-    required Future<void> Function(Device device) onActivateDevice,
+    required this._devicesRepository,
+    required this._onDevicesApplied,
+    required this._onActivateDevice,
     this.isDeviceSelectedInAnotherTab,
     this.selectedDeviceIdProvider,
     this.isRunningProvider,
-    void Function(WirelessPairResult result)? onQrPairingCompleted,
-  }) : _devicesRepository = devicesRepository,
-       _onDevicesApplied = onDevicesApplied,
-       _onActivateDevice = onActivateDevice,
-       _onQrPairingCompleted = onQrPairingCompleted;
+    this._onQrPairingCompleted,
+  });
 
   final DevicesRepository _devicesRepository;
   final Future<void> Function(List<Device> devices) _onDevicesApplied;

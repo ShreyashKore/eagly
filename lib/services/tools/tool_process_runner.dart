@@ -39,10 +39,7 @@ class ToolCommandResult {
 }
 
 class ToolStreamSession<T> {
-  ToolStreamSession({
-    required this.stream,
-    required Future<void> Function() onStop,
-  }) : _onStop = onStop;
+  ToolStreamSession({required this.stream, required this._onStop});
 
   final Stream<T> stream;
   final Future<void> Function() _onStop;
