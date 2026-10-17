@@ -34,7 +34,7 @@ class FileBreadcrumbBar extends StatelessWidget {
           Icon(
             Icons.chevron_right,
             size: 16,
-            color: theme.colorScheme.onSurfaceVariant,
+            color: context.eaglyTheme.tertiaryTextColor,
           ),
         )
         ..add(
