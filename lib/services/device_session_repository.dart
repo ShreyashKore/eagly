@@ -671,6 +671,10 @@ class DeviceSessionRepository {
     // [output] — so nothing here cancels them early and drops trailing lines.
     pipe(process.stdout, false);
     pipe(process.stderr, true);
+    // Writing to a process that has exited fails with EPIPE, and that error
+    // is reported on `stdin.done`, not thrown by `writeln` — unobserved, it
+    // escapes as an uncaught async error.
+    unawaited(process.stdin.done.catchError((_) {}));
 
     return TerminalProcessSession(
       output: output.stream,
