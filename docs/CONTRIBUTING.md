@@ -5,7 +5,7 @@ Thank you for your interest in contributing!
 ## Requirements
 
 - [Flutter](https://flutter.dev/docs/get-started/install) (this workspace uses `fvm flutter`)
-- Dart SDK `^3.9.0`
+- Dart SDK `^3.13.0`
 
 ## Quick Setup
 
