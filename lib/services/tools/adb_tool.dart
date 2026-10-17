@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:eagly/features/logs/services/log_parsers/log_line_parser.dart';
 import 'package:eagly/features/logs/services/log_parsers/logcat_parser.dart';
 
 import '../../data/device.dart';
@@ -634,7 +635,6 @@ class AdbTool extends ToolProcessRunner {
     var stopRequested = false;
     var stopFuture = Future<void>.value();
     late final StreamController<LogEntry> controller;
-    final LogcatParser parser = const LogcatParser();
 
     Future<void> stop() {
       if (stopRequested) {
@@ -654,17 +654,17 @@ class AdbTool extends ToolProcessRunner {
             deviceId,
             'logcat',
             '-v',
-            'threadtime',
+            'long',
           ]);
           final stderrFuture = stderrText(process!);
           var emittedLogs = false;
 
-          await for (final line in stdoutLines(process!)) {
-            final parsed = parser.parse(line);
-            if (parsed != null) {
-              emittedLogs = true;
-              controller.add(parsed);
-            }
+          await for (final entry in parseLogLines(
+            stdoutLines(process!),
+            LogcatParser(),
+          )) {
+            emittedLogs = true;
+            controller.add(entry);
           }
 
           final stderrOutput = (await stderrFuture).trim();

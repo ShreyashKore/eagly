@@ -8,7 +8,7 @@ use idevice::services::afc::AfcClient;
 use idevice::services::crashreportcopymobile::CrashReportCopyMobileClient;
 use idevice::services::installation_proxy::InstallationProxyClient;
 use idevice::services::lockdown::LockdownClient;
-use idevice::services::syslog_relay::SyslogRelayClient;
+use idevice::services::os_trace_relay::{LogLevel, OsTraceLog, OsTraceRelayClient};
 use idevice::usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdConnection, UsbmuxdDevice};
 use idevice::{IdeviceError, IdeviceService};
 use plist::Value;
@@ -295,12 +295,16 @@ fn string_value(values: &Value, key: &str) -> Option<String> {
 static SYSLOG_SESSIONS: LazyLock<Mutex<HashMap<String, CancellationToken>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// Streams the device's syslog until [`stop_ios_syslog`] is called with the
+/// Streams the device's logs until [`stop_ios_syslog`] is called with the
 /// same `session_id`, the device goes away, or Dart drops the stream.
 ///
-/// Lines are emitted raw, exactly as `idevicesyslog` prints them, because the
-/// Dart parser that turns them into log entries is stateful (multi-line
-/// continuations, `\M-` meta-escapes) and is shared with the CLI backend.
+/// Backed by `os_trace_relay` (`OsTraceRelayClient`), the same service
+/// `idevicesyslog` reads: unlike the legacy `syslog_relay` it carries Info and
+/// Debug messages, sub-second timestamps, and a clean process name instead of
+/// the device hostname. Each record is formatted into the text line the shared
+/// [`IosSyslogParser`] expects (see [`format_os_trace_log`]) and emitted as one
+/// string; a whole message may span lines, and Dart splits records with
+/// `parseLogRecords` rather than the CLI's line-by-line `parseLogLines`.
 ///
 /// Connecting happens before the stream starts, so a device that refuses the
 /// service raises an error the caller can show — the CLI path could only infer
@@ -315,11 +319,16 @@ pub async fn start_ios_syslog(
     let token = claim_syslog_session(&session_id);
     let connected = async {
         let provider = provider_for(&udid).await?;
-        Ok::<_, IosError>(SyslogRelayClient::connect(&provider).await?)
+        Ok::<_, IosError>(
+            OsTraceRelayClient::connect(&provider)
+                .await?
+                .start_trace(None)
+                .await?,
+        )
     }
     .await;
-    let mut client = match connected {
-        Ok(client) => client,
+    let mut receiver = match connected {
+        Ok(receiver) => receiver,
         Err(error) => {
             forget_syslog_session(&session_id);
             return Err(error);
@@ -342,11 +351,11 @@ pub async fn start_ios_syslog(
                 // reading after a cancelled branch.
                 biased;
                 _ = token.cancelled() => break,
-                line = client.next() => {
-                    match line {
+                log = receiver.next() => {
+                    match log {
                         // `add` fails once Dart has dropped the stream, which is
                         // the other way this task legitimately ends.
-                        Ok(line) => if sink.add(line).is_err() { break },
+                        Ok(log) => if sink.add(format_os_trace_log(&log)).is_err() { break },
                         // Includes the device going away mid-stream; Dart sees
                         // end-of-stream, same as the CLI backend's EOF.
                         Err(_) => break,
@@ -360,6 +369,55 @@ pub async fn start_ios_syslog(
     });
 
     Ok(())
+}
+
+/// Renders one `os_trace_relay` record into the text line [`IosSyslogParser`]
+/// parses, byte-for-byte what `idevicesyslog` prints:
+///
+/// ```text
+/// <Mon> <DD> <HH:MM:SS>.<microseconds> <process>(<image>)[<pid>] <Level>: <message>
+/// ```
+///
+/// `<process>` is the basename of the emitting process's main executable and
+/// `<image>` the basename of the image that held the call site; the image is
+/// dropped when it equals the process, exactly as `idevicesyslog` does. The
+/// message may contain newlines — `parseLogRecords` on the Dart side splits
+/// them into the same entry's continuation lines.
+fn format_os_trace_log(log: &OsTraceLog) -> String {
+    // The crate builds `timestamp` with `DateTime::from_timestamp(seconds,
+    // microseconds)`, passing microseconds where nanoseconds belong. The
+    // wall-clock part is correct; the sub-second field therefore still holds
+    // the raw microsecond count, so read it back as microseconds to undo that.
+    let micros = log.timestamp.and_utc().timestamp_subsec_nanos();
+
+    let process = basename(&log.filename);
+    let image = basename(&log.image_name);
+    let label = if image.is_empty() || image == process {
+        process.to_string()
+    } else {
+        format!("{process}({image})")
+    };
+
+    let level = match log.level {
+        LogLevel::Notice => "Notice",
+        LogLevel::Info => "Info",
+        LogLevel::Debug => "Debug",
+        LogLevel::Error => "Error",
+        LogLevel::Fault => "Fault",
+    };
+
+    format!(
+        "{}.{micros:06} {label}[{}] <{level}>: {}",
+        log.timestamp.format("%b %e %H:%M:%S"),
+        log.pid,
+        log.message,
+    )
+}
+
+/// The final path component, for the `/usr/libexec/cloudd`-style paths the
+/// relay reports. A name without a slash is returned unchanged.
+fn basename(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
 }
 
 /// Stops the stream started under `session_id`. Idempotent.

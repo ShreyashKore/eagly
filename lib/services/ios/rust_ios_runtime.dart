@@ -3,10 +3,10 @@ import '../../src/rust/frb_generated.dart';
 
 /// Loads the `rust_lib_eagly` native library behind the `Rust*` iOS services.
 ///
-/// Only called when the Rust backend is selected, so a build without the
-/// library (or with mismatched bindings) still starts for everyone else. A
-/// failure is logged rather than thrown: the app stays usable, and each
-/// `Rust*` call reports its own error.
+/// Skipped when `EAGLY_IOS_BACKEND=cli` selects the CLI fallback, so a build
+/// without the library (or with mismatched bindings) can still reach iOS
+/// devices that way. A failure is logged rather than thrown: the app stays
+/// usable, and each `Rust*` call reports its own error.
 Future<void> initRustIosRuntime() async {
   try {
     await RustLib.init();

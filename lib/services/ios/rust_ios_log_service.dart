@@ -3,6 +3,7 @@ import 'dart:async';
 import '../../features/app_log/app_logger.dart';
 import '../../features/logs/data/models/log_entry.dart';
 import '../../features/logs/services/log_parsers/ios_syslog_parser.dart';
+import '../../features/logs/services/log_parsers/log_line_parser.dart';
 import '../../src/rust/api/ios.dart' as rust;
 import '../../utils/log_entry_utils.dart';
 import '../tools/tool_process_runner.dart';
@@ -10,10 +11,12 @@ import 'ios_log_service.dart';
 
 /// [IosLogService] backed by the `idevice` crate's syslog relay client.
 ///
-/// Rust emits raw lines, byte-identical to what `idevicesyslog` prints, and the
-/// same [IosSyslogParser] turns them into [LogEntry]s for both backends — it is
-/// stateful (multi-line continuations, `\M-` meta-escapes) and well tested, so
-/// moving it across the bridge would buy nothing and risk a lot.
+/// Rust emits one string per syslog-relay record — a whole message, embedded
+/// newlines included (the relay delimits records with `\n\0`) — and the same
+/// [IosSyslogParser] turns them into [LogEntry]s for both backends, via
+/// [parseLogRecords] rather than the CLI's line-by-line [parseLogLines]. The
+/// parser (`\M-` meta-escapes, header parsing) is well tested, so moving it
+/// across the bridge would buy nothing and risk a lot.
 class RustIosLogService implements IosLogService {
   static int _nextSessionId = 0;
 
@@ -28,9 +31,8 @@ class RustIosLogService implements IosLogService {
     // that two tabs on one device stop independently.
     final sessionId = '$deviceId-${_nextSessionId++}';
 
-    final parser = IosSyslogParser();
     late final StreamController<LogEntry> controller;
-    StreamSubscription<String>? subscription;
+    StreamSubscription<LogEntry>? subscription;
     var stopped = false;
     var ended = false;
 
@@ -50,14 +52,12 @@ class RustIosLogService implements IosLogService {
     controller = StreamController<LogEntry>(
       onListen: () {
         _logger.info('Starting iOS syslog stream for $processName');
-        subscription = rust
-            .startIosSyslog(udid: deviceId, sessionId: sessionId)
-            .listen(
-              (line) {
-                for (final entry in parser.addLine(line)) {
-                  controller.add(entry);
-                }
-              },
+        subscription =
+            parseLogRecords(
+              rust.startIosSyslog(udid: deviceId, sessionId: sessionId),
+              IosSyslogParser(),
+            ).listen(
+              controller.add,
               onError: (Object error) {
                 _logger.error(
                   'iOS syslog stream failed for $processName',
@@ -74,8 +74,6 @@ class RustIosLogService implements IosLogService {
               onDone: () async {
                 // The Rust task has already dropped its registry entry.
                 ended = true;
-                final trailing = parser.flush();
-                if (trailing != null) controller.add(trailing);
                 _logger.info('iOS syslog stream ended for $processName');
                 await stop();
                 await controller.close();

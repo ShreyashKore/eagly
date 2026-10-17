@@ -4,6 +4,7 @@ import 'dart:io';
 import '../../features/logs/data/models/log_entry.dart';
 import '../../utils/utils.dart';
 import '../../features/logs/services/log_parsers/ios_syslog_parser.dart';
+import '../../features/logs/services/log_parsers/log_line_parser.dart';
 import 'tool_process_runner.dart';
 
 class IdeviceSyslogTool extends ToolProcessRunner {
@@ -18,7 +19,6 @@ class IdeviceSyslogTool extends ToolProcessRunner {
     var stopRequested = false;
     var stopFuture = Future<void>.value();
     late final StreamController<LogEntry> controller;
-    final IosSyslogParser parser = IosSyslogParser();
 
     Future<void> stop() {
       if (stopRequested) {
@@ -37,17 +37,12 @@ class IdeviceSyslogTool extends ToolProcessRunner {
           final stderrFuture = stderrText(process!);
           var emittedLogs = false;
 
-          await for (final line in stdoutLines(process!)) {
-            for (final entry in parser.addLine(line)) {
-              emittedLogs = true;
-              controller.add(entry);
-            }
-          }
-
-          final trailingEntry = parser.flush();
-          if (trailingEntry != null) {
+          await for (final entry in parseLogLines(
+            stdoutLines(process!),
+            IosSyslogParser(),
+          )) {
             emittedLogs = true;
-            controller.add(trailingEntry);
+            controller.add(entry);
           }
 
           final stderrOutput = (await stderrFuture).trim();

@@ -118,11 +118,9 @@ void main() {
     test('decodes cat-v style meta escapes emitted by piped iOS syslog', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 26));
 
-      parser
-          .addLine(
-            r'Apr 26 20:54:02.025982 novio (R14)(Flutter)[1800] <Notice>: flutter: \M-b\M^U\M^T Query Parameters',
-          )
-          .toList();
+      parser.addLine(
+        r'Apr 26 20:54:02.025982 novio (R14)(Flutter)[1800] <Notice>: flutter: \M-b\M^U\M^T Query Parameters',
+      );
 
       final entry = parser.flush();
       expect(entry, isNotNull);
@@ -131,11 +129,9 @@ void main() {
 
     test('export round-trips parsed iOS log entries', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
-      parser
-          .addLine(
-            'Apr 23 17:10:40.588246 novio (R14)(Flutter)[5727] <Notice>: flutter: ╟ server: [None]',
-          )
-          .toList();
+      parser.addLine(
+        'Apr 23 17:10:40.588246 novio (R14)(Flutter)[5727] <Notice>: flutter: ╟ server: [None]',
+      );
 
       final entry = parser.flush();
       expect(entry, isNotNull);
@@ -154,14 +150,64 @@ void main() {
       expect(restored.message, entry.message);
     });
 
+    test('continuations after a flush start a new entry under its header', () {
+      final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
+      parser.addLine(
+        'Apr 23 17:10:40.588246 novio (R14)(Flutter)[5727] <Notice>: head',
+      );
+      final first = parser.flush()!;
+
+      parser.addLine('late one');
+      parser.addLine('late two');
+      final rest = parser.flush()!;
+
+      expect(first.message, 'head');
+      expect(rest.message, 'late one\nlate two');
+      expect(
+        [rest.timestamp, rest.pid, rest.level, rest.tag, rest.processName],
+        [first.timestamp, first.pid, first.level, first.tag, first.processName],
+      );
+    });
+
+    test('blank continuations after a flush add no empty row', () {
+      final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
+      parser.addLine('Apr 23 17:10:40.588246 novio[5727] <Notice>: head');
+      parser.flush();
+
+      parser.addLine('');
+      parser.addLine('   ');
+      expect(parser.flush(), isNull);
+    });
+
+    test('ignores continuations before the first header', () {
+      final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
+
+      expect(parser.addLine('orphan'), isEmpty);
+      expect(parser.flush(), isNull);
+    });
+
+    test('idevicesyslog status lines end an entry and are dropped', () {
+      final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
+      expect(parser.addLine('[connected:00008140-001564CA3493801C]'), isEmpty);
+      parser.addLine('Apr 23 17:10:40.588246 novio[5727] <Notice>: before');
+      parser.addLine('  continued');
+
+      final ended = parser.addLine('[disconnected:00008140-001564CA3493801C]');
+      expect(ended.single.message, 'before\n  continued');
+
+      // Neither the status lines nor what follows them join that entry.
+      expect(parser.addLine('[connected:00008140-001564CA3493801C]'), isEmpty);
+      expect(parser.addLine('orphan'), isEmpty);
+      parser.addLine('Apr 23 17:10:41.000000 novio[5727] <Notice>: after');
+      expect(parser.flush()?.message, 'after');
+    });
+
     test('preserves unknown iOS raw level values', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
 
-      parser
-          .addLine(
-            'Apr 23 17:10:40.588246 novio[5727] <Panic>: flutter: something unexpected happened',
-          )
-          .toList();
+      parser.addLine(
+        'Apr 23 17:10:40.588246 novio[5727] <Panic>: flutter: something unexpected happened',
+      );
 
       final entry = parser.flush();
       expect(entry, isNotNull);
