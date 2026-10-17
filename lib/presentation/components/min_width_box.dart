@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 /// Lays [child] out at least [minWidth] wide, clipping its right edge when the
@@ -14,14 +16,28 @@ class MinWidthBox extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth >= minWidth) return child;
+        final maxWidth = math.max(minWidth, constraints.maxWidth);
+        // The same tree on both sides of [minWidth]: swapping widget types at
+        // the threshold would rebuild [child] from scratch every time the
+        // width crossed it — losing a text field's keyboard connection
+        // mid-animation, or a list's scroll position mid-drag.
+        //
         // A scroll view clips and, unlike a squeezed Flex, never reports the
         // content past its edge as an overflow. Programmatic scrolls (a
         // focused field revealing its caret) still work; the user can't drag.
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const NeverScrollableScrollPhysics(),
-          child: SizedBox(width: minWidth, child: child),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: math.min(
+                math.max(constraints.minWidth, minWidth),
+                maxWidth,
+              ),
+              maxWidth: maxWidth,
+            ),
+            child: child,
+          ),
         );
       },
     );
