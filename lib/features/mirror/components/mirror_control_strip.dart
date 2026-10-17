@@ -1,11 +1,12 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../presentation/components/saved_file_snack_bar.dart';
 import '../../flutter_scrcpy/flutter_scrcpy.dart';
 import '../mirror_controller.dart';
+import '../services/capture_storage.dart';
 
 /// Vertical strip on the pane's right edge: session actions (screenshot,
 /// record, rotate, quality) at the top, then device hardware/navigation keys.
@@ -94,9 +95,27 @@ class MirrorControlStrip extends StatelessWidget {
             const Gap(8),
             actionButton(
               Icons.content_paste,
-              'Paste clipboard to device',
+              'Paste clipboard to device '
+              '(${Platform.isMacOS ? '⌘V' : 'Ctrl+V'} in the mirror)',
               () => _paste(context),
               enabled: controlEnabled,
+            ),
+            IconButton(
+              tooltip: controller.isKeyboardForwarding
+                  ? 'Keyboard goes to the device — click the app to stop'
+                  : 'Send keyboard to device (or click the mirror)',
+              iconSize: 16,
+              color: controller.isKeyboardForwarding
+                  ? theme.colorScheme.primary
+                  : null,
+              onPressed: controlEnabled
+                  ? controller.keyboardFocusNode.requestFocus
+                  : null,
+              icon: Icon(
+                controller.isKeyboardForwarding
+                    ? Icons.keyboard
+                    : Icons.keyboard_outlined,
+              ),
             ),
             IconButton(
               tooltip: controller.clipboardSyncEnabled
@@ -134,13 +153,6 @@ class MirrorControlStrip extends StatelessWidget {
     );
   }
 
-  static String _timestamp() {
-    final n = DateTime.now();
-    String two(int v) => v.toString().padLeft(2, '0');
-    return '${n.year}${two(n.month)}${two(n.day)}-'
-        '${two(n.hour)}${two(n.minute)}${two(n.second)}';
-  }
-
   Future<void> _captureScreenshot(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -151,17 +163,17 @@ class MirrorControlStrip extends StatelessWidget {
         );
         return;
       }
-      final path = await FilePicker.platform.saveFile(
+      final path = await CaptureStorage.resolveTargetPath(
         dialogTitle: 'Save screenshot',
-        fileName: 'screenshot-${_timestamp()}.png',
-        type: FileType.custom,
-        allowedExtensions: ['png'],
+        prefix: 'screenshot',
+        extension: 'png',
       );
-      if (path == null) return; // user cancelled
-      final outPath = path.toLowerCase().endsWith('.png') ? path : '$path.png';
-      await File(outPath).writeAsBytes(bytes);
-      messenger.showSnackBar(
-        SnackBar(content: Text('Screenshot saved to $outPath')),
+      if (path == null) return; // user cancelled the save dialog
+      await File(path).writeAsBytes(bytes);
+      showSavedFileSnackBar(
+        messenger,
+        message: 'Screenshot saved to ${_displayPath(path)}',
+        path: path,
       );
     } catch (error) {
       messenger.showSnackBar(
@@ -188,13 +200,12 @@ class MirrorControlStrip extends StatelessWidget {
 
   Future<void> _stopRecording(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
-    final path = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save screen recording',
-      fileName: 'recording-${_timestamp()}.mp4',
-      type: FileType.custom,
-      allowedExtensions: ['mp4'],
-    );
     try {
+      final path = await CaptureStorage.resolveTargetPath(
+        dialogTitle: 'Save screen recording',
+        prefix: 'recording',
+        extension: 'mp4',
+      );
       if (path == null) {
         await controller.cancelRecording();
         messenger.showSnackBar(
@@ -202,14 +213,15 @@ class MirrorControlStrip extends StatelessWidget {
         );
         return;
       }
-      final outPath = path.toLowerCase().endsWith('.mp4') ? path : '$path.mp4';
       messenger.showSnackBar(
         const SnackBar(content: Text('Saving recording…')),
       );
-      await controller.stopRecording(outPath);
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('Recording saved to $outPath')));
+      await controller.stopRecording(path);
+      showSavedFileSnackBar(
+        messenger,
+        message: 'Recording saved to ${_displayPath(path)}',
+        path: path,
+      );
     } catch (error) {
       messenger.showSnackBar(
         SnackBar(content: Text('Recording failed: $error')),
@@ -217,10 +229,23 @@ class MirrorControlStrip extends StatelessWidget {
     }
   }
 
+  /// `<folder>/<file>` — the full path is long enough to blow past the snack
+  /// bar, and the tooltip there carries the rest.
+  static String _displayPath(String path) {
+    final separator = Platform.pathSeparator;
+    final segments = path.split(separator);
+    if (segments.length < 2) return path;
+    return segments.sublist(segments.length - 2).join(separator);
+  }
+
   Future<void> _paste(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await controller.pasteFromClipboard();
+      if (!await controller.pasteFromClipboard()) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Nothing to paste — no text copied.')),
+        );
+      }
     } catch (error) {
       messenger.showSnackBar(SnackBar(content: Text('Paste failed: $error')));
     }

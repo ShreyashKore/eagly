@@ -10,27 +10,20 @@ import '../features/app_log/app_logger.dart';
 import 'app_breadcrumbs.dart';
 import '../utils/apple_device_mapping.dart';
 import 'tools/adb_tool.dart';
-import 'tools/idevice_id_tool.dart';
-import 'tools/idevice_info_tool.dart';
+import 'ios/ios_device_service.dart';
 
 class DevicesRepository extends ChangeNotifier {
-  DevicesRepository._({
-    AdbTool? adbTool,
-    IdeviceIdTool? ideviceIdTool,
-    IdeviceInfoTool? ideviceInfoTool,
-  }) : _adbTool = adbTool ?? AdbTool(),
-       _ideviceIdTool = ideviceIdTool ?? IdeviceIdTool(),
-       _ideviceInfoTool = ideviceInfoTool ?? IdeviceInfoTool();
+  DevicesRepository._({AdbTool? adbTool, IosDeviceService? iosDeviceService})
+    : _adbTool = adbTool ?? AdbTool(),
+      _iosDeviceService = iosDeviceService ?? createIosDeviceService();
 
   factory DevicesRepository.forTesting({
     AdbTool? adbTool,
-    IdeviceIdTool? ideviceIdTool,
-    IdeviceInfoTool? ideviceInfoTool,
+    IosDeviceService? iosDeviceService,
   }) {
     return DevicesRepository._(
       adbTool: adbTool,
-      ideviceIdTool: ideviceIdTool,
-      ideviceInfoTool: ideviceInfoTool,
+      iosDeviceService: iosDeviceService,
     );
   }
 
@@ -46,8 +39,7 @@ class DevicesRepository extends ChangeNotifier {
   static const int _mdnsRetryCountMax = 20;
 
   final AdbTool _adbTool;
-  final IdeviceIdTool _ideviceIdTool;
-  final IdeviceInfoTool _ideviceInfoTool;
+  final IosDeviceService _iosDeviceService;
   final AppLogger _logger = AppLogger(source: 'DevicesRepository');
   final Map<String, _CachedAndroidDeviceDescription> _androidDescriptionCache =
       {};
@@ -64,6 +56,9 @@ class DevicesRepository extends ChangeNotifier {
 
   Future<void>? _refreshInFlight;
   StreamSubscription<List<Device>>? _androidDeviceChangesSub;
+
+  /// In-flight watcher (re)start, so restarts queue instead of racing.
+  Future<void>? _androidWatcherStart;
   Timer? _androidRefreshTimer;
   Timer? _androidWatcherRestartTimer;
   Timer? _iosRefreshTimer;
@@ -149,9 +144,17 @@ class DevicesRepository extends ChangeNotifier {
     }
   }
 
-  Future<WirelessServiceDiscoveryResult> discoverMdnsServices() async {
+  /// Lists the wireless ADB services advertised on the local network.
+  ///
+  /// With [retry] the call keeps polling until something shows up, which suits
+  /// a one-shot "discover now" action. Callers that poll on their own schedule
+  /// (the wireless dialog's background scan) pass `false` for a single probe.
+  Future<WirelessServiceDiscoveryResult> discoverMdnsServices({
+    bool retry = true,
+  }) async {
     WirelessServiceDiscoveryResult result = await _adbTool
         .discoverMdnsServices();
+    if (!retry) return result;
 
     for (int attempt = 0; attempt < _mdnsRetryCountMax; attempt++) {
       if (_disposed) break;
@@ -180,8 +183,8 @@ class DevicesRepository extends ChangeNotifier {
     final deduplicatedAndroid = _deduplicateWirelessAndroid(
       describedAndroidDevices,
     );
-    final iosDeviceIds = await _ideviceIdTool.getDeviceIds();
-    final iosSupportUnavailable = _ideviceIdTool.usbmuxdUnavailable;
+    final iosDeviceIds = await _iosDeviceService.listDeviceIds();
+    final iosSupportUnavailable = _iosDeviceService.usbmuxdUnavailable;
     final iosDevices = await Future.wait(iosDeviceIds.map(_resolveIosDevice));
     final nextDevices = _mergeDevices([...deduplicatedAndroid, ...iosDevices]);
 
@@ -335,7 +338,7 @@ class DevicesRepository extends ChangeNotifier {
       return cached.toIosDevice(deviceId);
     }
 
-    final info = await _ideviceInfoTool.readDeviceInfo(deviceId);
+    final info = await _iosDeviceService.describeDevice(deviceId);
     final described = await _mapIosDeviceInfo(info);
     if (described.name != null || described.model != null) {
       _iosDescriptionCache[deviceId] = _CachedIosDeviceDescription(
@@ -347,8 +350,31 @@ class DevicesRepository extends ChangeNotifier {
   }
 
   void _startAndroidDeviceWatcher() {
-    _androidDeviceChangesSub?.cancel();
     _androidWatcherRestartTimer?.cancel();
+    _androidWatcherStart = _restartAndroidDeviceWatcher(_androidWatcherStart);
+  }
+
+  /// Tears the previous watcher down *before* spawning the next one, and
+  /// serialises overlapping restarts through [_androidWatcherStart].
+  ///
+  /// Cancelling the subscription is what stops the `adb track-devices` child,
+  /// and that cancel is asynchronous. Firing it and immediately re-listening
+  /// (or letting two restarts race) left the old tracker running: a duplicate
+  /// per restart, each holding an adb server connection for the life of the
+  /// app. The cancel is bounded so a wedged teardown can't permanently stop
+  /// device discovery — a leaked tracker is recoverable, a dead watcher is not.
+  Future<void> _restartAndroidDeviceWatcher(Future<void>? pending) async {
+    await pending;
+
+    final previous = _androidDeviceChangesSub;
+    _androidDeviceChangesSub = null;
+    if (previous != null) {
+      await previous.cancel().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {},
+      );
+    }
+    if (_disposed) return;
 
     _androidDeviceChangesSub = _adbTool.watchDeviceChanges().listen(
       (_) => _scheduleAndroidRefresh(),

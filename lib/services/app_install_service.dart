@@ -86,7 +86,9 @@ class AppInstallService {
   static const List<String> _androidExtensions = ['apk'];
   static const List<String> _iosExtensions = ['ipa', 'app'];
 
-  static Future<AppInstallSelectionResult> pickInstallable(Device device) async {
+  static Future<AppInstallSelectionResult> pickInstallable(
+    Device device,
+  ) async {
     final initialDirectory = await _resolveInitialDirectory();
     final result = await FilePicker.platform.pickFiles(
       dialogTitle: 'Install app on ${device.displayName}',
@@ -173,7 +175,10 @@ class AppInstallService {
       return '"$fileName" is not supported for ${device.displayName}. Choose a $expectedFormat installable for the selected device.';
     }
 
-    final entityType = FileSystemEntity.typeSync(normalizedPath, followLinks: true);
+    final entityType = FileSystemEntity.typeSync(
+      normalizedPath,
+      followLinks: true,
+    );
     if (entityType == FileSystemEntityType.notFound) {
       return 'The selected app "$fileName" could not be found.';
     }
@@ -201,13 +206,12 @@ class AppInstallService {
     return 'Unsupported iOS app format for "$fileName". Use an IPA or .app bundle.';
   }
 
-
   static Future<void> rememberDialogDirectoryFromPath(String path) async {
     final entityType = FileSystemEntity.typeSync(path, followLinks: true);
     final directoryPath = switch (entityType) {
       FileSystemEntityType.directory => Directory(path).parent.path,
-      FileSystemEntityType.file || FileSystemEntityType.link =>
-        File(path).parent.path,
+      FileSystemEntityType.file ||
+      FileSystemEntityType.link => File(path).parent.path,
       FileSystemEntityType.notFound => File(path).parent.path,
       _ => File(path).parent.path,
     };
@@ -277,4 +281,3 @@ class AppInstallService {
     return null;
   }
 }
-

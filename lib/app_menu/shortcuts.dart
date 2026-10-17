@@ -51,6 +51,11 @@ const kExportLogsShortcut = SingleActivator(
   meta: true,
   shift: true,
 );
+const kCommandPaletteShortcut = SingleActivator(
+  LogicalKeyboardKey.keyP,
+  meta: true,
+  shift: true,
+);
 const kSettingsShortcut = SingleActivator(LogicalKeyboardKey.comma, meta: true);
 const kQuitShortcut = SingleActivator(LogicalKeyboardKey.keyQ, meta: true);
 const kIncreaseFontShortcut = SingleActivator(
@@ -84,6 +89,9 @@ const appShortcuts = <ShortcutActivator, Intent>{
   kSettingsShortcut: OpenSettingsIntent(),
   SingleActivator(LogicalKeyboardKey.comma, control: true):
       OpenSettingsIntent(),
+  kCommandPaletteShortcut: OpenCommandPaletteIntent(),
+  SingleActivator(LogicalKeyboardKey.keyP, control: true, shift: true):
+      OpenCommandPaletteIntent(),
 
   // Capture
   kStartLogcatShortcut: StartLogcatIntent(),

@@ -161,6 +161,27 @@ if [ "$HOST" = "windows" ]; then
   persist_windows_ffmpeg_env
 fi
 
+# ── git hooks ────────────────────────────────────────────────────────────────
+# .githooks/pre-commit formats staged Dart before it lands, so `dart format`
+# never shows up as review noise. Hooks live in the repo, so each clone has to
+# point git at them once.
+if [ -d "$PROJECT_DIR/.git" ] || [ -f "$PROJECT_DIR/.git" ]; then
+  log "Enabling the repo's git hooks..."
+  (cd "$PROJECT_DIR" && git config core.hooksPath .githooks)
+  chmod +x "$PROJECT_DIR"/.githooks/* 2>/dev/null || true
+else
+  warn "Not a git checkout; skipping git hook setup."
+fi
+
+# ── agent skills ─────────────────────────────────────────────────────────────
+# .claude/skills is a symlink to the agent-agnostic .agents/skills. Windows
+# clones without symlink support materialise it as a text file instead, which
+# silently hides every skill — so check rather than assume.
+if [ -e "$PROJECT_DIR/.claude/skills" ] && [ ! -L "$PROJECT_DIR/.claude/skills" ]; then
+  warn ".claude/skills is not a symlink; agent skills will not be found."
+  warn "Enable Developer Mode, then: git config core.symlinks true && git checkout -- .claude/skills"
+fi
+
 # ── Dart/Flutter packages ────────────────────────────────────────────────────
 log "Fetching Dart/Flutter packages..."
 (cd "$PROJECT_DIR" && $FLUTTER pub get)
@@ -196,3 +217,5 @@ echo
 echo "Validate your checkout with:"
 echo "  $FLUTTER analyze lib test"
 echo "  $FLUTTER test"
+echo "  $DART format --output=none --set-exit-if-changed ."
+

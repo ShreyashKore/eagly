@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:eagly/constants/app_constants.dart';
 import 'package:eagly/data/device.dart';
+import 'package:eagly/features/file_manager/data/device_file_entry.dart';
+import 'package:eagly/features/file_manager/file_manager_controller.dart';
+import 'package:eagly/features/file_manager/services/device_file_system.dart';
 import 'package:eagly/services/devices_repository.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
@@ -15,8 +18,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late FakeAdbTool adbTool;
-  late FakeIdeviceIdTool ideviceIdTool;
-  late FakeIdeviceInfoTool ideviceInfoTool;
+  late FakeIosDeviceService iosDevicesService;
   late DevicesRepository repository;
   late Directory tempDir;
   DeviceSessionManager? manager;
@@ -28,12 +30,10 @@ void main() {
 
   setUp(() {
     adbTool = FakeAdbTool();
-    ideviceIdTool = FakeIdeviceIdTool();
-    ideviceInfoTool = FakeIdeviceInfoTool();
+    iosDevicesService = FakeIosDeviceService();
     repository = DevicesRepository.forTesting(
       adbTool: adbTool,
-      ideviceIdTool: ideviceIdTool,
-      ideviceInfoTool: ideviceInfoTool,
+      iosDeviceService: iosDevicesService,
     );
     tempDir = Directory.systemTemp.createTempSync('device-session-test');
   });
@@ -129,6 +129,27 @@ void main() {
     expect(manager!.sessions.single.isConnected, isTrue);
   });
 
+  test('reloading a tab swaps in a fresh session in the same slot', () async {
+    adbTool.androidDevices = [
+      Device('emulator-5554', 'device', platform: DevicePlatform.android),
+      Device('emulator-5556', 'device', platform: DevicePlatform.android),
+    ];
+    manager = buildManager();
+    await sync();
+    manager!.select('emulator-5554');
+    final original = manager!.selected;
+
+    await manager!.reload('emulator-5554');
+
+    expect(manager!.sessions.map((session) => session.id), [
+      'emulator-5554',
+      'emulator-5556',
+    ]);
+    expect(manager!.selectedId, 'emulator-5554');
+    expect(manager!.selected, isNot(same(original)));
+    expect(manager!.selected?.isActivated, isTrue);
+  });
+
   test('does not auto-select when multiple devices are connected', () async {
     adbTool.androidDevices = [
       Device('emulator-5554', 'device', platform: DevicePlatform.android),
@@ -193,6 +214,82 @@ void main() {
       expect(result!.installed, ['sample.apk']);
       expect(result.errors, isEmpty);
       expect(result.message, contains('Installed sample.apk'));
+    });
+
+    group('onto a file-manager folder', () {
+      late _RecordingFileSystem fileSystem;
+
+      setUp(() {
+        fileSystem = _RecordingFileSystem();
+        FileManagerController.fileSystemFactory = (_) => fileSystem;
+      });
+
+      tearDown(() => FileManagerController.fileSystemFactory = null);
+
+      test('copies plain files into the given folder', () async {
+        final session = buildSession(Device.android('emulator-5554', 'device'));
+        final txt = File('${tempDir.path}/notes.txt')..writeAsStringSync('x');
+
+        final result = await session.handleDroppedPaths([
+          txt.path,
+        ], copyDirectory: '/sdcard/DCIM');
+
+        expect(fileSystem.uploads, [(txt.path, '/sdcard/DCIM')]);
+        expect(result!.copied, ['notes.txt']);
+        expect(result.message, 'Copied notes.txt to /sdcard/DCIM.');
+      });
+
+      test('copies a compatible APK instead of installing it', () async {
+        final service = FakeSessionService(
+          Device.android('emulator-5554', 'device'),
+        );
+        final session = DeviceSessionController(
+          device: service.device,
+          service: service,
+        );
+        addTearDown(session.dispose);
+        final apk = File('${tempDir.path}/sample.apk')
+          ..writeAsStringSync('apk');
+
+        final result = await session.handleDroppedPaths(
+          [apk.path],
+          copyDirectory: '/sdcard/DCIM',
+          installApps: false,
+        );
+
+        expect(service.installRequests, isEmpty);
+        expect(fileSystem.uploads, [(apk.path, '/sdcard/DCIM')]);
+        expect(result!.installed, isEmpty);
+        expect(result.copied, ['sample.apk']);
+      });
+
+      test('installs the APK and still copies the rest there', () async {
+        final session = buildSession(Device.android('emulator-5554', 'device'));
+        final apk = File('${tempDir.path}/sample.apk')
+          ..writeAsStringSync('apk');
+        final txt = File('${tempDir.path}/notes.txt')..writeAsStringSync('x');
+
+        final result = await session.handleDroppedPaths([
+          apk.path,
+          txt.path,
+        ], copyDirectory: '/sdcard/DCIM');
+
+        expect(result!.installed, ['sample.apk']);
+        expect(fileSystem.uploads, [(txt.path, '/sdcard/DCIM')]);
+      });
+
+      test('copies an other-platform installable as a file', () async {
+        final session = buildSession(Device.android('emulator-5554', 'device'));
+        final ipa = File('${tempDir.path}/Sample.ipa')
+          ..writeAsStringSync('ipa');
+
+        final result = await session.handleDroppedPaths([
+          ipa.path,
+        ], copyDirectory: '/sdcard/DCIM');
+
+        expect(result!.errors, isEmpty);
+        expect(result.copied, ['Sample.ipa']);
+      });
     });
 
     test(
@@ -296,4 +393,29 @@ void main() {
       expect(manager!.sessions, isEmpty);
     });
   });
+}
+
+/// Records uploads instead of pushing them to a device.
+class _RecordingFileSystem implements DeviceFileSystem {
+  final uploads = <(String, String)>[];
+
+  @override
+  Future<void> upload({
+    required String localPath,
+    required String deviceDirectory,
+  }) async {
+    uploads.add((localPath, deviceDirectory));
+  }
+
+  @override
+  String get dropTargetDirectory => '/sdcard/Download';
+
+  @override
+  String get initialPath => '/sdcard';
+
+  @override
+  Future<List<DeviceFileEntry>> list(String path) async => const [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

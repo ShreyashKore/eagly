@@ -10,6 +10,7 @@ bool matchesLogFilters(
   LogFilters appliedFilters,
   LogLevel effectiveSelectedLogLevel, {
   DateTime? now,
+  PackageForPid? packageForPid,
 }) {
   final selectedLevel = effectiveSelectedLogLevel;
   if (LogLevel.fromStored(log.level).hierarchy > selectedLevel.hierarchy) {
@@ -21,8 +22,13 @@ bool matchesLogFilters(
     return false;
   }
 
-  if (!_matchesAllTerms(packageFilterValue(log), appliedFilters.packageTerms)) {
-    return false;
+  if (appliedFilters.packageTerms.isNotEmpty) {
+    final candidates = packageFilterCandidates(log, packageForPid);
+    if (appliedFilters.packageTerms.any(
+      (term) => !term.matchesAny(candidates),
+    )) {
+      return false;
+    }
   }
 
   // Only force the cached lowercase concatenation when there's actually a
@@ -64,6 +70,37 @@ String packageFilterValue(LogEntry log) {
   if (processName != null && processName.isNotEmpty) return processName;
 
   return '';
+}
+
+/// Resolves the package/process last seen for a PID; see `PidPackageIndex`.
+typedef PackageForPid = String? Function(String pid);
+
+/// Everything a package term is matched against: the entry's own package/process
+/// value, the package [packageForPid] remembers for its PID, and the PID itself.
+///
+/// A package filter has to look at the PID too. Only some entries carry a
+/// resolved package — the pid→package map is polled, so entries from before a
+/// process was first seen (or after it exited) arrive with none — and matching
+/// on the package alone silently drops exactly those lines from a filtered view.
+List<String> packageFilterCandidates(
+  LogEntry log,
+  PackageForPid? packageForPid,
+) {
+  final candidates = <String>[];
+
+  final value = packageFilterValue(log);
+  if (value.isNotEmpty) candidates.add(value);
+
+  final pid = log.pid.trim();
+  if (pid.isNotEmpty) {
+    final remembered = packageForPid?.call(pid);
+    if (remembered != null && remembered.isNotEmpty && remembered != value) {
+      candidates.add(remembered);
+    }
+    candidates.add(pid);
+  }
+
+  return candidates;
 }
 
 /// True when every term in [terms] matches [candidate]. An empty [terms] matches

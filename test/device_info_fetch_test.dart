@@ -1,28 +1,60 @@
+import 'dart:convert';
+
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/device_home/data/device_info.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
+import 'package:eagly/services/ios/ios_device_domains.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
 import 'package:eagly/services/tools/tool_process_runner.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Stubs the process boundary by overriding [runText] (a regular,
+/// Stubs the process boundary by overriding [runTextWithTimeout] (a regular,
 /// overridable instance method) so [AdbTool.fetchDeviceInfo]'s real parsing
-/// runs against canned per-command `adb shell` output, keyed by a substring
-/// of the joined argument list.
+/// runs against canned `adb shell` output.
+///
+/// `fetchDeviceInfo` sends every command as one delimited script, so this
+/// plays the device's part: it walks the script and emits each command's
+/// canned output behind the same section marker the real shell would print.
+/// That keeps the section splitting under test rather than stubbed past.
 class _FakeAdbTool extends AdbTool {
   _FakeAdbTool(this.responses) : super(executablePath: '/usr/bin/true');
 
+  static const String _marker = '__EAGLY_SECTION__';
+
+  /// Canned stdout, keyed by a substring of the command that produces it.
   final Map<String, String> responses;
 
   @override
-  Future<ToolCommandResult> runText(List<String> arguments) async {
-    final joined = arguments.join(' ');
-    for (final entry in responses.entries) {
-      if (joined.contains(entry.key)) {
-        return ToolCommandResult(exitCode: 0, stdout: entry.value, stderr: '');
+  Future<ToolCommandResult> runTextWithTimeout(
+    List<String> arguments, {
+    Duration timeout = const Duration(seconds: 30),
+    bool closeStdin = false,
+  }) async {
+    final script = arguments.last;
+    if (!script.contains(_marker)) {
+      return const ToolCommandResult(exitCode: 0, stdout: '', stderr: '');
+    }
+
+    final output = StringBuffer();
+    for (final line in const LineSplitter().convert(script)) {
+      final command = line.trim();
+      if (command.isEmpty) continue;
+      if (command == 'echo $_marker') {
+        output.writeln(_marker);
+        continue;
+      }
+      for (final entry in responses.entries) {
+        if (command.contains(entry.key)) {
+          output.write(entry.value);
+          break;
+        }
       }
     }
-    return const ToolCommandResult(exitCode: 0, stdout: '', stderr: '');
+    return ToolCommandResult(
+      exitCode: 0,
+      stdout: output.toString(),
+      stderr: '',
+    );
   }
 }
 
@@ -89,9 +121,9 @@ Filesystem     1K-blocks    Used Available Use% Mounted on
 
     Future<DeviceInfo> fetch({bool wireless = false}) {
       final tool = _FakeAdbTool({
-        'shell getprop': getprop,
+        'getprop': getprop,
         'dumpsys battery': battery,
-        'shell df /data': df,
+        'df /data': df,
         'wm size': 'Physical size: 1080x2400\n',
         'wm density': 'Physical density: 420\n',
         'dumpsys display': displayDump,
@@ -195,7 +227,7 @@ Filesystem     1K-blocks    Used Available Use% Mounted on
     });
   });
 
-  group('IdeviceInfoTool.fetchExtendedInfo', () {
+  group('iOS device info: IdeviceInfoTool domains + buildIosDeviceInfo', () {
     const defaultDomain = '''
 DeviceName: My iPhone
 ProductVersion: 17.4
@@ -221,7 +253,7 @@ Locale: en_US
 TimeZone: America/New_York
 ''';
 
-    Future<DeviceInfo> fetch({String status = 'device'}) {
+    Future<DeviceInfo> fetch({String status = 'device'}) async {
       final tool = _FakeIdeviceInfoTool({
         'default': defaultDomain,
         'com.apple.mobile.battery': batteryDomain,
@@ -229,7 +261,12 @@ TimeZone: America/New_York
         'com.apple.international': internationalDomain,
       });
       final device = IosDevice('udid-1', status, model: 'iPhone 15 Pro');
-      return tool.fetchExtendedInfo(device);
+      // Both backends share buildIosDeviceInfo, so these assertions cover the
+      // Rust path's mapping too — only the domain-reading half differs.
+      return buildIosDeviceInfo(
+        device,
+        await tool.readDeviceDomains(device.id),
+      );
     }
 
     test('parses identity from the default domain', () async {

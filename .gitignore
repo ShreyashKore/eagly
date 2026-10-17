@@ -65,3 +65,8 @@ windows/certificates/*.crt
 sentry.properties
 # Widget Preview related
 .widget_preview/
+
+# Claude Code keeps local session state here. The one tracked entry is
+# .claude/skills, a symlink to the agent-agnostic .agents/skills source of truth.
+.claude/*
+!.claude/skills

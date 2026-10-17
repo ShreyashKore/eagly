@@ -33,6 +33,12 @@ class DeviceHomeController extends FeatureController {
   bool _loading = false;
   bool _loadingDeviceInfo = false;
   bool _loadingRecentApps = false;
+
+  /// Guards against a slow poll overlapping the next tick. Each refresh spawns
+  /// `adb` children, so a device answering slower than the poll interval would
+  /// otherwise stack them up indefinitely.
+  bool _deviceInfoInFlight = false;
+  bool _statsInFlight = false;
   DateTime? _lastUpdatedAt;
 
   DevicePerformanceStats get stats => _stats;
@@ -100,7 +106,8 @@ class DeviceHomeController extends FeatureController {
   }
 
   Future<void> _refreshDeviceInfo() async {
-    if (_disposed || !isConnected) return;
+    if (_disposed || !isConnected || _deviceInfoInFlight) return;
+    _deviceInfoInFlight = true;
     try {
       _deviceInfo = await service.fetchDeviceInfo();
       _lastUpdatedAt = DateTime.now();
@@ -109,11 +116,14 @@ class DeviceHomeController extends FeatureController {
     } catch (_) {
       _loadingDeviceInfo = false;
       _notify();
+    } finally {
+      _deviceInfoInFlight = false;
     }
   }
 
   Future<void> _refreshStats() async {
-    if (_disposed || !isConnected) return;
+    if (_disposed || !isConnected || _statsInFlight) return;
+    _statsInFlight = true;
     try {
       _stats = await service.fetchPerformanceStats();
       _lastUpdatedAt = DateTime.now();
@@ -122,6 +132,8 @@ class DeviceHomeController extends FeatureController {
     } catch (_) {
       _loading = false;
       _notify();
+    } finally {
+      _statsInFlight = false;
     }
   }
 

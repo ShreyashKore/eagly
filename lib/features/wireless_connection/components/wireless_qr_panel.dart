@@ -2,119 +2,163 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-/// QR pairing panel: shows the generated [payload] as a scannable code, or a
-/// generate prompt while no pairing session exists.
+import '../../../presentation/components/delayed_reveal.dart';
+import '../../../presentation/components/hint_note.dart';
+
+/// The pair-by-QR card that heads the pairing pane.
+///
+/// The code is always on screen — it is generated locally, so there is nothing
+/// to wait for and no generate button. The troubleshooting note stays hidden
+/// until scanning has visibly taken a while.
 class WirelessQrPanel extends StatelessWidget {
   const WirelessQrPanel({
     super.key,
     required this.payload,
     required this.waiting,
-    required this.busy,
-    required this.onGenerate,
-    required this.onCancel,
+    required this.pairing,
+    required this.onRegenerate,
+    this.hintDelay = const Duration(seconds: 12),
   });
 
-  /// QR payload from the active pairing session; null before generation.
+  /// QR payload from the active pairing session.
   final String? payload;
 
-  /// Whether the app is waiting for the device to scan the code.
+  /// Whether the app is watching for this code to be scanned.
   final bool waiting;
-  final bool busy;
-  final VoidCallback onGenerate;
-  final VoidCallback onCancel;
+
+  /// Whether a scanned code is being paired/connected right now.
+  final bool pairing;
+  final VoidCallback onRegenerate;
+
+  /// How long to wait before offering the troubleshooting note.
+  final Duration hintDelay;
+
+  static const double _qrSize = 156;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    if (payload == null) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Generate a one-time pairing code',
-              style: theme.textTheme.titleMedium,
-            ),
-            const Gap(8),
-            Text(
-              'A QR code will appear here for your device to scan. Pairing and '
-              'connection continue automatically once it is scanned.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const Gap(18),
-            FilledButton.icon(
-              onPressed: busy ? null : onGenerate,
-              icon: const Icon(Icons.qr_code_2),
-              label: const Text('Generate QR code'),
-            ),
-          ],
-        ),
-      );
-    }
-
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          payload == null
-              ? const SizedBox.square(
-                  dimension: 220,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: QrImageView(
-                    data: payload!,
-                    version: QrVersions.auto,
-                    size: 220,
-                    backgroundColor: Colors.white,
-                  ),
-                ),
-          const Gap(18),
-          if (waiting) ...[
-            Row(
+          _QrCode(payload: payload),
+          const Gap(20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox.square(
-                  dimension: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const Gap(10),
+                Text('Pair with a QR code', style: theme.textTheme.titleMedium),
+                const Gap(6),
                 Text(
-                  'Waiting for the device to scan…',
-                  style: theme.textTheme.bodyMedium,
+                  'On the device: Settings → Developer options → Wireless '
+                  'debugging → Pair device with QR code. Pairing and '
+                  'connection continue on their own once it is scanned.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const Gap(12),
+                _StatusLine(waiting: waiting, pairing: pairing),
+                DelayedReveal(
+                  enabled: waiting,
+                  delay: hintDelay,
+                  restartKey: payload,
+                  child: const Padding(
+                    padding: EdgeInsets.only(top: 12),
+                    child: HintNote(
+                      title: 'Still waiting?',
+                      text:
+                          'The computer and the device must be on the same '
+                          'Wi-Fi network, and networks that isolate clients '
+                          '(guest or public Wi-Fi) block pairing. Keep the '
+                          'pairing screen open on the device, or use Manual '
+                          'entry with the address it shows.',
+                    ),
+                  ),
+                ),
+                const Gap(4),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: pairing ? null : onRegenerate,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('New code'),
+                  ),
                 ),
               ],
             ),
-            const Gap(16),
-            OutlinedButton.icon(
-              onPressed: onCancel,
-              icon: const Icon(Icons.close),
-              label: const Text('Cancel'),
-            ),
-          ],
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _QrCode extends StatelessWidget {
+  const _QrCode({required this.payload});
+
+  final String? payload;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: SizedBox.square(
+        dimension: WirelessQrPanel._qrSize,
+        child: payload == null
+            ? const Center(child: CircularProgressIndicator())
+            : QrImageView(
+                data: payload!,
+                version: QrVersions.auto,
+                size: WirelessQrPanel._qrSize,
+                backgroundColor: Colors.white,
+              ),
+      ),
+    );
+  }
+}
+
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.waiting, required this.pairing});
+
+  final bool waiting;
+  final bool pairing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (!waiting && !pairing) return const SizedBox.shrink();
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox.square(
+          dimension: 14,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        const Gap(10),
+        Flexible(
+          child: Text(
+            pairing ? 'Pairing…' : 'Waiting for the device to scan…',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

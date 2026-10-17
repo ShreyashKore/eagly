@@ -1,15 +1,21 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'dart:ui' show AppExitResponse;
+
 import 'package:flutter/material.dart';
 
 import '../../constants/app_constants.dart';
 import '../logs/log_controller.dart';
 import '../../app_menu/intents.dart';
+import '../../command_palette/command_palette_dialog.dart';
+import '../../command_palette/command_palette_items.dart';
 import '../../services/eagly_info_service.dart';
 import '../../services/preferences_service.dart';
+import '../../services/tools/tool_process_runner.dart';
 import '../../session/device_session_manager.dart';
 import '../../utils/log_feedback.dart';
+import '../emulator_manager/emulator_manager_dialog.dart';
 import '../settings/settings_screen.dart';
 import '../tips/tips_controller.dart';
 import '../wireless_connection/wireless_connection_dialog.dart';
@@ -34,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final AppMenuController _menuController = AppMenuController(_manager);
   final ValueNotifier<int> _appMemoryBytes = ValueNotifier<int>(0);
   Timer? _memoryRefreshTimer;
+  AppLifecycleListener? _lifecycleListener;
 
   bool get _supportsDesktopMenuBar => Platform.isMacOS;
 
@@ -47,11 +54,24 @@ class _HomeScreenState extends State<HomeScreen> {
     _memoryRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _refreshAppMemory();
     });
+    // Child processes are reparented to init rather than killed when we exit,
+    // so every live `adb track-devices` / `adb logcat` would otherwise outlive
+    // the app and keep its adb server connection open. See
+    // [ToolProcessRunner.terminateAllProcesses].
+    _lifecycleListener = AppLifecycleListener(
+      onExitRequested: _terminateToolProcesses,
+    );
+  }
+
+  Future<AppExitResponse> _terminateToolProcesses() async {
+    await ToolProcessRunner.terminateAllProcesses();
+    return AppExitResponse.exit;
   }
 
   @override
   void dispose() {
     _memoryRefreshTimer?.cancel();
+    _lifecycleListener?.dispose();
     _appMemoryBytes.dispose();
     _menuController.dispose();
     _tipsController.dispose();
@@ -124,6 +144,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _showEmulatorDialog() async {
+    await showEmulatorManagerDialog(
+      context: context,
+      manager: _manager,
+      onShowSnackBar: _showSnackBar,
+    );
+  }
+
   Future<void> _handleInstallApp() async {
     final session = _manager.selected;
     if (session == null) return;
@@ -158,6 +186,29 @@ class _HomeScreenState extends State<HomeScreen> {
     if (result.error != null) _showSnackBar(result.error!);
   }
 
+  Future<void> _openCommandPalette() async {
+    await showCommandPalette(
+      context: context,
+      listenable: Listenable.merge([_manager, _menuController]),
+      itemsBuilder: () => buildCommandPaletteItems(
+        context: context,
+        manager: _manager,
+        menuController: _menuController,
+        onOpenSettings: () => unawaited(_openSettings()),
+        onShowAbout: _showAboutApp,
+        onQuit: () => exit(0),
+        onInstallApp: () => unawaited(_handleInstallApp()),
+        onExportLogs: () => unawaited(_handleExportLogs()),
+        onShowWireless: () => unawaited(_showWirelessDialog()),
+        onShowEmulators: () => unawaited(_showEmulatorDialog()),
+        onImportLog: () => unawaited(_handleImportLog()),
+        onZoomIn: () => _changeZoomLevel(0.05),
+        onZoomOut: () => _changeZoomLevel(-0.05),
+        onShowSnackBar: _showSnackBar,
+      ),
+    );
+  }
+
   /// The single place that maps each command [Intent] to its behavior. Both the
   /// macOS menu (via `onSelectedIntent`) and the keyboard [appShortcuts] route
   /// through this map. Log commands delegate to [AppMenuController]; window/UI
@@ -187,6 +238,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       ExportLogsIntent: on<ExportLogsIntent>(
         (_) => unawaited(_handleExportLogs()),
+      ),
+      OpenCommandPaletteIntent: on<OpenCommandPaletteIntent>(
+        (_) => unawaited(_openCommandPalette()),
       ),
       // Capture
       StartLogcatIntent: on<StartLogcatIntent>(
@@ -225,7 +279,9 @@ class _HomeScreenState extends State<HomeScreen> {
         (_) => _menuController.toggleAutoScroll(),
       ),
       IncreaseFontIntent: on<IncreaseFontIntent>((_) => _changeZoomLevel(0.05)),
-      DecreaseFontIntent: on<DecreaseFontIntent>((_) => _changeZoomLevel(-0.05)),
+      DecreaseFontIntent: on<DecreaseFontIntent>(
+        (_) => _changeZoomLevel(-0.05),
+      ),
     };
   }
 
@@ -245,6 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 tipsController: _tipsController,
                 onOpenSettings: _openSettings,
                 onShowWireless: _showWirelessDialog,
+                onShowEmulators: _showEmulatorDialog,
               ),
               Expanded(
                 child: ListenableBuilder(
@@ -278,12 +335,17 @@ class _HomeScreenState extends State<HomeScreen> {
       return HomeView(
         manager: _manager,
         onShowWireless: _showWirelessDialog,
+        onShowEmulators: _showEmulatorDialog,
         onShowMessage: _showSnackBar,
         onImportLog: () => unawaited(_handleImportLog()),
         onOpenRecent: (path) => unawaited(_handleImportLog(path: path)),
       );
     }
     return DeviceScreen(
+      // Keyed on the controller instance so reloading a tab (which swaps in a
+      // fresh session) rebuilds the whole pane tree instead of reusing state
+      // wired to the disposed one.
+      key: ObjectKey(session),
       session: session,
       appMemoryBytesListenable: _appMemoryBytes,
       onOpenSettings: _openSettings,

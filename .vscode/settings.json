@@ -1,5 +1,5 @@
 {
-  "dart.flutterSdkPath": ".fvm/flutter_sdk",
+  "dart.flutterSdkPath": ".fvm/versions/3.47.0",
   "search.exclude": {
     "**/.fvm": true
   },
@@ -8,5 +8,12 @@
   },
   "chat.tools.terminal.autoApprove": {
     "flutter": true
+  },
+  "[dart]": {
+    "editor.defaultFormatter": "Dart-Code.dart-code",
+    "editor.formatOnSave": true,
+    "editor.rulers": [
+      80
+    ]
   }
 }

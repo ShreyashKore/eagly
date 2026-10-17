@@ -34,8 +34,7 @@ class NoFilteredLogsNotice extends StatelessWidget {
                 TextButton(
                   onPressed: onClearFilter,
                   style: TextButton.styleFrom(
-                    foregroundColor:
-                        context.eaglyTheme.inlineNoticeForeground,
+                    foregroundColor: context.eaglyTheme.inlineNoticeForeground,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
                       vertical: 4,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -125,7 +126,12 @@ class AdbTool extends ToolProcessRunner {
 
   Future<Device> describeDevice(String deviceId) async {
     try {
-      final result = await runText(['-s', deviceId, 'shell', 'getprop']);
+      final result = await runTextWithTimeout([
+        '-s',
+        deviceId,
+        'shell',
+        'getprop',
+      ], timeout: _deviceInfoTimeout);
       if (!result.isSuccess) {
         logError(
           'adb shell getprop returned non-zero exit for $deviceId',
@@ -171,71 +177,98 @@ class AdbTool extends ToolProcessRunner {
     }
   }
 
+  /// Ceiling on a device-info round-trip. `Process.run` cannot be interrupted,
+  /// so a wedged transport used to hang one of these forever — and since the
+  /// device home polls every few seconds, a single unresponsive device leaked a
+  /// stranded `adb` child per poll rather than one in total. Generous next to a
+  /// healthy device (tens of milliseconds) and still far under the poll gap.
+  static const Duration _deviceInfoTimeout = Duration(seconds: 10);
+
+  /// Marker printed before each section of [_deviceInfoScript]'s output so the
+  /// sections can be split apart again host-side.
+  static const String _deviceInfoSectionMarker = '__EAGLY_SECTION__';
+
+  /// The device-info commands, in the order [_splitDeviceInfoSections] returns
+  /// their output. Indices are referenced positionally by [fetchDeviceInfo].
+  static const List<String> _deviceInfoCommands = [
+    'getprop',
+    'dumpsys battery',
+    'df /data',
+    'wm size',
+    'wm density',
+    'dumpsys display',
+    'settings get global wifi_on',
+    'settings get global bluetooth_on',
+    'settings get global development_settings_enabled',
+    'settings get global adb_enabled',
+    'ip -f inet addr show wlan0',
+  ];
+
+  /// One `sh` script running every [_deviceInfoCommands] entry, each preceded
+  /// by [_deviceInfoSectionMarker].
+  ///
+  /// This is deliberately a *single* `adb shell` invocation. Fanning the
+  /// commands out concurrently spawned eleven adb clients and opened eleven
+  /// simultaneous adbd streams on every poll — five seconds apart, forever —
+  /// which contends with everything else sharing that one device transport.
+  /// An `adb reverse` tunnel is the casualty that shows up in practice: React
+  /// Native's Metro connection rides the same transport and drops under the
+  /// burst.
+  ///
+  /// Commands stay independent: `sh` runs on past a non-zero exit, stderr is
+  /// discarded per command, and a section the device never printed parses as
+  /// empty — so one unsupported command still only nulls its own fields.
+  static final String _deviceInfoScript = _deviceInfoCommands
+      .map((command) => 'echo $_deviceInfoSectionMarker\n$command 2>/dev/null')
+      .join('\n');
+
+  /// Splits [_deviceInfoScript] output into one entry per
+  /// [_deviceInfoCommands], padded with empty strings when the device emitted
+  /// fewer sections than expected.
+  static List<String> _splitDeviceInfoSections(String output) {
+    final sections = <String>[];
+    StringBuffer? current;
+    for (final line in const LineSplitter().convert(output)) {
+      final trimmed = line.trimRight();
+      // A command whose output has no trailing newline leaves the next marker
+      // glued to its last line, so match on the suffix and keep the prefix
+      // with the section it belongs to.
+      if (trimmed.endsWith(_deviceInfoSectionMarker)) {
+        final leading = trimmed.substring(
+          0,
+          trimmed.length - _deviceInfoSectionMarker.length,
+        );
+        if (leading.isNotEmpty) current?.writeln(leading);
+        if (current != null) sections.add(current.toString());
+        current = StringBuffer();
+        continue;
+      }
+      current?.writeln(line);
+    }
+    if (current != null) sections.add(current.toString());
+    while (sections.length < _deviceInfoCommands.length) {
+      sections.add('');
+    }
+    return sections;
+  }
+
   /// Broader device info for the device home screen: battery, storage,
   /// display, connectivity, cellular, developer state and software details.
-  /// All sub-commands run concurrently over one adb connection; any single
-  /// command failing just leaves its fields null rather than failing the
-  /// whole fetch.
+  /// Every sub-command runs in one `adb shell` round-trip (see
+  /// [_deviceInfoScript]); any single command failing just leaves its fields
+  /// null rather than failing the whole fetch.
   Future<DeviceInfo> fetchDeviceInfo(AndroidDevice device) async {
     final deviceId = device.id;
     try {
-      final results = await Future.wait([
-        runText(['-s', deviceId, 'shell', 'getprop']),
-        runText(['-s', deviceId, 'shell', 'dumpsys', 'battery']),
-        runText(['-s', deviceId, 'shell', 'df', '/data']),
-        runText(['-s', deviceId, 'shell', 'wm', 'size']),
-        runText(['-s', deviceId, 'shell', 'wm', 'density']),
-        runText(['-s', deviceId, 'shell', 'dumpsys', 'display']),
-        runText([
-          '-s',
-          deviceId,
-          'shell',
-          'settings',
-          'get',
-          'global',
-          'wifi_on',
-        ]),
-        runText([
-          '-s',
-          deviceId,
-          'shell',
-          'settings',
-          'get',
-          'global',
-          'bluetooth_on',
-        ]),
-        runText([
-          '-s',
-          deviceId,
-          'shell',
-          'settings',
-          'get',
-          'global',
-          'development_settings_enabled',
-        ]),
-        runText([
-          '-s',
-          deviceId,
-          'shell',
-          'settings',
-          'get',
-          'global',
-          'adb_enabled',
-        ]),
-        runText([
-          '-s',
-          deviceId,
-          'shell',
-          'ip',
-          '-f',
-          'inet',
-          'addr',
-          'show',
-          'wlan0',
-        ]),
-      ]);
+      final result = await runTextWithTimeout([
+        '-s',
+        deviceId,
+        'shell',
+        _deviceInfoScript,
+      ], timeout: _deviceInfoTimeout);
+      final results = _splitDeviceInfoSections(result.stdout);
 
-      final properties = _parseAndroidGetPropOutput(results[0].stdout);
+      final properties = _parseAndroidGetPropOutput(results[0]);
       final mccMnc = _splitMccMnc(properties['gsm.operator.numeric']);
       final sdkLevel = int.tryParse(properties['ro.build.version.sdk'] ?? '');
 
@@ -253,18 +286,18 @@ class AdbTool extends ToolProcessRunner {
           serialNumber: device.serialNumber,
           cpuArchitecture: properties['ro.product.cpu.abi'],
         ),
-        battery: _parseAndroidBattery(results[1].stdout),
-        storage: _parseAndroidStorage(results[2].stdout),
+        battery: _parseAndroidBattery(results[1]),
+        storage: _parseAndroidStorage(results[2]),
         display: _parseAndroidDisplay(
-          sizeOutput: results[3].stdout,
-          densityOutput: results[4].stdout,
-          displayDumpOutput: results[5].stdout,
+          sizeOutput: results[3],
+          densityOutput: results[4],
+          displayDumpOutput: results[5],
         ),
         connectivity: DeviceConnectivityInfo(
           usbConnected: !device.isWireless,
-          wifiEnabled: _parseAndroidBoolSetting(results[6].stdout),
-          bluetoothEnabled: _parseAndroidBoolSetting(results[7].stdout),
-          ipAddress: _parseAndroidIpAddress(results[10].stdout),
+          wifiEnabled: _parseAndroidBoolSetting(results[6]),
+          bluetoothEnabled: _parseAndroidBoolSetting(results[7]),
+          ipAddress: _parseAndroidIpAddress(results[10]),
         ),
         cellular: DeviceCellularInfo(
           carrierName: properties['gsm.operator.alpha'],
@@ -275,8 +308,8 @@ class AdbTool extends ToolProcessRunner {
           mnc: mccMnc?.mnc,
         ),
         developerState: DeviceDeveloperStateInfo(
-          developerModeEnabled: _parseAndroidBoolSetting(results[8].stdout),
-          adbEnabled: _parseAndroidBoolSetting(results[9].stdout),
+          developerModeEnabled: _parseAndroidBoolSetting(results[8]),
+          adbEnabled: _parseAndroidBoolSetting(results[9]),
           debuggingReady: device.status == 'device',
         ),
         software: DeviceSoftwareInfo(
@@ -715,6 +748,102 @@ class AdbTool extends ToolProcessRunner {
     } catch (error) {
       logError('Liveness probe failed for $deviceId', error);
       return false;
+    }
+  }
+
+  // ── Emulators ────────────────────────────────────────────────────────────
+
+  /// True for a serial adb assigns to a local emulator (`emulator-5554`).
+  ///
+  /// The `emu` subcommand exists only on an emulator's console transport, so
+  /// this guard is what stops a poll over a mixed device list from spawning a
+  /// doomed adb call per physical phone.
+  static bool isEmulatorSerial(String deviceId) =>
+      _emulatorSerialPattern.hasMatch(deviceId);
+
+  static final RegExp _emulatorSerialPattern = RegExp(r'^emulator-\d+$');
+
+  /// The AVD a running emulator was booted from, or `null` when [deviceId] is
+  /// not an emulator or its console did not answer.
+  ///
+  /// This is the only link between a booted emulator and the AVD it came from:
+  /// the serial carries a console port, not a name.
+  Future<String?> emulatorAvdName(
+    String deviceId, {
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    if (!isEmulatorSerial(deviceId)) return null;
+
+    try {
+      final result = await runTextWithTimeout([
+        '-s',
+        deviceId,
+        'emu',
+        'avd',
+        'name',
+      ], timeout: timeout);
+      return parseEmulatorAvdName(result);
+    } catch (error) {
+      logError('Failed to read the AVD name of $deviceId', error);
+      return null;
+    }
+  }
+
+  /// The emulator console answers with the value and then its acknowledgement
+  /// line — `OK` on success, `KO` with a reason on failure. Neither is part of
+  /// the name.
+  String? parseEmulatorAvdName(ToolCommandResult result) {
+    if (!result.isSuccess) return null;
+
+    for (final line in const LineSplitter().convert(result.stdout)) {
+      final value = line.trim();
+      if (value.isEmpty || value == 'OK') continue;
+      if (value.startsWith('KO')) return null;
+      return value;
+    }
+    return null;
+  }
+
+  /// Asks a running emulator to shut itself down (`adb emu kill`).
+  ///
+  /// Killable, unlike `Process.run`: a wedged emulator console accepts the
+  /// connection and then never answers, so an uninterruptible call would hang
+  /// the caller for good.
+  Future<DeviceCommandResult> killEmulator(
+    String deviceId, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    if (!isEmulatorSerial(deviceId)) {
+      return DeviceCommandResult.failure(
+        error: '$deviceId is not a local emulator.',
+      );
+    }
+
+    logInfo('Stopping emulator $deviceId');
+    try {
+      final result = await runTextWithTimeout([
+        '-s',
+        deviceId,
+        'emu',
+        'kill',
+      ], timeout: timeout);
+
+      if (!result.isSuccess) {
+        final details = describeCommandFailure(
+          'Failed to stop $deviceId.',
+          result,
+        );
+        logError('Emulator kill failed for $deviceId', details);
+        return DeviceCommandResult.failure(error: details);
+      }
+
+      logSuccess('Stopped emulator $deviceId');
+      return DeviceCommandResult.success(message: 'Stopping $deviceId\u2026');
+    } catch (error) {
+      logError('Exception while stopping $deviceId', error);
+      return DeviceCommandResult.failure(
+        error: 'Failed to stop $deviceId: ${describeError(error)}',
+      );
     }
   }
 

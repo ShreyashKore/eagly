@@ -1,12 +1,17 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../emulator_manager/services/android_sdk_picker.dart';
 import '../logs/data/models/log_level.dart';
+import '../mirror/services/capture_storage.dart';
+import '../../utils/file_reveal.dart';
 import '../logs/presentation/models/log_view_mode.dart';
 import '../../services/eagly_info_service.dart';
 import '../../services/preferences_service.dart';
 import '../../presentation/components/app_log_overlay.dart';
 import '../../presentation/components/eagly_dialog.dart';
+import '../../utils/android_sdk_path.dart';
 
 /// Presents the settings as a large desktop dialog.
 Future<void> showSettingsDialog(BuildContext context) {
@@ -32,6 +37,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late double _logFontSize;
   late double _zoomLevel;
   late bool _tipsEnabled;
+  late String _captureDirectory;
+  late bool _captureAskEveryTime;
+  late bool _rememberHiddenColumns;
+  late AndroidSdkLocation _androidSdk;
   late final TextEditingController _logLinesController;
 
   @override
@@ -45,6 +54,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _logFontSize = PreferencesService.logFontSize;
     _zoomLevel = PreferencesService.zoomLevel;
     _tipsEnabled = PreferencesService.tipsEnabled;
+    _captureDirectory = CaptureStorage.resolveDirectory();
+    _captureAskEveryTime = PreferencesService.captureAskEveryTime;
+    _rememberHiddenColumns = PreferencesService.rememberHiddenColumns;
+    _androidSdk = AndroidSdkPath.locate();
     _logLinesController = TextEditingController(
       text: PreferencesService.logLinesLimit.toString(),
     );
@@ -76,6 +89,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _showSnackBar('Max lines updated.');
   }
 
+  Future<void> _chooseCaptureDirectory() async {
+    final chosen = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Choose a folder for screenshots and recordings',
+      initialDirectory: _captureDirectory,
+    );
+    if (chosen == null || chosen.trim().isEmpty) return;
+    await PreferencesService.setCaptureDirectory(chosen);
+    if (!mounted) return;
+    setState(() => _captureDirectory = CaptureStorage.resolveDirectory());
+    _showSnackBar('Captures will be saved to $chosen.');
+  }
+
+  Future<void> _resetCaptureDirectory() async {
+    await PreferencesService.setCaptureDirectory(null);
+    if (!mounted) return;
+    setState(() => _captureDirectory = CaptureStorage.resolveDirectory());
+    _showSnackBar('Capture folder reset to the default.');
+  }
+
+  Future<void> _openCaptureDirectory() async {
+    await CaptureStorage.ensureDirectory();
+    await openPathExternally(_captureDirectory);
+  }
+
+  Future<void> _chooseAndroidSdk() async {
+    final choice = await AndroidSdkPicker.chooseAndSave(
+      initialDirectory: _androidSdk.sdkPath,
+    );
+    if (choice == null || !mounted) return;
+
+    setState(() => _androidSdk = AndroidSdkPath.locate());
+    _showSnackBar(choice.message);
+  }
+
+  Future<void> _resetAndroidSdk() async {
+    await AndroidSdkPicker.clear();
+    if (!mounted) return;
+    setState(() => _androidSdk = AndroidSdkPath.locate());
+    _showSnackBar('Android SDK location reset to the default.');
+  }
+
   Future<void> _resetHiddenColumns() async {
     PreferencesService.hiddenColumns = {};
     if (!mounted) return;
@@ -88,6 +142,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     setState(() {});
     _showSnackBar('Column widths reset.');
+  }
+
+  /// One line covering both halves of the question: which SDK, and whether it
+  /// can actually launch anything. `adb` is bundled and always works, so the
+  /// emulator is the only reason this setting exists.
+  String get _androidSdkSummary {
+    final path = _androidSdk.sdkPath;
+    return switch (_androidSdk.status) {
+      AndroidSdkStatus.ready => '$path\nEmulator ready',
+      AndroidSdkStatus.emulatorMissing =>
+        '$path\nNo emulator package in this SDK',
+      AndroidSdkStatus.sdkMissing =>
+        'Not found — choose the folder that contains platform-tools '
+            'and emulator',
+    };
   }
 
   int get _themeIndex {
@@ -399,8 +468,118 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Gap(16),
           sectionCard(
+            title: 'Screenshots & recordings',
+            children: [
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Save folder'),
+                subtitle: Tooltip(
+                  message: _captureDirectory,
+                  child: Text(
+                    _captureDirectory,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Open folder',
+                      icon: const Icon(Icons.folder_open_outlined, size: 18),
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
+                      onPressed: _openCaptureDirectory,
+                    ),
+                    TextButton(
+                      onPressed: _chooseCaptureDirectory,
+                      child: const Text('Change…'),
+                    ),
+                    TextButton(
+                      onPressed: PreferencesService.captureDirectory == null
+                          ? null
+                          : _resetCaptureDirectory,
+                      child: const Text('Reset'),
+                    ),
+                  ],
+                ),
+              ),
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: _captureAskEveryTime,
+                title: const Text('Ask where to save each time'),
+                subtitle: const Text(
+                  'Show a save dialog instead of using the folder above',
+                ),
+                onChanged: (value) {
+                  setState(() => _captureAskEveryTime = value);
+                  PreferencesService.captureAskEveryTime = value;
+                },
+              ),
+            ],
+          ),
+          const Gap(16),
+          sectionCard(
+            title: 'Android SDK',
+            children: [
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('SDK location'),
+                subtitle: Tooltip(
+                  message: _androidSdk.sdkPath ?? '',
+                  child: Text(
+                    _androidSdkSummary,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: _androidSdk.isReady
+                          ? null
+                          : theme.colorScheme.error,
+                    ),
+                  ),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      onPressed: _chooseAndroidSdk,
+                      child: const Text('Change…'),
+                    ),
+                    TextButton(
+                      onPressed: PreferencesService.androidSdkPath == null
+                          ? null
+                          : _resetAndroidSdk,
+                      child: const Text('Reset'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Gap(16),
+          sectionCard(
             title: 'Stored layout defaults',
             children: [
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: _rememberHiddenColumns,
+                title: const Text('Remember hidden columns'),
+                subtitle: const Text(
+                  'Columns shown or hidden in a log tab become the default '
+                  'for new tabs',
+                ),
+                onChanged: (value) {
+                  setState(() => _rememberHiddenColumns = value);
+                  PreferencesService.rememberHiddenColumns = value;
+                },
+              ),
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,

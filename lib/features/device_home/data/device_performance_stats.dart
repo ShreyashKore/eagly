@@ -32,10 +32,7 @@ class MemoryStats {
 }
 
 class DevicePerformanceStats {
-  const DevicePerformanceStats({
-    this.cpu,
-    this.memory,
-  });
+  const DevicePerformanceStats({this.cpu, this.memory});
 
   final CpuStats? cpu;
   final MemoryStats? memory;

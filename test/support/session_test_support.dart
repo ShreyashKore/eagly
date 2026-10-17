@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:eagly/data/device.dart';
@@ -9,12 +10,19 @@ import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/features/logs/data/models/log_tab_settings.dart';
 import 'package:eagly/features/logs/presentation/models/log_view_mode.dart';
+import 'package:eagly/features/terminal/data/terminal_line.dart';
+import 'package:eagly/features/terminal/data/terminal_process.dart';
+import 'package:eagly/features/terminal/data/terminal_tools.dart';
+import 'package:eagly/features/utilities/data/utility_command.dart';
 import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
 import 'package:eagly/features/flutter_scrcpy/flutter_scrcpy.dart';
 import 'package:eagly/services/device_session_repository.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
-import 'package:eagly/services/tools/idevice_id_tool.dart';
+import 'package:eagly/data/ios_device_info.dart';
+import 'package:eagly/services/ios/ios_device_domains.dart';
+import 'package:eagly/services/ios/ios_device_service.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
+import 'package:eagly/services/tools/tool_process_runner.dart';
 
 LogTabSettings testSettings({
   int logLinesLimit = 50000,
@@ -116,6 +124,10 @@ class FakeSessionService extends DeviceSessionRepository {
     return installResult;
   }
 
+  /// Loopback control channel handed to the next mirror session, so tests can
+  /// assert on the bytes the controller actually writes. Null ⇒ no control.
+  FakeScrcpyControlChannel? mirrorControlChannel;
+
   @override
   Future<ScrcpyMirrorSession> startScreenMirror({
     ScrcpyVideoOptions? options,
@@ -128,7 +140,7 @@ class FakeSessionService extends DeviceSessionRepository {
       deviceName: device.id,
       width: 1080,
       height: 1920,
-      control: null,
+      control: mirrorControlChannel?.control,
       exitCode: exitCode.future,
       streamEnded: Completer<void>().future,
       onStop: () async {
@@ -214,11 +226,87 @@ class FakeSessionService extends DeviceSessionRepository {
     return deviceInfoToReturn;
   }
 
+  // ── Utilities feature ─────────────────────────────────────────────────────
+  final List<UtilityInvocation> utilityRequests = [];
+  ToolCommandResult utilityResult = const ToolCommandResult(
+    exitCode: 0,
+    stdout: 'ok',
+    stderr: '',
+  );
+
+  /// Thrown by [runUtility] when set, to exercise the controller's error path.
+  Object? utilityError;
+
+  @override
+  Future<ToolCommandResult> runUtility(
+    UtilityInvocation invocation, {
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    utilityRequests.add(invocation);
+    final error = utilityError;
+    if (error != null) throw error;
+    return utilityResult;
+  }
+
+  // ── Terminal feature ──────────────────────────────────────────────────────
+  final List<TerminalInvocation> terminalRequests = [];
+  final List<FakeTerminalProcess> terminalProcesses = [];
+
+  /// Thrown by [startTerminalProcess] when set, to exercise the "tool won't
+  /// even start" path.
+  Object? terminalStartError;
+
+  @override
+  Future<TerminalProcessSession> startTerminalProcess(
+    TerminalInvocation invocation,
+  ) async {
+    terminalRequests.add(invocation);
+    final error = terminalStartError;
+    if (error != null) throw error;
+    final process = FakeTerminalProcess();
+    terminalProcesses.add(process);
+    return process.session;
+  }
+
   @override
   Future<void> dispose() async {
     await _activeStream?.close();
     _activeStream = null;
+    for (final process in terminalProcesses) {
+      await process.finish(0);
+    }
     await super.dispose();
+  }
+}
+
+/// A terminal process the test drives by hand: emit output, then [finish] it.
+class FakeTerminalProcess {
+  final StreamController<TerminalOutputChunk> _output =
+      StreamController<TerminalOutputChunk>();
+  final Completer<int> _exitCode = Completer<int>();
+
+  final List<String> stdinLines = [];
+  bool killed = false;
+
+  late final TerminalProcessSession session = TerminalProcessSession(
+    output: _output.stream,
+    exitCode: _exitCode.future,
+    onKill: () async {
+      killed = true;
+      await finish(-15);
+    },
+    onInput: stdinLines.add,
+  );
+
+  void emit(String text, {bool isError = false}) {
+    if (!_output.isClosed) {
+      _output.add(TerminalOutputChunk(text, isError: isError));
+    }
+  }
+
+  Future<void> finish(int exitCode) async {
+    if (!_output.isClosed) await _output.close();
+    if (!_exitCode.isCompleted) _exitCode.complete(exitCode);
   }
 }
 
@@ -226,11 +314,17 @@ class FakeAdbTool extends AdbTool {
   FakeAdbTool() : super(executablePath: '/usr/bin/true');
 
   List<Device> androidDevices = const [];
+  WirelessServiceDiscoveryResult discoveryResult =
+      const WirelessServiceDiscoveryResult();
   final StreamController<List<Device>> _watchController =
       StreamController<List<Device>>.broadcast();
 
   @override
   Future<List<Device>> getDevices() async => List.of(androidDevices);
+
+  @override
+  Future<WirelessServiceDiscoveryResult> discoverMdnsServices() async =>
+      discoveryResult;
 
   @override
   Stream<List<Device>> watchDeviceChanges() => _watchController.stream;
@@ -240,13 +334,74 @@ class FakeAdbTool extends AdbTool {
   }
 }
 
-class FakeIdeviceIdTool extends IdeviceIdTool {
-  FakeIdeviceIdTool() : super(executablePath: '/usr/bin/true');
+class FakeIosDeviceService implements IosDeviceService {
+  List<String> deviceIds = const [];
+  bool usbmuxdUnavailableValue = false;
+  final Map<String, IosDeviceInfo> infos = {};
+  final Map<String, int> describeCalls = {};
+  final Map<String, IosDeviceDomains> domains = {};
 
   @override
-  Future<List<String>> getDeviceIds() async => const [];
+  Future<List<String>> listDeviceIds() async => List.of(deviceIds);
+
+  @override
+  Future<IosDeviceInfo> describeDevice(String deviceId) async {
+    describeCalls.update(deviceId, (count) => count + 1, ifAbsent: () => 1);
+    return infos[deviceId] ??
+        IosDeviceInfo(deviceId: deviceId, status: 'device');
+  }
+
+  @override
+  Future<IosDeviceDomains> readDeviceDomains(String deviceId) async =>
+      domains[deviceId] ?? const IosDeviceDomains();
+
+  @override
+  bool get usbmuxdUnavailable => usbmuxdUnavailableValue;
 }
 
 class FakeIdeviceInfoTool extends IdeviceInfoTool {
   FakeIdeviceInfoTool() : super(executablePath: '/usr/bin/true');
+}
+
+/// A [ScrcpyControl] wired to a loopback socket, so a test can read back the
+/// control messages a controller wrote. `ScrcpyControl` speaks to a real
+/// `Socket`, and faking one is more code (and less proof) than connecting two.
+class FakeScrcpyControlChannel {
+  FakeScrcpyControlChannel._(this._server, this._peer, this.control);
+
+  static Future<FakeScrcpyControlChannel> open() async {
+    final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final client = await Socket.connect(server.address, server.port);
+    final peer = await server.first;
+    final channel = FakeScrcpyControlChannel._(
+      server,
+      peer,
+      ScrcpyControl(client),
+    );
+    channel._subscription = peer.listen(channel._received.add);
+    return channel;
+  }
+
+  final ServerSocket _server;
+  final Socket _peer;
+  final ScrcpyControl control;
+
+  final BytesBuilder _received = BytesBuilder();
+  StreamSubscription<Uint8List>? _subscription;
+
+  /// Every control-message byte written so far.
+  Uint8List get bytes => Uint8List.fromList(_received.toBytes());
+
+  /// Waits for the writes in flight to land, then returns everything seen.
+  Future<Uint8List> settle() async {
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    return bytes;
+  }
+
+  Future<void> close() async {
+    await _subscription?.cancel();
+    await control.close();
+    _peer.destroy();
+    await _server.close();
+  }
 }

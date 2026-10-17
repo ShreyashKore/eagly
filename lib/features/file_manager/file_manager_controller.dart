@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import '../../data/device.dart';
 import '../../services/app_breadcrumbs.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/utils.dart';
@@ -41,7 +43,12 @@ enum FileSortField { name, size, modified, type }
 class FileManagerController extends FeatureController {
   FileManagerController(super.session);
 
-  late final DeviceFileSystem fileSystem = DeviceFileSystem.forDevice(device);
+  /// Replaces [DeviceFileSystem.forDevice] so tests can copy without a device.
+  @visibleForTesting
+  static DeviceFileSystem Function(Device device)? fileSystemFactory;
+
+  late final DeviceFileSystem fileSystem =
+      fileSystemFactory?.call(device) ?? DeviceFileSystem.forDevice(device);
 
   FileLoadState loadState = FileLoadState.idle;
   String? error;
@@ -251,13 +258,16 @@ class FileManagerController extends FeatureController {
     );
   }
 
-  /// Copies externally-dropped [localPaths] into the device's
-  /// [DeviceFileSystem.dropTargetDirectory]. Used by drag-and-drop, so the pane
-  /// need not be open; the listing is refreshed only when the drop lands in the
-  /// currently-shown directory. Each file is copied independently so one
-  /// failure doesn't abort the rest.
-  Future<FileDropCopyResult> copyExternalFiles(List<String> localPaths) async {
-    final directory = fileSystem.dropTargetDirectory;
+  /// Copies externally-dropped [localPaths] into [directory], or the device's
+  /// [DeviceFileSystem.dropTargetDirectory] when none is given (a drop onto
+  /// the device screen, so the pane need not be open). The listing is
+  /// refreshed only when the drop lands in the currently-shown directory. Each
+  /// file is copied independently so one failure doesn't abort the rest.
+  Future<FileDropCopyResult> copyExternalFiles(
+    List<String> localPaths, {
+    String? directory,
+  }) async {
+    directory ??= fileSystem.dropTargetDirectory;
     final copied = <String>[];
     final errors = <String>[];
     if (localPaths.isEmpty) {

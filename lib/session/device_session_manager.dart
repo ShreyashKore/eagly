@@ -161,6 +161,43 @@ class DeviceSessionManager extends ChangeNotifier {
   Future<void> refreshDevices() =>
       _repository.refreshDevices(force: true, showLoading: true);
 
+  /// Whether the device's tab can be reloaded (anything but the synthetic
+  /// imported-logs workspace, which has no device behind it).
+  bool canReload(String id) {
+    final session = _sessions[id];
+    return session != null && !session.isImportedWorkspace;
+  }
+
+  /// Tears the device's session down and builds a fresh one in its place:
+  /// every feature controller, running process and buffered log is discarded,
+  /// the transport is nudged back to life (`adb reconnect` on Android) and the
+  /// device list is re-read. The tab keeps its position and selection.
+  Future<void> reload(String id) async {
+    final existing = _sessions[id];
+    if (existing == null || existing.isImportedWorkspace) return;
+
+    AppBreadcrumbs.action(
+      'Reloaded tab for ${existing.device.displayName}',
+      category: 'navigation.device_tab',
+    );
+
+    final device = existing.device;
+    final wasSelected = _selectedId == id;
+    existing.dispose();
+
+    // Same id, so the tab's slot in [_order] is untouched.
+    final session = _sessions[id] = DeviceSessionController(
+      device: device,
+      service: _serviceFactory?.call(device),
+    );
+    if (wasSelected) session.activate();
+    notifyListeners();
+
+    await session.service.recoverConnection();
+    if (_disposed) return;
+    await _repository.refreshDevices(force: true);
+  }
+
   /// Opens a log file (via picker, or [path] to re-open a recent file) without
   /// needing a connected device. Imported files are hosted in a single synthetic
   /// "Imported Logs" workspace tab; each file becomes a sub-tab inside it.

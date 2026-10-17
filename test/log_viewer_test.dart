@@ -1,8 +1,10 @@
 import 'package:eagly/features/logs/data/models/log_column.dart';
 import 'package:eagly/features/logs/presentation/components/log_viewer.dart';
+import 'package:eagly/features/logs/presentation/components/log_viewer_header.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/utils/text_search_pattern.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -128,5 +130,140 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(saveCount, 0);
+  });
+
+  testWidgets(
+    'keeps applying column toggles after the parent re-keys the viewer',
+    (tester) async {
+      final scrollController = ScrollController();
+      addTearDown(scrollController.dispose);
+
+      // The real controller bumps a revision on every hidden-column change,
+      // and the pane keys the viewer by it — so the first toggle disposes the
+      // State that opened the popup while the popup is still up.
+      var hidden = <String>{};
+      var revision = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => LogViewer(
+                key: ValueKey('log-viewer-$revision'),
+                logs: [testLogEntry(message: 'Message')],
+                scrollController: scrollController,
+                wrapText: false,
+                rowSelectionMode: false,
+                selectedRowIndices: const {},
+                search: const TextSearchConfig(),
+                hiddenColumns: hidden,
+                columnWidths: const {},
+                onHiddenColumnsChanged: (columns) {
+                  if (setEquals(hidden, columns)) return;
+                  setState(() {
+                    hidden = columns;
+                    revision++;
+                  });
+                },
+                isIos: false,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      List<LogColumn> visibleColumns() => tester
+          .widget<LogViewerHeader>(find.byType(LogViewerHeader))
+          .visibleFixedColumns;
+
+      await tester.tap(find.byIcon(Icons.view_column_outlined));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(LogColumn.tag.labelFor()).last);
+      await tester.pumpAndSettle();
+
+      expect(hidden, {LogColumn.tag.name});
+      expect(visibleColumns(), isNot(contains(LogColumn.tag)));
+
+      // Second toggle, same popup: the columns must keep following it.
+      await tester.tap(find.text(LogColumn.pid.labelFor()).last);
+      await tester.pumpAndSettle();
+
+      expect(hidden, {LogColumn.tag.name, LogColumn.pid.name});
+      expect(visibleColumns(), isNot(contains(LogColumn.pid)));
+
+      // Un-hiding from the same popup works too.
+      await tester.tap(find.text(LogColumn.tag.labelFor()).last);
+      await tester.pumpAndSettle();
+
+      expect(hidden, {LogColumn.pid.name});
+      expect(visibleColumns(), contains(LogColumn.tag));
+    },
+  );
+
+  group('remembering hidden columns', () {
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      await PreferencesService.init();
+    });
+
+    Future<void> openMenu(WidgetTester tester) async {
+      final scrollController = ScrollController();
+      addTearDown(scrollController.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: LogViewer(
+              logs: [testLogEntry(message: 'Message')],
+              scrollController: scrollController,
+              wrapText: false,
+              rowSelectionMode: false,
+              selectedRowIndices: const {},
+              search: const TextSearchConfig(),
+              hiddenColumns: const {},
+              columnWidths: const {},
+              onHiddenColumnsChanged: (_) {},
+              isIos: false,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byIcon(Icons.view_column_outlined));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a toggle becomes the default for new tabs', (tester) async {
+      await openMenu(tester);
+
+      await tester.tap(find.text(LogColumn.tag.labelFor()).last);
+      await tester.pumpAndSettle();
+
+      expect(PreferencesService.hiddenColumns, {LogColumn.tag.name});
+      expect(PreferencesService.defaultTabSettings.hiddenColumns, {
+        LogColumn.tag.name,
+      });
+    });
+
+    testWidgets('opting out from the menu stops saving, opting in adopts', (
+      tester,
+    ) async {
+      await openMenu(tester);
+
+      await tester.tap(find.text('Use for new tabs'));
+      await tester.pumpAndSettle();
+      expect(PreferencesService.rememberHiddenColumns, isFalse);
+
+      await tester.tap(find.text(LogColumn.tag.labelFor()).last);
+      await tester.pumpAndSettle();
+      expect(PreferencesService.hiddenColumns, isEmpty);
+
+      // Opting back in saves what the tab shows right now.
+      await tester.tap(find.text('Use for new tabs'));
+      await tester.pumpAndSettle();
+      expect(PreferencesService.rememberHiddenColumns, isTrue);
+      expect(PreferencesService.hiddenColumns, {LogColumn.tag.name});
+    });
   });
 }

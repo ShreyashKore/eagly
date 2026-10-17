@@ -381,27 +381,28 @@ void main() {
     );
   });
 
-  testWidgets('controller builds highlighted spans for known key:value tokens', (
-    WidgetTester tester,
-  ) async {
-    final controller = buildController(
-      initialText: 'package:com.example.auth raw',
-    );
-    addTearDown(controller.dispose);
+  testWidgets(
+    'controller builds highlighted spans for known key:value tokens',
+    (WidgetTester tester) async {
+      final controller = buildController(
+        initialText: 'package:com.example.auth raw',
+      );
+      addTearDown(controller.dispose);
 
-    await pumpInlineFilterBar(tester, controller: controller);
+      await pumpInlineFilterBar(tester, controller: controller);
 
-    final span = controller.textController.buildTextSpan(
-      context: tester.element(find.byType(InlineFilterBar)),
-      style: const TextStyle(fontSize: 12),
-      withComposing: false,
-    );
+      final span = controller.textController.buildTextSpan(
+        context: tester.element(find.byType(InlineFilterBar)),
+        style: const TextStyle(fontSize: 12),
+        withComposing: false,
+      );
 
-    expect(span.children, isNotNull);
-    final highlightedSpan = span.children!.whereType<TextSpan>().firstWhere(
-      (child) => child.children != null && child.children!.isNotEmpty,
-    );
-    expect(highlightedSpan.children!.first.toPlainText(), 'package:');
-    expect(highlightedSpan.children!.last.toPlainText(), 'com.example.auth');
-  });
+      expect(span.children, isNotNull);
+      final highlightedSpan = span.children!.whereType<TextSpan>().firstWhere(
+        (child) => child.children != null && child.children!.isNotEmpty,
+      );
+      expect(highlightedSpan.children!.first.toPlainText(), 'package:');
+      expect(highlightedSpan.children!.last.toPlainText(), 'com.example.auth');
+    },
+  );
 }

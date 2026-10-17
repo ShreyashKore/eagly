@@ -10,6 +10,8 @@ import '../features/device_home/device_home_controller.dart';
 import '../features/file_manager/file_manager_controller.dart';
 import '../features/logs/log_session_manager.dart';
 import '../features/mirror/mirror_controller.dart';
+import '../features/terminal/terminal_session_manager.dart';
+import '../features/utilities/utilities_controller.dart';
 import '../services/app_breadcrumbs.dart';
 import '../services/app_install_service.dart';
 import '../services/device_session_repository.dart';
@@ -94,6 +96,8 @@ class DeviceSessionController extends ChangeNotifier {
   FileManagerController? _fileManagerController;
   DeviceHomeController? _homeController;
   AppsController? _appsController;
+  UtilitiesController? _utilitiesController;
+  TerminalSessionManager? _terminalSessionManager;
 
   bool _homeOpen = true;
   bool _logsOpen = false;
@@ -101,6 +105,8 @@ class DeviceSessionController extends ChangeNotifier {
   bool _crashReportsOpen = false;
   bool _filesOpen = false;
   bool _appsOpen = false;
+  bool _utilitiesOpen = false;
+  bool _terminalOpen = false;
   bool _activated = false;
   bool _disposed = false;
 
@@ -112,6 +118,8 @@ class DeviceSessionController extends ChangeNotifier {
   bool get isCrashReportsOpen => _crashReportsOpen;
   bool get isFilesOpen => _filesOpen;
   bool get isAppsOpen => _appsOpen;
+  bool get isUtilitiesOpen => _utilitiesOpen;
+  bool get isTerminalOpen => _terminalOpen;
   bool get isLogsOpen => _logsOpen;
   bool get isHomeOpen => _homeOpen;
   bool get isActivated => _activated;
@@ -124,7 +132,9 @@ class DeviceSessionController extends ChangeNotifier {
         !_mirrorOpen &&
         !_crashReportsOpen &&
         !_filesOpen &&
-        !_appsOpen) {
+        !_appsOpen &&
+        !_utilitiesOpen &&
+        !_terminalOpen) {
       _homeOpen = true;
     }
   }
@@ -142,6 +152,16 @@ class DeviceSessionController extends ChangeNotifier {
   /// Whether the Apps feature can list/manage apps right now (both
   /// platforms, when connected).
   bool get canManageApps => _device.isConnected;
+
+  /// Whether the Utilities feature has anything to offer this device. The
+  /// pane itself stays usable while disconnected (commands are just disabled),
+  /// so this only excludes the device-less imported-logs workspace.
+  bool get canRunUtilities => !isImportedWorkspace;
+
+  /// Whether the Terminal feature has a device to send commands to. Like
+  /// Utilities the pane stays usable while disconnected, so this only excludes
+  /// the device-less imported-logs workspace.
+  bool get canUseTerminal => !isImportedWorkspace;
 
   LogSessionManager get logSessionManager =>
       _logSessionManager ??= isImportedWorkspace
@@ -161,6 +181,12 @@ class DeviceSessionController extends ChangeNotifier {
       _homeController ??= DeviceHomeController(this);
 
   AppsController get appsController => _appsController ??= AppsController(this);
+
+  UtilitiesController get utilitiesController =>
+      _utilitiesController ??= UtilitiesController(this);
+
+  TerminalSessionManager get terminalSessionManager =>
+      _terminalSessionManager ??= TerminalSessionManager(session: this);
 
   void openHome() {
     if (_homeOpen) return;
@@ -314,6 +340,46 @@ class DeviceSessionController extends ChangeNotifier {
 
   void toggleApps() => _appsOpen && !_homeOpen ? closeApps() : openApps();
 
+  void openUtilities() {
+    final viewChanged = _homeOpen || !_utilitiesOpen;
+    _utilitiesOpen = true;
+    _homeOpen = false;
+    if (viewChanged) {
+      _navigate('Utilities');
+      _notify();
+    }
+  }
+
+  void closeUtilities() {
+    if (!_utilitiesOpen) return;
+    _utilitiesOpen = false;
+    _ensureSelection();
+    _notify();
+  }
+
+  void toggleUtilities() =>
+      _utilitiesOpen && !_homeOpen ? closeUtilities() : openUtilities();
+
+  void openTerminal() {
+    final viewChanged = _homeOpen || !_terminalOpen;
+    _terminalOpen = true;
+    _homeOpen = false;
+    if (viewChanged) {
+      _navigate('Terminal');
+      _notify();
+    }
+  }
+
+  void closeTerminal() {
+    if (!_terminalOpen) return;
+    _terminalOpen = false;
+    _ensureSelection();
+    _notify();
+  }
+
+  void toggleTerminal() =>
+      _terminalOpen && !_homeOpen ? closeTerminal() : openTerminal();
+
   // ── App install (device-level) ──────────────────────────────────────────
   bool _isInstallingApp = false;
   String? _installingAppName;
@@ -443,13 +509,22 @@ class DeviceSessionController extends ChangeNotifier {
   /// True while a dropped batch is being installed/copied.
   bool get isHandlingDrop => _isHandlingDrop;
 
-  /// Handles files dropped onto this device's screen. Installable binaries that
-  /// match this device (APK on Android; IPA/.app on iOS) are installed; every
-  /// other file is copied into the device's drop directory. Installables for
-  /// the *other* platform are rejected rather than copied as plain data. Mixed
-  /// drops are handled item by item. Returns `null` when busy or nothing was
-  /// dropped; otherwise a [DropHandlingResult] to surface.
-  Future<DropHandlingResult?> handleDroppedPaths(Iterable<String> paths) async {
+  /// Handles files dropped onto this device. Installable binaries that match
+  /// this device (APK on Android; IPA/.app on iOS) are installed unless
+  /// [installApps] is false, in which case they are copied like any other
+  /// file. Everything else is copied into [copyDirectory], or the device's
+  /// drop directory when none is given.
+  ///
+  /// Installables for the *other* platform are rejected on a plain drop onto
+  /// the device, but copied when [copyDirectory] is given — the user aimed at
+  /// a folder, so they asked for a file, not an install. Mixed drops are
+  /// handled item by item. Returns `null` when busy or nothing was dropped;
+  /// otherwise a [DropHandlingResult] to surface.
+  Future<DropHandlingResult?> handleDroppedPaths(
+    Iterable<String> paths, {
+    String? copyDirectory,
+    bool installApps = true,
+  }) async {
     if (_isHandlingDrop) return null;
     final normalizedPaths = paths
         .map((path) => path.trim())
@@ -472,7 +547,9 @@ class DeviceSessionController extends ChangeNotifier {
       if (installablePlatform == null) {
         toCopy.add(path);
       } else if (installablePlatform == platform) {
-        toInstall.add(path);
+        (installApps ? toInstall : toCopy).add(path);
+      } else if (copyDirectory != null) {
+        toCopy.add(path);
       } else {
         errors.add(
           '${extractFileName(path)} can\'t be installed on '
@@ -510,7 +587,10 @@ class DeviceSessionController extends ChangeNotifier {
 
       final copyResult = toCopy.isEmpty
           ? null
-          : await fileManagerController.copyExternalFiles(toCopy);
+          : await fileManagerController.copyExternalFiles(
+              toCopy,
+              directory: copyDirectory,
+            );
       if (_disposed) return null;
       if (copyResult != null) errors.addAll(copyResult.errors);
 
@@ -549,6 +629,8 @@ class DeviceSessionController extends ChangeNotifier {
     _fileManagerController?.dispose();
     _homeController?.dispose();
     _appsController?.dispose();
+    _utilitiesController?.dispose();
+    _terminalSessionManager?.dispose();
     unawaited(service.dispose());
     super.dispose();
   }

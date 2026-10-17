@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:eagly/constants/app_constants.dart';
 import 'package:eagly/services/eagly_info_service.dart';
@@ -7,12 +8,14 @@ import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/presentation/theme/app_zoom.dart';
 import 'package:eagly/features/home_screen/home_page.dart';
 import 'package:eagly/services/sentry_event_filter.dart';
+import 'package:eagly/src/rust/frb_generated.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await RustLib.init();
   await PreferencesService.init();
   await EaglyInfoService.init();
   await _configureDesktopWindow();
@@ -50,7 +53,7 @@ Future<void> _configureDesktopWindow() async {
   const windowOptions = WindowOptions(
     titleBarStyle: TitleBarStyle.hidden,
     windowButtonVisibility: true,
-    minimumSize: Size(760, 520),
+    minimumSize: Size(560, 240),
   );
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.show();
@@ -76,12 +79,31 @@ class MyApp extends StatelessWidget {
               themeMode: themeMode,
               home: const HomeScreen(),
               debugShowCheckedModeBanner: false,
-              builder: (context, child) =>
-                  AppZoom(zoomLevel: zoomLevel, child: child!),
+              builder: (context, child) => AppZoom(
+                zoomLevel: zoomLevel,
+                child: SnackBarTheme(
+                  data: Theme.of(context).snackBarTheme.copyWith(
+                    width: _snackBarWidth(MediaQuery.sizeOf(context).width),
+                  ),
+                  child: child!,
+                ),
+              ),
             );
           },
         );
       },
     );
   }
+}
+
+/// Width for a floating snack bar inside a pane [availableWidth] logical
+/// pixels wide: capped so it never spans a maximised desktop window, and
+/// shrunk to leave a gutter on narrow ones. Snack bars that ask for their own
+/// width (e.g. the zoom-level toast) still win over this default.
+double _snackBarWidth(double availableWidth) {
+  final withGutters = availableWidth - AppConstants.snackBarSideMargin * 2;
+  return math.max(
+    math.min(AppConstants.snackBarMinWidth, availableWidth),
+    math.min(AppConstants.snackBarMaxWidth, withGutters),
+  );
 }

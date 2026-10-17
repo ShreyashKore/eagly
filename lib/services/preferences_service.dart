@@ -46,6 +46,7 @@ class PreferencesService {
   static const _keyFilterViewMode = 'filterViewMode';
   static const _keyColumnWidths = 'columnWidths';
   static const _keyHiddenColumns = 'hiddenColumns';
+  static const _keyRememberHiddenColumns = 'rememberHiddenColumns';
   static const _keyLogLinesLimit = 'logLinesLimit';
   static const _keyThemeMode = 'themeMode';
   static const _keyLastFileDialogDirectory = 'lastFileDialogDirectory';
@@ -53,6 +54,9 @@ class PreferencesService {
   static const _keyRecentLogFiles = 'recentLogFiles';
   static const _keyTipsEnabled = 'tipsEnabled';
   static const _keyTipRotationIndex = 'tipRotationIndex';
+  static const _keyCaptureDirectory = 'captureDirectory';
+  static const _keyCaptureAskEveryTime = 'captureAskEveryTime';
+  static const _keyAndroidSdkPath = 'androidSdkPath';
 
   /// Maximum number of recently opened log files retained for quick re-open.
   static const _maxRecentLogFiles = 10;
@@ -202,6 +206,45 @@ class PreferencesService {
     columnWidths: columnWidths,
   );
 
+  // --- Screen capture (screenshots / recordings) ---
+  /// Folder screenshots and recordings are written to. `null` means "use the
+  /// platform default" — resolved by `CaptureStorage.resolveDirectory()`, which
+  /// is also what the Settings screen displays.
+  static String? get captureDirectory {
+    final stored = _prefs.getString(_keyCaptureDirectory);
+    return (stored == null || stored.isEmpty) ? null : stored;
+  }
+
+  static Future<bool> setCaptureDirectory(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return _prefs.remove(_keyCaptureDirectory);
+    }
+    return _prefs.setString(_keyCaptureDirectory, value.trim());
+  }
+
+  /// When true a save dialog is shown for every capture instead of writing
+  /// straight into [captureDirectory].
+  static bool get captureAskEveryTime =>
+      _prefs.getBool(_keyCaptureAskEveryTime) ?? false;
+  static set captureAskEveryTime(bool v) =>
+      _prefs.setBool(_keyCaptureAskEveryTime, v);
+
+  // --- Android SDK (emulator manager) ---
+  /// Android SDK root the emulator manager should use. `null` means "work it
+  /// out" — `AndroidSdkPath.resolveSdkRoot()` then falls back to the env vars
+  /// and the platform default. Unlike `adb`, the emulator is not bundled.
+  static String? get androidSdkPath {
+    final stored = _prefs.getString(_keyAndroidSdkPath);
+    return (stored == null || stored.isEmpty) ? null : stored;
+  }
+
+  static Future<bool> setAndroidSdkPath(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return _prefs.remove(_keyAndroidSdkPath);
+    }
+    return _prefs.setString(_keyAndroidSdkPath, value.trim());
+  }
+
   // --- Column widths (stored as single JSON object) ---
 
   static Map<String, double> get columnWidths {
@@ -230,6 +273,14 @@ class PreferencesService {
 
   static set hiddenColumns(Set<String> v) =>
       _prefs.setJson(_keyHiddenColumns, v.toList());
+
+  /// When true, showing or hiding a column in a log tab also saves that set as
+  /// [hiddenColumns], so new tabs (and later sessions) open with it. Opting out
+  /// leaves the stored set as it was; Settings can reset it.
+  static bool get rememberHiddenColumns =>
+      _prefs.getBool(_keyRememberHiddenColumns) ?? true;
+  static set rememberHiddenColumns(bool v) =>
+      _prefs.setBool(_keyRememberHiddenColumns, v);
 
   static ThemeMode? _themeModeFromName(String? value) {
     return switch (value) {

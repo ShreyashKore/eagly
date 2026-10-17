@@ -2,6 +2,8 @@ import 'package:eagly/data/device.dart';
 import 'package:eagly/features/mirror/mirror_controller.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -99,5 +101,92 @@ void main() {
 
     expect(mirror.mirrorQuality, MirrorQuality.high);
     expect(service.startedMirrorCount, 2);
+  });
+
+  group('keyboard forwarding', () {
+    FakeScrcpyControlChannel? channel;
+
+    KeyEvent keyDown(LogicalKeyboardKey key, {String? character}) =>
+        KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.keyA,
+          logicalKey: key,
+          character: character,
+          timeStamp: Duration.zero,
+        );
+
+    Future<MirrorController> runningMirror() async {
+      final mirror = createMirror();
+      final opened = await FakeScrcpyControlChannel.open();
+      channel = opened;
+      service.mirrorControlChannel = opened;
+      await mirror.start();
+      return mirror;
+    }
+
+    tearDown(() async {
+      await channel?.close();
+      channel = null;
+    });
+
+    test('a typed character reaches the device as INJECT_TEXT', () async {
+      final mirror = await runningMirror();
+
+      final result = mirror.handleKeyEvent(
+        keyDown(LogicalKeyboardKey.keyA, character: 'a'),
+      );
+
+      expect(result, KeyEventResult.handled);
+      // type(1) + length(4, big-endian) + utf-8 payload.
+      expect(await channel!.settle(), [1, 0, 0, 0, 1, 0x61]);
+    });
+
+    test('a navigation key reaches the device as INJECT_KEYCODE', () async {
+      final mirror = await runningMirror();
+
+      mirror.handleKeyEvent(keyDown(LogicalKeyboardKey.enter));
+
+      // type(1) + action(1) + keycode(4) + repeat(4) + metaState(4).
+      expect(await channel!.settle(), [
+        0,
+        0,
+        0,
+        0,
+        0,
+        66,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+      ]);
+    });
+
+    test(
+      'losing focus releases a key the device still thinks is down',
+      () async {
+        final mirror = await runningMirror();
+        mirror.handleKeyEvent(keyDown(LogicalKeyboardKey.arrowDown));
+        await channel!.settle();
+
+        mirror.handleKeyboardFocusChange(false);
+
+        // The trailing message is a key-up (action 1) for KEYCODE_DPAD_DOWN.
+        final tail = (await channel!.settle()).sublist(14);
+        expect(tail, [0, 1, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0]);
+      },
+    );
+
+    test('keys are not forwarded without a control channel', () async {
+      final mirror = createMirror();
+      await mirror.start();
+
+      expect(
+        mirror.handleKeyEvent(keyDown(LogicalKeyboardKey.keyA, character: 'a')),
+        KeyEventResult.ignored,
+      );
+    });
   });
 }

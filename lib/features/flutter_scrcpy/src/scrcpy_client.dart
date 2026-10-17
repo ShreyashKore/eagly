@@ -116,6 +116,7 @@ class ScrcpyControl {
   final List<int> _inBuffer = <int>[];
 
   static const int _typeInjectKeycode = 0;
+  static const int _typeInjectText = 1;
   static const int _typeInjectTouch = 2;
   static const int _typeBackOrScreenOn = 4;
   static const int _typeSetClipboard = 9;
@@ -123,9 +124,13 @@ class ScrcpyControl {
   static const int _deviceMsgClipboard = 0;
   static const int _deviceMsgAckClipboard = 1;
 
-  /// Server truncates SET_CLIPBOARD text longer than this (scrcpy protocol
-  /// constant: `CONTROL_MSG_CLIPBOARD_TEXT_MAX_LENGTH`).
-  static const int _clipboardTextMaxLength = 300000;
+  /// Longest SET_CLIPBOARD payload the server will accept
+  /// (`ControlMessageReader.CLIPBOARD_TEXT_MAX_LENGTH`).
+  static const int _clipboardTextMaxLength = 262130;
+
+  /// Longest INJECT_TEXT payload the server will accept
+  /// (`ControlMessageReader.INJECT_TEXT_MAX_LENGTH`); longer text is chunked.
+  static const int _injectTextMaxLength = 300;
 
   int _clipboardSequence = 0;
 
@@ -194,23 +199,66 @@ class ScrcpyControl {
   void key(ScrcpyKey key) {
     final keycode = _keycodes[key];
     if (keycode == null) return;
-    _injectKeycode(_actionDown, keycode);
-    _injectKeycode(_actionUp, keycode);
+    injectKeycode(keycode, down: true);
+    injectKeycode(keycode, down: false);
   }
 
-  void _injectKeycode(int action, int keycode) {
+  /// Injects a raw Android `KeyEvent` keycode press or release. [metaState] is
+  /// the `KeyEvent.META_*` bitmask of the modifiers held with it.
+  void injectKeycode(
+    int keycode, {
+    required bool down,
+    int repeat = 0,
+    int metaState = 0,
+  }) {
     final msg = ByteData(14);
     var o = 0;
     msg.setUint8(o, _typeInjectKeycode);
     o += 1;
-    msg.setUint8(o, action);
+    msg.setUint8(o, down ? _actionDown : _actionUp);
     o += 1;
     msg.setInt32(o, keycode);
     o += 4;
-    msg.setInt32(o, 0); // repeat
+    msg.setInt32(o, repeat);
     o += 4;
-    msg.setInt32(o, 0); // metaState
+    msg.setInt32(o, metaState);
     _send(msg);
+  }
+
+  /// Types [text] on the device. The server maps each character through the
+  /// device's key character map, so this respects the *desktop's* layout —
+  /// unlike a raw keycode, which the device would re-map as US QWERTY.
+  void injectText(String text) {
+    if (text.isEmpty) return;
+    for (final chunk in _utf8Chunks(text, _injectTextMaxLength)) {
+      final msg = ByteData(5 + chunk.length);
+      msg.setUint8(0, _typeInjectText);
+      msg.setUint32(1, chunk.length);
+      msg.buffer.asUint8List().setRange(5, 5 + chunk.length, chunk);
+      _send(msg);
+    }
+  }
+
+  /// Splits [text] into UTF-8 payloads of at most [maxBytes], never cutting a
+  /// character in half.
+  static Iterable<Uint8List> _utf8Chunks(String text, int maxBytes) sync* {
+    final bytes = Uint8List.fromList(utf8.encode(text));
+    if (bytes.length <= maxBytes) {
+      yield bytes;
+      return;
+    }
+    var start = 0;
+    while (start < bytes.length) {
+      var end = min(start + maxBytes, bytes.length);
+      // Back off to a UTF-8 lead byte so a multi-byte character stays whole.
+      while (end > start + 1 &&
+          end < bytes.length &&
+          bytes[end] & 0xC0 == 0x80) {
+        end--;
+      }
+      yield Uint8List.sublistView(bytes, start, end);
+      start = end;
+    }
   }
 
   /// Sets the device clipboard to [text]. When [paste] is true (the default)

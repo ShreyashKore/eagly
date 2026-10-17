@@ -24,6 +24,9 @@ class PaneBody extends StatelessWidget {
         textureId: session.textureId,
         aspectRatio: aspectRatio,
         onTouch: controller.handleTouch,
+        focusNode: controller.keyboardFocusNode,
+        onKey: controller.handleKeyEvent,
+        onFocusChange: controller.handleKeyboardFocusChange,
       );
     }
 

@@ -26,7 +26,7 @@ class FeatureRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
+    final featuresBgColor = theme.colorScheme.surface.withValues(alpha: 0.5);
     return ListenableBuilder(
       listenable: session,
       builder: (context, _) {
@@ -55,21 +55,23 @@ class FeatureRail extends StatelessWidget {
                       onTap: session.toggleHome,
                     ),
                     const SizedBox(height: 8),
-                    Stack(
-                      children: [
-                        Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surface.withValues(
-                                alpha: 0.5,
-                              ),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
+                    Flexible(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: session.isHomeOpen
+                              ? Colors.transparent
+                              : featuresBgColor,
+                          border: Border.all(
+                            width: 2,
+                            color: session.isHomeOpen
+                                ? featuresBgColor
+                                : Colors.transparent,
                           ),
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                        SingleChildScrollView(
+                        child: SingleChildScrollView(
                           child: Padding(
-                            padding: const EdgeInsets.all(4),
+                            padding: const EdgeInsets.all(2),
                             child: Column(
                               spacing: 4,
                               children: [
@@ -82,21 +84,21 @@ class FeatureRail extends StatelessWidget {
                                       : 'View device logs',
                                   onTap: session.toggleLogs,
                                 ),
+                                // To make mirroring discoverable, we show the button even if the device doesn't support it,
+                                // but disable it and show a tooltip explaining why.
                                 RailButton(
                                   icon: Icons.mobile_screen_share,
                                   label: 'Mirror',
                                   isActive: session.isMirrorOpen,
                                   enabled:
-                                      session.canMirror ||
-                                      session.isMirrorOpen,
+                                      session.canMirror || session.isMirrorOpen,
                                   tooltip: session.canMirror
                                       ? (session.isMirrorOpen
                                             ? 'Hide mirror'
                                             : 'Open mirror')
                                       : 'Screen mirror supports connected Android devices',
                                   onTap:
-                                      session.canMirror ||
-                                          session.isMirrorOpen
+                                      session.canMirror || session.isMirrorOpen
                                       ? session.toggleMirror
                                       : null,
                                 ),
@@ -150,6 +152,26 @@ class FeatureRail extends StatelessWidget {
                                       ? session.toggleApps
                                       : null,
                                 ),
+                                if (session.canRunUtilities)
+                                  RailButton(
+                                    icon: Icons.handyman_outlined,
+                                    label: 'Utilities',
+                                    isActive: session.isUtilitiesOpen,
+                                    tooltip: session.isUtilitiesOpen
+                                        ? 'Hide utilities'
+                                        : 'Run device commands',
+                                    onTap: session.toggleUtilities,
+                                  ),
+                                if (session.canUseTerminal)
+                                  RailButton(
+                                    icon: Icons.terminal_outlined,
+                                    label: 'Terminal',
+                                    isActive: session.isTerminalOpen,
+                                    tooltip: session.isTerminalOpen
+                                        ? 'Hide terminal'
+                                        : 'Type adb / idevice commands',
+                                    onTap: session.toggleTerminal,
+                                  ),
                                 RailButton(
                                   icon: session.isInstallingApp
                                       ? Icons.hourglass_top_rounded
@@ -174,20 +196,7 @@ class FeatureRail extends StatelessWidget {
                             ),
                           ),
                         ),
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.surface.withValues(
-                                  alpha: session.isHomeOpen ? 0.5 : 0,
-                                ),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),

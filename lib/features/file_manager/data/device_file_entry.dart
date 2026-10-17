@@ -61,7 +61,11 @@ class DeviceFileEntry {
     DeviceFileType.other => 'Special',
   };
 
-  DeviceFileEntry copyWith({DeviceFileType? type, int? sizeBytes, DateTime? modified}) {
+  DeviceFileEntry copyWith({
+    DeviceFileType? type,
+    int? sizeBytes,
+    DateTime? modified,
+  }) {
     return DeviceFileEntry(
       name: name,
       path: path,

@@ -37,22 +37,30 @@ class GetStartedActionCard extends StatelessWidget {
                   spacing: 12,
                   children: [
                     Icon(icon, color: theme.colorScheme.primary, size: 32),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(title, style: theme.textTheme.titleMedium),
-                        Text(
-                          subtitle,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                    // Expanded, or the subtitle is laid out at its full
+                    // single-line width and paints overflow stripes: a Row
+                    // gives an unflexed child infinite width, so the text
+                    // never wraps no matter how narrow the card gets.
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title, style: theme.textTheme.titleMedium),
+                          Text(
+                            subtitle,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
                 if (secondaryActions.isNotEmpty)
-                  Row(spacing: 8, children: secondaryActions),
+                  // Wrap, not Row: a card narrowed by a small window has to
+                  // fold its actions onto a second line rather than overflow.
+                  Wrap(spacing: 8, runSpacing: 8, children: secondaryActions),
                 if (children.isNotEmpty) Column(spacing: 8, children: children),
               ],
             ),

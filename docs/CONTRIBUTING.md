@@ -77,9 +77,26 @@ See `platform-tools/README.md` for the expected bundle layout.
 ## Validation
 
 ```bash
+fvm dart format .
 fvm flutter analyze
 fvm flutter test -r compact
 ```
+
+CI runs `dart format --output=none --set-exit-if-changed .` before analyze, so an
+unformatted file fails the build.
+
+### Git hooks
+
+`.githooks/pre-commit` formats staged Dart and re-stages it, so formatting never
+shows up as review noise. `scripts/setup.sh` enables it; in an existing clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+A file that is only *partially* staged is reported rather than rewritten — the
+hook will not sweep your unstaged hunks into the commit. Use
+`git commit --no-verify` to bypass a single commit.
 
 ## Desktop Packaging
 

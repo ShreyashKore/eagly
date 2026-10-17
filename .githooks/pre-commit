@@ -1,0 +1,156 @@
+#!/bin/bash
+# Keeps committed Dart and Rust formatted, so `dart format` / `cargo fmt` never
+# show up as noise in a review diff (and so CI's format gate can't fail on
+# something a commit could have fixed for you).
+#
+# Fully-staged files are formatted and re-staged automatically. A file that is
+# only *partially* staged is reported instead of rewritten: formatting the
+# working copy and re-adding it would sweep the unstaged hunks into the commit.
+#
+# Enabled by `scripts/setup.sh`, or by hand:
+#   git config core.hooksPath .githooks
+# Bypass a single commit with `git commit --no-verify`.
+
+set -uo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT" || exit 1
+
+# Git exports GIT_DIR and GIT_INDEX_FILE to hooks (absolute paths inside a
+# linked worktree). fvm and Flutter's bin/dart run git against their own cache
+# and SDK repos, and with these inherited that git lands on this repo instead:
+# fvm 4.1 "migrated" this repo's origin into a copy of its Flutter mirror config
+# that way. The hook's own git calls keep them; dart never sees them.
+NO_GIT_ENV=(env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_PREFIX)
+
+# Prefer the fvm-pinned SDK so the hook wraps exactly the way CI does.
+if [ -x ".fvm/flutter_sdk/bin/dart" ]; then
+  DART=("${NO_GIT_ENV[@]}" ".fvm/flutter_sdk/bin/dart")
+elif command -v fvm >/dev/null 2>&1; then
+  DART=("${NO_GIT_ENV[@]}" fvm dart)
+elif command -v dart >/dev/null 2>&1; then
+  DART=("${NO_GIT_ENV[@]}" dart)
+else
+  echo "pre-commit: no dart on PATH and no .fvm SDK — skipping format check." >&2
+  exit 0
+fi
+
+# NUL-delimited read rather than `mapfile -d`, which macOS's bash 3.2 lacks.
+staged=()
+while IFS= read -r -d '' file; do
+  staged+=("$file")
+done < <(git diff --cached --name-only --diff-filter=ACMR -z -- '*.dart')
+rstaged=()
+while IFS= read -r -d '' file; do
+  rstaged+=("$file")
+done < <(git diff --cached --name-only --diff-filter=ACMR -z -- '*.rs')
+[ ${#staged[@]} -eq 0 ] && [ ${#rstaged[@]} -eq 0 ] && exit 0
+
+whole=()
+partial=()
+if [ ${#staged[@]} -gt 0 ]; then
+  for file in "${staged[@]}"; do
+    [ -f "$file" ] || continue
+    if [ -n "$(git diff --name-only -- "$file")" ]; then
+      partial+=("$file")
+    else
+      whole+=("$file")
+    fi
+  done
+fi
+
+status=0
+
+if [ ${#whole[@]} -gt 0 ]; then
+  if ! output="$("${DART[@]}" format "${whole[@]}" 2>&1)"; then
+    echo "pre-commit: dart format failed (syntax error?):" >&2
+    echo "$output" >&2
+    exit 1
+  fi
+  reformatted=()
+  for file in "${whole[@]}"; do
+    if [ -n "$(git diff --name-only -- "$file")" ]; then
+      reformatted+=("$file")
+    fi
+  done
+  if [ ${#reformatted[@]} -gt 0 ]; then
+    git add -- "${reformatted[@]}"
+    echo "pre-commit: formatted and re-staged ${#reformatted[@]} file(s):"
+    printf '  %s\n' "${reformatted[@]}"
+  fi
+fi
+
+# Partially-staged files are checked, never rewritten.
+if [ ${#partial[@]} -gt 0 ]; then
+  for file in "${partial[@]}"; do
+    if ! "${DART[@]}" format --output=none --set-exit-if-changed "$file" \
+      >/dev/null 2>&1; then
+      echo "pre-commit: $file is unformatted and only partially staged." >&2
+      status=1
+    fi
+  done
+fi
+
+# ── Rust ────────────────────────────────────────────────────────────────────
+# Same contract as the Dart pass, but for the crate under rust/. cargo fmt
+# runs from the crate root (in a subshell so this script's cwd stays at the
+# repo root, where the git pathspecs are valid) and takes the file list
+# relative to it after --, forwarding to rustfmt; fully-staged files are
+# rewritten and re-staged, and partially-staged ones are only checked so
+# unstaged hunks stay put.
+if [ ${#rstaged[@]} -gt 0 ]; then
+  if command -v cargo >/dev/null 2>&1; then
+    rwhole=()
+    rpartial=()
+    for file in "${rstaged[@]}"; do
+      rel="${file#rust/}"
+      [ -f "$file" ] || continue
+      if [ -n "$(git diff --name-only -- "$file")" ]; then
+        rpartial+=("$rel")
+      else
+        rwhole+=("$rel")
+      fi
+    done
+
+    if [ ${#rwhole[@]} -gt 0 ]; then
+      if ! output="$(cd "$REPO_ROOT/rust" && cargo fmt -- "${rwhole[@]}" 2>&1)"; then
+        echo "pre-commit: cargo fmt failed:" >&2
+        echo "$output" >&2
+        status=1
+      else
+        redo=()
+        for rel in "${rwhole[@]}"; do
+          file="rust/$rel"
+          if [ -n "$(git diff --name-only -- "$file")" ]; then
+            redo+=("$file")
+          fi
+        done
+        if [ ${#redo[@]} -gt 0 ]; then
+          git add -- "${redo[@]}"
+          echo "pre-commit: formatted and re-staged ${#redo[@]} rust file(s):"
+          printf '  %s\n' "${redo[@]}"
+        fi
+      fi
+    fi
+
+    if [ ${#rpartial[@]} -gt 0 ]; then
+      for rel in "${rpartial[@]}"; do
+        if ! (cd "$REPO_ROOT/rust" && cargo fmt -- --check "$rel") >/dev/null 2>&1; then
+          echo "pre-commit: rust/$rel is unformatted and only partially staged." >&2
+          status=1
+        fi
+      done
+    fi
+  else
+    echo "pre-commit: no cargo on PATH — skipping rust format check." >&2
+  fi
+fi
+
+if [ "$status" -ne 0 ]; then
+  echo >&2
+  echo "Format the files above ('fvm dart format <file>' for Dart," >&2
+  echo "cargo fmt for Rust), stage the result, or commit with --no-verify" >&2
+  echo "to bypass." >&2
+fi
+
+exit "$status"

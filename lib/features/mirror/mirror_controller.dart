@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../data/device.dart';
@@ -71,6 +73,21 @@ class MirrorController extends FeatureController {
   /// Whether device→desktop clipboard changes are mirrored automatically.
   bool clipboardSyncEnabled = true;
   StreamSubscription<String>? _clipboardSub;
+
+  /// The last text we pushed *to* the device. The server echoes a clipboard
+  /// change back for our own SET_CLIPBOARD, and mirroring that echo would
+  /// re-write the desktop clipboard we just read from.
+  String? _lastPushedClipboard;
+
+  /// Holds focus for the mirror surface. While it has focus, desktop key
+  /// presses are forwarded to the device instead of the app.
+  final FocusNode keyboardFocusNode = FocusNode(debugLabel: 'MirrorKeyboard');
+
+  final ScrcpyKeyboardTranslator _keyboard = ScrcpyKeyboardTranslator(
+    // On macOS ⌘ is the editing modifier the user reaches for, so it stands in
+    // for the device's Ctrl; elsewhere the Meta key is left to the host.
+    metaIsControl: defaultTargetPlatform == TargetPlatform.macOS,
+  );
 
   /// Number of consecutive automatic restarts (e.g. from rotation desyncs).
   /// Reset once a stream has survived longer than [_restartCooldown]; caps a
@@ -182,6 +199,8 @@ class MirrorController extends FeatureController {
     _session = null;
     await _clipboardSub?.cancel();
     _clipboardSub = null;
+    _lastPushedClipboard = null;
+    _keyboard.releaseAll();
 
     if (mirror != null) {
       await mirror.stop();
@@ -267,6 +286,60 @@ class MirrorController extends FeatureController {
     _session?.control?.key(key);
   }
 
+  /// Whether desktop key presses currently go to the device.
+  bool get isKeyboardForwarding =>
+      keyboardFocusNode.hasFocus && _session?.control != null;
+
+  /// Forwards a desktop key event to the mirrored device. Returns
+  /// [KeyEventResult.handled] for anything the device consumed — which also
+  /// stops the platform beeping at a key the app never handled.
+  KeyEventResult handleKeyEvent(KeyEvent event) {
+    final control = _session?.control;
+    if (control == null) return KeyEventResult.ignored;
+    final command = _keyboard.translate(
+      event,
+      ScrcpyModifiers.fromHardwareKeyboard(),
+    );
+    if (command == null) return KeyEventResult.ignored;
+    _dispatchKeyCommand(control, command);
+    return KeyEventResult.handled;
+  }
+
+  /// Releases anything still held when the surface loses focus, so a modifier
+  /// the user was holding doesn't stay stuck down on the device.
+  void handleKeyboardFocusChange(bool focused) {
+    if (!focused) {
+      final control = _session?.control;
+      for (final command in _keyboard.releaseAll()) {
+        if (control != null) _dispatchKeyCommand(control, command);
+      }
+    }
+    _notify();
+  }
+
+  void _dispatchKeyCommand(ScrcpyControl control, ScrcpyKeyCommand command) {
+    switch (command) {
+      case ScrcpyIgnoreKey():
+        break;
+      case ScrcpyInjectText(:final text):
+        control.injectText(text);
+      case ScrcpyInjectKeycode(
+        :final keycode,
+        :final down,
+        :final metaState,
+        :final repeat,
+      ):
+        control.injectKeycode(
+          keycode,
+          down: down,
+          metaState: metaState,
+          repeat: repeat,
+        );
+      case ScrcpyPasteClipboard():
+        unawaited(pasteFromClipboard());
+    }
+  }
+
   /// Listens for device clipboard changes and mirrors them to the desktop
   /// clipboard, while [clipboardSyncEnabled] is on.
   void _watchClipboard(ScrcpyMirrorSession mirror) {
@@ -274,6 +347,7 @@ class MirrorController extends FeatureController {
     if (control == null) return;
     _clipboardSub = control.onDeviceClipboardChanged.listen((text) {
       if (!clipboardSyncEnabled || text.isEmpty) return;
+      if (text == _lastPushedClipboard) return; // our own push, echoed back
       unawaited(Clipboard.setData(ClipboardData(text: text)));
     });
   }
@@ -290,15 +364,18 @@ class MirrorController extends FeatureController {
       isScreenMirrorRunning && _session?.control != null;
 
   /// Sends the desktop clipboard's text to the mirrored device and pastes it
-  /// into the focused field. No-op when there's no live control channel or
-  /// the clipboard has no text.
-  Future<void> pasteFromClipboard() async {
+  /// into the focused field. Returns false when there's no live control
+  /// channel or the desktop clipboard holds no text.
+  Future<bool> pasteFromClipboard() async {
     final control = _session?.control;
-    if (control == null) return;
+    if (control == null) return false;
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text;
-    if (text == null || text.isEmpty) return;
+    if (text == null || text.isEmpty) return false;
+    if (!identical(_session?.control, control)) return false;
+    _lastPushedClipboard = text;
     control.setClipboard(text, paste: true);
+    return true;
   }
 
   /// Switches the encoder quality preset. Restarts the live stream so the new
@@ -363,6 +440,7 @@ class MirrorController extends FeatureController {
   @override
   void dispose() {
     _disposed = true;
+    keyboardFocusNode.dispose();
     unawaited(stop(notify: false));
     super.dispose();
   }

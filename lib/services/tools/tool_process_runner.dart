@@ -75,10 +75,55 @@ abstract class ToolProcessRunner {
     );
     return ToolCommandResult(
       exitCode: result.exitCode,
-      stdout: Utf8Decoder(allowMalformed: true)
-          .convert(result.stdout as List<int>),
-      stderr: Utf8Decoder(allowMalformed: true)
-          .convert(result.stderr as List<int>),
+      stdout: Utf8Decoder(
+        allowMalformed: true,
+      ).convert(result.stdout as List<int>),
+      stderr: Utf8Decoder(
+        allowMalformed: true,
+      ).convert(result.stderr as List<int>),
+    );
+  }
+
+  /// Like [runText], but kills the process and returns exit code `-1` when it
+  /// runs longer than [timeout]. `Process.run` cannot be interrupted, so this
+  /// starts the process instead and collects its output itself — use it for
+  /// commands whose runtime is not bounded by the tool (arbitrary `adb shell`
+  /// lines, libimobiledevice calls against a locked device, …).
+  Future<ToolCommandResult> runTextWithTimeout(
+    List<String> arguments, {
+    Duration timeout = const Duration(seconds: 30),
+    bool closeStdin = false,
+  }) async {
+    final process = await startProcess(arguments);
+    // A tool that asks a question mid-run blocks forever on a stdin pipe that
+    // never closes; closing it makes the tool take its own default instead.
+    // (`avdmanager create avd` offers to build a custom hardware profile.)
+    if (closeStdin) {
+      unawaited(process.stdin.close().catchError((_) {}));
+    }
+    const decoder = Utf8Decoder(allowMalformed: true);
+    final stdoutFuture = process.stdout.transform(decoder).join();
+    final stderrFuture = process.stderr.transform(decoder).join();
+
+    var timedOut = false;
+    final exitCode = await process.exitCode.timeout(
+      timeout,
+      onTimeout: () {
+        timedOut = true;
+        process.kill(ProcessSignal.sigkill);
+        return -1;
+      },
+    );
+
+    final stdout = await stdoutFuture;
+    final stderr = await stderrFuture;
+    return ToolCommandResult(
+      exitCode: exitCode,
+      stdout: stdout,
+      stderr: timedOut
+          ? '${stderr.trimRight()}\n'
+                'Timed out after ${timeout.inSeconds}s and was terminated.'
+          : stderr,
     );
   }
 
@@ -99,17 +144,57 @@ abstract class ToolProcessRunner {
     return result.stdout as List<int>;
   }
 
+  /// Every non-detached child this app has spawned and not yet reaped.
+  ///
+  /// Nothing kills these for us: on macOS and Linux a child outlives its
+  /// parent and is reparented to init, so a long-running `adb track-devices`
+  /// or `adb logcat` survives the app that started it and holds its adb server
+  /// connection open forever. Quitting eagly repeatedly used to leave one
+  /// orphan per launch. [terminateAllProcesses] is what closes them out.
+  ///
+  /// Detached processes are deliberately excluded — `AdbTool.ensureServerRunning`
+  /// starts the adb server that way precisely so it *does* outlive us.
+  static final Set<Process> _liveProcesses = <Process>{};
+
+  /// Terminates every tracked child. Called on app exit; also safe to call
+  /// mid-session (a process that already exited is simply not in the set).
+  ///
+  /// Only covers a graceful shutdown — a `SIGKILL`ed app still orphans its
+  /// children, since no cleanup of ours can run.
+  static Future<void> terminateAllProcesses() async {
+    final processes = _liveProcesses.toList(growable: false);
+    _liveProcesses.clear();
+    await Future.wait(processes.map(_terminate));
+  }
+
+  static Future<void> _terminate(Process process) async {
+    process.kill(ProcessSignal.sigterm);
+    try {
+      await process.exitCode.timeout(const Duration(milliseconds: 500));
+    } catch (_) {
+      process.kill(ProcessSignal.sigkill);
+    }
+  }
+
   Future<Process> startProcess(
     List<String> arguments, {
     ProcessStartMode mode = ProcessStartMode.normal,
-  }) {
-    return Process.start(
+  }) async {
+    final process = await Process.start(
       executable,
       arguments,
       environment: _toolEnvironment(),
       workingDirectory: _toolWorkingDirectory(),
       mode: mode,
     );
+    if (mode != ProcessStartMode.detached &&
+        mode != ProcessStartMode.detachedWithStdio) {
+      _liveProcesses.add(process);
+      unawaited(
+        process.exitCode.whenComplete(() => _liveProcesses.remove(process)),
+      );
+    }
+    return process;
   }
 
   Stream<String> stdoutLines(Process process) {

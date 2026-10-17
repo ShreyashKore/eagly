@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import '../../features/apps/data/app_info.dart';
-import '../../features/device_home/data/installed_app_info.dart';
 import '../../features/wireless_connection/data/wireless_debug_models.dart';
 import '../../utils/utils.dart';
 import 'tool_process_runner.dart';
@@ -177,22 +176,20 @@ class IdeviceInstallerTool extends ToolProcessRunner {
     );
   }
 
-  /// Full user-app inventory (uncapped, with version) for the Apps feature.
-  /// The installer only ever lists user-installed apps — there's no concept
-  /// of "system apps" exposed here — so everything returned is uninstallable.
-  Future<List<AppInfo>> listAllApps(String deviceId) async {
+  /// Full user-app inventory in device order. The installer only ever lists
+  /// user-installed apps — there's no concept of "system apps" exposed here —
+  /// so everything returned is uninstallable.
+  ///
+  /// Ordering and capping are applied above by [sortIosApps] /
+  /// [takeRecentIosApps], so both backends present the same way.
+  Future<List<AppInfo>> listApps(String deviceId) async {
     try {
       final result = await _listApps(deviceId);
       if (!result.isSuccess) return [];
 
-      final apps = _parseInstalledAppsDetailed(result.stdout);
-      apps.sort(
-        (a, b) =>
-            a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()),
-      );
-      return apps;
+      return _parseInstalledAppsDetailed(result.stdout);
     } catch (error) {
-      logError('Failed to list all iOS apps', error);
+      logError('Failed to list iOS apps', error);
       return [];
     }
   }
@@ -277,28 +274,5 @@ class IdeviceInstallerTool extends ToolProcessRunner {
       }
     }
     return null;
-  }
-
-  /// Backs the device-home "recently installed" card — same underlying data
-  /// as [listAllApps], just capped and mapped to the lighter model that
-  /// feature already uses.
-  Future<List<InstalledAppInfo>> listInstalledApps(String deviceId) async {
-    try {
-      final result = await _listApps(deviceId);
-      if (!result.isSuccess) return [];
-
-      return _parseInstalledAppsDetailed(result.stdout)
-          .take(5)
-          .map(
-            (app) => InstalledAppInfo(
-              packageName: app.packageName,
-              appName: app.appName,
-            ),
-          )
-          .toList();
-    } catch (error) {
-      logError('Failed to list installed iOS apps', error);
-      return [];
-    }
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -8,16 +9,29 @@ import '../features/device_home/data/device_info.dart';
 import '../features/device_home/data/device_performance_stats.dart';
 import '../features/device_home/data/installed_app_info.dart';
 import '../features/logs/data/models/log_entry.dart';
+import '../features/terminal/data/terminal_line.dart';
+import '../features/terminal/data/terminal_process.dart';
+import '../features/terminal/data/terminal_tools.dart';
+import '../features/utilities/data/utility_command.dart';
 import '../features/wireless_connection/data/wireless_debug_models.dart';
 import '../features/app_log/app_logger.dart';
 import '../features/flutter_scrcpy/flutter_scrcpy.dart';
 import '../utils/tools_path.dart';
 import 'tools/adb_tool.dart';
+import 'tools/device_tool_runner.dart';
 import 'tools/android_apk_icon_extractor.dart';
 import 'tools/idevice_crash_report_tool.dart';
-import 'tools/idevice_info_tool.dart';
+import 'ios/ios_device_domains.dart';
+import 'ios/ios_app_service.dart';
+import 'ios/ios_crash_report_service.dart';
+import 'ios/ios_device_service.dart';
+import 'ios/ios_log_service.dart';
+import 'ios/libimobiledevice_ios_app_service.dart';
+import 'ios/libimobiledevice_ios_crash_report_service.dart';
+import 'ios/libimobiledevice_ios_log_service.dart';
 import 'tools/ideviceinstaller_tool.dart';
 import 'tools/idevice_syslog_tool.dart';
+import 'tools/tool_process_runner.dart';
 
 /// Per-device facade over the platform tools (adb / libimobiledevice / scrcpy).
 ///
@@ -27,10 +41,10 @@ import 'tools/idevice_syslog_tool.dart';
 class DeviceSessionRepository {
   final Device device;
   final AdbTool _adbTool;
-  final IdeviceInstallerTool _ideviceInstallerTool;
-  final IdeviceSyslogTool _ideviceSyslogTool;
-  final IdeviceCrashReportTool _ideviceCrashReportTool;
-  final IdeviceInfoTool _ideviceInfoTool;
+  final IosAppService _iosAppService;
+  final IosCrashReportService _iosCrashReportService;
+  final IosDeviceService _iosDeviceService;
+  final IosLogService _iosLogService;
   final ScrcpyMirror _scrcpyMirror;
   final AppLogger _logger = AppLogger(source: 'DeviceSessionService');
   final Map<String, String> _pidToPackageCache = {};
@@ -57,25 +71,29 @@ class DeviceSessionRepository {
     String? ideviceInstallerPath,
     String? ideviceSyslogPath,
     String? ideviceCrashReportPath,
-    String? ideviceInfoPath,
     AdbTool? adbTool,
     IdeviceInstallerTool? ideviceInstallerTool,
     IdeviceSyslogTool? ideviceSyslogTool,
     IdeviceCrashReportTool? ideviceCrashReportTool,
-    IdeviceInfoTool? ideviceInfoTool,
+    IosAppService? iosAppService,
+    IosCrashReportService? iosCrashReportService,
+    IosDeviceService? iosDeviceService,
+    IosLogService? iosLogService,
     ScrcpyMirror? scrcpyMirror,
   }) : _adbTool = adbTool ?? AdbTool(executablePath: adbPath),
-       _ideviceInstallerTool =
-           ideviceInstallerTool ??
-           IdeviceInstallerTool(executablePath: ideviceInstallerPath),
-       _ideviceSyslogTool =
-           ideviceSyslogTool ??
-           IdeviceSyslogTool(executablePath: ideviceSyslogPath),
-       _ideviceCrashReportTool =
-           ideviceCrashReportTool ??
-           IdeviceCrashReportTool(executablePath: ideviceCrashReportPath),
-       _ideviceInfoTool =
-           ideviceInfoTool ?? IdeviceInfoTool(executablePath: ideviceInfoPath),
+       _iosAppService =
+           iosAppService ??
+           _defaultIosAppService(ideviceInstallerTool, ideviceInstallerPath),
+       _iosCrashReportService =
+           iosCrashReportService ??
+           _defaultIosCrashReportService(
+             ideviceCrashReportTool,
+             ideviceCrashReportPath,
+           ),
+       _iosDeviceService = iosDeviceService ?? createIosDeviceService(),
+       _iosLogService =
+           iosLogService ??
+           _defaultIosLogService(ideviceSyslogTool, ideviceSyslogPath),
        _scrcpyMirror =
            scrcpyMirror ??
            ScrcpyMirror(
@@ -87,6 +105,50 @@ class DeviceSessionRepository {
                source: 'DeviceSessionService',
              ).info('[scrcpy] $message'),
            );
+
+  /// See [_defaultIosLogService] — same reasoning for crash reports.
+  static IosCrashReportService _defaultIosCrashReportService(
+    IdeviceCrashReportTool? tool,
+    String? executablePath,
+  ) {
+    if (tool != null || executablePath != null) {
+      return LibimobiledeviceIosCrashReportService(
+        ideviceCrashReportTool:
+            tool ?? IdeviceCrashReportTool(executablePath: executablePath),
+      );
+    }
+    return createIosCrashReportService();
+  }
+
+  /// See [_defaultIosLogService] — same reasoning for the installer.
+  static IosAppService _defaultIosAppService(
+    IdeviceInstallerTool? tool,
+    String? executablePath,
+  ) {
+    if (tool != null || executablePath != null) {
+      return LibimobiledeviceIosAppService(
+        ideviceInstallerTool:
+            tool ?? IdeviceInstallerTool(executablePath: executablePath),
+      );
+    }
+    return createIosAppService();
+  }
+
+  /// An explicitly supplied tool or executable path pins the libimobiledevice
+  /// backend — that is what a caller passing one is asking for, and it is how
+  /// the session tests point the stream at a stub executable.
+  static IosLogService _defaultIosLogService(
+    IdeviceSyslogTool? tool,
+    String? executablePath,
+  ) {
+    if (tool != null || executablePath != null) {
+      return LibimobiledeviceIosLogService(
+        ideviceSyslogTool:
+            tool ?? IdeviceSyslogTool(executablePath: executablePath),
+      );
+    }
+    return createIosLogService();
+  }
 
   AppLogger get _sessionLogger =>
       _logger.scoped(sessionTag: sessionLabel ?? _deviceId);
@@ -137,7 +199,7 @@ class DeviceSessionRepository {
 
     sessionLogger.info('iOS syslog stream started for ${device.displayName}');
 
-    final session = _ideviceSyslogTool.start(
+    final session = _iosLogService.startSyslog(
       deviceId: _deviceId,
       processName: device.displayName,
     );
@@ -216,13 +278,20 @@ class DeviceSessionRepository {
 
   /// Broader device info (identity, battery, storage, display, connectivity,
   /// cellular, developer state, software) for the device home screen. See
-  /// [AdbTool.fetchDeviceInfo] / [IdeviceInfoTool.fetchExtendedInfo] for what
-  /// each platform can and can't reliably report.
+  /// [AdbTool.fetchDeviceInfo] / [buildIosDeviceInfo] for what each platform
+  /// can and can't reliably report.
   Future<DeviceInfo> fetchDeviceInfo() {
     return switch (device) {
       final AndroidDevice d => _adbTool.fetchDeviceInfo(d),
-      final IosDevice d => _ideviceInfoTool.fetchExtendedInfo(d),
+      final IosDevice d => _fetchIosDeviceInfo(d),
     };
+  }
+
+  Future<DeviceInfo> _fetchIosDeviceInfo(IosDevice device) async {
+    return buildIosDeviceInfo(
+      device,
+      await _iosDeviceService.readDeviceDomains(device.id),
+    );
   }
 
   Future<DevicePerformanceStats> _fetchAndroidPerformanceStats() async {
@@ -312,7 +381,7 @@ class DeviceSessionRepository {
         deviceId: _deviceId,
         apkPath: filePath,
       ),
-      IosDevice() => _ideviceInstallerTool.installApp(
+      IosDevice() => _iosAppService.installApp(
         deviceId: _deviceId,
         appPath: filePath,
       ),
@@ -322,7 +391,7 @@ class DeviceSessionRepository {
   Future<List<InstalledAppInfo>> listRecentlyInstalledApps() {
     return switch (device) {
       AndroidDevice() => _adbTool.listRecentlyInstalledApps(_deviceId),
-      IosDevice() => _ideviceInstallerTool.listInstalledApps(_deviceId),
+      IosDevice() => _iosAppService.listApps(_deviceId).then(takeRecentIosApps),
     };
   }
 
@@ -336,14 +405,14 @@ class DeviceSessionRepository {
         _deviceId,
         includeSystemApps: includeSystemApps,
       ),
-      IosDevice() => _ideviceInstallerTool.listAllApps(_deviceId),
+      IosDevice() => _iosAppService.listApps(_deviceId).then(sortIosApps),
     };
   }
 
   Future<DeviceCommandResult> uninstallApp(String packageName) {
     return switch (device) {
       AndroidDevice() => _adbTool.uninstallApp(_deviceId, packageName),
-      IosDevice() => _ideviceInstallerTool.uninstallApp(
+      IosDevice() => _iosAppService.uninstallApp(
         deviceId: _deviceId,
         bundleId: packageName,
       ),
@@ -448,7 +517,7 @@ class DeviceSessionRepository {
       );
     }
     _sessionLogger.info('Reading crash reports for ${device.displayName}');
-    return _ideviceCrashReportTool.pullReports(_deviceId);
+    return _iosCrashReportService.pullReports(_deviceId);
   }
 
   Future<ScrcpyMirrorSession> startScreenMirror({
@@ -498,6 +567,130 @@ class DeviceSessionRepository {
       deviceId: _deviceId,
       devicePath: devicePath,
       process: process,
+    );
+  }
+
+  // ── Utilities feature (generic tool invocations) ────────────────────────
+
+  /// Lazily-created runners for the bundled CLIs, keyed by executable name.
+  /// `adb` reuses the session's [AdbTool] so ad-hoc commands go through the
+  /// same server startup handling as everything else.
+  final Map<String, ToolProcessRunner> _toolRunners = {};
+
+  ToolProcessRunner _toolRunner(String executableName) {
+    if (executableName == _adbExecutableName) return _adbTool;
+    return _toolRunners[executableName] ??= DeviceToolRunner(
+      executableName: executableName,
+    );
+  }
+
+  static const _adbExecutableName = 'adb';
+
+  /// Runs one [invocation] against the bound device, prepending the tool's
+  /// device selector (`adb -s <serial>` / `idevicefoo -u <udid>`). Never
+  /// throws: a failure to even start the tool comes back as a non-zero
+  /// [ToolCommandResult] carrying the error text.
+  Future<ToolCommandResult> runUtility(
+    UtilityInvocation invocation, {
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    final runner = _toolRunner(invocation.tool.executable);
+    final arguments = [
+      invocation.tool.deviceFlag,
+      _deviceId,
+      ...invocation.arguments,
+    ];
+    _sessionLogger.info('Running utility: ${invocation.displayCommand}');
+    try {
+      if (invocation.tool == UtilityTool.adb) {
+        await _adbTool.ensureServerRunning();
+      }
+      return await runner.runTextWithTimeout(arguments, timeout: timeout);
+    } catch (error) {
+      _sessionLogger.error(
+        'Utility failed: ${invocation.displayCommand}',
+        detail: error.toString(),
+      );
+      return ToolCommandResult(
+        exitCode: -1,
+        stdout: '',
+        stderr: error.toString(),
+      );
+    }
+  }
+
+  // ── Terminal feature (free-form tool invocations) ────────────────────────
+
+  /// Starts [invocation] and hands back a live [TerminalProcessSession].
+  ///
+  /// The argv arrives fully formed — the terminal resolves the device selector
+  /// itself, because a terminal tab may deliberately aim at a device other than
+  /// the one this repository is bound to. Nothing here rewrites the command;
+  /// this only owns process startup, output merging and teardown. Throws when
+  /// the tool cannot be started at all.
+  Future<TerminalProcessSession> startTerminalProcess(
+    TerminalInvocation invocation,
+  ) async {
+    final runner = _toolRunner(invocation.executable);
+    _sessionLogger.info('Terminal: ${invocation.displayCommand}');
+    if (invocation.executable == _adbExecutableName) {
+      await _adbTool.ensureServerRunning();
+    }
+
+    final process = await runner.startProcess(invocation.arguments);
+    final output = StreamController<TerminalOutputChunk>();
+    const decoder = Utf8Decoder(allowMalformed: true);
+
+    var openPipes = 2;
+    void closePipe() {
+      if (--openPipes == 0 && !output.isClosed) unawaited(output.close());
+    }
+
+    StreamSubscription<String> pipe(Stream<List<int>> source, bool isError) {
+      return source
+          .transform(decoder)
+          .transform(const LineSplitter())
+          .listen(
+            (line) {
+              if (!output.isClosed) {
+                output.add(TerminalOutputChunk(line, isError: isError));
+              }
+            },
+            onError: (Object error) {
+              if (!output.isClosed) {
+                output.add(
+                  TerminalOutputChunk(error.toString(), isError: true),
+                );
+              }
+            },
+            onDone: closePipe,
+          );
+    }
+
+    // Both pipes close on their own when the process ends, which closes
+    // [output] — so nothing here cancels them early and drops trailing lines.
+    pipe(process.stdout, false);
+    pipe(process.stderr, true);
+
+    return TerminalProcessSession(
+      output: output.stream,
+      exitCode: process.exitCode,
+      onKill: () async {
+        process.kill(ProcessSignal.sigterm);
+        try {
+          await process.exitCode.timeout(const Duration(seconds: 2));
+        } on TimeoutException {
+          process.kill(ProcessSignal.sigkill);
+        }
+      },
+      onInput: (text) {
+        try {
+          process.stdin.writeln(text);
+        } catch (_) {
+          // The process exited between the check and the write; the caller
+          // finds out from the exit-code line either way.
+        }
+      },
     );
   }
 

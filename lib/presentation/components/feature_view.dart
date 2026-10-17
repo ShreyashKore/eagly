@@ -1,6 +1,9 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+
+import 'overflow_toolbar.dart';
 
 /// Base class for the per-device feature panes (logs, mirror, crash reports,
 /// file manager, device home) — the view counterpart of `FeatureController`.
@@ -86,13 +89,16 @@ class FeaturePane extends StatelessWidget {
 }
 
 /// The standard 48-dip feature-pane header: [title] on the left, then
-/// [actions], then the close button when [onClose] is non-null.
+/// [actions], then the close button when [onClose] is non-null. Panes are
+/// resizable and stack side by side, so the actions collapse into an overflow
+/// menu once the header runs out of room (see [OverflowToolbar]).
 class FeatureViewHeader extends StatelessWidget {
   const FeatureViewHeader({
     super.key,
     required this.title,
     this.leading,
     this.actions = const [],
+    this.trailing = const [],
     this.onClose,
     this.closeTooltip = 'Close pane',
   });
@@ -102,8 +108,13 @@ class FeatureViewHeader extends StatelessWidget {
   /// Optional widget before the title (e.g. a back button).
   final Widget? leading;
 
-  /// Action buttons shown between the title and the close button.
-  final List<Widget> actions;
+  /// Action buttons shown between the title and the close button. The last
+  /// ones collapse into the overflow menu first.
+  final List<ToolbarAction> actions;
+
+  /// Widgets pinned between the actions and the close button — for controls
+  /// that cannot become a menu entry (e.g. their own popup menu).
+  final List<Widget> trailing;
 
   final VoidCallback? onClose;
   final String closeTooltip;
@@ -121,17 +132,19 @@ class FeatureViewHeader extends StatelessWidget {
           bottom: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
       ),
-      child: Row(
-        children: [
-          if (leading != null) leading!,
-          Expanded(
-            child: Text(
-              title,
-              style: theme.textTheme.titleSmall,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          ...actions,
+      child: OverflowToolbar(
+        spacing: 0,
+        iconSize: 24,
+        leading: [if (leading != null) leading!],
+        flexible: Text(
+          title,
+          style: theme.textTheme.titleSmall,
+          overflow: TextOverflow.ellipsis,
+        ),
+        flexibleMinWidth: 56,
+        actions: actions,
+        trailing: [
+          ...trailing,
           if (onClose != null)
             IconButton(
               tooltip: closeTooltip,
@@ -145,6 +158,11 @@ class FeatureViewHeader extends StatelessWidget {
 }
 
 /// Full-width bar shown at the bottom of a feature pane.
+///
+/// Panes are resizable, so the bar scrolls sideways once its readouts no
+/// longer fit — nothing is dropped or truncated. While they do fit the row
+/// behaves normally, so a [Spacer] still pushes the trailing group to the
+/// right edge.
 class FeatureStatusBar extends StatelessWidget {
   const FeatureStatusBar({
     super.key,
@@ -161,7 +179,30 @@ class FeatureStatusBar extends StatelessWidget {
       width: double.infinity,
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       padding: padding,
-      child: Row(children: children),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          return ScrollConfiguration(
+            // A scrollbar would sit on top of a bar this thin; dragging with
+            // the mouse replaces it as the affordance.
+            behavior: ScrollConfiguration.of(context).copyWith(
+              scrollbars: false,
+              dragDevices: PointerDeviceKind.values.toSet(),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                // Stretch to the full width when the content is narrower,
+                // otherwise let the row take its natural width and scroll.
+                constraints: BoxConstraints(
+                  minWidth: width.isFinite ? width : 0,
+                ),
+                child: IntrinsicWidth(child: Row(children: children)),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

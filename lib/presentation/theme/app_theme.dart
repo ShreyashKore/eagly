@@ -21,6 +21,7 @@ extension ThemeModeExt on ThemeMode {
 @immutable
 class EaglyTheme extends ThemeExtension<EaglyTheme> {
   const EaglyTheme({
+    required this.monoStyle,
     required this.logBodyStyle,
     required this.logCompactStyle,
     required this.logHeaderStyle,
@@ -45,6 +46,11 @@ class EaglyTheme extends ThemeExtension<EaglyTheme> {
     required this.cardShadowColor,
   });
 
+  /// The app's monospace face with no size or height baked in — the base for
+  /// anything that must line up in columns (log rows, terminal scrollback).
+  /// Prefer this over `fontFamily: 'monospace'`, which resolves to no real
+  /// family on macOS/Windows and silently falls back to the UI font.
+  final TextStyle monoStyle;
   final TextStyle logBodyStyle;
   final TextStyle logCompactStyle;
   final TextStyle logHeaderStyle;
@@ -80,6 +86,7 @@ class EaglyTheme extends ThemeExtension<EaglyTheme> {
 
   @override
   EaglyTheme copyWith({
+    TextStyle? monoStyle,
     TextStyle? logBodyStyle,
     TextStyle? logCompactStyle,
     TextStyle? logHeaderStyle,
@@ -104,6 +111,7 @@ class EaglyTheme extends ThemeExtension<EaglyTheme> {
     Color? cardShadowColor,
   }) {
     return EaglyTheme(
+      monoStyle: monoStyle ?? this.monoStyle,
       logBodyStyle: logBodyStyle ?? this.logBodyStyle,
       logCompactStyle: logCompactStyle ?? this.logCompactStyle,
       logHeaderStyle: logHeaderStyle ?? this.logHeaderStyle,
@@ -143,6 +151,7 @@ class EaglyTheme extends ThemeExtension<EaglyTheme> {
     }
 
     return EaglyTheme(
+      monoStyle: TextStyle.lerp(monoStyle, other.monoStyle, t)!,
       logBodyStyle: TextStyle.lerp(logBodyStyle, other.logBodyStyle, t)!,
       logCompactStyle: TextStyle.lerp(
         logCompactStyle,
@@ -450,6 +459,7 @@ class AppTheme {
     final mono = GoogleFonts.jetBrainsMono();
 
     return EaglyTheme(
+      monoStyle: mono,
       logBodyStyle: mono.copyWith(fontSize: 12, height: 1.2),
       logCompactStyle: mono.copyWith(fontSize: 11, height: 1.2),
       logHeaderStyle: mono.copyWith(fontSize: 12, fontWeight: FontWeight.w700),

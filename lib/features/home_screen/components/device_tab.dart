@@ -18,6 +18,7 @@ class DeviceTab extends StatefulWidget {
     required this.selected,
     required this.animateIn,
     required this.onSelect,
+    required this.onReload,
     required this.onClose,
   });
 
@@ -28,6 +29,10 @@ class DeviceTab extends StatefulWidget {
   /// highlight wave to draw attention to the freshly-connected device.
   final bool animateIn;
   final VoidCallback onSelect;
+
+  /// Tears the session down and rebuilds it; null when there is no device
+  /// behind the tab (the imported-logs workspace).
+  final VoidCallback? onReload;
   final VoidCallback? onClose;
 
   @override
@@ -98,6 +103,8 @@ class _DeviceTabState extends State<DeviceTab> with TickerProviderStateMixin {
           onSecondaryTapUp: (details) => showTabContextMenu(
             context,
             details.globalPosition,
+            session: session,
+            onReload: widget.onReload,
             onClose: onClose,
           ),
           child: Tooltip(

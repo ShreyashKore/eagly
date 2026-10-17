@@ -5,22 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import 'data/models/log_entry.dart';
-import 'presentation/components/log_lines_limit_input.dart';
 import 'presentation/models/log_view_mode.dart';
-import '../../features/app_log/app_logger.dart';
 import '../../session/device_session_controller.dart';
 import '../../presentation/theme/app_theme.dart';
-import '../../presentation/components/app_log_overlay.dart';
 import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/feature_view.dart';
 import '../../presentation/components/text_search_bar.dart';
 import 'presentation/components/log_viewer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/log_feedback.dart';
-import '../../utils/utils.dart';
 import 'presentation/components/classic_filter_bar.dart';
 import 'presentation/components/inline_filter_bar.dart';
 import 'presentation/components/scroll_to_end_button.dart';
+import 'presentation/components/log_status_bar.dart';
 import 'presentation/components/toolbar.dart';
 import 'log_controller.dart';
 import 'log_session_manager.dart';
@@ -413,141 +410,11 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
     );
   }
 
-  (String, Color) _liveStatusLabel(EaglyTheme theme, LogController controller) {
-    if (controller.liveLoggingInterrupted) {
-      return ('Interrupted', theme.statusStoppedColor);
-    }
-    if (controller.isRecovering) {
-      return ('Reconnecting…', theme.statusPausedColor);
-    }
-    if (controller.isPaused) return ('Paused', theme.statusPausedColor);
-    if (controller.isRunning) return ('Live', theme.statusLiveColor);
-    return ('Stopped', theme.statusStoppedColor);
-  }
-
   Widget _buildStatusBar(BuildContext context, LogController controller) {
-    final theme = context.eaglyTheme;
-
-    return FeatureStatusBar(
-      children: [
-        Text('Logs: ${controller.logCount}', style: theme.statusBarStyle),
-        const Gap(16),
-        Text(
-          'Filtered: ${controller.filteredLogs.length}',
-          style: theme.statusBarStyle,
-        ),
-        if (controller.rowSelectionMode || controller.hasSelectedRows) ...[
-          const Gap(16),
-          Text(
-            'Selected: ${controller.selectedRowCount}',
-            style: theme.statusBarStyle,
-          ),
-        ],
-        const Spacer(),
-        Text(
-          'App mem: ${formatBytes(widget.appMemoryBytesListenable.value)}',
-          style: theme.statusBarStyle,
-        ),
-        const Gap(16),
-        Text(
-          'Logs mem: ${formatBytes(controller.totalLogsMemoryBytes)}',
-          style: theme.statusBarStyle,
-        ),
-        const Gap(8),
-        _buildLogLinesEditor(context, controller),
-        const Gap(8),
-        SizedBox(
-          height: 18,
-          child: VerticalDivider(
-            width: 2,
-            thickness: 2,
-            radius: BorderRadius.circular(2),
-          ),
-        ),
-        const Gap(8),
-        if (controller.isImported)
-          Text(
-            'Imported',
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.statusBarStyle.color,
-              fontWeight: FontWeight.bold,
-            ),
-          )
-        else
-          Builder(
-            builder: (context) {
-              final (label, color) = _liveStatusLabel(theme, controller);
-              return Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                ),
-              );
-            },
-          ),
-        ListenableBuilder(
-          listenable: AppLogger.global.entriesListenable,
-          builder: (context, _) {
-            final hasWorkspaceErrors = AppLogger.global.hasEntries(
-              sessionTag: controller.appLogSessionTag,
-              errorsOnly: true,
-            );
-            if (!hasWorkspaceErrors) {
-              return const SizedBox.shrink();
-            }
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Gap(8),
-                AppLogTriggerButton(
-                  sessionTag: controller.appLogSessionTag,
-                  title: 'App Logs • ${session.device.displayName}',
-                  tooltip: 'Show app errors for this device',
-                  iconSize: 16,
-                ),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLogLinesEditor(BuildContext context, LogController controller) {
-    return Container(
-      height: 24,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: controller.editingLogLinesLimit
-          ? null
-          : BoxDecoration(borderRadius: BorderRadius.circular(4)),
-      child: !controller.editingLogLinesLimit
-          ? InkWell(
-              mouseCursor: SystemMouseCursors.click,
-              onTap: () => controller.setEditingLogLinesLimit(true),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(
-                  'Max lines: ${controller.logLinesLimit}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 12,
-                    decoration: TextDecoration.underline,
-                    decorationStyle: TextDecorationStyle.dotted,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            )
-          : IntrinsicWidth(
-              child: LogLinesLimitInput(
-                setEditingLogLinesLimit: controller.setEditingLogLinesLimit,
-                submitLogLinesLimit: controller.submitLogLinesLimit,
-                logLinesLimit: controller.logLinesLimit,
-                isEditing: controller.editingLogLinesLimit,
-              ),
-            ),
+    return LogStatusBar(
+      controller: controller,
+      appMemoryBytes: widget.appMemoryBytesListenable.value,
+      deviceDisplayName: session.device.displayName,
     );
   }
 }

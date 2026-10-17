@@ -30,9 +30,7 @@ class AppearanceSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(
-              child: Text('Theme', style: theme.textTheme.bodyLarge),
-            ),
+            Expanded(child: Text('Theme', style: theme.textTheme.bodyLarge)),
             ToggleButtons(
               isSelected: List.generate(
                 3,
@@ -44,10 +42,7 @@ class AppearanceSection extends StatelessWidget {
               selectedBorderColor: theme.colorScheme.primary.withValues(
                 alpha: 0.5,
               ),
-              constraints: const BoxConstraints(
-                minWidth: 84,
-                minHeight: 36,
-              ),
+              constraints: const BoxConstraints(minWidth: 84, minHeight: 36),
               children: const [Text('Auto'), Text('Light'), Text('Dark')],
             ),
           ],
@@ -55,10 +50,7 @@ class AppearanceSection extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: Text(
-                'Log font size',
-                style: theme.textTheme.bodyLarge,
-              ),
+              child: Text('Log font size', style: theme.textTheme.bodyLarge),
             ),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -73,10 +65,7 @@ class AppearanceSection extends StatelessWidget {
                     color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text(
-                    'Aa',
-                    style: TextStyle(fontSize: logFontSize),
-                  ),
+                  child: Text('Aa', style: TextStyle(fontSize: logFontSize)),
                 ),
                 SizedBox(
                   width: 200,

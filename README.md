@@ -90,6 +90,7 @@ support.**
 | 📂 **File manager** | Browse, upload, download and delete files on Android (single-level browsing on iOS). |
 | 📦 **Install apps** | Drag & drop an `.apk` (Android) or `.ipa` (iOS) onto the window to install. |
 | 🌐 **Wireless debugging** | Connect to Android devices over Wi-Fi — no cable needed. |
+| 🤖 **Android emulators** | Start, cold-boot, wipe, create or delete AVDs from your installed Android SDK — no Android Studio needed. |
 | 🗂️ **Import / export** | Open saved log files in dedicated tabs or export captured logs. |
 | 🎨 **Tabbed sessions & themes** | View multiple devices side by side, with light and dark themes. |
 | 🛠️ **No external tools** | `adb` and `libimobiledevice` are bundled — nothing to install separately. |
@@ -153,6 +154,13 @@ A friendly landing screen and full light / dark theme support.
 3. Connect your device via USB (or use wireless debugging).
 4. Launch Eagly — your device should appear automatically.
 
+No physical device? Open the **Emulators** panel — the phone icon in the header, or the
+**Emulators** button on the landing screen — to start, cold-boot, wipe, create or delete an
+Android emulator, and its tab opens by itself once it finishes booting. This uses the Android
+SDK already installed on your machine (the emulator itself is several gigabytes, so Eagly does
+not bundle it); if it isn't found automatically, point Eagly at it under
+**Settings → Android SDK**.
+
 ### iOS — macOS / Linux
 
 1. Connect your iPhone or iPad via USB.
@@ -176,6 +184,20 @@ A friendly landing screen and full light / dark theme support.
 2. Connect your iPhone or iPad via USB.
 3. When prompted on the device, tap **Trust This Computer** and enter your passcode.
 4. Launch Eagly — your device should appear automatically.
+
+### Filtering logs
+
+Click the filter icon at the left of the filter bar to switch to the inline filter, then type
+`key:value` terms. Keys are `tag` (`category` on iOS), `package`, `pid`, `message`, `level`
+and `age`; bare words search the whole entry. Prefix a term with `-` to exclude matches, and
+add `=` or `~` after the key for an exact or regex match:
+
+```
+package:com.myapp level:W -tag:AudioTrackImpl -message~:heartbeat
+```
+
+All terms must match, so this shows warnings and above from `com.myapp`, without
+`AudioTrackImpl` logs or heartbeat messages.
 
 ---
 

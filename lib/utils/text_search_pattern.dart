@@ -177,4 +177,3 @@ class TextSearchPattern {
     return results;
   }
 }
-
