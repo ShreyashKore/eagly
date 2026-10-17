@@ -14,6 +14,7 @@ use idevice::{IdeviceError, IdeviceService};
 use plist::Value;
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_util::sync::CancellationToken;
 
 use crate::frb_generated::StreamSink;
@@ -309,11 +310,25 @@ pub async fn start_ios_syslog(
     udid: String,
     session_id: String,
 ) -> Result<(), IosError> {
-    let provider = provider_for(&udid).await?;
-    let mut client = SyslogRelayClient::connect(&provider).await?;
-
-    let token = CancellationToken::new();
-    register_syslog_session(&session_id, token.clone());
+    // Claimed before connecting, which takes a while: a stop that lands in the
+    // meantime has to find a token to cancel rather than a missing entry.
+    let token = claim_syslog_session(&session_id);
+    let connected = async {
+        let provider = provider_for(&udid).await?;
+        Ok::<_, IosError>(SyslogRelayClient::connect(&provider).await?)
+    }
+    .await;
+    let mut client = match connected {
+        Ok(client) => client,
+        Err(error) => {
+            forget_syslog_session(&session_id);
+            return Err(error);
+        }
+    };
+    if token.is_cancelled() {
+        forget_syslog_session(&session_id);
+        return Ok(());
+    }
 
     tokio::spawn(async move {
         loop {
@@ -347,24 +362,31 @@ pub async fn start_ios_syslog(
     Ok(())
 }
 
-/// Stops the stream started under `session_id`. Idempotent, and a no-op for a
-/// stream that already ended on its own.
+/// Stops the stream started under `session_id`. Idempotent.
+///
+/// Bridge calls run concurrently, so this can overtake the
+/// [`start_ios_syslog`] it follows. With nothing registered yet it leaves a
+/// cancelled token behind for that start to claim and give up on — which is
+/// also why Dart only calls this for a stream that has not already ended: a
+/// stop with no start to follow would leave that token behind for good.
 pub async fn stop_ios_syslog(session_id: String) {
-    let token = SYSLOG_SESSIONS
-        .lock()
-        .expect("syslog session registry poisoned")
-        .remove(&session_id);
-
-    if let Some(token) = token {
-        token.cancel();
-    }
-}
-
-fn register_syslog_session(session_id: &str, token: CancellationToken) {
     SYSLOG_SESSIONS
         .lock()
         .expect("syslog session registry poisoned")
-        .insert(session_id.to_string(), token);
+        .entry(session_id)
+        .or_default()
+        .cancel();
+}
+
+/// The token for `session_id`: a fresh one, or the cancelled one a stop that
+/// arrived first left behind.
+fn claim_syslog_session(session_id: &str) -> CancellationToken {
+    SYSLOG_SESSIONS
+        .lock()
+        .expect("syslog session registry poisoned")
+        .entry(session_id.to_string())
+        .or_default()
+        .clone()
 }
 
 fn forget_syslog_session(session_id: &str) {
@@ -388,19 +410,37 @@ pub struct IosAppInfo {
 /// Only user apps, matching what `ideviceinstaller` reports — so everything
 /// returned is uninstallable. Ordering and capping are presentation concerns
 /// and are applied above, identically for both backends.
+///
+/// Uses `Browse`, as `ideviceinstaller` does, rather than the client's
+/// `get_apps` (`Lookup`): that returns a `HashMap`, whose iteration order is
+/// randomized per process, and the device-home card takes the first few.
 pub async fn list_ios_apps(udid: String) -> Result<Vec<IosAppInfo>, IosError> {
     let mut client = installation_proxy(&udid).await?;
 
-    // `Some("User")` is the filter `ideviceinstaller` applies by default.
-    let apps = client.get_apps(Some("User"), None).await?;
+    const ATTRIBUTES: [&str; 4] = [
+        "CFBundleIdentifier",
+        "CFBundleDisplayName",
+        "CFBundleName",
+        "CFBundleShortVersionString",
+    ];
+    let mut options = plist::Dictionary::new();
+    // "User" is the filter `ideviceinstaller` applies by default.
+    options.insert("ApplicationType".into(), "User".into());
+    options.insert(
+        "ReturnAttributes".into(),
+        Value::Array(ATTRIBUTES.iter().map(|&key| key.into()).collect()),
+    );
+    let apps = client.browse(Some(Value::Dictionary(options))).await?;
 
     Ok(apps
-        .into_iter()
-        .map(|(bundle_id, value)| IosAppInfo {
-            name: string_value(&value, "CFBundleDisplayName")
-                .or_else(|| string_value(&value, "CFBundleName")),
-            version: string_value(&value, "CFBundleShortVersionString"),
-            bundle_id,
+        .iter()
+        .filter_map(|value| {
+            Some(IosAppInfo {
+                bundle_id: string_value(value, "CFBundleIdentifier")?,
+                name: string_value(value, "CFBundleDisplayName")
+                    .or_else(|| string_value(value, "CFBundleName")),
+                version: string_value(value, "CFBundleShortVersionString"),
+            })
         })
         .collect())
 }
@@ -606,10 +646,25 @@ async fn download_recursive(
     let info = afc.get_file_info(device_path.to_string()).await?;
 
     if info.st_ifmt != "S_IFDIR" {
-        let bytes = read_afc_file(afc, device_path).await?;
-        tokio::fs::write(local_path, bytes)
+        // Streamed a chunk at a time: an app container or a video can be
+        // gigabytes, and nothing here needs the whole file in memory.
+        let mut descriptor = afc.open(device_path, AfcFopenMode::RdOnly).await?;
+        let mut file = tokio::fs::File::create(local_path)
             .await
             .map_err(|error| IosError::Other(error.to_string()))?;
+        loop {
+            let chunk = descriptor.read_n(AFC_TRANSFER_CHUNK).await?;
+            if chunk.is_empty() {
+                break;
+            }
+            file.write_all(&chunk)
+                .await
+                .map_err(|error| IosError::Other(error.to_string()))?;
+        }
+        file.flush()
+            .await
+            .map_err(|error| IosError::Other(error.to_string()))?;
+        descriptor.close().await?;
         return Ok(());
     }
 
@@ -641,11 +696,21 @@ async fn upload_recursive(
         .map_err(|error| IosError::Other(error.to_string()))?;
 
     if !metadata.is_dir() {
-        let bytes = tokio::fs::read(local_path)
+        let mut file = tokio::fs::File::open(local_path)
             .await
             .map_err(|error| IosError::Other(error.to_string()))?;
         let mut descriptor = afc.open(device_path, AfcFopenMode::WrOnly).await?;
-        descriptor.write_entire(&bytes).await?;
+        let mut buffer = vec![0u8; AFC_TRANSFER_CHUNK];
+        loop {
+            let read = file
+                .read(&mut buffer)
+                .await
+                .map_err(|error| IosError::Other(error.to_string()))?;
+            if read == 0 {
+                break;
+            }
+            descriptor.write_entire(&buffer[..read]).await?;
+        }
         descriptor.close().await?;
         return Ok(());
     }
@@ -668,6 +733,10 @@ async fn upload_recursive(
     }
     Ok(())
 }
+
+/// Bytes per AFC read or write while transferring files — the most the crate
+/// (and libimobiledevice's afcclient) sends in one packet.
+const AFC_TRANSFER_CHUNK: usize = 1024 * 1024;
 
 fn join_afc_path(parent: &str, name: &str) -> String {
     if parent.ends_with('/') {

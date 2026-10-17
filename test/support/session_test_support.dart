@@ -266,11 +266,18 @@ class FakeSessionService extends DeviceSessionRepository {
   /// even start" path.
   Object? terminalStartError;
 
+  /// When set, [startTerminalProcess] waits for it before the process exists
+  /// — the window in which the real one is still starting the adb server.
+  Completer<void>? terminalStartGate;
+
   @override
-  Future<TerminalProcessSession> startTerminalProcess(
-    TerminalInvocation invocation,
-  ) async {
+  Future<TerminalProcessSession?> startTerminalProcess(
+    TerminalInvocation invocation, {
+    bool Function()? isCancelled,
+  }) async {
     terminalRequests.add(invocation);
+    await terminalStartGate?.future;
+    if (isCancelled?.call() ?? false) return null;
     final error = terminalStartError;
     if (error != null) throw error;
     final process = FakeTerminalProcess();

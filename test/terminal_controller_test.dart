@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/terminal/data/terminal_command.dart';
 import 'package:eagly/features/terminal/data/terminal_line.dart';
@@ -98,11 +100,40 @@ void main() {
         'am start -n a/b',
       ]);
       expect(tokenizeCommandLine("echo 'a  b'"), ['echo', 'a  b']);
-      expect(tokenizeCommandLine(r'adb push my\ file.txt /sdcard'), [
-        'adb',
-        'push',
-        'my file.txt',
-        '/sdcard',
+      expect(
+        tokenizeCommandLine(
+          r'adb push my\ file.txt /sdcard',
+          windowsPaths: false,
+        ),
+        ['adb', 'push', 'my file.txt', '/sdcard'],
+      );
+    });
+
+    test('inside double quotes a backslash only escapes what sh lets it', () {
+      expect(
+        tokenizeCommandLine(r'echo "a\b \" \$x \\"', windowsPaths: false),
+        ['echo', r'a\b " $x \'],
+      );
+    });
+
+    test('Windows paths keep their backslashes', () {
+      expect(
+        tokenizeCommandLine(
+          r'adb install C:\Users\me\app.apk',
+          windowsPaths: true,
+        ),
+        ['adb', 'install', r'C:\Users\me\app.apk'],
+      );
+      expect(
+        tokenizeCommandLine(
+          r'adb push "C:\My Files\a.txt" \\server\share',
+          windowsPaths: true,
+        ),
+        ['adb', 'push', r'C:\My Files\a.txt', r'\\server\share'],
+      );
+      expect(tokenizeCommandLine(r'echo "say \"hi\""', windowsPaths: true), [
+        'echo',
+        'say "hi"',
       ]);
     });
 
@@ -317,6 +348,45 @@ void main() {
 
       await process.finish(0);
       await pending;
+    });
+
+    test(
+      'a second Enter while a command starts does not start another',
+      () async {
+        createController();
+        final gate = service.terminalStartGate = Completer<void>();
+        final pending = controller.submit('adb shell');
+        await pumpEventQueue();
+        expect(controller.isRunning, isTrue);
+
+        await controller.submit('ls /sdcard');
+        expect(service.terminalRequests, hasLength(1));
+
+        gate.complete();
+        await pumpEventQueue();
+        final process = service.terminalProcesses.single;
+        // Typed ahead while starting, so it is the process' first stdin.
+        expect(process.stdinLines, ['ls /sdcard']);
+
+        await process.finish(0);
+        await pending;
+        expect(controller.isRunning, isFalse);
+      },
+    );
+
+    test('cancel while starting never launches the command', () async {
+      createController();
+      final gate = service.terminalStartGate = Completer<void>();
+      final pending = controller.submit('adb logcat');
+      await pumpEventQueue();
+
+      await controller.cancel();
+      gate.complete();
+      await pending;
+
+      expect(service.terminalProcesses, isEmpty);
+      expect(textOf(TerminalLineKind.notice), contains('Stopped.'));
+      expect(controller.isRunning, isFalse);
     });
 
     test('cancel stops the process and says so', () async {

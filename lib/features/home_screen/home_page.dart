@@ -68,6 +68,20 @@ class _HomeScreenState extends State<HomeScreen> {
     return AppExitResponse.exit;
   }
 
+  /// Quit from inside the app (⌘Q, the menu, the command palette). A bare
+  /// `exit(0)` bypasses [AppLifecycleListener.onExitRequested], so the tool
+  /// processes are terminated here first.
+  ///
+  /// Shared across calls: [ToolProcessRunner.terminateAllProcesses] empties its
+  /// set up front, so a second ⌘Q would otherwise find nothing to wait on and
+  /// exit before the first one's SIGKILL escalation ran.
+  Future<void> _quit() async {
+    await (_quitting ??= ToolProcessRunner.terminateAllProcesses());
+    exit(0);
+  }
+
+  Future<void>? _quitting;
+
   @override
   void dispose() {
     _memoryRefreshTimer?.cancel();
@@ -196,7 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
         menuController: _menuController,
         onOpenSettings: () => unawaited(_openSettings()),
         onShowAbout: _showAboutApp,
-        onQuit: () => exit(0),
+        onQuit: () => unawaited(_quit()),
         onInstallApp: () => unawaited(_handleInstallApp()),
         onExportLogs: () => unawaited(_handleExportLogs()),
         onShowWireless: () => unawaited(_showWirelessDialog()),
@@ -229,7 +243,7 @@ class _HomeScreenState extends State<HomeScreen> {
         (_) => unawaited(_openSettings()),
       ),
       ShowAboutIntent: on<ShowAboutIntent>((_) => _showAboutApp()),
-      QuitAppIntent: on<QuitAppIntent>((_) => exit(0)),
+      QuitAppIntent: on<QuitAppIntent>((_) => unawaited(_quit())),
       ReloadDevicesIntent: on<ReloadDevicesIntent>(
         (_) => _menuController.reloadDevices(),
       ),

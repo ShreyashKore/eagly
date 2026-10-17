@@ -5,6 +5,8 @@ import 'package:eagly/constants/app_constants.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
+import 'tools/tool_process_runner.dart';
+
 /// GitHub-releases-backed update source consumed by `UpdatWidget`.
 ///
 /// It reads the latest published release from the GitHub API and maps it onto
@@ -113,6 +115,8 @@ class AppUpdateService {
       ], mode: ProcessStartMode.detached);
     }
 
+    // `exit` skips the lifecycle listener that normally does this.
+    await ToolProcessRunner.terminateAllProcesses();
     exit(0);
   }
 

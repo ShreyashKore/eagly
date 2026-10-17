@@ -219,6 +219,42 @@ void main() {
     );
   });
 
+  test('a key released while ⌘ is held still gets its key-up', () {
+    final translator = ScrcpyKeyboardTranslator(metaIsControl: true);
+    translator.translate(
+      down(
+        LogicalKeyboardKey.backspace,
+        physical: PhysicalKeyboardKey.backspace,
+      ),
+      none,
+    );
+
+    // ⌘ went down after Backspace (reaching for ⌘Tab); the release must not
+    // be swallowed as a host chord, or the device keeps deleting.
+    final release = translator.translate(
+      up(LogicalKeyboardKey.backspace, physical: PhysicalKeyboardKey.backspace),
+      const ScrcpyModifiers(meta: true),
+    );
+
+    expect(release, isA<ScrcpyInjectKeycode>());
+    final keycode = release! as ScrcpyInjectKeycode;
+    expect(keycode.down, isFalse);
+    expect(keycode.metaState, AndroidMetaState.none);
+    expect(translator.releaseAll(), isEmpty);
+  });
+
+  test('the key-up of an unforwarded ⌘ chord stays with the host', () {
+    final translator = ScrcpyKeyboardTranslator(metaIsControl: true);
+
+    expect(
+      translator.translate(
+        up(LogicalKeyboardKey.keyQ, physical: PhysicalKeyboardKey.keyQ),
+        const ScrcpyModifiers(meta: true),
+      ),
+      isNull,
+    );
+  });
+
   test('Meta chords are never forwarded where Meta is not Ctrl', () {
     final translator = ScrcpyKeyboardTranslator();
 

@@ -142,20 +142,23 @@ class ScrcpyKeyboardTranslator {
     final metaShortcut = modifiers.meta && metaIsControl;
 
     // A Meta chord we don't translate stays with the host app.
-    if (modifiers.meta && !(metaShortcut && _metaShortcuts.contains(key))) {
-      return null;
-    }
+    final hostChord =
+        modifiers.meta && !(metaShortcut && _metaShortcuts.contains(key));
 
+    // Checked before [hostChord]: a key pressed before ⌘ went down still needs
+    // its key-up, or the device keeps it held.
     if (event is KeyUpEvent) {
       _repeats.remove(key.keyId);
       final keycode = _pressed.remove(key.keyId);
-      if (keycode == null) return const ScrcpyIgnoreKey();
+      if (keycode == null) return hostChord ? null : const ScrcpyIgnoreKey();
       return ScrcpyInjectKeycode(
         keycode,
         down: false,
-        metaState: _metaStateFor(modifiers, metaShortcut),
+        metaState: _metaStateFor(modifiers, metaShortcut && !hostChord),
       );
     }
+
+    if (hostChord) return null;
 
     // Bare modifier presses aren't forwarded: the meta state rides along with
     // the keycode they modify, and injecting them standalone makes the device

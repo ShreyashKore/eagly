@@ -102,29 +102,65 @@ abstract class ToolProcessRunner {
       unawaited(process.stdin.close().catchError((_) {}));
     }
     const decoder = Utf8Decoder(allowMalformed: true);
-    final stdoutFuture = process.stdout.transform(decoder).join();
-    final stderrFuture = process.stderr.transform(decoder).join();
+    final stdout = StringBuffer();
+    final stderr = StringBuffer();
+    final stdoutDone = Completer<void>();
+    final stderrDone = Completer<void>();
+    final stdoutSubscription = process.stdout
+        .transform(decoder)
+        .listen(stdout.write, onDone: stdoutDone.complete, onError: (_) {});
+    final stderrSubscription = process.stderr
+        .transform(decoder)
+        .listen(stderr.write, onDone: stderrDone.complete, onError: (_) {});
 
     var timedOut = false;
     final exitCode = await process.exitCode.timeout(
       timeout,
-      onTimeout: () {
+      onTimeout: () async {
         timedOut = true;
-        process.kill(ProcessSignal.sigkill);
+        await _killTree(process);
         return -1;
       },
     );
 
-    final stdout = await stdoutFuture;
-    final stderr = await stderrFuture;
+    // A grandchild that inherited the pipes (cmd.exe → java behind
+    // `avdmanager.bat`, an adb server spawned on first use) keeps them open
+    // after the process itself is gone, so waiting for EOF is bounded too —
+    // otherwise that one call never returns and the timeout means nothing.
+    await Future.wait([
+      stdoutDone.future,
+      stderrDone.future,
+    ]).timeout(_pipeDrainTimeout, onTimeout: () => const []);
+    unawaited(stdoutSubscription.cancel());
+    unawaited(stderrSubscription.cancel());
+
     return ToolCommandResult(
       exitCode: exitCode,
-      stdout: stdout,
+      stdout: stdout.toString(),
       stderr: timedOut
-          ? '${stderr.trimRight()}\n'
+          ? '${stderr.toString().trimRight()}\n'
                 'Timed out after ${timeout.inSeconds}s and was terminated.'
-          : stderr,
+          : stderr.toString(),
     );
+  }
+
+  /// How long [runTextWithTimeout] waits for the pipes to close once the
+  /// process has exited or been killed.
+  static const Duration _pipeDrainTimeout = Duration(seconds: 2);
+
+  /// Kills [process] and, on Windows, everything it started: `kill` there
+  /// ends only the immediate child, so a `.bat` wrapper's cmd.exe dies and the
+  /// JVM it launched keeps running. `taskkill /T` finds the tree through the
+  /// parent, so it has to run while the parent is still alive.
+  static Future<void> _killTree(Process process) async {
+    if (Platform.isWindows) {
+      try {
+        await Process.run('taskkill', ['/T', '/F', '/PID', '${process.pid}']);
+      } catch (_) {
+        // Fall through to the plain kill below.
+      }
+    }
+    process.kill(ProcessSignal.sigkill);
   }
 
   /// Runs the tool and returns its raw stdout bytes (for binary output such as

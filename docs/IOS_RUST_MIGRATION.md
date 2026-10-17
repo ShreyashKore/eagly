@@ -86,8 +86,10 @@ cd rust && cargo clippy && cargo fmt
 `rust/src/frb_generated.rs` and `lib/src/rust/**` are generated — never edit them. A new file
 under `rust/src/api/` is invisible to codegen until it is declared in `rust/src/api/mod.rs`.
 
-`frb_generated.dart` embeds a hash of the Rust API: if `RustLib.init()` throws at startup
-complaining about a codegen version or content hash, re-run the generator.
+`frb_generated.dart` embeds a hash of the Rust API: if `RustLib.init()` fails complaining about a
+codegen version or content hash, re-run the generator. It runs only when `EAGLY_IOS_BACKEND=rust`
+(`initIosBackend()` → `services/ios/rust_ios_runtime.dart`), and a failure is logged, not thrown —
+so look in the app log rather than for a crash, and the default backend never loads the library.
 
 **Streams.** A function taking a `StreamSink` becomes a Dart `Stream` and its return value is
 discarded — `Result<(), E>` is the only shape that works, so a stream cannot hand back a session

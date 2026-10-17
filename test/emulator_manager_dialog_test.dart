@@ -341,7 +341,13 @@ void main() {
 
     expect(find.text('/opt/android-home'), findsOneWidget);
     expect(find.text('/opt/android-sdk-root'), findsOneWidget);
-    expect(find.textContaining('/home/tester'), findsOneWidget);
+    // Linux has two default locations under HOME and macOS one, so check each
+    // of this platform's rather than count matches against a single one.
+    final defaults = AndroidSdkPath.defaultSdkRoots();
+    expect(defaults, isNotEmpty);
+    for (final path in defaults) {
+      expect(find.text(path), findsOneWidget);
+    }
     expect(find.widgetWithText(FilledButton, 'Locate SDK…'), findsOneWidget);
 
     await closeDialog(tester);

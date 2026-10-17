@@ -32,6 +32,7 @@ class RustIosLogService implements IosLogService {
     late final StreamController<LogEntry> controller;
     StreamSubscription<String>? subscription;
     var stopped = false;
+    var ended = false;
 
     Future<void> stop() async {
       if (stopped) return;
@@ -39,8 +40,11 @@ class RustIosLogService implements IosLogService {
       await subscription?.cancel();
       // Cancelling the Dart subscription alone does not stop the Rust task —
       // flutter_rust_bridge does not propagate cancellation — so the tokio task
-      // and its lockdown session leak without this.
-      await rust.stopIosSyslog(sessionId: sessionId);
+      // and its lockdown session leak without this. Only for a stream that was
+      // started and is still live: Rust keeps a stop with no start to claim it.
+      if (subscription != null && !ended) {
+        await rust.stopIosSyslog(sessionId: sessionId);
+      }
     }
 
     controller = StreamController<LogEntry>(
@@ -68,6 +72,8 @@ class RustIosLogService implements IosLogService {
                 );
               },
               onDone: () async {
+                // The Rust task has already dropped its registry entry.
+                ended = true;
                 final trailing = parser.flush();
                 if (trailing != null) controller.add(trailing);
                 _logger.info('iOS syslog stream ended for $processName');
