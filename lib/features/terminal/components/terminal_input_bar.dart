@@ -162,9 +162,7 @@ class _TerminalInputBarState extends State<TerminalInputBar> {
                         : '${target.displayName} is disconnected',
                     hintMaxLines: 2,
                     hintStyle: mono.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant.withValues(
-                        alpha: 0.7,
-                      ),
+                      color: eaglyTheme.tertiaryTextColor,
                     ),
                     contentPadding: const EdgeInsets.symmetric(
                       vertical: 8,
@@ -216,7 +214,7 @@ class _PromptLabel extends StatelessWidget {
     final theme = Theme.of(context);
     final color = device.isConnected
         ? theme.colorScheme.primary
-        : theme.colorScheme.onSurfaceVariant;
+        : context.eaglyTheme.tertiaryTextColor;
 
     return Tooltip(
       message: isPinned
