@@ -4,6 +4,7 @@ import 'package:gap/gap.dart';
 import '../../../data/device.dart';
 import 'discovered_wireless_target.dart';
 import 'wireless_detail_row.dart';
+import '../../../presentation/theme/app_theme.dart';
 
 /// Detail panel for the currently selected discovered device, with pairing
 /// code entry and pair/connect actions.
@@ -144,7 +145,7 @@ class WirelessSelectedDevicePanel extends StatelessWidget {
             Text(
               'Automatic connect did not complete, so you can retry connect explicitly for this device.',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+                color: context.eaglyTheme.secondaryTextColor,
               ),
             ),
           ] else if (!target.canConnect) ...[
@@ -152,7 +153,7 @@ class WirelessSelectedDevicePanel extends StatelessWidget {
             Text(
               'A connect endpoint was not discovered for this device yet. If needed, switch to manual entry after pairing.',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+                color: context.eaglyTheme.secondaryTextColor,
               ),
             ),
           ],

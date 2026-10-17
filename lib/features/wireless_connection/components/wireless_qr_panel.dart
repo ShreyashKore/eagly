@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../presentation/components/delayed_reveal.dart';
 import '../../../presentation/components/hint_note.dart';
+import '../../../presentation/theme/app_theme.dart';
 
 /// The pair-by-QR card that heads the pairing pane.
 ///
@@ -63,7 +64,7 @@ class WirelessQrPanel extends StatelessWidget {
                   'debugging → Pair device with QR code. Pairing and '
                   'connection continue on their own once it is scanned.',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: context.eaglyTheme.secondaryTextColor,
                   ),
                 ),
                 const Gap(12),
@@ -154,7 +155,7 @@ class _StatusLine extends StatelessWidget {
           child: Text(
             pairing ? 'Pairing…' : 'Waiting for the device to scan…',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: context.eaglyTheme.secondaryTextColor,
             ),
           ),
         ),
