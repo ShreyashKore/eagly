@@ -124,9 +124,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   changing the pipeline.
 - **Log list scrolling:** the list is a `SuperListView` that measures rows lazily and
   estimates the rest (`LogRow.estimateHeight`), so `maxScrollExtent` is partly a guess.
-  Auto-scroll follows the tail with `LogController.listController.jumpToItem` — never
-  `animateTo(maxScrollExtent)`, which after a burst overshot into the blank pane behind
-  the list and bounced back on macOS (`test/log_auto_scroll_test.dart`).
+  Auto-scroll glides to the tail frame by frame, re-reading `maxScrollExtent` each frame
+  and never passing it, then lands with `LogController.listController.jumpToItem` — never
+  `animateTo(maxScrollExtent)`, whose fixed target overshot into the blank pane behind the
+  list after a burst and bounced back on macOS (`test/log_auto_scroll_test.dart`).
 - **`LogEntry`:** `type == LogEntryType.log` is a real device line; all other types
   (`started`/`paused`/`stopped`/`resumed`/`notice`/`error`) are *special* status entries
   rendered inline and skipped by copy/selection. Build them via `LogEntryUtils`.

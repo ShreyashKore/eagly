@@ -382,27 +382,73 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     );
   }
 
-  /// Keeps the newest row in view after an append, while auto-scroll is on.
+  /// How long following the tail glides for — well inside the 300 ms flush
+  /// interval, so one glide finishes before the next batch lands.
+  static const Duration followTailDuration = Duration(milliseconds: 150);
+
+  /// Bumped by every [_followTail], so a glide still running when the next
+  /// batch lands hands over to the new one instead of fighting it.
+  int _followGeneration = 0;
+
+  /// Glides the newest row into view after an append, while auto-scroll is
+  /// on.
   ///
   /// The list estimates the height of every row it has not laid out yet, so
-  /// right after a burst `maxScrollExtent` is largely a guess. Animating to it
-  /// overshot the real end, showed the blank pane behind the list, then
-  /// snapped back once the rows were measured. [ListController.jumpToItem]
-  /// pins the last row to the bottom edge and corrects itself on the next
-  /// layout instead.
+  /// right after a burst `maxScrollExtent` is partly a guess, and it shrinks
+  /// as the glide passes rows and they get measured. `animateTo` fixes its
+  /// target up front: it overshot the real end, showed the blank pane behind
+  /// the list, then bounced back. This glide re-reads the end every frame and
+  /// never moves past it, then lands with [ListController.jumpToItem], which
+  /// pins the last row to the bottom edge exactly.
   void _followTail() {
     if (!autoScroll || !scrollController.hasClients) return;
+    final generation = ++_followGeneration;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_disposed || !autoScroll) return;
-      if (!scrollController.hasClients || !listController.isAttached) return;
-      final count = listController.numberOfItems;
-      if (count == 0) return;
-      listController.jumpToItem(
-        index: count - 1,
-        scrollController: scrollController,
-        alignment: 1.0,
-      );
+      if (!_isFollowing(generation)) return;
+      final start = scrollController.position.pixels;
+      Duration? startedAt;
+
+      void tick(Duration timestamp) {
+        if (!_isFollowing(generation)) return;
+        final position = scrollController.position;
+        // Something else is moving the list — a drag or fling, or the
+        // scroll-to-end button — so let it.
+        if (position.isScrollingNotifier.value) return;
+
+        startedAt ??= timestamp;
+        final elapsed = timestamp - startedAt!;
+        final t = (elapsed.inMicroseconds / followTailDuration.inMicroseconds)
+            .clamp(0.0, 1.0);
+        if (t >= 1.0) {
+          _landOnTail();
+          return;
+        }
+        final end = position.maxScrollExtent;
+        final next = (start + (end - start) * Curves.easeOut.transform(t))
+            .clamp(position.minScrollExtent, end);
+        if (next != position.pixels) position.jumpTo(next);
+        SchedulerBinding.instance.scheduleFrameCallback(tick);
+      }
+
+      SchedulerBinding.instance.scheduleFrameCallback(tick);
     });
+  }
+
+  bool _isFollowing(int generation) =>
+      generation == _followGeneration &&
+      !_disposed &&
+      autoScroll &&
+      scrollController.hasClients &&
+      listController.isAttached;
+
+  void _landOnTail() {
+    final count = listController.numberOfItems;
+    if (count == 0) return;
+    listController.jumpToItem(
+      index: count - 1,
+      scrollController: scrollController,
+      alignment: 1.0,
+    );
   }
 
   void disableAutoScroll() {

@@ -23,7 +23,7 @@ void main() {
   });
 
   testWidgets(
-    'a burst of logs lands on the newest row without overshooting',
+    'a burst of logs glides to the newest row without overshooting',
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     (tester) async {
       final device = Device(
@@ -63,11 +63,28 @@ void main() {
         }
         // One flush interval, then a few frames for the scroll to settle.
         await tester.pump(const Duration(milliseconds: 300));
-        for (var frame = 0; frame < 12; frame++) {
+        final path = <double>[position.pixels];
+        for (var frame = 0; frame < 14; frame++) {
           await tester.pump(const Duration(milliseconds: 16));
+          path.add(position.pixels);
           final overshoot = position.pixels - position.maxScrollExtent;
           if (overshoot > worstOvershoot) worstOvershoot = overshoot;
         }
+
+        // A glide, not a jump: several frames of movement, always forward.
+        final steps = [
+          for (var i = 1; i < path.length; i++) path[i] - path[i - 1],
+        ];
+        expect(
+          steps.where((step) => step > 0.5).length,
+          greaterThanOrEqualTo(4),
+          reason: 'burst $burst should glide, not jump: $path',
+        );
+        expect(
+          steps.every((step) => step > -0.5),
+          isTrue,
+          reason: 'burst $burst moved backwards: $path',
+        );
 
         final shown = log.filteredLogs.length;
         expect(
