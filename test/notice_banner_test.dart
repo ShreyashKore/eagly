@@ -11,6 +11,9 @@ void main() {
     WidgetTester tester,
     double width, {
     double textScale = 1,
+    String message =
+        'Pixel 8 disconnected. Reconnect it, then restart logging or open a '
+        'new tab.',
   }) async {
     // The default 800px test surface would clamp the wider cases.
     await tester.binding.setSurfaceSize(Size(width + 100, 600));
@@ -32,9 +35,7 @@ void main() {
                 edgeToEdge: true,
                 icon: Icons.usb_off_rounded,
                 title: 'Live logging stopped',
-                message:
-                    'Pixel 8 disconnected. Reconnect it, then restart '
-                    'logging or open a new tab.',
+                message: message,
                 actions: [
                   NoticeButton(
                     primary: true,
@@ -56,14 +57,27 @@ void main() {
     );
   }
 
-  testWidgets('a wide notice keeps its actions beside the text', (
+  testWidgets('a notice whose text fits keeps its actions beside it', (
+    tester,
+  ) async {
+    await pumpAt(tester, 900, message: 'Pixel 8 disconnected.');
+    final message = tester.getRect(find.text('Pixel 8 disconnected.'));
+    final button = tester.getRect(find.text('Restart logging'));
+    expect(button.left, greaterThan(message.right));
+    expect(button.top, lessThan(message.bottom));
+  });
+
+  testWidgets('text too long to sit beside the actions keeps the full row', (
     tester,
   ) async {
     await pumpAt(tester, 900);
-    final title = tester.getRect(find.text('Live logging stopped'));
-    final button = tester.getRect(find.text('Restart logging'));
-    expect(button.left, greaterThan(title.right));
-    expect(button.top, lessThan(title.bottom + 20));
+    final message = tester.getRect(find.textContaining('Reconnect it'));
+    final restart = tester.getRect(find.text('Restart logging'));
+    // The text is never squeezed into a column to make room: the actions
+    // move under it and it gets the row's width.
+    expect(restart.top, greaterThan(message.bottom));
+    expect(message.width, greaterThan(900 * 0.75));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a narrow notice wraps its actions under the text', (
