@@ -73,6 +73,18 @@ void main() {
       expect(device.displayLabel.secondary, 'Samsung Galaxy S21');
     });
 
+    test('the full label keeps the whole serial for tooltips', () {
+      final device = Device.android(
+        'RZCW1186VXZ',
+        'device',
+        brand: 'Samsung',
+        model: 'Galaxy S21',
+      );
+
+      expect(device.fullDisplayLabel.primary, 'RZCW1186VXZ');
+      expect(device.fullDisplayLabel.secondary, 'Samsung Galaxy S21');
+    });
+
     test(
       'displayName appends serial when brand/model is distinct from name',
       () {

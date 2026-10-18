@@ -46,6 +46,44 @@ void main() {
     });
   });
 
+  testWidgets('the tab tooltip spells out the serial the tab cuts short', (
+    tester,
+  ) async {
+    final session = tab(
+      Device.android(
+        'RZCW1186VXZ',
+        'device',
+        brand: 'Samsung',
+        model: 'Galaxy S21',
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: DeviceTab.minWidth,
+              child: DeviceTab(
+                session: session,
+                selected: true,
+                animateIn: false,
+                onSelect: () {},
+                onReload: null,
+                onClose: null,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byTooltip('RZCW1186VXZ  ·  Samsung Galaxy S21'),
+      findsOneWidget,
+    );
+  });
+
   group('DeviceTabStrip.fitTabWidths', () {
     const fit = DeviceTabStrip.fitTabWidths;
 

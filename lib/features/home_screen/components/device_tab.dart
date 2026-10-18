@@ -97,7 +97,9 @@ class _DeviceTabState extends State<DeviceTab> with TickerProviderStateMixin {
             ? theme.colorScheme.surface
             : Colors.transparent;
 
-        final label = device.displayLabel;
+        // The tab may cut its label short; the tooltip is where to read
+        // all of it.
+        final label = device.fullDisplayLabel;
         final tooltipMessage = isWorkspace
             ? 'Imported log files'
             : [
