@@ -74,10 +74,10 @@ jobs:
       #     The GitHub runner images happen to ship a JDK — a bare container does
       #     not, so it has to be explicit here.
       #   dpkg-deb (in the base image)  — fastforge's deb maker
-      #   rustup (installed below)      — cargokit builds rust_lib_eagly during
-      #     `flutter build linux` and drives the toolchain through rustup. The
-      #     macOS and Windows runner images ship it; without it cargokit fails
-      #     with "rustup not found in PATH", but fastforge's BuildError never
+      #   rustup (installed below)      — hook/build.dart builds rust_lib_eagly
+      #     during `flutter build linux` and drives the toolchain through rustup.
+      #     The macOS and Windows runner images ship it; without it the hook
+      #     fails with "rustup not found in PATH", but fastforge's BuildError never
       #     shows that — the log ends on sentry-native's harmless "unknown
       #     warning group" clang warnings, which are not the failure. Building
       #     Rust in this container keeps it on the glibc baseline too.
@@ -98,8 +98,9 @@ jobs:
           # back to javac on PATH — the runner images export it, a container
           # does not, so derive it from the installed JDK.
           echo "JAVA_HOME=$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")" >> "$GITHUB_ENV"
-          # Stable, like the macOS/Windows runners' preinstalled rustup; cargokit
-          # adds the target itself. Minimal profile: no docs, clippy or rustfmt.
+          # rust/rust-toolchain.toml pins the version and targets the hook uses;
+          # rustup installs them on its first call from rust/. Minimal profile:
+          # no docs, clippy or rustfmt.
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
             | sh -s -- -y --profile minimal --default-toolchain stable
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"

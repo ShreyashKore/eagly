@@ -1,0 +1,14 @@
+# Read by rustup and by the Native Assets build hook (hook/build.dart), which
+# rejects a bare `stable` and any target not listed here. rustup installs this
+# toolchain and these targets on first build.
+[toolchain]
+channel = "1.98.1"
+profile = "minimal"
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc",
+  "aarch64-pc-windows-msvc",
+]
