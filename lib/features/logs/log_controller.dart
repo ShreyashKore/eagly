@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../../data/device.dart';
 import '../../services/app_breadcrumbs.dart';
@@ -92,6 +93,12 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   }
 
   final ScrollController scrollController = ScrollController();
+
+  /// Item-level control of the log list, which measures rows lazily and only
+  /// estimates the rest — so it can scroll to a row exactly where
+  /// [scrollController] can only aim at an estimated offset. See
+  /// [_followTail].
+  final ListController listController = ListController();
 
   /// Focus for the filter row's search field, so ⌘F can jump into it.
   final FocusNode searchFocusNode = FocusNode();
@@ -360,12 +367,42 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   }
 
   void scrollToEnd() {
-    if (!scrollController.hasClients) return;
-    scrollController.animateTo(
-      scrollController.position.maxScrollExtent,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
+    if (!scrollController.hasClients || !listController.isAttached) return;
+    final count = listController.numberOfItems;
+    if (count == 0) return;
+    // Not animateTo(maxScrollExtent): far from the end that extent is mostly
+    // estimate, and the animation would overshoot into blank space as the
+    // rows it passes get measured.
+    listController.animateToItem(
+      index: count - 1,
+      scrollController: scrollController,
+      alignment: 1.0,
+      duration: (_) => const Duration(milliseconds: 300),
+      curve: (_) => Curves.easeOut,
     );
+  }
+
+  /// Keeps the newest row in view after an append, while auto-scroll is on.
+  ///
+  /// The list estimates the height of every row it has not laid out yet, so
+  /// right after a burst `maxScrollExtent` is largely a guess. Animating to it
+  /// overshot the real end, showed the blank pane behind the list, then
+  /// snapped back once the rows were measured. [ListController.jumpToItem]
+  /// pins the last row to the bottom edge and corrects itself on the next
+  /// layout instead.
+  void _followTail() {
+    if (!autoScroll || !scrollController.hasClients) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_disposed || !autoScroll) return;
+      if (!scrollController.hasClients || !listController.isAttached) return;
+      final count = listController.numberOfItems;
+      if (count == 0) return;
+      listController.jumpToItem(
+        index: count - 1,
+        scrollController: scrollController,
+        alignment: 1.0,
+      );
+    });
   }
 
   void disableAutoScroll() {
@@ -1027,16 +1064,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     _invalidateSearchMatches();
     _notify();
 
-    if (autoScroll && scrollController.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!scrollController.hasClients) return;
-        scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOut,
-        );
-      });
-    }
+    _followTail();
   }
 
   void _appendSessionStateEntry(
@@ -1157,16 +1185,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     _invalidateSearchMatches();
     _notify();
 
-    if (autoScroll && scrollController.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!scrollController.hasClients) return;
-        scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOut,
-        );
-      });
-    }
+    _followTail();
   }
 
   Future<void> stopLogcat() => _stopLogcatInternal(resetState: true);
@@ -1558,6 +1577,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
     scrollController.dispose();
+    listController.dispose();
     searchFocusNode.dispose();
     filter.dispose();
     super.dispose();

@@ -122,6 +122,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `parseLogRecords`; and special entries must flush `LogController`'s queue before they are
   appended. Run `test/device/log_stream_integrity_test.dart` against real devices before
   changing the pipeline.
+- **Log list scrolling:** the list is a `SuperListView` that measures rows lazily and
+  estimates the rest (`LogRow.estimateHeight`), so `maxScrollExtent` is partly a guess.
+  Auto-scroll follows the tail with `LogController.listController.jumpToItem` — never
+  `animateTo(maxScrollExtent)`, which after a burst overshot into the blank pane behind
+  the list and bounced back on macOS (`test/log_auto_scroll_test.dart`).
 - **`LogEntry`:** `type == LogEntryType.log` is a real device line; all other types
   (`started`/`paused`/`stopped`/`resumed`/`notice`/`error`) are *special* status entries
   rendered inline and skipped by copy/selection. Build them via `LogEntryUtils`.

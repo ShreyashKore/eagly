@@ -80,6 +80,10 @@ class const LogViewer({
   super.key,
   required final List<LogEntry> logs,
   required final ScrollController scrollController,
+
+  /// Item-level control of the list (see [LogController.listController]).
+  /// The viewer makes its own when none is given.
+  final ListController? listController,
   required final bool wrapText,
   final VoidCallback? onLogRowTap,
   final bool rowSelectionMode = false,
@@ -128,7 +132,9 @@ class _LogViewerState extends State<LogViewer> {
   late Map<String, double> _widths;
   late Set<String> _hiddenColumns;
   Timer? _saveWidthsTimer;
-  final ListController _listController = ListController();
+  ListController? _ownListController;
+  ListController get _listController =>
+      widget.listController ?? (_ownListController ??= ListController());
   final ScrollController _horizontalScrollController = ScrollController();
   final GlobalKey _rowViewportKey = GlobalKey();
   final TextPainter _messageWidthPainter = TextPainter(
@@ -223,6 +229,7 @@ class _LogViewerState extends State<LogViewer> {
   void dispose() {
     _flushPendingWidths();
     _horizontalScrollController.dispose();
+    _ownListController?.dispose();
     widget.scrollController.removeListener(_handleVerticalScroll);
     PreferencesService.logFontSizeListenable.removeListener(_onFontSizeChanged);
     super.dispose();
@@ -1191,9 +1198,24 @@ class _LogViewerState extends State<LogViewer> {
   }
 
   Widget _buildLogList(double messageWidth) {
+    final monoStyle = _monoStyle;
     return SuperListView.builder(
       controller: widget.scrollController,
       listController: _listController,
+      // The package's default guess is 100 px a row, five times a real log
+      // line, which inflated the scroll extent of every unmeasured row.
+      extentEstimation: (index, _) {
+        final logs = widget.logs;
+        return LogRow.estimateHeight(
+          message: index != null && index < logs.length
+              ? logs[index].message
+              : '',
+          monoStyle: monoStyle,
+          wrapText: widget.wrapText,
+          messageWidth: messageWidth,
+          textScaler: _textScaler,
+        );
+      },
       itemCount: widget.logs.length,
       itemBuilder: (_, i) {
         final log = widget.logs[i];

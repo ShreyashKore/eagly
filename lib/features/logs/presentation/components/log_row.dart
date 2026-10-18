@@ -248,8 +248,25 @@ class const LogRow({
 
   // Approximates the row height from font metrics to size hit-test areas without
   // IntrinsicHeight (which would add an extra measure pass per row).
-  double _approximateRowHeight() {
-    final fontSize = monoStyle.fontSize ?? 12;
+  double _approximateRowHeight() => estimateHeight(
+    message: log.message,
+    monoStyle: monoStyle,
+    wrapText: wrapText,
+    messageWidth: messageWidth,
+  );
+
+  /// A row's height from font metrics alone, without laying it out: one line
+  /// of [monoStyle], or — with [wrapText] — as many as [message] wraps to in
+  /// [messageWidth]. [textScaler] is the app zoom, when the caller needs the
+  /// height as rendered.
+  static double estimateHeight({
+    required String message,
+    required TextStyle monoStyle,
+    required bool wrapText,
+    required double messageWidth,
+    TextScaler textScaler = TextScaler.noScaling,
+  }) {
+    final fontSize = textScaler.scale(monoStyle.fontSize ?? 12);
     final lineHeight = monoStyle.height ?? 1.2;
     const verticalPadding = 4.0; // Padding(vertical: 2) → 2 top + 2 bottom
     if (!wrapText || messageWidth <= 0) {
@@ -260,7 +277,7 @@ class const LogRow({
       1.0,
       double.infinity,
     );
-    final lines = (log.message.length / charsPerLine).ceil().clamp(1, 200);
+    final lines = (message.length / charsPerLine).ceil().clamp(1, 200);
     return fontSize * lineHeight * lines + verticalPadding;
   }
 
