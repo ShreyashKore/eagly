@@ -376,6 +376,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   synthetic `DeviceSessionController` (`isImportedWorkspace`, id `__imported-logs__`); each
   file becomes a sub-tab. It appears as a tab but is excluded from the landing-screen
   device list.
+- **Network inspector (planned, #72):** not built yet. **Read docs/NETWORK_INSPECTOR.md before
+  starting any network-capture work.** It covers Eagly as the desktop viewer for
+  [Inspektor](https://github.com/ShreyashKore/inspektor), the device↔desktop protocol draft, the
+  phased plan, and research notes on the routes that were deferred (proxy, iOS DVT, WebViews).
+  Update it as phases land.
 
 ## Conventions
 
