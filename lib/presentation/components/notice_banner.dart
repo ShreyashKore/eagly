@@ -107,15 +107,7 @@ class const NoticeBanner({
               spacing: 12,
               overflowSpacing: 6,
               alignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: context.scaled(textWidth),
-                  ),
-                  child: text,
-                ),
-                if (actions.isNotEmpty) actionBar,
-              ],
+              children: [text, if (actions.isNotEmpty) actionBar],
             ),
           ),
         ],
