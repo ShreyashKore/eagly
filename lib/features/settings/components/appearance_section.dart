@@ -19,63 +19,66 @@ class const AppearanceSection({
     return SettingsSectionCard(
       title: 'Appearance',
       children: [
-        Row(
-          children: [
-            Expanded(child: Text('Theme', style: theme.textTheme.bodyLarge)),
-            ToggleButtons(
-              isSelected: List.generate(
-                3,
-                (i) => i == themeIndex,
-                growable: false,
+        SettingsRow(
+          child: Row(
+            children: [
+              Expanded(child: Text('Theme', style: theme.textTheme.bodyLarge)),
+              ToggleButtons(
+                isSelected: List.generate(
+                  3,
+                  (i) => i == themeIndex,
+                  growable: false,
+                ),
+                onPressed: (index) => onThemeChanged(index),
+                borderRadius: BorderRadius.circular(6),
+                selectedBorderColor: theme.colorScheme.primary.withValues(
+                  alpha: 0.5,
+                ),
+                constraints: const BoxConstraints(minWidth: 84, minHeight: 36),
+                children: const [Text('Auto'), Text('Light'), Text('Dark')],
               ),
-              onPressed: (index) => onThemeChanged(index),
-              borderRadius: BorderRadius.circular(6),
-              selectedBorderColor: theme.colorScheme.primary.withValues(
-                alpha: 0.5,
-              ),
-              constraints: const BoxConstraints(minWidth: 84, minHeight: 36),
-              children: const [Text('Auto'), Text('Light'), Text('Dark')],
-            ),
-          ],
+            ],
+          ),
         ),
-        Row(
-          children: [
-            Expanded(
-              child: Text('Log font size', style: theme.textTheme.bodyLarge),
-            ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 12,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+        SettingsRow(
+          child: Row(
+            children: [
+              Expanded(
+                child: Text('Log font size', style: theme.textTheme.bodyLarge),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 12,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text('Aa', style: TextStyle(fontSize: logFontSize)),
                   ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(6),
+                  SizedBox(
+                    width: 200,
+                    child: Slider(
+                      value: logFontSize,
+                      min: 8,
+                      max: 24,
+                      divisions: 16,
+                      label: logFontSize.toStringAsFixed(0),
+                      onChanged: onLogFontSizeChanged,
+                    ),
                   ),
-                  child: Text('Aa', style: TextStyle(fontSize: logFontSize)),
-                ),
-                SizedBox(
-                  width: 200,
-                  child: Slider(
-                    value: logFontSize,
-                    min: 8,
-                    max: 24,
-                    divisions: 16,
-                    label: logFontSize.toStringAsFixed(0),
-                    onChanged: onLogFontSizeChanged,
-                  ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
         SwitchListTile(
           dense: true,
-          contentPadding: EdgeInsets.zero,
           value: tipsEnabled,
           title: const Text('Feature tips'),
           subtitle: const Text('Show a rotating tip in the app header'),

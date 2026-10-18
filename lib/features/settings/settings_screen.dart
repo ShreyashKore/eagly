@@ -13,6 +13,7 @@ import '../../presentation/components/app_log_overlay.dart';
 import '../../presentation/components/eagly_dialog.dart';
 import '../../presentation/theme/app_theme.dart';
 import '../../utils/android_sdk_path.dart';
+import 'components/settings_section_card.dart';
 
 /// Presents the settings as a large desktop dialog.
 Future<void> showSettingsDialog(BuildContext context) {
@@ -140,19 +141,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _showSnackBar('Column widths reset.');
   }
 
-  /// One line covering both halves of the question: which SDK, and whether it
-  /// can actually launch anything. `adb` is bundled and always works, so the
-  /// emulator is the only reason this setting exists.
-  String get _androidSdkSummary {
+  /// Both halves of the question: which SDK (the path, in [pathStyle]), and
+  /// whether it can actually launch anything. `adb` is bundled and always
+  /// works, so the emulator is the only reason this setting exists.
+  InlineSpan _androidSdkSummary(TextStyle pathStyle) {
     final path = _androidSdk.sdkPath;
-    return switch (_androidSdk.status) {
-      AndroidSdkStatus.ready => '$path\nEmulator ready',
-      AndroidSdkStatus.emulatorMissing =>
-        '$path\nNo emulator package in this SDK',
+    final status = switch (_androidSdk.status) {
+      AndroidSdkStatus.ready => 'Emulator ready',
+      AndroidSdkStatus.emulatorMissing => 'No emulator package in this SDK',
       AndroidSdkStatus.sdkMissing =>
         'Not found — choose the folder that contains platform-tools '
             'and emulator',
     };
+    if (path == null || _androidSdk.status == AndroidSdkStatus.sdkMissing) {
+      return TextSpan(text: status);
+    }
+    return TextSpan(
+      children: [
+        TextSpan(text: path, style: pathStyle),
+        TextSpan(text: '\n$status'),
+      ],
+    );
   }
 
   int get _themeIndex {
@@ -176,43 +185,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final hiddenColumns = PreferencesService.hiddenColumns;
     final theme = Theme.of(context);
-    Widget sectionCard({
-      required String title,
-      required List<Widget> children,
-    }) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(title, style: theme.textTheme.titleMedium),
-          ),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            color: Theme.of(context).colorScheme.surfaceContainerLow,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Column(
-                children: List<Widget>.generate(children.length * 2 - 1, (i) {
-                  final index = i ~/ 2;
-                  if (i.isEven) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: children[index],
-                    );
-                  }
-                  return const Divider(height: 1);
-                }),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
+    // Folder paths read as values to copy or compare, not prose.
+    final pathStyle = context.eaglyTheme.monoStyle.copyWith(
+      fontSize: theme.textTheme.bodySmall?.fontSize,
+      height: 1.4,
+    );
     return EaglyDialog(
       title: 'Settings',
       icon: Icons.settings_outlined,
@@ -229,132 +206,137 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
           children: [
-            sectionCard(
+            SettingsSectionCard(
               title: 'Appearance',
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text('Theme', style: theme.textTheme.bodyLarge),
-                    ),
-                    ToggleButtons(
-                      isSelected: List.generate(
-                        3,
-                        (i) => i == _themeIndex,
-                        growable: false,
+                SettingsRow(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text('Theme', style: theme.textTheme.bodyLarge),
                       ),
-                      onPressed: (index) => _setThemeByIndex(index),
-                      borderRadius: BorderRadius.circular(6),
-                      selectedBorderColor: theme.colorScheme.primary.withValues(
-                        alpha: 0.5,
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 84,
-                        minHeight: 36,
-                      ),
-                      children: const [
-                        Text('Auto'),
-                        Text('Light'),
-                        Text('Dark'),
-                      ],
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Log font size',
-                        style: theme.textTheme.bodyLarge,
-                      ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      spacing: 12,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surface,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            'Aa',
-                            style: TextStyle(fontSize: _logFontSize),
-                          ),
+                      ToggleButtons(
+                        isSelected: List.generate(
+                          3,
+                          (i) => i == _themeIndex,
+                          growable: false,
                         ),
-                        SizedBox(
-                          width: 200,
-                          child: Slider(
-                            value: _logFontSize,
-                            min: 8,
-                            max: 24,
-                            divisions: 16,
-                            label: _logFontSize.toStringAsFixed(0),
-                            onChanged: (v) {
-                              setState(() => _logFontSize = v);
-                              PreferencesService.logFontSize = v;
+                        onPressed: (index) => _setThemeByIndex(index),
+                        borderRadius: BorderRadius.circular(6),
+                        selectedBorderColor: theme.colorScheme.primary
+                            .withValues(alpha: 0.5),
+                        constraints: const BoxConstraints(
+                          minWidth: 84,
+                          minHeight: 36,
+                        ),
+                        children: const [
+                          Text('Auto'),
+                          Text('Light'),
+                          Text('Dark'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                SettingsRow(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Log font size',
+                          style: theme.textTheme.bodyLarge,
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 12,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surface,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Aa',
+                              style: TextStyle(fontSize: _logFontSize),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 200,
+                            child: Slider(
+                              value: _logFontSize,
+                              min: 8,
+                              max: 24,
+                              divisions: 16,
+                              label: _logFontSize.toStringAsFixed(0),
+                              onChanged: (v) {
+                                setState(() => _logFontSize = v);
+                                PreferencesService.logFontSize = v;
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                SettingsRow(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Zoom level',
+                          style: theme.textTheme.bodyLarge,
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 12,
+                        children: [
+                          AppIconButton(
+                            icon: Icons.zoom_out,
+                            onPressed: () {
+                              final next = (PreferencesService.zoomLevel - 0.05)
+                                  .clamp(0.7, 1.8);
+                              setState(() => _zoomLevel = next);
+                              PreferencesService.zoomLevel = next;
                             },
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Zoom level',
-                        style: theme.textTheme.bodyLarge,
-                      ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      spacing: 12,
-                      children: [
-                        AppIconButton(
-                          icon: Icons.zoom_out,
-                          onPressed: () {
-                            final next = (PreferencesService.zoomLevel - 0.05)
-                                .clamp(0.7, 1.8);
-                            setState(() => _zoomLevel = next);
-                            PreferencesService.zoomLevel = next;
-                          },
-                        ),
-                        SizedBox(
-                          width: 200,
-                          child: Slider(
-                            value: _zoomLevel,
-                            min: 0.7,
-                            max: 1.8,
-                            divisions: 22,
-                            label: '${(_zoomLevel * 100).toStringAsFixed(0)}%',
-                            onChanged: (v) {
-                              setState(() => _zoomLevel = v);
-                              PreferencesService.zoomLevel = v;
+                          SizedBox(
+                            width: 200,
+                            child: Slider(
+                              value: _zoomLevel,
+                              min: 0.7,
+                              max: 1.8,
+                              divisions: 22,
+                              label:
+                                  '${(_zoomLevel * 100).toStringAsFixed(0)}%',
+                              onChanged: (v) {
+                                setState(() => _zoomLevel = v);
+                                PreferencesService.zoomLevel = v;
+                              },
+                            ),
+                          ),
+                          AppIconButton(
+                            icon: Icons.zoom_in,
+                            onPressed: () {
+                              final next = (PreferencesService.zoomLevel + 0.05)
+                                  .clamp(0.7, 1.8);
+                              setState(() => _zoomLevel = next);
+                              PreferencesService.zoomLevel = next;
                             },
                           ),
-                        ),
-                        AppIconButton(
-                          icon: Icons.zoom_in,
-                          onPressed: () {
-                            final next = (PreferencesService.zoomLevel + 0.05)
-                                .clamp(0.7, 1.8);
-                            setState(() => _zoomLevel = next);
-                            PreferencesService.zoomLevel = next;
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
                 SwitchListTile(
                   dense: true,
-                  contentPadding: EdgeInsets.zero,
                   value: _tipsEnabled,
                   title: const Text('Feature tips'),
                   subtitle: const Text('Show a rotating tip in the app header'),
@@ -366,12 +348,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             const Gap(16),
-            sectionCard(
+            SettingsSectionCard(
               title: 'Defaults for new tabs',
               children: [
                 SwitchListTile(
                   dense: true,
-                  contentPadding: EdgeInsets.zero,
                   value: _wrapText,
                   title: const Text('Wrap text'),
                   subtitle: const Text('Message column wraps'),
@@ -382,7 +363,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 SwitchListTile(
                   dense: true,
-                  contentPadding: EdgeInsets.zero,
                   value: _autoScroll,
                   title: const Text('Auto-scroll'),
                   subtitle: const Text('Keep view pinned to latest'),
@@ -393,7 +373,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 ListTile(
                   dense: true,
-                  contentPadding: EdgeInsets.zero,
                   title: const Text('Default log level'),
                   trailing: SizedBox(
                     width: 200,
@@ -417,48 +396,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 // (no explicit Divider here)
-                Row(
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Max log lines'),
-                        Text(
-                          'Minimum 1000',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: context.eaglyTheme.tertiaryTextColor,
-                          ),
+                SettingsRow(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Max log lines'),
+                            Text(
+                              'Minimum 1000',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: context.eaglyTheme.tertiaryTextColor,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    Gap(200),
-                    Expanded(
-                      child: TextField(
-                        controller: _logLinesController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          hintText:
-                              '${PreferencesService.defaultLogLinesLimit}',
-                        ),
-                        onSubmitted: (_) => _saveLogLinesLimit(),
                       ),
-                    ),
-                    const Gap(12),
-                    FilledButton(
-                      onPressed: _saveLogLinesLimit,
-                      child: const Text('Apply'),
-                    ),
-                  ],
+                      // Sized for the number it holds — seven digits — not
+                      // for whatever the row has left over.
+                      SizedBox(
+                        width: 120,
+                        child: TextField(
+                          controller: _logLinesController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText:
+                                '${PreferencesService.defaultLogLinesLimit}',
+                          ),
+                          onSubmitted: (_) => _saveLogLinesLimit(),
+                        ),
+                      ),
+                      const Gap(12),
+                      FilledButton(
+                        onPressed: _saveLogLinesLimit,
+                        child: const Text('Apply'),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
             const Gap(16),
-            sectionCard(
+            SettingsSectionCard(
               title: 'Screenshots & recordings',
               children: [
                 ListTile(
                   dense: true,
-                  contentPadding: EdgeInsets.zero,
                   title: const Text('Save folder'),
                   subtitle: Tooltip(
                     message: _captureDirectory,
@@ -466,7 +451,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _captureDirectory,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall,
+                      style: pathStyle,
                     ),
                   ),
                   trailing: Row(
@@ -492,7 +477,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 SwitchListTile(
                   dense: true,
-                  contentPadding: EdgeInsets.zero,
                   value: _captureAskEveryTime,
                   title: const Text('Ask where to save each time'),
                   subtitle: const Text(
@@ -506,17 +490,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             const Gap(16),
-            sectionCard(
+            SettingsSectionCard(
               title: 'Android SDK',
               children: [
                 ListTile(
                   dense: true,
-                  contentPadding: EdgeInsets.zero,
                   title: const Text('SDK location'),
                   subtitle: Tooltip(
                     message: _androidSdk.sdkPath ?? '',
-                    child: Text(
-                      _androidSdkSummary,
+                    child: Text.rich(
+                      _androidSdkSummary(pathStyle),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -545,12 +528,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             const Gap(16),
-            sectionCard(
+            SettingsSectionCard(
               title: 'Stored layout defaults',
               children: [
                 SwitchListTile(
                   dense: true,
-                  contentPadding: EdgeInsets.zero,
                   value: _rememberHiddenColumns,
                   title: const Text('Remember hidden columns'),
                   subtitle: const Text(
@@ -564,7 +546,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 ListTile(
                   dense: true,
-                  contentPadding: EdgeInsets.zero,
                   title: const Text('Default hidden columns'),
                   subtitle: Text(
                     '${hiddenColumns.length} columns hidden by default',
@@ -578,7 +559,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 ListTile(
                   dense: true,
-                  contentPadding: EdgeInsets.zero,
                   title: const Text('Default column widths'),
                   subtitle: const Text('Persisted widths for new tabs'),
                   trailing: TextButton(
@@ -589,18 +569,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             const Gap(16),
-            sectionCard(
+            SettingsSectionCard(
               title: 'About',
               children: [
                 ListTile(
                   dense: true,
-                  contentPadding: EdgeInsets.zero,
                   title: const Text('Version'),
                   trailing: Text(EaglyInfoService.appVersion),
                 ),
                 ListTile(
                   dense: true,
-                  contentPadding: EdgeInsets.zero,
                   title: const Text('App logs'),
                   subtitle: const Text(
                     'Open the internal debugging log viewer and copy full app logs.',

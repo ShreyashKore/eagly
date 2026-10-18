@@ -97,12 +97,49 @@ void main() {
 
     expect(find.text('Screenshots & recordings'), findsOneWidget);
     expect(find.text(CaptureStorage.defaultDirectory()), findsOneWidget);
+    // A path is a value, so it is set in the monospace face.
+    expect(
+      tester
+          .widget<Text>(find.text(CaptureStorage.defaultDirectory()))
+          .style
+          ?.fontFamily,
+      contains('JetBrains'),
+    );
     expect(PreferencesService.captureAskEveryTime, isFalse);
 
     await tester.tap(askSwitch);
     await tester.pumpAndSettle();
 
     expect(PreferencesService.captureAskEveryTime, isTrue);
+  });
+
+  testWidgets("a tappable row's ink spans its card edge to edge", (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(theme: AppTheme.lightTheme, home: const SettingsScreen()),
+    );
+
+    final tile = find.widgetWithText(SwitchListTile, 'Feature tips');
+    final ink = find.descendant(of: tile, matching: find.byType(InkWell));
+    final card = find.ancestor(of: tile, matching: find.byType(Card));
+
+    expect(tester.getSize(ink.first).width, tester.getSize(card).width);
+  });
+
+  testWidgets('the max log lines field is sized for a number', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(theme: AppTheme.lightTheme, home: const SettingsScreen()),
+    );
+
+    final row = find.ancestor(
+      of: find.text('Max log lines'),
+      matching: find.byType(Row),
+    );
+    final field = find.descendant(of: row, matching: find.byType(TextField));
+    expect(tester.getSize(field).width, 120);
   });
 
   group('Android SDK', () {

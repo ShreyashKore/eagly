@@ -197,6 +197,7 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
       key: ValueKey('log-viewer-${controller.logViewerRevision}'),
       logs: filtered,
       scrollController: controller.scrollController,
+      listController: controller.listController,
       wrapText: controller.wrapText,
       onLogRowTap: controller.disableAutoScroll,
       onUserScroll: controller.disableAutoScroll,

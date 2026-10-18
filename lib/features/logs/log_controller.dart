@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../../data/device.dart';
 import '../../services/app_breadcrumbs.dart';
@@ -92,6 +93,12 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   }
 
   final ScrollController scrollController = ScrollController();
+
+  /// Item-level control of the log list, which measures rows lazily and only
+  /// estimates the rest — so it can scroll to a row exactly where
+  /// [scrollController] can only aim at an estimated offset. See
+  /// [_followTail].
+  final ListController listController = ListController();
 
   /// Focus for the filter row's search field, so ⌘F can jump into it.
   final FocusNode searchFocusNode = FocusNode();
@@ -360,11 +367,87 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   }
 
   void scrollToEnd() {
-    if (!scrollController.hasClients) return;
-    scrollController.animateTo(
-      scrollController.position.maxScrollExtent,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
+    if (!scrollController.hasClients || !listController.isAttached) return;
+    final count = listController.numberOfItems;
+    if (count == 0) return;
+    // Not animateTo(maxScrollExtent): far from the end that extent is mostly
+    // estimate, and the animation would overshoot into blank space as the
+    // rows it passes get measured.
+    listController.animateToItem(
+      index: count - 1,
+      scrollController: scrollController,
+      alignment: 1.0,
+      duration: (_) => const Duration(milliseconds: 300),
+      curve: (_) => Curves.easeOut,
+    );
+  }
+
+  /// How long following the tail glides for — well inside the 300 ms flush
+  /// interval, so one glide finishes before the next batch lands.
+  static const Duration followTailDuration = Duration(milliseconds: 150);
+
+  /// Bumped by every [_followTail], so a glide still running when the next
+  /// batch lands hands over to the new one instead of fighting it.
+  int _followGeneration = 0;
+
+  /// Glides the newest row into view after an append, while auto-scroll is
+  /// on.
+  ///
+  /// The list estimates the height of every row it has not laid out yet, so
+  /// right after a burst `maxScrollExtent` is partly a guess, and it shrinks
+  /// as the glide passes rows and they get measured. `animateTo` fixes its
+  /// target up front: it overshot the real end, showed the blank pane behind
+  /// the list, then bounced back. This glide re-reads the end every frame and
+  /// never moves past it, then lands with [ListController.jumpToItem], which
+  /// pins the last row to the bottom edge exactly.
+  void _followTail() {
+    if (!autoScroll || !scrollController.hasClients) return;
+    final generation = ++_followGeneration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_isFollowing(generation)) return;
+      final start = scrollController.position.pixels;
+      Duration? startedAt;
+
+      void tick(Duration timestamp) {
+        if (!_isFollowing(generation)) return;
+        final position = scrollController.position;
+        // Something else is moving the list — a drag or fling, or the
+        // scroll-to-end button — so let it.
+        if (position.isScrollingNotifier.value) return;
+
+        startedAt ??= timestamp;
+        final elapsed = timestamp - startedAt!;
+        final t = (elapsed.inMicroseconds / followTailDuration.inMicroseconds)
+            .clamp(0.0, 1.0);
+        if (t >= 1.0) {
+          _landOnTail();
+          return;
+        }
+        final end = position.maxScrollExtent;
+        final next = (start + (end - start) * Curves.easeOut.transform(t))
+            .clamp(position.minScrollExtent, end);
+        if (next != position.pixels) position.jumpTo(next);
+        SchedulerBinding.instance.scheduleFrameCallback(tick);
+      }
+
+      SchedulerBinding.instance.scheduleFrameCallback(tick);
+    });
+  }
+
+  bool _isFollowing(int generation) =>
+      generation == _followGeneration &&
+      !_disposed &&
+      autoScroll &&
+      scrollController.hasClients &&
+      listController.isAttached;
+
+  void _landOnTail() {
+    final count = listController.numberOfItems;
+    if (count == 0) return;
+    listController.jumpToItem(
+      index: count - 1,
+      scrollController: scrollController,
+      alignment: 1.0,
     );
   }
 
@@ -1027,16 +1110,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     _invalidateSearchMatches();
     _notify();
 
-    if (autoScroll && scrollController.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!scrollController.hasClients) return;
-        scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOut,
-        );
-      });
-    }
+    _followTail();
   }
 
   void _appendSessionStateEntry(
@@ -1157,16 +1231,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     _invalidateSearchMatches();
     _notify();
 
-    if (autoScroll && scrollController.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!scrollController.hasClients) return;
-        scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOut,
-        );
-      });
-    }
+    _followTail();
   }
 
   Future<void> stopLogcat() => _stopLogcatInternal(resetState: true);
@@ -1558,6 +1623,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
     scrollController.dispose();
+    listController.dispose();
     searchFocusNode.dispose();
     filter.dispose();
     super.dispose();

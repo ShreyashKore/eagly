@@ -5,8 +5,10 @@ import 'package:eagly/features/apps/apps_controller.dart';
 import 'package:eagly/features/apps/apps_feature_view.dart';
 import 'package:eagly/features/apps/components/app_utility_menu.dart';
 import 'package:eagly/features/apps/data/app_info.dart';
+import 'package:eagly/features/utilities/components/utility_output_panel.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/services/preferences_service.dart';
+import 'package:eagly/services/tools/tool_process_runner.dart';
 import 'package:eagly/session/device_session_controller.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -149,6 +151,83 @@ void main() {
         'shell',
         "pm grant 'com.example.alpha' 'android.permission.CAMERA'",
       ]);
+      // Run in place: the Utilities pane is not opened to host it.
+      expect(session!.isUtilitiesOpen, isFalse);
+    });
+
+    testWidgets('output comes up in a result dialog, not the pane', (
+      tester,
+    ) async {
+      useTallWindow(tester);
+      final controller = createController();
+      service.appsToReturn = const [
+        AppInfo(packageName: 'com.example.alpha', appName: 'Alpha'),
+      ];
+      service.utilityResult = const ToolCommandResult(
+        exitCode: 0,
+        stdout: 'versionName=1.2.3',
+        stderr: '',
+      );
+      await tester.pumpWidget(host(controller));
+      await controller.refresh();
+      await tester.pumpAndSettle();
+
+      await openUtilityMenu(tester, 'Alpha');
+      await tester.tap(find.text('Package details…'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Run'));
+      await tester.pumpAndSettle();
+
+      expect(session!.isUtilitiesOpen, isFalse);
+      expect(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.byType(UtilityOutputBody),
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('versionName=1.2.3'), findsOneWidget);
+
+      // Run again repeats it with the same package.
+      await tester.tap(find.byTooltip('Run again'));
+      await tester.pumpAndSettle();
+      expect(service.utilityRequests, hasLength(2));
+      expect(
+        service.utilityRequests.last.arguments,
+        service.utilityRequests.first.arguments,
+      );
+    });
+
+    testWidgets('a failed side-effect command shows why in the dialog', (
+      tester,
+    ) async {
+      useTallWindow(tester);
+      final controller = createController();
+      service.appsToReturn = const [
+        AppInfo(packageName: 'com.example.alpha', appName: 'Alpha'),
+      ];
+      service.utilityResult = const ToolCommandResult(
+        exitCode: 255,
+        stdout: '',
+        stderr: 'Unknown permission: android.permission.NOPE',
+      );
+      await tester.pumpWidget(host(controller));
+      await controller.refresh();
+      await tester.pumpAndSettle();
+
+      await openUtilityMenu(tester, 'Alpha');
+      await tester.tap(find.text('Grant permission…'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'android.permission.CAMERA'),
+        'android.permission.NOPE',
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Run'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Failed · exit 255'), findsOneWidget);
+      expect(find.textContaining('Unknown permission'), findsOneWidget);
     });
 
     testWidgets('a permission field suggests the common runtime permissions', (

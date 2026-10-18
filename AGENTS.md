@@ -122,6 +122,12 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `parseLogRecords`; and special entries must flush `LogController`'s queue before they are
   appended. Run `test/device/log_stream_integrity_test.dart` against real devices before
   changing the pipeline.
+- **Log list scrolling:** the list is a `SuperListView` that measures rows lazily and
+  estimates the rest (`LogRow.estimateHeight`), so `maxScrollExtent` is partly a guess.
+  Auto-scroll glides to the tail frame by frame, re-reading `maxScrollExtent` each frame
+  and never passing it, then lands with `LogController.listController.jumpToItem` — never
+  `animateTo(maxScrollExtent)`, whose fixed target overshot into the blank pane behind the
+  list after a burst and bounced back on macOS (`test/log_auto_scroll_test.dart`).
 - **`LogEntry`:** `type == LogEntryType.log` is a real device line; all other types
   (`started`/`paused`/`stopped`/`resumed`/`notice`/`error`) are *special* status entries
   rendered inline and skipped by copy/selection. Build them via `LogEntryUtils`.
@@ -248,7 +254,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `ToolProcessRunner.runTextWithTimeout` (killable, unlike `Process.run`). Adding a
   command = one entry in the catalog. `adb shell` scripts are sent as a single argument
   and evaluated by the *device's* `sh` (no host shell); quote user input with
-  `shellQuote()`. Two optional fields make a command *app-targeted*:
+  `shellQuote()`. Running one from outside the pane (command palette, Apps
+  menu) never opens the pane: `runUtilityCommand(showResultInDialog: true)` puts
+  the output — and any failure — in a result dialog instead
+  (`components/utility_result_dialog.dart`). Two optional fields make a command *app-targeted*:
   `packageParamKey` names the param that takes a package name, which is what
   puts the command on the Apps pane's right-click menu (pre-filled with the
   clicked app — see `features/apps/components/app_utility_menu.dart`), and

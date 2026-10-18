@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:eagly/app_menu/app_menu_controller.dart';
 import 'package:eagly/command_palette/command_palette_items.dart';
 import 'package:eagly/data/device.dart';
+import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/services/devices_repository.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_manager.dart';
@@ -113,6 +114,64 @@ void main() {
       expect(reboot.subtitle, contains('adb'));
     },
   );
+
+  testWidgets('running a utility leaves the Utilities pane closed', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      adbTool.androidDevices = [
+        Device('emulator-5554', 'device', platform: DevicePlatform.android),
+      ];
+      manager = DeviceSessionManager(
+        repository: repository,
+        serviceFactory: (device) => FakeSessionService(device),
+      );
+      menuController = AppMenuController(manager!);
+
+      await repository.refreshDevices(force: true);
+      await Future<void>.delayed(Duration.zero);
+    });
+
+    late BuildContext context;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: Builder(
+          builder: (c) {
+            context = c;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    final items = buildCommandPaletteItems(
+      context: context,
+      manager: manager!,
+      menuController: menuController!,
+      onOpenSettings: () {},
+      onShowAbout: () {},
+      onQuit: () {},
+      onInstallApp: () {},
+      onExportLogs: () {},
+      onShowWireless: () {},
+      onShowEmulators: () {},
+      onImportLog: () {},
+      onZoomIn: () {},
+      onZoomOut: () {},
+      onShowSnackBar: (_) {},
+    );
+
+    final session = manager!.selected!;
+    final service = session.service as FakeSessionService;
+    items.firstWhere((item) => item.label == 'Screen size & density').run();
+    await tester.pumpAndSettle();
+
+    expect(service.utilityRequests, hasLength(1));
+    expect(session.isUtilitiesOpen, isFalse);
+    // The output has somewhere to go anyway.
+    expect(find.byType(Dialog), findsOneWidget);
+  });
 
   testWidgets('the emulator manager is reachable from the palette', (
     tester,

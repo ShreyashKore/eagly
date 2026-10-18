@@ -22,8 +22,7 @@ class const DisconnectedBanner({
 
     final subtitle = hasSnapshot
         ? 'Showing the last known state'
-              '${seen == null ? '' : ', captured at ${formatClockTime(seen)}'}'
-              ' — values below are frozen.'
+              '${seen == null ? '' : ', captured at ${formatClockTime(seen)}'}.'
         : 'Reconnect the device to see its vitals and use its features.';
 
     return NoticeBanner(

@@ -101,6 +101,10 @@ sealed class const Device._(
   /// name — see [shortNames] for record mode).
   ({String primary, String? secondary}) get displayLabel;
 
+  /// [displayLabel] with nothing cut short — for tooltips, which have room
+  /// for the whole of a wired serial the tab caps at ten characters.
+  ({String primary, String? secondary}) get fullDisplayLabel => displayLabel;
+
   String get displayName;
 
   Device copyWith({
@@ -201,7 +205,14 @@ final class const AndroidDevice(
   }
 
   @override
-  ({String primary, String? secondary}) get displayLabel {
+  ({String primary, String? secondary}) get displayLabel =>
+      _label(capSerial: true);
+
+  @override
+  ({String primary, String? secondary}) get fullDisplayLabel =>
+      _label(capSerial: false);
+
+  ({String primary, String? secondary}) _label({required bool capSerial}) {
     if (Device.shortNames) {
       final label = _androidPrimaryLabel;
       final hint = _shortId;
@@ -221,7 +232,7 @@ final class const AndroidDevice(
       return (primary: hint, secondary: null);
     }
     return (
-      primary: _subString(shownId, 10),
+      primary: capSerial ? _subString(shownId, 10) : shownId,
       secondary: _androidPrimaryLabel ?? _normalizedValue(name),
     );
   }

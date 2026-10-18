@@ -7,12 +7,12 @@ import '../theme/app_theme.dart';
 /// and a few [actions] — shared by the panes that report a dropped device or
 /// stream (the logs pane, the device dashboard).
 ///
-/// Its actions sit beside the text only when both fit on one row with the
-/// text given a comfortable reading width ([textWidth], or less if the text
-/// is shorter); otherwise they wrap *under* the text. The decision measures
-/// the real text and buttons, so it holds at any zoom and message length. A
-/// row of buttons beside the text in a narrow pane squeezes the text into a
-/// tall, thin column, which is what made the old banners take so much height.
+/// Its actions sit beside the text only when the text fits on its own line
+/// next to them; otherwise they wrap *under* the text, which keeps the whole
+/// row. The decision measures the real text and buttons, so it holds at any
+/// zoom and message length. Making room for buttons by squeezing the text
+/// into a tall, thin column is what made the old banners take so much
+/// height.
 class const NoticeBanner({
   super.key,
   required final IconData icon,
@@ -29,11 +29,6 @@ class const NoticeBanner({
   /// A full-width strip with top and bottom rules, for the top of a pane,
   /// instead of a rounded card.
   final bool edgeToEdge = false,
-
-  /// The widest the text runs before wrapping, unscaled. Actions go beside
-  /// the text only if this much room (or the text's own width, if shorter)
-  /// is left for it.
-  final double textWidth = 440,
 }) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -107,15 +102,7 @@ class const NoticeBanner({
               spacing: 12,
               overflowSpacing: 6,
               alignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: context.scaled(textWidth),
-                  ),
-                  child: text,
-                ),
-                if (actions.isNotEmpty) actionBar,
-              ],
+              children: [text, if (actions.isNotEmpty) actionBar],
             ),
           ),
         ],
