@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'components/utility_params_dialog.dart';
+import 'components/utility_result_dialog.dart';
 import 'data/utility_command.dart';
 import 'utilities_controller.dart';
 
@@ -18,13 +19,29 @@ import 'utilities_controller.dart';
 /// A command that needs input *and* wants confirmation is confirmed inside
 /// the parameters dialog (which shows the warning and a destructive Run
 /// button), so the user never has to clear two dialogs in a row.
+///
+/// [showResultInDialog] is for callers outside the Utilities pane, which
+/// run a command without opening the pane: its output — and the output of
+/// any failure, which a snackbar can't carry — then goes to a result dialog
+/// instead of the pane's output panel. A side-effect-only command that
+/// succeeds still just reports with a snackbar.
 Future<void> runUtilityCommand(
   BuildContext context, {
   required UtilitiesController controller,
   required UtilityCommand command,
   required void Function(String message) showSnackBar,
   Map<String, String> initialValues = const {},
+  bool showResultInDialog = false,
 }) async {
+  // The pane disables its tiles while a run is in flight; the palette and the
+  // Apps menu can't, so say why nothing happens rather than doing nothing.
+  final runningId = controller.runningCommandId;
+  if (runningId != null) {
+    final running = controller.commandById(runningId)?.label ?? 'A utility';
+    showSnackBar('$running is still running — try again when it finishes.');
+    return;
+  }
+
   var values = {...command.defaultValues, ...initialValues};
 
   if (command.needsInput) {
@@ -44,10 +61,30 @@ Future<void> runUtilityCommand(
     if (!confirmed || !context.mounted) return;
   }
 
-  final result = await controller.run(command, values: values);
+  final run = controller.run(command, values: values);
+  if (showResultInDialog && command.expectsOutput) {
+    await showUtilityResultDialog(
+      context,
+      controller: controller,
+      command: command,
+      values: values,
+      run: run,
+    );
+    return;
+  }
+
+  final result = await run;
   if (result == null || !context.mounted) return;
 
-  if (!result.isSuccess) {
+  if (!result.isSuccess && showResultInDialog) {
+    await showUtilityResultDialog(
+      context,
+      controller: controller,
+      command: command,
+      values: values,
+      run: Future.value(result),
+    );
+  } else if (!result.isSuccess) {
     showSnackBar(result.failure ?? '${command.label} failed.');
   } else if (!command.expectsOutput) {
     showSnackBar(command.successMessage ?? '${command.label} done.');

@@ -248,7 +248,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `ToolProcessRunner.runTextWithTimeout` (killable, unlike `Process.run`). Adding a
   command = one entry in the catalog. `adb shell` scripts are sent as a single argument
   and evaluated by the *device's* `sh` (no host shell); quote user input with
-  `shellQuote()`. Two optional fields make a command *app-targeted*:
+  `shellQuote()`. Running one from outside the pane (command palette, Apps
+  menu) never opens the pane: `runUtilityCommand(showResultInDialog: true)` puts
+  the output — and any failure — in a result dialog instead
+  (`components/utility_result_dialog.dart`). Two optional fields make a command *app-targeted*:
   `packageParamKey` names the param that takes a package name, which is what
   puts the command on the Apps pane's right-click menu (pre-filled with the
   clicked app — see `features/apps/components/app_utility_menu.dart`), and

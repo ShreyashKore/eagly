@@ -35,8 +35,8 @@ bool hasAppUtilities(DeviceSessionController session) =>
     appUtilityCommandsFor(session).isNotEmpty;
 
 /// Shows the app-targeted utilities for [app] at [position] and runs the
-/// chosen one, opening the Utilities pane first so its parameters dialog and
-/// result panel are where the user expects them.
+/// chosen one in place — the Utilities pane stays as it is, and any output
+/// comes up in a result dialog.
 Future<void> showAppUtilityMenu(
   BuildContext context,
   Offset position, {
@@ -85,13 +85,13 @@ Future<void> showAppUtilityMenu(
 
   if (picked == null || !context.mounted) return;
 
-  session.openUtilities();
   await runUtilityCommand(
     context,
     controller: session.utilitiesController,
     command: picked,
     showSnackBar: showSnackBar,
     initialValues: {picked.packageParamKey!: app.packageName},
+    showResultInDialog: true,
   );
 }
 

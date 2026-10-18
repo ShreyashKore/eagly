@@ -176,9 +176,9 @@ List<CommandPaletteItem> buildCommandPaletteItems({
 
       // Every utility this device's platform supports, straight from the
       // same catalog the Utilities pane reads — adding a command there
-      // surfaces it here for free. Running one opens the pane (so its
-      // params/confirmation dialog and result panel are visible) and goes
-      // through the same runner the pane's own tiles use.
+      // surfaces it here for free. Running one goes through the same runner
+      // the pane's own tiles use, but leaves the pane alone: any output
+      // comes up in a result dialog.
       for (final group in utilityCatalog) {
         for (final command in group.commands) {
           if (!command.supports(session.device)) continue;
@@ -190,17 +190,15 @@ List<CommandPaletteItem> buildCommandPaletteItems({
               icon: command.icon,
               subtitle: command.previewFor(session.device),
               keywords: [group.title],
-              run: () {
-                session.openUtilities();
-                unawaited(
-                  runUtilityCommand(
-                    context,
-                    controller: session.utilitiesController,
-                    command: command,
-                    showSnackBar: onShowSnackBar,
-                  ),
-                );
-              },
+              run: () => unawaited(
+                runUtilityCommand(
+                  context,
+                  controller: session.utilitiesController,
+                  command: command,
+                  showSnackBar: onShowSnackBar,
+                  showResultInDialog: true,
+                ),
+              ),
             ),
           );
         }
