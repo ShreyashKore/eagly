@@ -11,8 +11,8 @@ import 'log_line_parser.dart';
 /// timestamp, process, pid and level, and any following non-header lines are
 /// continuations of the same message, so an entry is only known to be complete
 /// when the next header arrives — see [LogLineParser].
-class IosSyslogParser implements LogLineParser {
-  IosSyslogParser({DateTime Function()? now}) : _now = now ?? DateTime.now;
+class IosSyslogParser({DateTime Function()? now}) implements LogLineParser {
+  this : _now = now ?? DateTime.now;
 
   static final RegExp _metaEscapePattern = RegExp(r'\\M(?:-|\^|.)');
 
@@ -210,15 +210,10 @@ class IosSyslogParser implements LogLineParser {
   }
 }
 
-class _DecodedMetaEscape {
-  const _DecodedMetaEscape(this.byte, this.nextIndex);
-
-  final int byte;
-  final int nextIndex;
-}
+class const _DecodedMetaEscape(final int byte, final int nextIndex);
 
 class _IosSyslogEntryBuilder {
-  _IosSyslogEntryBuilder({
+  new({
     required this.timestamp,
     required this.processLabel,
     required this.pid,
@@ -229,7 +224,7 @@ class _IosSyslogEntryBuilder {
 
   /// Carries on [flushed] under its header, for continuation lines that
   /// arrived after it was flushed; the message starts empty.
-  _IosSyslogEntryBuilder._resumed(_IosSyslogEntryBuilder flushed)
+  new _resumed(_IosSyslogEntryBuilder flushed)
     : timestamp = flushed.timestamp,
       processLabel = flushed.processLabel,
       pid = flushed.pid,

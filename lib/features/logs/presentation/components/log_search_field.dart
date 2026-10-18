@@ -17,19 +17,14 @@ import 'filter_bar_shared.dart';
 /// show the match-case / whole-word / regex toggles, the match count and
 /// previous / next. Escape (or ×) clears it. Narrower than [showOptionsWidth]
 /// it leaves the three toggles out; narrower still, it clips its right edge.
-class LogSearchField extends StatefulWidget {
-  const LogSearchField({
-    super.key,
-    required this.controller,
-    this.fillWidth = false,
-  });
-
-  final LogController controller;
+class const LogSearchField({
+  super.key,
+  required final LogController controller,
 
   /// Take all the width offered instead of the collapsed / expanded widths —
   /// for a row of its own in the stacked narrow-window layout.
-  final bool fillWidth;
-
+  final bool fillWidth = false,
+}) extends StatefulWidget {
   /// Widths at 1× zoom; they scale with the zoom.
   static const double collapsedWidth = 240;
   static const double expandedWidth = 380;
@@ -310,19 +305,12 @@ class _LogSearchFieldState extends State<LogSearchField> {
   }
 }
 
-class _OptionToggle extends StatelessWidget {
-  const _OptionToggle({
-    required this.label,
-    required this.tooltip,
-    required this.value,
-    required this.onPressed,
-  });
-
-  final String label;
-  final String tooltip;
-  final bool value;
-  final VoidCallback onPressed;
-
+class const _OptionToggle({
+  required final String label,
+  required final String tooltip,
+  required final bool value,
+  required final VoidCallback onPressed,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -354,17 +342,11 @@ class _OptionToggle extends StatelessWidget {
   }
 }
 
-class _IconAction extends StatelessWidget {
-  const _IconAction({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onPressed;
-
+class const _IconAction({
+  required final IconData icon,
+  required final String tooltip,
+  required final VoidCallback? onPressed,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppIconButton(

@@ -6,11 +6,10 @@ import 'recent_file_tile.dart';
 
 /// The last opened log files, bound to [PreferencesService.recentLogFilesListenable]
 /// so it rebuilds as files are opened or removed. Empty until the first import.
-class RecentFilesList extends StatelessWidget {
-  const RecentFilesList({super.key, required this.onOpenRecent});
-
-  final ValueChanged<String> onOpenRecent;
-
+class const RecentFilesList({
+  super.key,
+  required final ValueChanged<String> onOpenRecent,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

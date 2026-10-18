@@ -10,37 +10,25 @@ import 'fuzzy_match.dart';
 /// `command_palette_items.dart`). The palette UI itself knows nothing about
 /// where an item came from, so adding a new source never touches it.
 @immutable
-class CommandPaletteItem {
-  const CommandPaletteItem({
-    required this.id,
-    required this.label,
-    required this.category,
-    required this.icon,
-    required this.run,
-    this.subtitle,
-    this.shortcutLabel,
-    this.keywords = const [],
-  });
-
-  final String id;
-  final String label;
+class const CommandPaletteItem({
+  required final String id,
+  required final String label,
 
   /// Groups items under a header in the results list (e.g. "Navigate",
   /// "Capture", "Search").
-  final String category;
-  final IconData icon;
+  required final String category,
+  required final IconData icon,
+  required final VoidCallback run,
 
   /// Shown under [label] — typically the device this command applies to.
-  final String? subtitle;
+  final String? subtitle,
 
   /// Display-only accelerator hint (e.g. `⌘R`); does not register a shortcut.
-  final String? shortcutLabel;
+  final String? shortcutLabel,
 
   /// Extra search terms beyond [label]/[category]/[subtitle].
-  final List<String> keywords;
-
-  final VoidCallback run;
-
+  final List<String> keywords = const [],
+}) {
   /// Fuzzy-matches [query] against this item, trying [label] first (weighted
   /// highest), then [keywords]/[subtitle], then [category] — so a query that
   /// hits the label always outranks one that only hits a keyword. Returns

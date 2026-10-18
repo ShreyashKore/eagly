@@ -12,11 +12,8 @@ import 'device_file_system.dart';
 /// needs no external binary at all, so it cannot fail the way that one did:
 /// `afcclient` was left out of the macOS bundle until it was noticed, and a
 /// tool the UI offers but does not ship fails at spawn time with no output.
-class RustIosFileSystem implements DeviceFileSystem {
-  RustIosFileSystem({required this.deviceId});
-
-  final String deviceId;
-
+class RustIosFileSystem({required final String deviceId})
+    implements DeviceFileSystem {
   @override
   String get storageLabel => 'Media (AFC)';
 

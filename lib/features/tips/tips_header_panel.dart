@@ -23,11 +23,10 @@ const double _minWindowWidthForTips = 820;
 /// it for the session; the ⋮ menu can turn tips off for good (behind a
 /// confirmation). It deliberately mirrors the muted styling of the other header
 /// actions so it never reads as a banner or nag.
-class TipsHeaderPanel extends StatefulWidget {
-  const TipsHeaderPanel({super.key, required this.controller});
-
-  final TipsController controller;
-
+class const TipsHeaderPanel({
+  super.key,
+  required final TipsController controller,
+}) extends StatefulWidget {
   @override
   State<TipsHeaderPanel> createState() => _TipsHeaderPanelState();
 }

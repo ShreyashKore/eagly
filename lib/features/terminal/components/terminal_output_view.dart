@@ -8,16 +8,11 @@ import '../data/terminal_line.dart';
 /// Sticks to the bottom while the user is at the bottom, and stops following
 /// (offering a "jump to latest" pill instead) the moment they scroll up — so a
 /// streaming command can't yank the view away from something being read.
-class TerminalOutputView extends StatefulWidget {
-  const TerminalOutputView({
-    super.key,
-    required this.lines,
-    required this.fontSize,
-  });
-
-  final List<TerminalLine> lines;
-  final double fontSize;
-
+class const TerminalOutputView({
+  super.key,
+  required final List<TerminalLine> lines,
+  required final double fontSize,
+}) extends StatefulWidget {
   @override
   State<TerminalOutputView> createState() => _TerminalOutputViewState();
 }
@@ -96,12 +91,10 @@ class _TerminalOutputViewState extends State<TerminalOutputView> {
   }
 }
 
-class _TerminalLineView extends StatelessWidget {
-  const _TerminalLineView({required this.line, required this.fontSize});
-
-  final TerminalLine line;
-  final double fontSize;
-
+class const _TerminalLineView({
+  required final TerminalLine line,
+  required final double fontSize,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -161,11 +154,8 @@ class _TerminalLineView extends StatelessWidget {
   }
 }
 
-class _JumpToLatestPill extends StatelessWidget {
-  const _JumpToLatestPill({required this.onTap});
-
-  final VoidCallback onTap;
-
+class const _JumpToLatestPill({required final VoidCallback onTap})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

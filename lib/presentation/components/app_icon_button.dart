@@ -17,64 +17,49 @@ import '../theme/app_theme.dart';
 /// a focus ring while navigating by keyboard, activation with Enter or Space,
 /// button semantics, a [busy] spinner, a tinted [isActive] state, and smooth
 /// transitions when the icon or its colour changes.
-class AppIconButton extends StatefulWidget {
-  const AppIconButton({
-    super.key,
-    this.icon,
-    this.child,
-    this.tooltip,
-    this.onPressed,
-    this.isActive = false,
-    this.busy = false,
-    this.iconSize = defaultIconSize,
-    this.padding = defaultPadding,
-    this.color,
-    this.focusNode,
-    this.autofocus = false,
-    this.mouseCursor,
-  }) : assert(
-         (icon == null) != (child == null),
-         'Pass exactly one of icon or child.',
-       );
+class const AppIconButton({
+  super.key,
+  final IconData? icon,
+
+  /// Custom content in place of [icon] (e.g. an icon with a badge). It is
+  /// centred in the same box and inherits the button's icon colour and size.
+  /// It updates in place across rebuilds; give it a new [Key] to cross-fade
+  /// to different content the way a new [icon] does.
+  final Widget? child,
+  final String? tooltip,
+
+  /// `null` disables the button: it is dimmed, ignores taps and is skipped
+  /// by keyboard focus traversal.
+  final VoidCallback? onPressed,
+
+  /// Toggle-style buttons: tints the background and the icon.
+  final bool isActive = false,
+
+  /// Shows a spinner in place of the icon and ignores taps.
+  final bool busy = false,
+  final double iconSize = defaultIconSize,
+  final double padding = defaultPadding,
+
+  /// Foreground override for an enabled, inactive button.
+  final Color? color,
+  final FocusNode? focusNode,
+  final bool autofocus = false,
+
+  /// Cursor over an enabled button; the click cursor when null. A button
+  /// that is also a drag handle shows the grab cursor instead.
+  final MouseCursor? mouseCursor,
+}) extends StatefulWidget {
+  this
+    : assert(
+        (icon == null) != (child == null),
+        'Pass exactly one of icon or child.',
+      );
 
   /// Icon size of a standard button, before zoom.
   static const double defaultIconSize = 18;
 
   /// Space between the icon and the edge of the highlight, before zoom.
   static const double defaultPadding = 6;
-
-  final IconData? icon;
-
-  /// Custom content in place of [icon] (e.g. an icon with a badge). It is
-  /// centred in the same box and inherits the button's icon colour and size.
-  /// It updates in place across rebuilds; give it a new [Key] to cross-fade
-  /// to different content the way a new [icon] does.
-  final Widget? child;
-
-  final String? tooltip;
-
-  /// `null` disables the button: it is dimmed, ignores taps and is skipped
-  /// by keyboard focus traversal.
-  final VoidCallback? onPressed;
-
-  /// Toggle-style buttons: tints the background and the icon.
-  final bool isActive;
-
-  /// Shows a spinner in place of the icon and ignores taps.
-  final bool busy;
-
-  final double iconSize;
-  final double padding;
-
-  /// Foreground override for an enabled, inactive button.
-  final Color? color;
-
-  final FocusNode? focusNode;
-  final bool autofocus;
-
-  /// Cursor over an enabled button; the click cursor when null. A button
-  /// that is also a drag handle shows the grab cursor instead.
-  final MouseCursor? mouseCursor;
 
   @override
   State<AppIconButton> createState() => _AppIconButtonState();

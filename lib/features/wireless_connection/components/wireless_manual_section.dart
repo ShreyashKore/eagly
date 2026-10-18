@@ -1,20 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+
 import '../../../presentation/theme/app_theme.dart';
 
 /// Titled section card used by the manual entry tab.
-class WirelessManualSection extends StatelessWidget {
-  const WirelessManualSection({
-    super.key,
-    required this.title,
-    required this.description,
-    required this.child,
-  });
-
-  final String title;
-  final String description;
-  final Widget child;
-
+class const WirelessManualSection({
+  super.key,
+  required final String title,
+  required final String description,
+  required final Widget child,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

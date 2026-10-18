@@ -14,26 +14,19 @@ import 'animation_utils.dart';
 /// merely collapsed, so it stays out of the semantics tree and out of
 /// `find.byType`/`find.text` in widget tests. (`AnimatedSection` alone would
 /// keep it mounted at `heightFactor: 0`, which reads as "visible" to a test.)
-class DelayedReveal extends StatefulWidget {
-  const DelayedReveal({
-    super.key,
-    required this.child,
-    this.delay = const Duration(seconds: 8),
-    this.enabled = true,
-    this.restartKey,
-  });
-
-  final Widget child;
+class const DelayedReveal({
+  super.key,
+  required final Widget child,
 
   /// How long [enabled] must stay true before [child] appears.
-  final Duration delay;
+  final Duration delay = const Duration(seconds: 8),
 
   /// While false the child is hidden and the timer is held back.
-  final bool enabled;
+  final bool enabled = true,
 
   /// Changing this value hides the child and restarts the delay.
-  final Object? restartKey;
-
+  final Object? restartKey,
+}) extends StatefulWidget {
   @override
   State<DelayedReveal> createState() => _DelayedRevealState();
 }

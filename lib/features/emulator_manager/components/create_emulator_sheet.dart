@@ -9,17 +9,11 @@ import '../data/system_image.dart';
 
 /// What the user filled in.
 @immutable
-class CreateEmulatorRequest {
-  const CreateEmulatorRequest({
-    required this.name,
-    required this.packagePath,
-    this.deviceProfileId,
-  });
-
-  final String name;
-  final String packagePath;
-  final String? deviceProfileId;
-}
+class const CreateEmulatorRequest({
+  required final String name,
+  required final String packagePath,
+  final String? deviceProfileId,
+});
 
 /// Asks for the three things `avdmanager create avd` needs: a name, a system
 /// image, and a hardware profile.
@@ -28,23 +22,16 @@ class CreateEmulatorRequest {
 /// `sdkmanager`, a licence prompt and gigabytes of transfer — a different
 /// feature, deliberately out of scope, so an SDK with no images says so
 /// instead of pretending.
-class CreateEmulatorSheet extends StatefulWidget {
-  const CreateEmulatorSheet({
-    super.key,
-    required this.systemImages,
-    required this.deviceProfiles,
-    required this.isLoading,
-    required this.existingNames,
-  });
-
-  final List<SystemImage> systemImages;
-  final List<DeviceProfile> deviceProfiles;
-  final bool isLoading;
+class const CreateEmulatorSheet({
+  super.key,
+  required final List<SystemImage> systemImages,
+  required final List<DeviceProfile> deviceProfiles,
+  required final bool isLoading,
 
   /// Checked here so a clash is caught while the field still has focus, rather
   /// than after a second and a half of JVM start.
-  final Set<String> existingNames;
-
+  required final Set<String> existingNames,
+}) extends StatefulWidget {
   @override
   State<CreateEmulatorSheet> createState() => _CreateEmulatorSheetState();
 }

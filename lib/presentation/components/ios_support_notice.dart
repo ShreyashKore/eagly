@@ -17,9 +17,7 @@ const String _appleDevicesStoreWebUrl =
 /// usbmuxd isn't reachable. Guides the user to install the Apple Devices app
 /// (which provides the required Apple Mobile Device Support service) with one
 /// click that opens its Microsoft Store page — they approve the install there.
-class IosSupportNotice extends StatefulWidget {
-  const IosSupportNotice({super.key});
-
+class const IosSupportNotice({super.key}) extends StatefulWidget {
   @override
   State<IosSupportNotice> createState() => _IosSupportNoticeState();
 }

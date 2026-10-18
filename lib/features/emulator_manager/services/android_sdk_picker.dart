@@ -6,23 +6,17 @@ import '../../../utils/android_sdk_path.dart';
 
 /// The verdict on a directory the user offered as their Android SDK root.
 @immutable
-class AndroidSdkChoice {
-  const AndroidSdkChoice({
-    required this.path,
-    required this.accepted,
-    required this.message,
-  });
-
-  final String path;
+class const AndroidSdkChoice({
+  required final String path,
 
   /// False when the directory holds nothing an SDK would hold. Saving one of
   /// those breaks the emulator manager silently — the list just stays empty —
   /// so it is refused at the point the user can still fix it.
-  final bool accepted;
+  required final bool accepted,
 
   /// What to tell the user, whether or not it was accepted.
-  final String message;
-}
+  required final String message,
+});
 
 /// Points Eagly at an Android SDK and remembers where.
 ///
@@ -30,9 +24,7 @@ class AndroidSdkChoice {
 /// app launched from Finder or the Start menu inherits the login environment
 /// rather than a shell's, so `ANDROID_HOME` is typically unset even on a
 /// machine where Android Studio works fine. See [AndroidSdkPath].
-class AndroidSdkPicker {
-  const AndroidSdkPicker._();
-
+class const AndroidSdkPicker._() {
   /// Opens the directory picker. Swappable because a file picker needs a
   /// platform channel, and the decision either side of it is worth testing.
   @visibleForTesting

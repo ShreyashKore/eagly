@@ -24,22 +24,14 @@ double appTileHeight(
 /// One app in the Apps grid (and the recently-installed row): icon over its
 /// display name. Tap launches it (when supported); secondary-tap opens the
 /// context menu.
-class AppTile extends StatelessWidget {
-  const AppTile({
-    super.key,
-    required this.controller,
-    required this.app,
-    required this.iconSize,
-    required this.onTap,
-    required this.onSecondaryTap,
-  });
-
-  final AppsController controller;
-  final AppInfo app;
-  final double iconSize;
-  final VoidCallback? onTap;
-  final void Function(Offset position) onSecondaryTap;
-
+class const AppTile({
+  super.key,
+  required final AppsController controller,
+  required final AppInfo app,
+  required final double iconSize,
+  required final VoidCallback? onTap,
+  required final void Function(Offset position) onSecondaryTap,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -90,18 +82,12 @@ String appTooltip(AppInfo app) {
 
 /// An app's icon at [size], with the disabled and busy overlays. Fetches the
 /// icon lazily (cached by [AppsController]) the first time it is built.
-class AppIconView extends StatefulWidget {
-  const AppIconView({
-    super.key,
-    required this.controller,
-    required this.app,
-    required this.size,
-  });
-
-  final AppsController controller;
-  final AppInfo app;
-  final double size;
-
+class const AppIconView({
+  super.key,
+  required final AppsController controller,
+  required final AppInfo app,
+  required final double size,
+}) extends StatefulWidget {
   @override
   State<AppIconView> createState() => _AppIconViewState();
 }
@@ -183,19 +169,12 @@ class _AppIconViewState extends State<AppIconView> {
   }
 }
 
-class _AppIcon extends StatelessWidget {
-  const _AppIcon({
-    required this.bytes,
-    required this.app,
-    required this.size,
-    required this.radius,
-  });
-
-  final Uint8List? bytes;
-  final AppInfo app;
-  final double size;
-  final BorderRadius radius;
-
+class const _AppIcon({
+  required final Uint8List? bytes,
+  required final AppInfo app,
+  required final double size,
+  required final BorderRadius radius,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final iconBytes = bytes;
@@ -222,17 +201,11 @@ class _AppIcon extends StatelessWidget {
 /// iOS with no extraction support at all): a colored initial, the color
 /// picked deterministically from the package name so the same app always
 /// gets the same tile across sessions.
-class _FallbackIcon extends StatelessWidget {
-  const _FallbackIcon({
-    required this.app,
-    required this.size,
-    required this.radius,
-  });
-
-  final AppInfo app;
-  final double size;
-  final BorderRadius radius;
-
+class const _FallbackIcon({
+  required final AppInfo app,
+  required final double size,
+  required final BorderRadius radius,
+}) extends StatelessWidget {
   static const List<Color> _palette = [
     Color(0xFF5B8DEF),
     Color(0xFF9C6ADE),

@@ -1,24 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+
 import '../../../presentation/theme/app_theme.dart';
 
 /// Empty-state card shown when a wireless tab has nothing to display yet.
-class WirelessPlaceholderCard extends StatelessWidget {
-  const WirelessPlaceholderCard({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.description,
-    this.footer,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
+class const WirelessPlaceholderCard({
+  super.key,
+  required final IconData icon,
+  required final String title,
+  required final String description,
 
   /// Optional actions shown below the description.
-  final Widget? footer;
-
+  final Widget? footer,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

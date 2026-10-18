@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
@@ -8,9 +9,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 /// To add more ignored error messages or patterns in the future, simply append
 /// them to [ignoredPatterns] or [ignoredExceptionTypes], or register a custom rule
 /// via [addCustomFilter].
-class SentryEventFilter {
-  SentryEventFilter._();
-
+class SentryEventFilter._() {
   /// Substrings or regex patterns that, if found in an error's message,
   /// exception value, or throwable summary, will cause the event to be dropped.
   ///

@@ -15,20 +15,18 @@ import 'package:flutter/material.dart';
 /// A text scale keeps one coordinate space. Text scales, icons follow it
 /// through `IconThemeData.applyTextScaling`, and fixed chrome dimensions
 /// follow via `BuildContext.scaled`.
-class AppZoom extends StatelessWidget {
-  const AppZoom({super.key, required this.zoomLevel, required this.child});
+class const AppZoom({
+  super.key,
 
   /// 1.0 is unzoomed; see `PreferencesService.zoomLevel` for the range.
-  final double zoomLevel;
-
-  final Widget child;
-
+  required final double zoomLevel,
+  required final Widget child,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MediaQuery(
-      data: MediaQuery.of(
-        context,
-      ).copyWith(textScaler: TextScaler.linear(zoomLevel)),
+      data: MediaQuery.of(context)
+          .copyWith(textScaler: TextScaler.linear(zoomLevel)),
       child: child,
     );
   }

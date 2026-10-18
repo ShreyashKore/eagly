@@ -17,15 +17,11 @@ import '../../presentation/theme/app_theme.dart';
 /// offers search and (Android) a system-apps toggle, and drives the per-app
 /// context menu actions. Owns the confirmation dialogs and snackbars for destructive
 /// actions. [onClose] hides the pane (handled by the device screen).
-class AppsFeatureView extends FeatureView {
-  const AppsFeatureView({
-    super.key,
-    required this.controller,
-    required super.onClose,
-  });
-
-  final AppsController controller;
-
+class const AppsFeatureView({
+  super.key,
+  required final AppsController controller,
+  required super.onClose,
+}) extends FeatureView {
   @override
   State<AppsFeatureView> createState() => _AppsFeatureViewState();
 }
@@ -406,12 +402,10 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.controller, required this.onClose});
-
-  final AppsController controller;
-  final VoidCallback onClose;
-
+class const _Header({
+  required final AppsController controller,
+  required final VoidCallback onClose,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = controller.loadState == AppLoadState.ready
@@ -440,12 +434,10 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _Toolbar extends StatelessWidget {
-  const _Toolbar({required this.controller, required this.searchController});
-
-  final AppsController controller;
-  final TextEditingController searchController;
-
+class const _Toolbar({
+  required final AppsController controller,
+  required final TextEditingController searchController,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

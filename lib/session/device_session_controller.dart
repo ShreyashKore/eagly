@@ -21,19 +21,12 @@ import 'workspace_layout.dart';
 /// Summary of a drag-and-drop onto a device: which apps were installed, which
 /// files were copied (into [copyDirectory]) and any per-item [errors]. Build a
 /// user-facing string from [message].
-class DropHandlingResult {
-  const DropHandlingResult({
-    this.installed = const [],
-    this.copied = const [],
-    this.copyDirectory,
-    this.errors = const [],
-  });
-
-  final List<String> installed;
-  final List<String> copied;
-  final String? copyDirectory;
-  final List<String> errors;
-
+class const DropHandlingResult({
+  final List<String> installed = const [],
+  final List<String> copied = const [],
+  final String? copyDirectory,
+  final List<String> errors = const [],
+}) {
   /// A single status line summarising the drop, or `null` when nothing
   /// happened (e.g. an empty drop).
   String? get message {
@@ -62,8 +55,15 @@ class DropHandlingResult {
 /// connectivity, the [DeviceSessionRepository], and (lazily) the per-feature
 /// controllers. It does not own feature state — that lives in the feature
 /// controllers.
-class DeviceSessionController extends ChangeNotifier {
-  DeviceSessionController({
+class DeviceSessionController._({
+  required var Device _device,
+  DeviceSessionRepository? service,
+  WorkspaceLayoutMemory? layoutMemory,
+
+  /// True for the synthetic workspace that only shows imported log files.
+  final bool isImportedWorkspace = false,
+}) extends ChangeNotifier {
+  new({
     required Device device,
     DeviceSessionRepository? service,
     WorkspaceLayoutMemory? layoutMemory,
@@ -72,27 +72,18 @@ class DeviceSessionController extends ChangeNotifier {
   /// Creates the device-less "Imported Logs" workspace session: a session that
   /// hosts only imported log tabs (no live capture, mirror, files, etc.). It is
   /// backed by a synthetic, never-connected [device].
-  DeviceSessionController.importedWorkspace({
+  new importedWorkspace({
     required Device device,
     DeviceSessionRepository? service,
   }) : this._(device: device, service: service, isImportedWorkspace: true);
 
-  DeviceSessionController._({
-    required Device device,
-    DeviceSessionRepository? service,
-    WorkspaceLayoutMemory? layoutMemory,
-    this.isImportedWorkspace = false,
-  }) : _device = device,
-       service = service ?? DeviceSessionRepository(device: device),
-       workspaceLayout = WorkspaceLayout(memory: layoutMemory) {
-    this.service.sessionLabel = device.id;
+  this
+    : service = service ?? DeviceSessionRepository(device: _device),
+      workspaceLayout = WorkspaceLayout(memory: layoutMemory) {
+    this.service.sessionLabel = _device.id;
     workspaceLayout.addListener(_handleWorkspaceChanged);
   }
 
-  /// True for the synthetic workspace that only shows imported log files.
-  final bool isImportedWorkspace;
-
-  Device _device;
   final DeviceSessionRepository service;
 
   /// Which feature panes are open and how they are arranged — split,

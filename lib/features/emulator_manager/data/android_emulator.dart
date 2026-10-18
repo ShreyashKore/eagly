@@ -9,58 +9,41 @@ import 'package:flutter/foundation.dart';
 /// reports but whose config cannot be read is still perfectly launchable, so
 /// it appears with everything else null rather than being dropped.
 @immutable
-class AndroidEmulator {
-  const AndroidEmulator({
-    required this.name,
-    this.displayName,
-    this.avdPath,
-    this.deviceProfile,
-    this.manufacturer,
-    this.apiLevel,
-    this.tagDisplay,
-    this.abi,
-    this.ramMb,
-    this.screenWidthPx,
-    this.screenHeightPx,
-    this.densityDpi,
-    this.hasPlayStore = false,
-  });
-
+class const AndroidEmulator({
   /// The AVD id — what `emulator -avd` and `avdmanager` take. Never localised
   /// and never contains spaces, which is why it is a poor label.
-  final String name;
+  required final String name,
 
   /// `avd.ini.displayname`, the name Android Studio shows. Often absent on
   /// AVDs created by tooling rather than by the AVD Manager UI.
-  final String? displayName;
+  final String? displayName,
 
   /// Absolute path to the `.avd` directory.
-  final String? avdPath;
+  final String? avdPath,
 
   /// Hardware profile id, e.g. `pixel_7a`.
-  final String? deviceProfile;
+  final String? deviceProfile,
 
   /// Profile vendor, e.g. `Google`.
-  final String? manufacturer;
+  final String? manufacturer,
 
   /// API level as written in the AVD's `target`, e.g. `36.1` — a string, not
   /// an int, because minor-versioned platforms (`android-36.1`) are real.
-  final String? apiLevel;
+  final String? apiLevel,
 
   /// System image tag as shown to humans, e.g. `Google Play`, `Google APIs`.
-  final String? tagDisplay;
+  final String? tagDisplay,
 
   /// System image ABI, e.g. `arm64-v8a`.
-  final String? abi;
-
-  final int? ramMb;
-  final int? screenWidthPx;
-  final int? screenHeightPx;
-  final int? densityDpi;
+  final String? abi,
+  final int? ramMb,
+  final int? screenWidthPx,
+  final int? screenHeightPx,
+  final int? densityDpi,
 
   /// Whether the image bundles the Play Store (`PlayStore.enabled`).
-  final bool hasPlayStore;
-
+  final bool hasPlayStore = false,
+}) {
   /// What to show the user: the AVD's own display name when it set one,
   /// otherwise the id with its underscores read back as spaces.
   String get label {

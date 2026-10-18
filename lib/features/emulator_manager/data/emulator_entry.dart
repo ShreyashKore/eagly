@@ -31,21 +31,15 @@ enum EmulatorRunState {
 /// halves apart lets the poll rebuild the runtime one every couple of seconds
 /// without touching the disk again.
 @immutable
-class EmulatorEntry {
-  const EmulatorEntry({
-    required this.emulator,
-    this.runState = EmulatorRunState.stopped,
-    this.serial,
-  });
-
-  final AndroidEmulator emulator;
-  final EmulatorRunState runState;
+class const EmulatorEntry({
+  required final AndroidEmulator emulator,
+  final EmulatorRunState runState = EmulatorRunState.stopped,
 
   /// The adb serial (`emulator-5554`) while this AVD is up, otherwise `null`.
   /// It is a console port, not an identity: the same AVD gets a different one
   /// on every boot.
-  final String? serial;
-
+  final String? serial,
+}) {
   String get name => emulator.name;
   String get label => emulator.label;
 

@@ -22,9 +22,7 @@ Future<void> showSettingsDialog(BuildContext context) {
   );
 }
 
-class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
-
+class const SettingsScreen({super.key}) extends StatefulWidget {
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
@@ -69,9 +67,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _saveLogLinesLimit() async {

@@ -12,27 +12,18 @@ import 'home_primitives.dart';
 /// The four live vitals — battery, storage, CPU, memory — as gauges. This is
 /// the top-priority block: everything here is a number that changes while you
 /// work, so it is shown graphically rather than as label/value text.
-class VitalsRow extends StatelessWidget {
-  const VitalsRow({
-    super.key,
-    required this.battery,
-    required this.storage,
-    required this.stats,
-    required this.cpuHistory,
-    required this.memoryHistory,
-    this.isStale = false,
-  });
-
-  final DeviceBatteryInfo battery;
-  final DeviceStorageInfo storage;
-  final DevicePerformanceStats stats;
-  final List<double> cpuHistory;
-  final List<double> memoryHistory;
+class const VitalsRow({
+  super.key,
+  required final DeviceBatteryInfo battery,
+  required final DeviceStorageInfo storage,
+  required final DevicePerformanceStats stats,
+  required final List<double> cpuHistory,
+  required final List<double> memoryHistory,
 
   /// Renders the last known values in a muted palette with a "last seen" tag,
   /// so a frozen reading never looks live.
-  final bool isStale;
-
+  final bool isStale = false,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tiles = <Widget>[
@@ -72,29 +63,17 @@ class VitalsRow extends StatelessWidget {
 
 /// Common shell for a vitals tile: gauge on the left, headline + detail on
 /// the right, optional sparkline strip underneath.
-class _VitalTile extends StatelessWidget {
-  const _VitalTile({
-    required this.label,
-    required this.value,
-    required this.headline,
-    required this.detail,
-    required this.color,
-    required this.centerIcon,
-    this.stale = false,
-    this.history,
-    this.badge,
-  });
-
-  final String label;
-  final double? value;
-  final String headline;
-  final String detail;
-  final Color color;
-  final IconData centerIcon;
-  final bool stale;
-  final List<double>? history;
-  final Widget? badge;
-
+class const _VitalTile({
+  required final String label,
+  required final double? value,
+  required final String headline,
+  required final String detail,
+  required final Color color,
+  required final IconData centerIcon,
+  final bool stale = false,
+  final List<double>? history,
+  final Widget? badge,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -190,12 +169,10 @@ class _VitalTile extends StatelessWidget {
   }
 }
 
-class _BatteryTile extends StatelessWidget {
-  const _BatteryTile({required this.battery, required this.stale});
-
-  final DeviceBatteryInfo battery;
-  final bool stale;
-
+class const _BatteryTile({
+  required final DeviceBatteryInfo battery,
+  required final bool stale,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.eaglyTheme;
@@ -245,12 +222,10 @@ class _BatteryTile extends StatelessWidget {
   };
 }
 
-class _StorageTile extends StatelessWidget {
-  const _StorageTile({required this.storage, required this.stale});
-
-  final DeviceStorageInfo storage;
-  final bool stale;
-
+class const _StorageTile({
+  required final DeviceStorageInfo storage,
+  required final bool stale,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = storage.usagePercent;
@@ -275,17 +250,11 @@ class _StorageTile extends StatelessWidget {
   }
 }
 
-class _CpuTile extends StatelessWidget {
-  const _CpuTile({
-    required this.cpu,
-    required this.history,
-    required this.stale,
-  });
-
-  final CpuStats cpu;
-  final List<double> history;
-  final bool stale;
-
+class const _CpuTile({
+  required final CpuStats cpu,
+  required final List<double> history,
+  required final bool stale,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = cpu.utilisationPercent;
@@ -306,17 +275,11 @@ class _CpuTile extends StatelessWidget {
   }
 }
 
-class _MemoryTile extends StatelessWidget {
-  const _MemoryTile({
-    required this.memory,
-    required this.history,
-    required this.stale,
-  });
-
-  final MemoryStats memory;
-  final List<double> history;
-  final bool stale;
-
+class const _MemoryTile({
+  required final MemoryStats memory,
+  required final List<double> history,
+  required final bool stale,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = memory.usagePercent;

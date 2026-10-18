@@ -36,16 +36,10 @@ Future<void> showEmulatorManagerDialog({
 /// The emulator binary belongs to the user's own SDK rather than to Eagly's
 /// bundled `platform-tools`, so "no SDK here" is a first-class state of this
 /// dialog and not an error.
-class EmulatorManagerDialog extends StatefulWidget {
-  const EmulatorManagerDialog({
-    super.key,
-    required this.manager,
-    required this.onShowSnackBar,
-    this.createController,
-  });
-
-  final DeviceSessionManager manager;
-  final ValueChanged<String> onShowSnackBar;
+class const EmulatorManagerDialog({
+  super.key,
+  required final DeviceSessionManager manager,
+  required final ValueChanged<String> onShowSnackBar,
 
   /// Overrides how the controller is built, handing the builder the dialog's
   /// own "an emulator booted" callback so that path stays wired.
@@ -57,8 +51,8 @@ class EmulatorManagerDialog extends StatefulWidget {
   final EmulatorManagerController Function(
     Future<void> Function(Device device) onEmulatorReady,
   )?
-  createController;
-
+  createController,
+}) extends StatefulWidget {
   @override
   State<EmulatorManagerDialog> createState() => _EmulatorManagerDialogState();
 }

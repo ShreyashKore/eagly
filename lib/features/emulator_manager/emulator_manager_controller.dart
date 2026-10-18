@@ -34,23 +34,28 @@ import 'services/system_image_scanner.dart';
 /// dispose, and never let it notify listeners on a tick where nothing changed —
 /// a 2 s unconditional rebuild pulls the ground out from under any text field
 /// the dialog has open.
-class EmulatorManagerController extends ChangeNotifier {
-  EmulatorManagerController({
-    DevicesRepository? devicesRepository,
-    AdbTool? adbTool,
-    AvdMetadataReader? metadataReader,
-    AndroidSdkLocation Function()? locateSdk,
-    EmulatorTool Function(String executablePath)? createEmulatorTool,
-    AvdManagerTool Function(String executablePath)? createAvdManagerTool,
-    SystemImageScanner? systemImageScanner,
-    this.onEmulatorReady,
-  }) : _devicesRepository = devicesRepository ?? DevicesRepository.instance,
-       _adbTool = adbTool ?? AdbTool(),
-       _metadataReader = metadataReader ?? AvdMetadataReader(),
-       _locateSdk = locateSdk ?? AndroidSdkPath.locate,
-       _createEmulatorTool = createEmulatorTool ?? _defaultEmulatorTool,
-       _createAvdManagerTool = createAvdManagerTool ?? _defaultAvdManagerTool,
-       _systemImageScanner = systemImageScanner ?? const SystemImageScanner();
+class EmulatorManagerController({
+  DevicesRepository? devicesRepository,
+  AdbTool? adbTool,
+  AvdMetadataReader? metadataReader,
+  AndroidSdkLocation Function()? locateSdk,
+  EmulatorTool Function(String executablePath)? createEmulatorTool,
+  AvdManagerTool Function(String executablePath)? createAvdManagerTool,
+  SystemImageScanner? systemImageScanner,
+
+  /// Called once a launched AVD has booted far enough for adb to call it
+  /// `device`. Opening its tab is the caller's job — the controller knows
+  /// nothing about tabs.
+  final Future<void> Function(Device device)? onEmulatorReady,
+}) extends ChangeNotifier {
+  this
+    : _devicesRepository = devicesRepository ?? DevicesRepository.instance,
+      _adbTool = adbTool ?? AdbTool(),
+      _metadataReader = metadataReader ?? AvdMetadataReader(),
+      _locateSdk = locateSdk ?? AndroidSdkPath.locate,
+      _createEmulatorTool = createEmulatorTool ?? _defaultEmulatorTool,
+      _createAvdManagerTool = createAvdManagerTool ?? _defaultAvdManagerTool,
+      _systemImageScanner = systemImageScanner ?? const SystemImageScanner();
 
   static EmulatorTool _defaultEmulatorTool(String executablePath) =>
       EmulatorTool(executablePath: executablePath);
@@ -66,11 +71,6 @@ class EmulatorManagerController extends ChangeNotifier {
   final AvdManagerTool Function(String executablePath) _createAvdManagerTool;
   final SystemImageScanner _systemImageScanner;
   final AppLogger _logger = AppLogger(source: 'EmulatorManagerController');
-
-  /// Called once a launched AVD has booted far enough for adb to call it
-  /// `device`. Opening its tab is the caller's job — the controller knows
-  /// nothing about tabs.
-  final Future<void> Function(Device device)? onEmulatorReady;
 
   /// How often the runtime state is re-read while the dialog is open.
   @visibleForTesting

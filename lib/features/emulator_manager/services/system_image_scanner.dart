@@ -12,9 +12,7 @@ import '../data/system_image.dart';
 /// and can reach for the network. The tree is laid out as
 /// `system-images/<api>/<tag>/<abi>/source.properties`, and that file carries
 /// everything needed — so this is a directory walk and a few small reads.
-class SystemImageScanner {
-  const SystemImageScanner();
-
+class const SystemImageScanner() {
   /// Every installed image, newest API first.
   ///
   /// Never throws: an unreadable SDK yields an empty list, which the create

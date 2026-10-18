@@ -13,38 +13,28 @@ import '../theme/app_theme.dart';
 /// the real text and buttons, so it holds at any zoom and message length. A
 /// row of buttons beside the text in a narrow pane squeezes the text into a
 /// tall, thin column, which is what made the old banners take so much height.
-class NoticeBanner extends StatelessWidget {
-  const NoticeBanner({
-    super.key,
-    required this.icon,
-    required this.title,
-    this.message,
-    this.actions = const [],
-    this.color,
-    this.edgeToEdge = false,
-    this.textWidth = 440,
-  });
-
-  final IconData icon;
-  final String title;
-  final String? message;
+class const NoticeBanner({
+  super.key,
+  required final IconData icon,
+  required final String title,
+  final String? message,
 
   /// Usually [NoticeButton]s; any widget fits (e.g. a shortcut key cap).
-  final List<Widget> actions;
+  final List<Widget> actions = const [],
 
   /// Accent for the badge, tint and border. Defaults to the theme's warning
   /// colour.
-  final Color? color;
+  final Color? color,
 
   /// A full-width strip with top and bottom rules, for the top of a pane,
   /// instead of a rounded card.
-  final bool edgeToEdge;
+  final bool edgeToEdge = false,
 
   /// The widest the text runs before wrapping, unscaled. Actions go beside
   /// the text only if this much room (or the text's own width, if shorter)
   /// is left for it.
-  final double textWidth;
-
+  final double textWidth = 440,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -136,20 +126,13 @@ class NoticeBanner extends StatelessWidget {
 
 /// A small button for a [NoticeBanner]: tonal when [primary], plain text
 /// otherwise.
-class NoticeButton extends StatelessWidget {
-  const NoticeButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    this.primary = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onPressed;
-  final bool primary;
-
+class const NoticeButton({
+  super.key,
+  required final IconData icon,
+  required final String label,
+  required final VoidCallback? onPressed,
+  final bool primary = false,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const padding = EdgeInsets.symmetric(horizontal: 10);

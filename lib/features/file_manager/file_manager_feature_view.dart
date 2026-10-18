@@ -20,14 +20,12 @@ import 'file_manager_controller.dart';
 /// actions. Files dropped onto the pane are copied into the folder it shows —
 /// an app for this device first asks whether to install it instead. [onClose]
 /// hides the pane (handled by the device screen).
-class FileManagerFeatureView extends FeatureView {
-  const FileManagerFeatureView({
-    super.key,
-    required this.controller,
-    required VoidCallback onClose,
-  }) : super(onClose: onClose);
-
-  final FileManagerController controller;
+class const FileManagerFeatureView({
+  super.key,
+  required final FileManagerController controller,
+  required VoidCallback onClose,
+}) extends FeatureView {
+  this : super(onClose: onClose);
 
   @override
   State<FileManagerFeatureView> createState() => _FileManagerFeatureViewState();

@@ -8,21 +8,16 @@ import '../../services/app_breadcrumbs.dart';
 enum AppLogLevel { debug, info, success, warning, error }
 
 /// A single structured log entry produced by the app itself (not device logs).
-class AppLogEntry {
-  AppLogEntry({
-    required this.level,
-    required this.source,
-    required this.message,
-    this.detail,
-    this.sessionTag,
-    DateTime? timestamp,
-  }) : timestamp = timestamp ?? DateTime.now();
+class AppLogEntry({
+  required final AppLogLevel level,
+  required final String source,
+  required final String message,
+  final String? detail,
+  final String? sessionTag,
+  DateTime? timestamp,
+}) {
+  this : timestamp = timestamp ?? DateTime.now();
 
-  final AppLogLevel level;
-  final String source;
-  final String message;
-  final String? detail;
-  final String? sessionTag;
   final DateTime timestamp;
 
   String toExportString() {
@@ -52,10 +47,8 @@ class AppLogEntry {
 /// Every instance writes to the same root in-memory store, but instances can be
 /// created with default [source] and/or [sessionTag] values for a feature,
 /// service, or workspace session.
-class AppLogger {
-  AppLogger({String? source, String? sessionTag})
-    : _defaultSource = source,
-      _defaultSessionTag = sessionTag;
+class AppLogger({String? source, String? sessionTag}) {
+  this : _defaultSource = source, _defaultSessionTag = sessionTag;
 
   static final AppLogger global = AppLogger();
   static const int maxEntries = 2000;
@@ -214,9 +207,7 @@ class AppLogger {
   }
 }
 
-class _AppLogStore extends ChangeNotifier {
-  _AppLogStore._();
-
+class _AppLogStore._() extends ChangeNotifier {
   static final _AppLogStore instance = _AppLogStore._();
 
   final ListQueue<AppLogEntry> entries = ListQueue<AppLogEntry>();

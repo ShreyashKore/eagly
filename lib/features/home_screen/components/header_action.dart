@@ -2,20 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../../presentation/components/app_icon_button.dart';
 
-class HeaderAction extends StatelessWidget {
-  const HeaderAction({
-    super.key,
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-    this.busy = false,
-  });
-
-  final Object? icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-  final bool busy;
-
+class const HeaderAction({
+  super.key,
+  required final Object? icon,
+  required final String tooltip,
+  required final VoidCallback onPressed,
+  final bool busy = false,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = this.icon;

@@ -5,12 +5,11 @@ import 'package:gap/gap.dart';
 ///
 /// Renders nothing when both [message] and [error] are absent; [error] takes
 /// precedence and switches the banner to the error color scheme.
-class WirelessFeedbackBanner extends StatelessWidget {
-  const WirelessFeedbackBanner({super.key, this.message, this.error});
-
-  final String? message;
-  final String? error;
-
+class const WirelessFeedbackBanner({
+  super.key,
+  final String? message,
+  final String? error,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

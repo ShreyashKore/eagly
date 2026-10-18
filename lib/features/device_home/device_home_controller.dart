@@ -10,8 +10,8 @@ import 'data/installed_app_info.dart';
 /// Per-device home/dashboard feature. Owns live device performance stats and
 /// device info, each refreshed on its own configurable interval while the
 /// device is connected.
-class DeviceHomeController extends FeatureController {
-  DeviceHomeController(super.session) {
+class DeviceHomeController(super.session) extends FeatureController {
+  this {
     _maybeStartPolling();
   }
 

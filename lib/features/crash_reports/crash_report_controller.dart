@@ -17,9 +17,7 @@ enum CrashReportLoadState { idle, loading, ready, error, unsupported }
 /// report's body, and manages the temp directory the reports are copied into.
 /// Pane *visibility* lives on the owning [DeviceSessionController]; this
 /// controller only manages the data.
-class CrashReportController extends FeatureController {
-  CrashReportController(super.session);
-
+class CrashReportController(super.session) extends FeatureController {
   CrashReportLoadState loadState = CrashReportLoadState.idle;
   String? error;
   List<CrashReport> reports = const [];

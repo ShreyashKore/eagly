@@ -18,9 +18,7 @@ import 'log_format.dart';
 ///   "logcatMessages": [ { "header": { … }, "message": "…" }, … ]
 /// }
 /// ```
-class AndroidLogcatFormat extends LogFormat {
-  const AndroidLogcatFormat();
-
+class const AndroidLogcatFormat() extends LogFormat {
   @override
   LogFormatId get id => LogFormatId.androidLogcat;
 

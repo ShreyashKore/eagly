@@ -10,18 +10,12 @@ import 'home_primitives.dart';
 /// Full-width notice shown at the top of the dashboard once the device drops
 /// off. The dashboard below it keeps rendering the last snapshot, so this
 /// banner has to say clearly that what follows is frozen, not live.
-class DisconnectedBanner extends StatelessWidget {
-  const DisconnectedBanner({
-    super.key,
-    required this.device,
-    required this.lastUpdatedAt,
-    required this.hasSnapshot,
-  });
-
-  final Device device;
-  final DateTime? lastUpdatedAt;
-  final bool hasSnapshot;
-
+class const DisconnectedBanner({
+  super.key,
+  required final Device device,
+  required final DateTime? lastUpdatedAt,
+  required final bool hasSnapshot,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final seen = lastUpdatedAt;
@@ -52,11 +46,8 @@ class DisconnectedBanner extends StatelessWidget {
 
 /// Troubleshooting checklist shown when there is no snapshot to fall back on
 /// — the device dropped before Eagly could read anything off it.
-class ReconnectHelpCard extends StatelessWidget {
-  const ReconnectHelpCard({super.key, required this.device});
-
-  final Device device;
-
+class const ReconnectHelpCard({super.key, required final Device device})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isIos = device is IosDevice;
@@ -119,13 +110,11 @@ class ReconnectHelpCard extends StatelessWidget {
   }
 }
 
-class _Step extends StatelessWidget {
-  const _Step({required this.icon, required this.title, required this.body});
-
-  final IconData icon;
-  final String title;
-  final String body;
-
+class const _Step({
+  required final IconData icon,
+  required final String title,
+  required final String body,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

@@ -9,14 +9,12 @@ import 'mirror_controller.dart';
 
 /// Screen-mirror feature pane. Renders the live texture + controls, driven by a
 /// [MirrorController]. [onClose] hides the pane (handled by the device screen).
-class MirrorFeatureView extends FeatureView {
-  const MirrorFeatureView({
-    super.key,
-    required this.controller,
-    required VoidCallback onClose,
-  }) : super(onClose: onClose);
-
-  final MirrorController controller;
+class const MirrorFeatureView({
+  super.key,
+  required final MirrorController controller,
+  required VoidCallback onClose,
+}) extends FeatureView {
+  this : super(onClose: onClose);
 
   @override
   State<MirrorFeatureView> createState() => _MirrorFeatureViewState();

@@ -73,6 +73,14 @@ comes bundled, iOS support is built in through a native Rust library, the whole 
 
 For all versions and changelogs, see the [Releases](https://github.com/ShreyashKore/eagly/releases) page.
 
+> **macOS says Eagly "can't be opened" or "is damaged"?** Eagly isn't notarized by Apple,
+> so Gatekeeper quarantines the download. After dragging Eagly into Applications, clear the
+> quarantine flag once from Terminal:
+>
+> ```sh
+> xattr -rd com.apple.quarantine /Applications/eagly.app
+> ```
+
 Every build is **under 50 MB** and runs with a low memory footprint. Eagly bundles `adb`
 and talks to iOS devices through a built-in native library, so there's nothing else to
 install. **On Windows, iTunes must be installed for iOS device

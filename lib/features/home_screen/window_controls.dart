@@ -11,9 +11,7 @@ bool get usesCustomWindowCaption => Platform.isWindows || Platform.isLinux;
 double get macWindowButtonInset => Platform.isMacOS ? 70.0 : 0.0;
 
 /// Minimize / maximize / close buttons for frameless Windows & Linux windows.
-class WindowControls extends StatefulWidget {
-  const WindowControls({super.key});
-
+class const WindowControls({super.key}) extends StatefulWidget {
   @override
   State<WindowControls> createState() => _WindowControlsState();
 }

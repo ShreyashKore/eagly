@@ -6,19 +6,12 @@ import '../data/device.dart';
 import '../utils/utils.dart';
 import 'preferences_service.dart';
 
-class AppInstallSelectionResult {
-  const AppInstallSelectionResult({
-    this.filePath,
-    this.fileName,
-    this.error,
-    this.cancelled = false,
-  });
-
-  final String? filePath;
-  final String? fileName;
-  final String? error;
-  final bool cancelled;
-
+class const AppInstallSelectionResult({
+  final String? filePath,
+  final String? fileName,
+  final String? error,
+  final bool cancelled = false,
+}) {
   bool get isSuccess => !cancelled && error == null && filePath != null;
 
   factory AppInstallSelectionResult.success({
@@ -40,21 +33,13 @@ class AppInstallSelectionResult {
   }
 }
 
-class AppInstallResult {
-  const AppInstallResult({
-    this.fileName,
-    this.device,
-    this.message,
-    this.error,
-    this.cancelled = false,
-  });
-
-  final String? fileName;
-  final Device? device;
-  final String? message;
-  final String? error;
-  final bool cancelled;
-
+class const AppInstallResult({
+  final String? fileName,
+  final Device? device,
+  final String? message,
+  final String? error,
+  final bool cancelled = false,
+}) {
   bool get isSuccess => !cancelled && error == null;
 
   factory AppInstallResult.success({

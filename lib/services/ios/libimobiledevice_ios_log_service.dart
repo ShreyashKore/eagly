@@ -4,9 +4,9 @@ import '../tools/tool_process_runner.dart';
 import 'ios_log_service.dart';
 
 /// [IosLogService] backed by the bundled `idevicesyslog` process.
-class LibimobiledeviceIosLogService implements IosLogService {
-  LibimobiledeviceIosLogService({IdeviceSyslogTool? ideviceSyslogTool})
-    : _tool = ideviceSyslogTool ?? IdeviceSyslogTool();
+class LibimobiledeviceIosLogService({IdeviceSyslogTool? ideviceSyslogTool})
+    implements IosLogService {
+  this : _tool = ideviceSyslogTool ?? IdeviceSyslogTool();
 
   final IdeviceSyslogTool _tool;
 

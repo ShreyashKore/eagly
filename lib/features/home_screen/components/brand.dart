@@ -4,11 +4,8 @@ import 'package:gap/gap.dart';
 import '../../../constants/app_constants.dart';
 import '../../../constants/local_assets.dart';
 
-class Brand extends StatelessWidget {
-  const Brand({super.key, required this.onTap});
-
-  final VoidCallback onTap;
-
+class const Brand({super.key, required final VoidCallback onTap})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

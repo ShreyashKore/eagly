@@ -12,16 +12,25 @@ import '../../../data/device.dart';
 ///
 /// Growing the table is the only thing needed to make another bundled binary
 /// reachable from the terminal.
-class TerminalTool {
-  const TerminalTool(
-    this.executable, {
-    this.deviceFlag,
-    this.selectorFlags = const {},
-    this.deviceLessSubcommands = const {},
-    this.platform,
-    required this.summary,
-  });
+class const TerminalTool(
+  final String executable, {
 
+  /// Flag that precedes the device identifier, or `null` when this tool takes
+  /// no device selector.
+  final String? deviceFlag,
+
+  /// Flags that already pick a device; seeing one suppresses injection.
+  final Set<String> selectorFlags = const {},
+
+  /// Subcommands that never take a device selector.
+  final Set<String> deviceLessSubcommands = const {},
+
+  /// The platform this tool can drive, or `null` when it is platform-agnostic.
+  final DevicePlatform? platform,
+
+  /// One-line description, shown by the `tools` built-in.
+  required final String summary,
+}) {
   /// An `adb`-style tool: global options (device selector included) precede a
   /// subcommand.
   const TerminalTool.adb()
@@ -53,24 +62,6 @@ class TerminalTool {
         platform: DevicePlatform.ios,
         summary: summary,
       );
-
-  final String executable;
-
-  /// Flag that precedes the device identifier, or `null` when this tool takes
-  /// no device selector.
-  final String? deviceFlag;
-
-  /// Flags that already pick a device; seeing one suppresses injection.
-  final Set<String> selectorFlags;
-
-  /// Subcommands that never take a device selector.
-  final Set<String> deviceLessSubcommands;
-
-  /// The platform this tool can drive, or `null` when it is platform-agnostic.
-  final DevicePlatform? platform;
-
-  /// One-line description, shown by the `tools` built-in.
-  final String summary;
 
   bool supports(Device device) =>
       platform == null || platform == device.platform;
@@ -154,12 +145,10 @@ TerminalTool? lookupTerminalTool(String name) => _toolsByName[name];
 
 /// One process the terminal is about to start: the resolved executable and the
 /// complete argv, device selector included.
-class TerminalInvocation {
-  const TerminalInvocation({required this.executable, required this.arguments});
-
-  final String executable;
-  final List<String> arguments;
-
+class const TerminalInvocation({
+  required final String executable,
+  required final List<String> arguments,
+}) {
   /// The command line as actually run, for the prompt line's tooltip.
   String get displayCommand => [executable, ...arguments].join(' ');
 }

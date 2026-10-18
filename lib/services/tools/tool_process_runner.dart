@@ -7,13 +7,11 @@ import '../../features/app_log/app_logger.dart';
 import '../../utils/tools_path.dart';
 import '../../utils/log_entry_utils.dart';
 
-class ToolCommandResult {
-  const ToolCommandResult({
-    required this.exitCode,
-    required this.stdout,
-    required this.stderr,
-  });
-
+class const ToolCommandResult({
+  required final int exitCode,
+  required final String stdout,
+  required final String stderr,
+}) {
   factory ToolCommandResult.fromProcessResult(ProcessResult result) {
     return ToolCommandResult(
       exitCode: result.exitCode,
@@ -21,10 +19,6 @@ class ToolCommandResult {
       stderr: result.stderr is String ? result.stderr as String : '',
     );
   }
-
-  final int exitCode;
-  final String stdout;
-  final String stderr;
 
   bool get isSuccess => exitCode == 0;
 
@@ -38,20 +32,18 @@ class ToolCommandResult {
   }
 }
 
-class ToolStreamSession<T> {
-  ToolStreamSession({
-    required this.stream,
-    required Future<void> Function() onStop,
-  }) : _onStop = onStop;
-
-  final Stream<T> stream;
-  final Future<void> Function() _onStop;
-
+class ToolStreamSession<T>({
+  required final Stream<T> stream,
+  required final Future<void> Function() _onStop,
+}) {
   Future<void> stop() => _onStop();
 }
 
-abstract class ToolProcessRunner {
-  ToolProcessRunner({required this.executableName, String? executablePath})
+abstract class ToolProcessRunner({
+  required final String executableName,
+  String? executablePath,
+}) {
+  this
     : executable =
           executablePath ??
           resolveBundledExecutablePath(executableName) ??
@@ -59,7 +51,6 @@ abstract class ToolProcessRunner {
     logger = AppLogger(source: runtimeType.toString());
   }
 
-  final String executableName;
   final String executable;
 
   late final AppLogger logger;
@@ -75,12 +66,10 @@ abstract class ToolProcessRunner {
     );
     return ToolCommandResult(
       exitCode: result.exitCode,
-      stdout: Utf8Decoder(
-        allowMalformed: true,
-      ).convert(result.stdout as List<int>),
-      stderr: Utf8Decoder(
-        allowMalformed: true,
-      ).convert(result.stderr as List<int>),
+      stdout: Utf8Decoder(allowMalformed: true)
+          .convert(result.stdout as List<int>),
+      stderr: Utf8Decoder(allowMalformed: true)
+          .convert(result.stderr as List<int>),
     );
   }
 
@@ -127,10 +116,8 @@ abstract class ToolProcessRunner {
     // `avdmanager.bat`, an adb server spawned on first use) keeps them open
     // after the process itself is gone, so waiting for EOF is bounded too —
     // otherwise that one call never returns and the timeout means nothing.
-    await Future.wait([
-      stdoutDone.future,
-      stderrDone.future,
-    ]).timeout(_pipeDrainTimeout, onTimeout: () => const []);
+    await Future.wait([stdoutDone.future, stderrDone.future])
+        .timeout(_pipeDrainTimeout, onTimeout: () => const []);
     unawaited(stdoutSubscription.cancel());
     unawaited(stderrSubscription.cancel());
 

@@ -12,8 +12,9 @@ import '../services/device_session_repository.dart';
 import 'device_session_controller.dart';
 import 'workspace_layout.dart';
 
-typedef DeviceSessionServiceFactory =
-    DeviceSessionRepository Function(Device device);
+typedef DeviceSessionServiceFactory = DeviceSessionRepository Function(
+  Device device,
+);
 
 /// App-level coordinator. Listens to the [DevicesRepository] and maintains one
 /// [DeviceSessionController] per detected device, the tab order, and the
@@ -22,21 +23,20 @@ typedef DeviceSessionServiceFactory =
 /// Disconnected devices keep their session (so logs survive and the device can
 /// reconnect). Closing a disconnected tab dismisses it permanently until the
 /// device reconnects.
-class DeviceSessionManager extends ChangeNotifier {
-  DeviceSessionManager({
-    DevicesRepository? repository,
-    DeviceSessionServiceFactory? serviceFactory,
-    WorkspaceLayoutMemory? layoutMemory,
-  }) : _repository = repository ?? DevicesRepository.instance,
-       _serviceFactory = serviceFactory,
-       _layoutMemory = layoutMemory ?? WorkspaceLayoutMemory.persisted() {
+class DeviceSessionManager({
+  DevicesRepository? repository,
+  final DeviceSessionServiceFactory? _serviceFactory,
+  WorkspaceLayoutMemory? layoutMemory,
+}) extends ChangeNotifier {
+  this
+    : _repository = repository ?? DevicesRepository.instance,
+      _layoutMemory = layoutMemory ?? WorkspaceLayoutMemory.persisted() {
     _repository.addListener(_sync);
     unawaited(_repository.ensureStarted(refreshImmediately: true));
     _sync();
   }
 
   final DevicesRepository _repository;
-  final DeviceSessionServiceFactory? _serviceFactory;
 
   /// Where panes were last placed, shared by every device's workspace (and,
   /// by default, kept in preferences across launches).

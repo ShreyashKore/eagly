@@ -9,11 +9,10 @@ import '../../../utils/text_search_pattern.dart';
 import '../crash_report_controller.dart';
 import '../utils.dart';
 
-class CrashReportDetail extends StatefulWidget {
-  const CrashReportDetail({super.key, required this.controller});
-
-  final CrashReportController controller;
-
+class const CrashReportDetail({
+  super.key,
+  required final CrashReportController controller,
+}) extends StatefulWidget {
   @override
   State<CrashReportDetail> createState() => _CrashReportDetailState();
 }

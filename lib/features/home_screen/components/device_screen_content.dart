@@ -20,16 +20,11 @@ import 'workspace_view.dart';
 /// action, otherwise Home or the feature workspace — whichever of Logs,
 /// Mirror, Crash Reports, Files, Apps, Utilities and Terminal are open, in
 /// the arrangement the user gave them.
-class DeviceScreenContent extends StatelessWidget {
-  const DeviceScreenContent({
-    super.key,
-    required this.session,
-    required this.appMemoryBytesListenable,
-  });
-
-  final DeviceSessionController session;
-  final ValueListenable<int> appMemoryBytesListenable;
-
+class const DeviceScreenContent({
+  super.key,
+  required final DeviceSessionController session,
+  required final ValueListenable<int> appMemoryBytesListenable,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final guidance = _guidanceForDevice(session.device);
@@ -70,15 +65,10 @@ class DeviceScreenContent extends StatelessWidget {
   }
 }
 
-class _Workspace extends StatelessWidget {
-  const _Workspace({
-    required this.session,
-    required this.appMemoryBytesListenable,
-  });
-
-  final DeviceSessionController session;
-  final ValueListenable<int> appMemoryBytesListenable;
-
+class const _Workspace({
+  required final DeviceSessionController session,
+  required final ValueListenable<int> appMemoryBytesListenable,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Open panes are laid out however the user arranged them: side by side
@@ -146,8 +136,7 @@ Widget? _guidanceForDevice(Device device) {
       'locked' => const IosGuidance(
         icon: Icons.lock_outline,
         title: 'iPhone Locked',
-        message:
-            'Your iPhone is locked. Unlock it and trust this computer to continue.',
+        message: 'Your iPhone is locked. Unlock it and trust this computer to continue.',
         steps: [
           'Unlock your iPhone with Face ID, Touch ID, or passcode',
           'If prompted, tap "Trust" on the "Trust This Computer?" alert',

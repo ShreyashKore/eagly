@@ -16,16 +16,11 @@ import '../../../presentation/theme/app_theme.dart';
 ///
 /// Names read first: Size and Modified are secondary text, Permissions —
 /// rarely what anyone came for — tertiary.
-class FileListView extends StatelessWidget {
-  const FileListView({
-    super.key,
-    required this.controller,
-    required this.actions,
-  });
-
-  final FileManagerController controller;
-  final FileManagerActions actions;
-
+class const FileListView({
+  super.key,
+  required final FileManagerController controller,
+  required final FileManagerActions actions,
+}) extends StatelessWidget {
   static const double _sizeWidth = 84;
   static const double _modifiedWidth = 132;
   static const double _permsWidth = 104;
@@ -146,19 +141,12 @@ class FileListView extends StatelessWidget {
   }
 }
 
-class _FileRow extends StatelessWidget {
-  const _FileRow({
-    required this.controller,
-    required this.entry,
-    required this.actions,
-    required this.columns,
-  });
-
-  final FileManagerController controller;
-  final DeviceFileEntry entry;
-  final FileManagerActions actions;
-  final _FileColumns columns;
-
+class const _FileRow({
+  required final FileManagerController controller,
+  required final DeviceFileEntry entry,
+  required final FileManagerActions actions,
+  required final _FileColumns columns,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -252,13 +240,11 @@ class _FileRow extends StatelessWidget {
 /// Which trailing columns fit beside a Name column of at least
 /// [FileListView._minNameWidth]. They drop from the right: Permissions, then
 /// Modified, then Size.
-class _FileColumns {
-  const _FileColumns({
-    required this.size,
-    required this.modified,
-    required this.perms,
-  });
-
+class const _FileColumns({
+  required final bool size,
+  required final bool modified,
+  required final bool perms,
+}) {
   factory _FileColumns.fitting(double width) {
     var used = FileListView._minNameWidth + FileListView._sizeWidth;
     final size = width >= used;
@@ -268,8 +254,4 @@ class _FileColumns {
     final perms = width >= used;
     return _FileColumns(size: size, modified: modified, perms: perms);
   }
-
-  final bool size;
-  final bool modified;
-  final bool perms;
 }

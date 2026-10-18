@@ -1,9 +1,8 @@
 import '../data/wireless_debug_models.dart';
 import '../../../services/tools/adb_tool.dart';
 
-class WirelessConnectionService {
-  WirelessConnectionService({String? adbPath, AdbTool? adbTool})
-    : _adbTool = adbTool ?? AdbTool(executablePath: adbPath);
+class WirelessConnectionService({String? adbPath, AdbTool? adbTool}) {
+  this : _adbTool = adbTool ?? AdbTool(executablePath: adbPath);
 
   final AdbTool _adbTool;
 

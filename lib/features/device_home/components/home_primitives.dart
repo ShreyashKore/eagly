@@ -15,22 +15,14 @@ import '../../../presentation/theme/app_theme.dart';
 
 /// A dashboard card: small icon + title header, optional [trailing] action,
 /// then [child]. Padding is deliberately tight — this screen packs a lot.
-class SectionCard extends StatelessWidget {
-  const SectionCard({
-    super.key,
-    required this.title,
-    required this.icon,
-    required this.child,
-    this.trailing,
-    this.padding = const EdgeInsets.fromLTRB(14, 12, 14, 14),
-  });
-
-  final String title;
-  final IconData icon;
-  final Widget child;
-  final Widget? trailing;
-  final EdgeInsets padding;
-
+class const SectionCard({
+  super.key,
+  required final String title,
+  required final IconData icon,
+  required final Widget child,
+  final Widget? trailing,
+  final EdgeInsets padding = const EdgeInsets.fromLTRB(14, 12, 14, 14),
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -71,34 +63,29 @@ class SectionCard extends StatelessWidget {
 
 /// One label/value pair rendered stacked — label above, value below — which
 /// packs far denser than a two-column row at desktop widths.
-class SpecItem {
-  const SpecItem(
-    this.label,
-    this.value, {
-    bool copyable = false,
-    this.copyValue,
-    this.mono,
-  }) : copyable = copyable || copyValue != null;
-
-  final String label;
-  final String value;
-  final bool copyable;
+class const SpecItem(
+  final String label,
+  final String value, {
+  bool copyable = false,
 
   /// What the copy button puts on the clipboard when it differs from the
   /// [value] shown — the real id behind a record-mode stand-in.
-  final String? copyValue;
+  final String? copyValue,
 
   /// Defaults to [copyable] (ids/serials read better in monospace).
-  final bool? mono;
+  final bool? mono,
+}) {
+  this : copyable = copyable || copyValue != null;
+
+  final bool copyable;
 }
 
 /// Lays [items] out in as many columns as the available width allows.
-class SpecGrid extends StatelessWidget {
-  const SpecGrid({super.key, required this.items, this.minColumnWidth = 132});
-
-  final List<SpecItem> items;
-  final double minColumnWidth;
-
+class const SpecGrid({
+  super.key,
+  required final List<SpecItem> items,
+  final double minColumnWidth = 132,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) return const SizedBox.shrink();
@@ -127,11 +114,7 @@ class SpecGrid extends StatelessWidget {
   }
 }
 
-class _SpecTile extends StatelessWidget {
-  const _SpecTile({required this.item});
-
-  final SpecItem item;
-
+class const _SpecTile({required final SpecItem item}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -174,11 +157,8 @@ class _SpecTile extends StatelessWidget {
 }
 
 /// Keyboard accelerator hint rendered as a small key cap.
-class KeyCap extends StatelessWidget {
-  const KeyCap({super.key, required this.label});
-
-  final String label;
-
+class const KeyCap({super.key, required final String label})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -218,12 +198,11 @@ String formatClockTime(DateTime time) {
 }
 
 /// Compact copy-to-clipboard affordance used next to ids and serials.
-class CopyButton extends StatelessWidget {
-  const CopyButton({super.key, required this.value, required this.label});
-
-  final String value;
-  final String label;
-
+class const CopyButton({
+  super.key,
+  required final String value,
+  required final String label,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -266,24 +245,15 @@ extension StatusToneColor on StatusTone {
 
 /// Small pill: tinted dot (or icon) + text. The workhorse for the metadata
 /// strip in the hero card and the readiness chips.
-class StatusPill extends StatelessWidget {
-  const StatusPill({
-    super.key,
-    required this.label,
-    this.tone = StatusTone.neutral,
-    this.icon,
-    this.showDot = false,
-    this.mono = false,
-    this.trailing,
-  });
-
-  final String label;
-  final StatusTone tone;
-  final IconData? icon;
-  final bool showDot;
-  final bool mono;
-  final Widget? trailing;
-
+class const StatusPill({
+  super.key,
+  required final String label,
+  final StatusTone tone = StatusTone.neutral,
+  final IconData? icon,
+  final bool showDot = false,
+  final bool mono = false,
+  final Widget? trailing,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -333,11 +303,7 @@ class StatusPill extends StatelessWidget {
   }
 }
 
-class _Dot extends StatelessWidget {
-  const _Dot({required this.color});
-
-  final Color color;
-
+class const _Dot({required final Color color}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -356,18 +322,12 @@ class _Dot extends StatelessWidget {
 
 /// On/off capability tile (Wi-Fi, Bluetooth, …) — an icon that reads at a
 /// glance instead of a "Wi-Fi: On" text row.
-class ToggleTile extends StatelessWidget {
-  const ToggleTile({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.enabled,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool enabled;
-
+class const ToggleTile({
+  super.key,
+  required final IconData icon,
+  required final String label,
+  required final bool enabled,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -422,23 +382,16 @@ class ToggleTile extends StatelessWidget {
 // ── Gauges & charts ──────────────────────────────────────────────────────
 
 /// Animated 270° arc gauge with a value in the middle.
-class MetricGauge extends StatelessWidget {
-  const MetricGauge({
-    super.key,
-    required this.value,
-    required this.color,
-    this.size = 68,
-    this.stroke = 6,
-    this.center,
-  });
+class const MetricGauge({
+  super.key,
 
   /// 0..1; `null` renders an empty track (data unavailable).
-  final double? value;
-  final Color color;
-  final double size;
-  final double stroke;
-  final Widget? center;
-
+  required final double? value,
+  required final Color color,
+  final double size = 68,
+  final double stroke = 6,
+  final Widget? center,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -465,19 +418,12 @@ class MetricGauge extends StatelessWidget {
   }
 }
 
-class _GaugePainter extends CustomPainter {
-  _GaugePainter({
-    required this.value,
-    required this.color,
-    required this.track,
-    required this.stroke,
-  });
-
-  final double value;
-  final Color color;
-  final Color track;
-  final double stroke;
-
+class _GaugePainter({
+  required final double value,
+  required final Color color,
+  required final Color track,
+  required final double stroke,
+}) extends CustomPainter {
   static const _startAngle = math.pi * 0.75;
   static const _sweep = math.pi * 1.5;
 
@@ -512,18 +458,12 @@ class _GaugePainter extends CustomPainter {
 }
 
 /// Tiny filled line chart of recent samples (0..1 each).
-class Sparkline extends StatelessWidget {
-  const Sparkline({
-    super.key,
-    required this.samples,
-    required this.color,
-    this.height = 26,
-  });
-
-  final List<double> samples;
-  final Color color;
-  final double height;
-
+class const Sparkline({
+  super.key,
+  required final List<double> samples,
+  required final Color color,
+  final double height = 26,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -536,12 +476,10 @@ class Sparkline extends StatelessWidget {
   }
 }
 
-class _SparklinePainter extends CustomPainter {
-  _SparklinePainter({required this.samples, required this.color});
-
-  final List<double> samples;
-  final Color color;
-
+class _SparklinePainter({
+  required final List<double> samples,
+  required final Color color,
+}) extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (samples.length < 2) return;
@@ -589,18 +527,12 @@ class _SparklinePainter extends CustomPainter {
 }
 
 /// Horizontal usage bar with a label row above it.
-class MeterBar extends StatelessWidget {
-  const MeterBar({
-    super.key,
-    required this.value,
-    required this.color,
-    this.height = 6,
-  });
-
-  final double value;
-  final Color color;
-  final double height;
-
+class const MeterBar({
+  super.key,
+  required final double value,
+  required final Color color,
+  final double height = 6,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

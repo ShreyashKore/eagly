@@ -13,24 +13,16 @@ import '../data/utility_command.dart';
 /// Color is kept for what needs a second look: a destructive command's icon
 /// and chip. Everything else is neutral and steps down in emphasis — label,
 /// then description, then the chip, which comes up to full strength on hover.
-class UtilityTile extends StatefulWidget {
-  const UtilityTile({
-    super.key,
-    required this.command,
-    required this.preview,
-    required this.isRunning,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final UtilityCommand command;
+class const UtilityTile({
+  super.key,
+  required final UtilityCommand command,
 
   /// The command line this tile would run, shown as a tooltip.
-  final String? preview;
-  final bool isRunning;
-  final bool enabled;
-  final VoidCallback onTap;
-
+  required final String? preview,
+  required final bool isRunning,
+  required final bool enabled,
+  required final VoidCallback onTap,
+}) extends StatefulWidget {
   @override
   State<UtilityTile> createState() => _UtilityTileState();
 }
@@ -111,17 +103,11 @@ class _UtilityTileState extends State<UtilityTile> {
   }
 }
 
-class _IconBadge extends StatelessWidget {
-  const _IconBadge({
-    required this.icon,
-    required this.color,
-    required this.isRunning,
-  });
-
-  final IconData icon;
-  final Color color;
-  final bool isRunning;
-
+class const _IconBadge({
+  required final IconData icon,
+  required final Color color,
+  required final bool isRunning,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -148,12 +134,10 @@ class _IconBadge extends StatelessWidget {
 /// Says what the click does. Three states, in priority order: a destructive
 /// command warns, a parameterised one promises a dialog, everything else runs
 /// immediately.
-class _ActionChip extends StatelessWidget {
-  const _ActionChip({required this.command, required this.highlighted});
-
-  final UtilityCommand command;
-  final bool highlighted;
-
+class const _ActionChip({
+  required final UtilityCommand command,
+  required final bool highlighted,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

@@ -1,16 +1,11 @@
 import 'package:flutter/material.dart';
 
 /// Titled card wrapping one settings section's rows, separated by dividers.
-class SettingsSectionCard extends StatelessWidget {
-  const SettingsSectionCard({
-    super.key,
-    required this.title,
-    required this.children,
-  });
-
-  final String title;
-  final List<Widget> children;
-
+class const SettingsSectionCard({
+  super.key,
+  required final String title,
+  required final List<Widget> children,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

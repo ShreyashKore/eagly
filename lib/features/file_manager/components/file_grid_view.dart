@@ -8,16 +8,11 @@ import '../../../presentation/theme/app_theme.dart';
 
 /// Icon-grid view: a large icon, name and size per entry. Single tap selects,
 /// double tap opens a directory, right-click shows the context menu.
-class FileGridView extends StatelessWidget {
-  const FileGridView({
-    super.key,
-    required this.controller,
-    required this.actions,
-  });
-
-  final FileManagerController controller;
-  final FileManagerActions actions;
-
+class const FileGridView({
+  super.key,
+  required final FileManagerController controller,
+  required final FileManagerActions actions,
+}) extends StatelessWidget {
   static const double _iconSize = 40;
   static const EdgeInsets _tilePadding = EdgeInsets.symmetric(
     horizontal: 8,
@@ -76,17 +71,11 @@ class FileGridView extends StatelessWidget {
       ?.copyWith(color: theme.extension<EaglyTheme>()!.tertiaryTextColor);
 }
 
-class _GridTile extends StatelessWidget {
-  const _GridTile({
-    required this.controller,
-    required this.entry,
-    required this.actions,
-  });
-
-  final FileManagerController controller;
-  final DeviceFileEntry entry;
-  final FileManagerActions actions;
-
+class const _GridTile({
+  required final FileManagerController controller,
+  required final DeviceFileEntry entry,
+  required final FileManagerActions actions,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

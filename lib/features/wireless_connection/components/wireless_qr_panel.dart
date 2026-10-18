@@ -11,29 +11,22 @@ import '../../../presentation/theme/app_theme.dart';
 /// The code is always on screen — it is generated locally, so there is nothing
 /// to wait for and no generate button. The troubleshooting note stays hidden
 /// until scanning has visibly taken a while.
-class WirelessQrPanel extends StatelessWidget {
-  const WirelessQrPanel({
-    super.key,
-    required this.payload,
-    required this.waiting,
-    required this.pairing,
-    required this.onRegenerate,
-    this.hintDelay = const Duration(seconds: 12),
-  });
+class const WirelessQrPanel({
+  super.key,
 
   /// QR payload from the active pairing session.
-  final String? payload;
+  required final String? payload,
 
   /// Whether the app is watching for this code to be scanned.
-  final bool waiting;
+  required final bool waiting,
 
   /// Whether a scanned code is being paired/connected right now.
-  final bool pairing;
-  final VoidCallback onRegenerate;
+  required final bool pairing,
+  required final VoidCallback onRegenerate,
 
   /// How long to wait before offering the troubleshooting note.
-  final Duration hintDelay;
-
+  final Duration hintDelay = const Duration(seconds: 12),
+}) extends StatelessWidget {
   static const double _qrSize = 156;
 
   @override
@@ -104,11 +97,7 @@ class WirelessQrPanel extends StatelessWidget {
   }
 }
 
-class _QrCode extends StatelessWidget {
-  const _QrCode({required this.payload});
-
-  final String? payload;
-
+class const _QrCode({required final String? payload}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -132,12 +121,10 @@ class _QrCode extends StatelessWidget {
   }
 }
 
-class _StatusLine extends StatelessWidget {
-  const _StatusLine({required this.waiting, required this.pairing});
-
-  final bool waiting;
-  final bool pairing;
-
+class const _StatusLine({
+  required final bool waiting,
+  required final bool pairing,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

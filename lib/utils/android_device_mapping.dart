@@ -23,12 +23,14 @@ const _downloadTimeout = Duration(seconds: 30);
 
 /// Marketing names for Android devices ("Galaxy S23" for `SM-S911B`), built
 /// from Google Play's supported-devices list.
-class AndroidDeviceCatalog {
-  AndroidDeviceCatalog._(this._byDeviceAndModel, this._byModel, this._byDevice);
-
+class AndroidDeviceCatalog._(
+  final Map<String, List<_CatalogEntry>> _byDeviceAndModel,
+  final Map<String, List<_CatalogEntry>> _byModel,
+  final Map<String, List<_CatalogEntry>> _byDevice,
+) {
   /// Parses the supported-devices CSV, decoded to a string. Rows without a
   /// marketing name are dropped — they have nothing to offer.
-  factory AndroidDeviceCatalog.parse(String csv) {
+  factory parse(String csv) {
     final byDeviceAndModel = <String, List<_CatalogEntry>>{};
     final byModel = <String, List<_CatalogEntry>>{};
     final byDevice = <String, List<_CatalogEntry>>{};
@@ -56,10 +58,6 @@ class AndroidDeviceCatalog {
     }
     return AndroidDeviceCatalog._(byDeviceAndModel, byModel, byDevice);
   }
-
-  final Map<String, List<_CatalogEntry>> _byDeviceAndModel;
-  final Map<String, List<_CatalogEntry>> _byModel;
-  final Map<String, List<_CatalogEntry>> _byDevice;
 
   bool get isEmpty => _byModel.isEmpty && _byDevice.isEmpty;
 
@@ -168,13 +166,11 @@ class AndroidDeviceCatalog {
   }
 }
 
-class _CatalogEntry {
-  const _CatalogEntry({required this.branding, required this.marketingName});
-
+class const _CatalogEntry({
   /// Lower-cased "Retail Branding", compared against `ro.product.brand`.
-  final String branding;
-  final String marketingName;
-}
+  required final String branding,
+  required final String marketingName,
+});
 
 /// Loads [AndroidDeviceCatalog] and answers lookups against it.
 ///
@@ -186,16 +182,15 @@ class _CatalogEntry {
 /// look again. A failed download is retried every
 /// [retryDelay]. A cached copy past [_cacheMaxAge] keeps answering while a
 /// fresh one downloads.
-class AndroidMarketingNames extends ChangeNotifier {
-  AndroidMarketingNames._(this._url, this._cacheDirectory);
-
+class AndroidMarketingNames._(
+  final Uri _url,
+  final Future<Directory> Function() _cacheDirectory,
+) extends ChangeNotifier {
   /// Loads from [url] and caches in [cacheDirectory] instead of Google Play
   /// and the app support directory.
   @visibleForTesting
-  AndroidMarketingNames.forTesting({
-    required Uri url,
-    required Directory cacheDirectory,
-  }) : this._(url, () async => cacheDirectory);
+  new forTesting({required Uri url, required Directory cacheDirectory})
+    : this._(url, () async => cacheDirectory);
 
   static final AndroidMarketingNames instance = AndroidMarketingNames._(
     Uri.parse(_supportedDevicesUrl),
@@ -207,9 +202,6 @@ class AndroidMarketingNames extends ChangeNotifier {
   /// while offline still gets its name once the network is back.
   @visibleForTesting
   static Duration retryDelay = const Duration(minutes: 10);
-
-  final Uri _url;
-  final Future<Directory> Function() _cacheDirectory;
 
   AndroidDeviceCatalog? _catalog;
   Future<void>? _diskLoad;

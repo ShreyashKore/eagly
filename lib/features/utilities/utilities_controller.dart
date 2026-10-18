@@ -10,9 +10,7 @@ import 'data/utility_command.dart';
 /// The controller knows nothing about individual commands — a command carries
 /// its own parameters, confirmation text and per-platform builder — so growing
 /// the catalog never touches this class.
-class UtilitiesController extends FeatureController {
-  UtilitiesController(super.session);
-
+class UtilitiesController(super.session) extends FeatureController {
   /// How long a single utility may run before it is killed. `dumpsys package`
   /// on a big app and `monkey` runs are the slow end of the range.
   static const Duration commandTimeout = Duration(seconds: 45);

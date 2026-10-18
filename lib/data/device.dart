@@ -2,23 +2,14 @@ enum DevicePlatform { android, ios }
 
 enum DeviceConnectionState { connected, disconnected }
 
-sealed class Device {
-  final String id;
-  final String status;
-  final String? brand;
-  final String? model;
-  final String? name;
-  final DeviceConnectionState connectionState;
-
-  const Device._(
-    this.id,
-    this.status, {
-    this.brand,
-    this.model,
-    this.name,
-    this.connectionState = DeviceConnectionState.connected,
-  });
-
+sealed class const Device._(
+  final String id,
+  final String status, {
+  final String? brand,
+  final String? model,
+  final String? name,
+  final DeviceConnectionState connectionState = DeviceConnectionState.connected,
+}) {
   static const String _statusOnline = 'device';
 
   factory Device(
@@ -156,26 +147,24 @@ sealed class Device {
       Object.hash(id, status, brand, model, name, platform, connectionState);
 }
 
-final class AndroidDevice extends Device {
-  const AndroidDevice(
-    super.id,
-    super.status, {
-    super.brand,
-    super.model,
-    super.name,
-    super.connectionState,
-    this.serialNumber,
-    this.marketName,
-  }) : super._();
+final class const AndroidDevice(
+  super.id,
+  super.status, {
+  super.brand,
+  super.model,
+  super.name,
+  super.connectionState,
 
   /// Underlying device serial number, populated when available (e.g. from
   /// `adb shell getprop ro.serialno`). Used internally for deduplication.
-  final String? serialNumber;
+  final String? serialNumber,
 
   /// The marketing name the device reports for itself
   /// (`ro.product.marketname`), when it sets one. [model] stays the raw
   /// `ro.product.model`; `DevicesRepository` decides which one is shown.
-  final String? marketName;
+  final String? marketName,
+}) extends Device {
+  this : super._();
 
   @override
   DevicePlatform get platform => DevicePlatform.android;
@@ -308,15 +297,15 @@ final class AndroidDevice extends Device {
   }
 }
 
-final class IosDevice extends Device {
-  const IosDevice(
-    super.id,
-    super.status, {
-    super.brand,
-    super.model,
-    super.name,
-    super.connectionState,
-  }) : super._();
+final class const IosDevice(
+  super.id,
+  super.status, {
+  super.brand,
+  super.model,
+  super.name,
+  super.connectionState,
+}) extends Device {
+  this : super._();
 
   @override
   DevicePlatform get platform => DevicePlatform.ios;

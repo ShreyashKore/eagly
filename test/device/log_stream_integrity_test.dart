@@ -176,8 +176,8 @@ List<String> _flatten(List<LogEntry> entries) => [
           '${entry.tag}|${entry.processName}|$line',
 ];
 
-class _TeeAdbTool extends AdbTool {
-  _TeeAdbTool(String path) : super(executablePath: path);
+class _TeeAdbTool(String path) extends AdbTool {
+  this : super(executablePath: path);
 
   final raw = <String>[];
 
@@ -189,8 +189,8 @@ class _TeeAdbTool extends AdbTool {
       });
 }
 
-class _TeeSyslogTool extends IdeviceSyslogTool {
-  _TeeSyslogTool(String path) : super(executablePath: path);
+class _TeeSyslogTool(String path) extends IdeviceSyslogTool {
+  this : super(executablePath: path);
 
   final raw = <String>[];
 

@@ -8,48 +8,27 @@ import '../../../../utils/text_search_pattern.dart';
 import '../log_viewer_constants.dart';
 import 'log_viewer.dart';
 
-class LogRow extends StatelessWidget {
-  final LogEntry log;
-  final int index;
-  final double messageWidth;
-  final bool isSelected;
-  final double Function(LogColumn) widthOf;
-  final bool Function(LogColumn) isVisible;
-  final LogColumn? lastVisibleColumn;
-  final TextSearchConfig search;
-  final int? currentMatchLogIndex;
-  final bool wrapText;
-  final TextStyle monoStyle;
-  final bool wholeRowSelectionEnabled;
-  final bool allowSelectionStart;
-  final VoidCallback? onRowSelectionChanged;
-  final ValueChanged<PointerDownEvent>? onSelectionPointerDown;
-  final ValueChanged<PointerMoveEvent>? onSelectionPointerMove;
-  final ValueChanged<Offset>? onRowContextMenuRequested;
-  final String Function(LogColumn) contentValueForColumn;
-
-  const LogRow({
-    super.key,
-    required this.log,
-    required this.index,
-    required this.messageWidth,
-    required this.isSelected,
-    required this.widthOf,
-    required this.isVisible,
-    required this.lastVisibleColumn,
-    required this.search,
-    required this.currentMatchLogIndex,
-    required this.wrapText,
-    required this.monoStyle,
-    required this.wholeRowSelectionEnabled,
-    required this.allowSelectionStart,
-    this.onRowSelectionChanged,
-    this.onSelectionPointerDown,
-    this.onSelectionPointerMove,
-    this.onRowContextMenuRequested,
-    required this.contentValueForColumn,
-  });
-
+class const LogRow({
+  super.key,
+  required final LogEntry log,
+  required final int index,
+  required final double messageWidth,
+  required final bool isSelected,
+  required final double Function(LogColumn) widthOf,
+  required final bool Function(LogColumn) isVisible,
+  required final LogColumn? lastVisibleColumn,
+  required final TextSearchConfig search,
+  required final int? currentMatchLogIndex,
+  required final bool wrapText,
+  required final TextStyle monoStyle,
+  required final bool wholeRowSelectionEnabled,
+  required final bool allowSelectionStart,
+  final VoidCallback? onRowSelectionChanged,
+  final ValueChanged<PointerDownEvent>? onSelectionPointerDown,
+  final ValueChanged<PointerMoveEvent>? onSelectionPointerMove,
+  final ValueChanged<Offset>? onRowContextMenuRequested,
+  required final String Function(LogColumn) contentValueForColumn,
+}) extends StatelessWidget {
   Color _specialAccentColor(BuildContext context) {
     final theme = context.eaglyTheme;
     return switch (log.type) {
@@ -422,9 +401,8 @@ class LogRow extends StatelessWidget {
         .toList();
 
     final isCurrentMatch = currentMatchLogIndex == index;
-    final selectedRowColor = Theme.of(
-      context,
-    ).colorScheme.primary.withValues(alpha: 0.10);
+    final selectedRowColor = Theme.of(context).colorScheme.primary
+        .withValues(alpha: 0.10);
 
     final Color? highlightColor = search.query.isEmpty
         ? null

@@ -16,16 +16,11 @@ enum ScreenMirrorState { stopped, starting, running, unsupported, error }
 
 /// Encoder quality presets for the screen mirror. Higher quality streams more
 /// pixels/bits, which increases latency.
-enum MirrorQuality {
+enum MirrorQuality(final String label, final String description) {
   fastest('Fastest', 'Lowest quality, lowest latency'),
   fast('Fast', 'Lower quality, lower latency'),
   normal('Normal', 'Balanced quality and latency'),
   high('High', 'Best quality, higher latency');
-
-  const MirrorQuality(this.label, this.description);
-
-  final String label;
-  final String description;
 
   ScrcpyVideoOptions toOptions() => switch (this) {
     MirrorQuality.fastest => const ScrcpyVideoOptions(
@@ -58,9 +53,7 @@ enum MirrorQuality {
 /// Per-device screen-mirroring feature. Owns the live scrcpy session, encoder
 /// quality, on-device recording, and pane width. Pane *visibility* lives on the
 /// owning [DeviceSessionController]; this controller only manages the session.
-class MirrorController extends FeatureController {
-  MirrorController(super.session);
-
+class MirrorController(super.session) extends FeatureController {
   var screenMirrorState = ScreenMirrorState.stopped;
   String? screenMirrorError;
   MirrorQuality mirrorQuality = MirrorQuality.normal;

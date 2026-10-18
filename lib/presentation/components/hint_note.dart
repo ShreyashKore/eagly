@@ -7,20 +7,14 @@ import '../theme/app_theme.dart';
 ///
 /// Pair it with `DelayedReveal` when the hint should only appear once an
 /// operation has visibly taken longer than expected.
-class HintNote extends StatelessWidget {
-  const HintNote({
-    super.key,
-    required this.text,
-    this.title,
-    this.icon = Icons.lightbulb_outline,
-  });
-
-  final String text;
+class const HintNote({
+  super.key,
+  required final String text,
 
   /// Optional emphasized first line.
-  final String? title;
-  final IconData icon;
-
+  final String? title,
+  final IconData icon = Icons.lightbulb_outline,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

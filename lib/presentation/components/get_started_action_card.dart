@@ -1,23 +1,14 @@
 import 'package:flutter/material.dart';
 
-class GetStartedActionCard extends StatelessWidget {
-  const GetStartedActionCard({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.secondaryActions = const [],
-    this.children = const [],
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final List<Widget> secondaryActions;
-  final List<Widget> children;
-
+class const GetStartedActionCard({
+  super.key,
+  required final IconData icon,
+  required final String title,
+  required final String subtitle,
+  required final VoidCallback onTap,
+  final List<Widget> secondaryActions = const [],
+  final List<Widget> children = const [],
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

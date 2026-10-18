@@ -1,20 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+
 import '../../../presentation/theme/app_theme.dart';
 
 /// Single `label: value` info row with a leading icon.
-class WirelessDetailRow extends StatelessWidget {
-  const WirelessDetailRow({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
+class const WirelessDetailRow({
+  super.key,
+  required final IconData icon,
+  required final String label,
+  required final String value,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

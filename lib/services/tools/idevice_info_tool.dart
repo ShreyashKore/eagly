@@ -4,9 +4,8 @@ import '../../data/ios_device_info.dart';
 import '../ios/ios_device_domains.dart';
 import 'tool_process_runner.dart';
 
-class IdeviceInfoTool extends ToolProcessRunner {
-  IdeviceInfoTool({super.executablePath})
-    : super(executableName: 'ideviceinfo');
+class IdeviceInfoTool({super.executablePath}) extends ToolProcessRunner {
+  this : super(executableName: 'ideviceinfo');
 
   Future<IosDeviceInfo> readDeviceInfo(String deviceId) async {
     try {

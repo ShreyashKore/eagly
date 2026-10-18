@@ -5,13 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// A runner over `/bin/sleep`, so a spawned child stays alive until something
 /// kills it.
-class _SleepRunner extends ToolProcessRunner {
-  _SleepRunner() : super(executableName: 'sleep', executablePath: '/bin/sleep');
+class _SleepRunner() extends ToolProcessRunner {
+  this : super(executableName: 'sleep', executablePath: '/bin/sleep');
 }
 
 /// A runner over `/bin/sh`, for children that spawn children of their own.
-class _ShellRunner extends ToolProcessRunner {
-  _ShellRunner() : super(executableName: 'sh', executablePath: '/bin/sh');
+class _ShellRunner() extends ToolProcessRunner {
+  this : super(executableName: 'sh', executablePath: '/bin/sh');
 }
 
 void main() {

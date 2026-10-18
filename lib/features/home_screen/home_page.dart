@@ -27,9 +27,7 @@ import '../../app_menu/app_platform_menu_bar.dart';
 import 'device_screen.dart';
 import 'home_view.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
-
+class const HomeScreen({super.key}) extends StatefulWidget {
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }

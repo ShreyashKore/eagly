@@ -9,81 +9,50 @@ import 'dart:typed_data';
 /// [data] is raw Annex-B (start-code prefixed NAL units). The first packet of
 /// a stream is a [isConfig] packet carrying SPS + PPS; subsequent [isKeyFrame]
 /// packets are IDR frames and the rest are non-key slices.
-class ScrcpyPacket {
-  const ScrcpyPacket({
-    required this.isConfig,
-    required this.isKeyFrame,
-    required this.ptsMicros,
-    required this.data,
-  });
-
-  final bool isConfig;
-  final bool isKeyFrame;
+class const ScrcpyPacket({
+  required final bool isConfig,
+  required final bool isKeyFrame,
 
   /// Presentation timestamp in microseconds (0 for config packets).
-  final int ptsMicros;
+  required final int ptsMicros,
 
   /// Annex-B encoded payload.
-  final Uint8List data;
-}
+  required final Uint8List data,
+});
 
 /// Options controlling how scrcpy-server encodes the video stream.
-class ScrcpyVideoOptions {
-  const ScrcpyVideoOptions({
-    this.codec = 'h264',
-    this.maxSize,
-    this.maxFps,
-    this.videoBitRate,
-    this.control = false,
-    this.logLevel = 'info',
-  });
-
-  final String codec;
-  final int? maxSize;
-  final int? maxFps;
-  final int? videoBitRate;
-  final bool control;
-  final String logLevel;
-}
+class const ScrcpyVideoOptions({
+  final String codec = 'h264',
+  final int? maxSize,
+  final int? maxFps,
+  final int? videoBitRate,
+  final bool control = false,
+  final String logLevel = 'info',
+});
 
 /// An active scrcpy video session: the parsed handshake metadata plus a stream
 /// of [ScrcpyPacket]s. Call [stop] to tear everything down.
-class ScrcpyStream {
-  ScrcpyStream({
-    required this.deviceName,
-    required this.codecId,
-    required this.width,
-    required this.height,
-    required this.packets,
-    required this.control,
-    required Future<int> serverExitCode,
-    required Future<void> Function() onStop,
-  }) : _serverExitCode = serverExitCode,
-       _onStop = onStop;
-
-  final String deviceName;
-  final String codecId;
-
-  /// Control channel for injecting input, or null if control was disabled.
-  final ScrcpyControl? control;
+class ScrcpyStream({
+  required final String deviceName,
+  required final String codecId,
 
   /// Dimensions reported in the video header. These are best-effort; the
   /// authoritative size comes from the SPS in the first config packet.
-  final int width;
-  final int height;
+  required final int width,
+  required final int height,
+  required final Stream<ScrcpyPacket> packets,
 
-  final Stream<ScrcpyPacket> packets;
-  final Future<int> _serverExitCode;
-  final Future<void> Function() _onStop;
-
+  /// Control channel for injecting input, or null if control was disabled.
+  required final ScrcpyControl? control,
+  required final Future<int> _serverExitCode,
+  required final Future<void> Function() _onStop,
+}) {
   Future<int> get serverExitCode => _serverExitCode;
 
   Future<void> stop() => _onStop();
 }
 
-class ScrcpyClientException implements Exception {
-  const ScrcpyClientException(this.message);
-  final String message;
+class const ScrcpyClientException(final String message) implements Exception {
   @override
   String toString() => 'ScrcpyClientException: $message';
 }
@@ -95,8 +64,8 @@ enum ScrcpyKey { back, home, appSwitch, power, volumeUp, volumeDown }
 
 /// Encodes and sends scrcpy control messages on the control socket, and
 /// parses incoming device→client messages (currently just clipboard sync).
-class ScrcpyControl {
-  ScrcpyControl(this._socket) {
+class ScrcpyControl(final Socket _socket) {
+  this {
     _subscription = _socket.listen(
       _onData,
       onError: (_) {},
@@ -104,7 +73,6 @@ class ScrcpyControl {
     );
   }
 
-  final Socket _socket;
   late final StreamSubscription<Uint8List> _subscription;
 
   final _clipboardController = StreamController<String>.broadcast();
@@ -351,13 +319,14 @@ class ScrcpyControl {
 /// This deliberately bypasses the `scrcpy` desktop binary (which muxes into a
 /// container and renders in its own SDL window). We want the raw encoded
 /// frames so a native decoder can render them into a Flutter texture.
-class ScrcpyClient {
-  ScrcpyClient({
-    String adbExecutablePath = 'adb',
-    required String serverJarPath,
-    this.onLog,
-  }) : _adb = adbExecutablePath,
-       _serverJar = serverJarPath;
+class ScrcpyClient({
+  String adbExecutablePath = 'adb',
+  required String serverJarPath,
+
+  /// Optional sink for diagnostic + server log lines.
+  final void Function(String message)? onLog,
+}) {
+  this : _adb = adbExecutablePath, _serverJar = serverJarPath;
 
   /// Path to the `adb` executable. Defaults to `adb` on the host PATH; pass an
   /// absolute path to use a bundled adb instead.
@@ -366,9 +335,6 @@ class ScrcpyClient {
   /// Host-side path to the `scrcpy-server` jar to deploy to the device. The
   /// bundled jar must match [serverVersion] exactly.
   final String _serverJar;
-
-  /// Optional sink for diagnostic + server log lines.
-  final void Function(String message)? onLog;
 
   /// Must match the bundled `scrcpy-server` version exactly or the server
   /// aborts with a version-mismatch error.
@@ -793,16 +759,15 @@ class ScrcpyClient {
   }
 }
 
-class _FirstPacket {
-  const _FirstPacket({required this.dimensions, required this.firstPacket});
-  final (int, int) dimensions;
-  final ScrcpyPacket firstPacket;
-}
+class const _FirstPacket({
+  required final (int, int) dimensions,
+  required final ScrcpyPacket firstPacket,
+});
 
 /// Pull-based reader that yields exactly N bytes from a byte stream, buffering
 /// chunks and completing reads as data arrives.
-class _ByteReader {
-  _ByteReader(Stream<Uint8List> source) {
+class _ByteReader(Stream<Uint8List> source) {
+  this {
     _sub = source.listen(
       _onData,
       onError: _onError,

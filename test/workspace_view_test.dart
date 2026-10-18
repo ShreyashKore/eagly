@@ -556,12 +556,10 @@ DeviceSessionController _androidSession({bool connected = true}) {
 
 /// A stand-in pane: the standard header (so it has a grip and a draggable
 /// title) over a text field whose contents show whether state survived.
-class _TestPane extends StatelessWidget {
-  const _TestPane({required this.pane, required this.onClose});
-
-  final WorkspacePane pane;
-  final VoidCallback onClose;
-
+class const _TestPane({
+  required final WorkspacePane pane,
+  required final VoidCallback onClose,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) => FeaturePane(
     key: ValueKey('pane.${pane.id}'),

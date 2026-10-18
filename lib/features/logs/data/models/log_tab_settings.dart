@@ -1,22 +1,13 @@
 import 'log_level.dart';
 
-class LogTabSettings {
-  const LogTabSettings({
-    required this.wrapText,
-    required this.autoScroll,
-    required this.selectedLogLevel,
-    required this.logLinesLimit,
-    required this.hiddenColumns,
-    required this.columnWidths,
-  });
-
-  final bool wrapText;
-  final bool autoScroll;
-  final LogLevel selectedLogLevel;
-  final int logLinesLimit;
-  final Set<String> hiddenColumns;
-  final Map<String, double> columnWidths;
-
+class const LogTabSettings({
+  required final bool wrapText,
+  required final bool autoScroll,
+  required final LogLevel selectedLogLevel,
+  required final int logLinesLimit,
+  required final Set<String> hiddenColumns,
+  required final Map<String, double> columnWidths,
+}) {
   LogTabSettings copyWith({
     bool? wrapText,
     bool? autoScroll,

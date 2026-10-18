@@ -11,12 +11,11 @@ import 'device_session_controller.dart';
 /// the session and turns connectivity changes into [onDeviceConnected] /
 /// [onDeviceDisconnected] hooks so features can react (e.g. stop a stream when
 /// the device drops) without any feature talking to another feature directly.
-abstract class FeatureController extends ChangeNotifier {
-  FeatureController(this.session) : _wasConnected = session.isConnected {
+abstract class FeatureController(final DeviceSessionController session)
+    extends ChangeNotifier {
+  this : _wasConnected = session.isConnected {
     session.addListener(_handleSessionChanged);
   }
-
-  final DeviceSessionController session;
 
   DeviceSessionRepository get service => session.service;
   Device get device => session.device;

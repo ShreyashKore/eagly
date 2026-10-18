@@ -6,6 +6,5 @@ import 'tool_process_runner.dart';
 /// their output into domain objects; the Utilities feature instead shows raw
 /// output, so it needs nothing more than "run this executable with these
 /// arguments" for a whole family of binaries.
-class DeviceToolRunner extends ToolProcessRunner {
-  DeviceToolRunner({required super.executableName, super.executablePath});
-}
+class DeviceToolRunner({required super.executableName, super.executablePath})
+    extends ToolProcessRunner;

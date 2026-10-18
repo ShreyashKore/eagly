@@ -15,25 +15,30 @@ import 'ios/ios_device_service.dart';
 
 /// Looks up an Android device's marketing name from its `ro.product.brand`,
 /// `ro.product.device` and `ro.product.model`.
-typedef AndroidMarketingNameLookup =
-    Future<String?> Function({String? brand, String? device, String? model});
+typedef AndroidMarketingNameLookup = Future<String?> Function({
+  String? brand,
+  String? device,
+  String? model,
+});
 
-class DevicesRepository extends ChangeNotifier {
-  DevicesRepository._({
-    AdbTool? adbTool,
-    IosDeviceService? iosDeviceService,
-    AndroidMarketingNameLookup? androidMarketingName,
-    Listenable? androidMarketingNamesChanged,
-  }) : _adbTool = adbTool ?? AdbTool(),
-       _iosDeviceService = iosDeviceService ?? createIosDeviceService(),
-       _androidMarketingName = androidMarketingName,
-       _androidMarketingNamesChanged = androidMarketingNamesChanged {
+class DevicesRepository._({
+  AdbTool? adbTool,
+  IosDeviceService? iosDeviceService,
+  final AndroidMarketingNameLookup? _androidMarketingName,
+
+  /// Fires when the marketing-name list arrives after devices were already
+  /// described without it.
+  final Listenable? _androidMarketingNamesChanged,
+}) extends ChangeNotifier {
+  this
+    : _adbTool = adbTool ?? AdbTool(),
+      _iosDeviceService = iosDeviceService ?? createIosDeviceService() {
     _androidMarketingNamesChanged?.addListener(_onAndroidMarketingNamesChanged);
   }
 
   /// Tests get no marketing-name lookup unless they pass one, so they never
   /// download Google Play's device list.
-  factory DevicesRepository.forTesting({
+  factory forTesting({
     AdbTool? adbTool,
     IosDeviceService? iosDeviceService,
     AndroidMarketingNameLookup? androidMarketingName,
@@ -63,11 +68,6 @@ class DevicesRepository extends ChangeNotifier {
 
   final AdbTool _adbTool;
   final IosDeviceService _iosDeviceService;
-  final AndroidMarketingNameLookup? _androidMarketingName;
-
-  /// Fires when the marketing-name list arrives after devices were already
-  /// described without it.
-  final Listenable? _androidMarketingNamesChanged;
   final AppLogger _logger = AppLogger(source: 'DevicesRepository');
   final Map<String, _CachedAndroidDeviceDescription> _androidDescriptionCache =
       {};
@@ -319,9 +319,8 @@ class DevicesRepository extends ChangeNotifier {
   /// Extracts the device serial from an mDNS ADB service ID.
   /// Format: `adb-SERIAL-suffix._adb-tls-connect._tcp`
   String? _extractMdnsSerial(String id) {
-    final match = RegExp(
-      r'^adb-([A-Za-z0-9]+)-[^.]+\._adb-tls-',
-    ).firstMatch(id);
+    final match = RegExp(r'^adb-([A-Za-z0-9]+)-[^.]+\._adb-tls-')
+        .firstMatch(id);
     return match?.group(1);
   }
 
@@ -553,19 +552,12 @@ class DevicesRepository extends ChangeNotifier {
   }
 }
 
-class _CachedAndroidDeviceDescription {
-  const _CachedAndroidDeviceDescription({
-    this.brand,
-    this.model,
-    this.name,
-    this.serialNumber,
-  });
-
-  final String? brand;
-  final String? model;
-  final String? name;
-  final String? serialNumber;
-
+class const _CachedAndroidDeviceDescription({
+  final String? brand,
+  final String? model,
+  final String? name,
+  final String? serialNumber,
+}) {
   Device applyTo(Device device) {
     Device enriched = device.copyWith(
       brand: brand ?? device.brand,
@@ -579,12 +571,10 @@ class _CachedAndroidDeviceDescription {
   }
 }
 
-class _CachedIosDeviceDescription {
-  const _CachedIosDeviceDescription({this.name, this.model});
-
-  final String? name;
-  final String? model;
-
+class const _CachedIosDeviceDescription({
+  final String? name,
+  final String? model,
+}) {
   Device toIosDevice(String deviceId) {
     return Device.ios(
       deviceId,

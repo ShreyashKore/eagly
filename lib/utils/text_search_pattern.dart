@@ -1,19 +1,12 @@
 import 'package:flutter/foundation.dart';
 
 @immutable
-class TextSearchConfig {
-  const TextSearchConfig({
-    this.query = '',
-    this.caseSensitive = false,
-    this.wholeWord = false,
-    this.regex = false,
-  });
-
-  final String query;
-  final bool caseSensitive;
-  final bool wholeWord;
-  final bool regex;
-
+class const TextSearchConfig({
+  final String query = '',
+  final bool caseSensitive = false,
+  final bool wholeWord = false,
+  final bool regex = false,
+}) {
   bool get isActive => query.isNotEmpty;
 
   TextSearchConfig copyWith({
@@ -45,17 +38,22 @@ class TextSearchConfig {
 }
 
 @immutable
-class TextSearchMatch {
-  const TextSearchMatch({required this.start, required this.end});
-
-  final int start;
-  final int end;
-
+class const TextSearchMatch({
+  required final int start,
+  required final int end,
+}) {
   int get length => end - start;
 }
 
 @immutable
-class TextSearchPattern {
+class const TextSearchPattern._({
+  required final String query,
+  required final bool caseSensitive,
+  required final bool wholeWord,
+  required final bool regex,
+  final RegExp? regExp,
+  final String? errorText,
+}) {
   factory TextSearchPattern.fromConfig(TextSearchConfig config) {
     return TextSearchPattern(
       query: config.query,
@@ -113,22 +111,6 @@ class TextSearchPattern {
       );
     }
   }
-
-  const TextSearchPattern._({
-    required this.query,
-    required this.caseSensitive,
-    required this.wholeWord,
-    required this.regex,
-    this.regExp,
-    this.errorText,
-  });
-
-  final String query;
-  final bool caseSensitive;
-  final bool wholeWord;
-  final bool regex;
-  final RegExp? regExp;
-  final String? errorText;
 
   bool get isActive => query.isNotEmpty;
   bool get isValid => errorText == null;

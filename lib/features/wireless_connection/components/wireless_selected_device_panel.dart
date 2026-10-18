@@ -8,36 +8,23 @@ import '../../../presentation/theme/app_theme.dart';
 
 /// Detail panel for the currently selected discovered device, with pairing
 /// code entry and pair/connect actions.
-class WirelessSelectedDevicePanel extends StatelessWidget {
-  const WirelessSelectedDevicePanel({
-    super.key,
-    required this.target,
-    required this.connectedDevice,
-    required this.pairingCodeController,
-    required this.pairingBusy,
-    required this.connectingBusy,
-    required this.actionsDisabled,
-    required this.showConnectAction,
-    required this.onPair,
-    required this.onConnect,
-    required this.onUseManualEntry,
-  });
-
-  final DiscoveredWirelessTarget target;
+class const WirelessSelectedDevicePanel({
+  super.key,
+  required final DiscoveredWirelessTarget target,
 
   /// The already-connected device matching [target]'s host, if any.
-  final Device? connectedDevice;
-  final TextEditingController pairingCodeController;
-  final bool pairingBusy;
-  final bool connectingBusy;
-  final bool actionsDisabled;
+  required final Device? connectedDevice,
+  required final TextEditingController pairingCodeController,
+  required final bool pairingBusy,
+  required final bool connectingBusy,
+  required final bool actionsDisabled,
 
   /// Shown when automatic connect failed and an explicit retry is offered.
-  final bool showConnectAction;
-  final VoidCallback? onPair;
-  final VoidCallback? onConnect;
-  final VoidCallback onUseManualEntry;
-
+  required final bool showConnectAction,
+  required final VoidCallback? onPair,
+  required final VoidCallback? onConnect,
+  required final VoidCallback onUseManualEntry,
+}) extends StatelessWidget {
   bool get _alreadyConnected => connectedDevice != null;
 
   @override

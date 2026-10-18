@@ -33,6 +33,12 @@ linter:
   rules:
     # avoid_print: false  # Uncomment to disable the `avoid_print` rule
     # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+    # Primary constructors (Dart 3.13): once a class has one, fold its fields
+    # into the header and drop empty `this {}` blocks. Not
+    # `use_primary_constructors`: it also flags classes with no constructor
+    # at all, demanding an empty `()` on every State class and plain enum.
+    use_declaring_parameters: true
+    unnecessary_primary_constructor_body: true
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options

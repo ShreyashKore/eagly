@@ -23,16 +23,11 @@ import '../../presentation/theme/app_theme.dart';
 /// scrolling beneath) and "Manual entry". The QR code and the nearby list were
 /// separate tabs once; they share a pane because they share a single mDNS scan,
 /// and because the code is what most users actually want to see first.
-class WirelessConnectionDialog extends StatefulWidget {
-  const WirelessConnectionDialog({
-    super.key,
-    required this.manager,
-    required this.onShowSnackBar,
-  });
-
-  final DeviceSessionManager manager;
-  final ValueChanged<String> onShowSnackBar;
-
+class const WirelessConnectionDialog({
+  super.key,
+  required final DeviceSessionManager manager,
+  required final ValueChanged<String> onShowSnackBar,
+}) extends StatefulWidget {
   @override
   State<WirelessConnectionDialog> createState() =>
       _WirelessConnectionDialogState();
@@ -471,8 +466,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
           title: _manualConnectAddresses.isNotEmpty
               ? 'Pair and connect'
               : 'Pair with code',
-          description:
-              'Enter the pairing address from the device screen and the pairing code shown on the device. If a connect address is available, connection will continue automatically.',
+          description: 'Enter the pairing address from the device screen and the pairing code shown on the device. If a connect address is available, connection will continue automatically.',
           child: Column(
             children: [
               TextField(

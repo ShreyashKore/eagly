@@ -3,20 +3,13 @@ import 'package:flutter/material.dart';
 /// Reports its row's [BuildContext] to the parent [LogViewer] on mount,
 /// index change, and unmount so the viewer can measure row bounds for
 /// drag-selection hit-testing.
-class RowBoundsReporter extends StatefulWidget {
-  const RowBoundsReporter({
-    required this.index,
-    required this.onMounted,
-    required this.onUnmounted,
-    required this.child,
-    required super.key,
-  });
-
-  final int index;
-  final void Function(int index, BuildContext context) onMounted;
-  final void Function(int index, BuildContext context) onUnmounted;
-  final Widget child;
-
+class const RowBoundsReporter({
+  required final int index,
+  required final void Function(int index, BuildContext context) onMounted,
+  required final void Function(int index, BuildContext context) onUnmounted,
+  required final Widget child,
+  required super.key,
+}) extends StatefulWidget {
   @override
   State<RowBoundsReporter> createState() => _RowBoundsReporterState();
 }

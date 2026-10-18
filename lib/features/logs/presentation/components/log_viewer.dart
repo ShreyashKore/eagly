@@ -76,75 +76,49 @@ List<ContextMenuButtonItem> buildLogViewerContextMenuItems({
   ];
 }
 
-class LogViewer extends StatefulWidget {
-  static const double columnSpacing = 8;
-  static const double defaultUnwrappedMessageWidth = 1000;
-
-  final List<LogEntry> logs;
-  final ScrollController scrollController;
-  final bool wrapText;
-  final VoidCallback? onLogRowTap;
-  final bool rowSelectionMode;
-  final Set<int> selectedRowIndices;
-  final LogRowSelectionStart? onRowSelectionStart;
-  final ValueChanged<Set<int>>? onSelectedRowsChanged;
-  final void Function(int index, bool selected)? onRowSelectionChanged;
+class const LogViewer({
+  super.key,
+  required final List<LogEntry> logs,
+  required final ScrollController scrollController,
+  required final bool wrapText,
+  final VoidCallback? onLogRowTap,
+  final bool rowSelectionMode = false,
+  final Set<int> selectedRowIndices = const <int>{},
+  final LogRowSelectionStart? onRowSelectionStart,
+  final ValueChanged<Set<int>>? onSelectedRowsChanged,
+  final void Function(int index, bool selected)? onRowSelectionChanged,
   final Future<void> Function(int? index, LogViewerCopyAction action)?
-  onRowCopyAction;
-  final VoidCallback? onCopyAll;
-  final VoidCallback? onToggleRowSelectionMode;
-  final VoidCallback? onClearRowSelection;
+  onRowCopyAction,
+  final VoidCallback? onCopyAll,
+  final VoidCallback? onToggleRowSelectionMode,
+  final VoidCallback? onClearRowSelection,
 
   /// The active inline search configuration (separate from the filter bar).
-  final TextSearchConfig search;
+  final TextSearchConfig search = const TextSearchConfig(),
 
   /// Index (into [logs]) of the row that should be highlighted as the
   /// currently focused match. `null` means no focused match.
-  final int? currentMatchLogIndex;
-  final ValueChanged<String?>? onSelectedTextChanged;
-  final VoidCallback? onUserScroll;
+  final int? currentMatchLogIndex,
+  final ValueChanged<String?>? onSelectedTextChanged,
+  final VoidCallback? onUserScroll,
 
   /// Called whenever the user toggles column visibility so the parent can
   /// update its hidden-columns set used for search-match computation.
-  final ValueChanged<Set<String>>? onHiddenColumnsChanged;
+  final ValueChanged<Set<String>>? onHiddenColumnsChanged,
 
   /// Current column width overrides for this tab.
-  final Map<String, double> columnWidths;
+  final Map<String, double> columnWidths = const <String, double>{},
 
   /// Current hidden columns for this tab.
-  final Set<String> hiddenColumns;
+  final Set<String> hiddenColumns = const <String>{},
 
   /// Called when the user resizes columns so the parent can persist them in
   /// the active tab state.
-  final ValueChanged<Map<String, double>>? onColumnWidthsChanged;
-
-  final bool isIos;
-
-  const LogViewer({
-    super.key,
-    required this.logs,
-    required this.scrollController,
-    required this.wrapText,
-    this.onLogRowTap,
-    this.rowSelectionMode = false,
-    this.selectedRowIndices = const <int>{},
-    this.onRowSelectionStart,
-    this.onSelectedRowsChanged,
-    this.onRowSelectionChanged,
-    this.onRowCopyAction,
-    this.onCopyAll,
-    this.onToggleRowSelectionMode,
-    this.onClearRowSelection,
-    this.search = const TextSearchConfig(),
-    this.currentMatchLogIndex,
-    this.onSelectedTextChanged,
-    this.onUserScroll,
-    this.onHiddenColumnsChanged,
-    this.columnWidths = const <String, double>{},
-    this.hiddenColumns = const <String>{},
-    this.onColumnWidthsChanged,
-    this.isIos = false,
-  });
+  final ValueChanged<Map<String, double>>? onColumnWidthsChanged,
+  final bool isIos = false,
+}) extends StatefulWidget {
+  static const double columnSpacing = 8;
+  static const double defaultUnwrappedMessageWidth = 1000;
 
   @override
   State<LogViewer> createState() => _LogViewerState();
@@ -1141,9 +1115,8 @@ class _LogViewerState extends State<LogViewer> {
 
   Widget _buildHeader(double messageWidth) {
     // Column titles label the data; they shouldn't outweigh it.
-    final headerStyle = _applyFont(
-      context.eaglyTheme.logHeaderStyle,
-    ).copyWith(color: context.eaglyTheme.secondaryTextColor);
+    final headerStyle = _applyFont(context.eaglyTheme.logHeaderStyle)
+        .copyWith(color: context.eaglyTheme.secondaryTextColor);
     return LogViewerHeader(
       rowSelectionMode: widget.rowSelectionMode,
       headerStyle: headerStyle,
@@ -1202,9 +1175,8 @@ class _LogViewerState extends State<LogViewer> {
               child: Container(
                 key: const ValueKey('row-selection-rect'),
                 decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.12),
+                  color: Theme.of(context).colorScheme.primary
+                      .withValues(alpha: 0.12),
                   border: Border.all(
                     color: Theme.of(context).colorScheme.primary,
                     width: 1,
@@ -1238,27 +1210,18 @@ class _LogViewerState extends State<LogViewer> {
   }
 }
 
-class _HorizontalRevealTarget {
-  const _HorizontalRevealTarget({required this.left, required this.right});
+class const _HorizontalRevealTarget({
+  required final double left,
+  required final double right,
+});
 
-  final double left;
-  final double right;
-}
-
-class _RowBoundsReporter extends StatefulWidget {
-  const _RowBoundsReporter({
-    required this.index,
-    required this.onMounted,
-    required this.onUnmounted,
-    required this.child,
-    required super.key,
-  });
-
-  final int index;
-  final void Function(int index, BuildContext context) onMounted;
-  final void Function(int index, BuildContext context) onUnmounted;
-  final Widget child;
-
+class const _RowBoundsReporter({
+  required final int index,
+  required final void Function(int index, BuildContext context) onMounted,
+  required final void Function(int index, BuildContext context) onUnmounted,
+  required final Widget child,
+  required super.key,
+}) extends StatefulWidget {
   @override
   State<_RowBoundsReporter> createState() => _RowBoundsReporterState();
 }

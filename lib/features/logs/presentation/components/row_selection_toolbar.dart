@@ -2,16 +2,11 @@ import 'package:flutter/material.dart';
 
 /// Floating pill shown at the bottom of the log viewer while rows are
 /// selected: the selection count plus a Clear button.
-class RowSelectionToolbar extends StatelessWidget {
-  const RowSelectionToolbar({
-    super.key,
-    required this.selectedCount,
-    required this.onClear,
-  });
-
-  final int selectedCount;
-  final VoidCallback? onClear;
-
+class const RowSelectionToolbar({
+  super.key,
+  required final int selectedCount,
+  required final VoidCallback? onClear,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final count = selectedCount;

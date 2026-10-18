@@ -3,22 +3,14 @@ import 'package:gap/gap.dart';
 
 /// Header-styled accent pill mirroring the other header actions, tinted with the
 /// primary color so an available update reads as a gentle call to action.
-class UpdatePill extends StatefulWidget {
-  const UpdatePill({
-    super.key,
-    required this.label,
-    required this.tooltip,
-    this.icon,
-    this.busy = false,
-    this.onTap,
-  });
-
-  final String label;
-  final String tooltip;
-  final IconData? icon;
-  final bool busy;
-  final VoidCallback? onTap;
-
+class const UpdatePill({
+  super.key,
+  required final String label,
+  required final String tooltip,
+  final IconData? icon,
+  final bool busy = false,
+  final VoidCallback? onTap,
+}) extends StatefulWidget {
   @override
   State<UpdatePill> createState() => _UpdatePillState();
 }

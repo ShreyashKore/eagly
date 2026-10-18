@@ -22,18 +22,14 @@ import 'log_session_manager.dart';
 /// The Logs feature pane for a single device: toolbar (with log-tab strip),
 /// filter area, the log viewer (with empty/search/scroll overlays), and a
 /// status bar. Supports multiple live and imported log tabs.
-class LogFeatureView extends FeatureView {
-  const LogFeatureView({
-    super.key,
-    required this.logManager,
-    required this.session,
-    required this.appMemoryBytesListenable,
-    required VoidCallback onClose,
-  }) : super(onClose: onClose);
-
-  final LogSessionManager logManager;
-  final DeviceSessionController session;
-  final ValueListenable<int> appMemoryBytesListenable;
+class const LogFeatureView({
+  super.key,
+  required final LogSessionManager logManager,
+  required final DeviceSessionController session,
+  required final ValueListenable<int> appMemoryBytesListenable,
+  required VoidCallback onClose,
+}) extends FeatureView {
+  this : super(onClose: onClose);
 
   @override
   State<LogFeatureView> createState() => _LogFeatureViewState();

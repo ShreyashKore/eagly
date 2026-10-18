@@ -7,11 +7,7 @@ import 'rust_ios_file_system.dart';
 
 /// Thrown when a device file operation fails. [message] is already
 /// human-readable and safe to surface in the UI.
-class DeviceFileException implements Exception {
-  DeviceFileException(this.message);
-
-  final String message;
-
+class DeviceFileException(final String message) implements Exception {
   @override
   String toString() => message;
 }
@@ -27,7 +23,7 @@ class DeviceFileException implements Exception {
 abstract interface class DeviceFileSystem {
   /// Builds the file system appropriate for [device]. [executablePath] lets
   /// tests inject a stub binary; production resolves the bundled tool.
-  factory DeviceFileSystem.forDevice(Device device, {String? executablePath}) {
+  factory forDevice(Device device, {String? executablePath}) {
     return switch (device) {
       AndroidDevice() => AndroidFileSystem(
         deviceId: device.id,

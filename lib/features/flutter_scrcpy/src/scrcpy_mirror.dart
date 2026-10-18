@@ -5,69 +5,55 @@ import 'scrcpy_video_channel.dart';
 
 export 'scrcpy_client.dart' show ScrcpyControl, ScrcpyTouchAction;
 
-class ScrcpyMirrorException implements Exception {
-  const ScrcpyMirrorException(this.message);
-  final String message;
+class const ScrcpyMirrorException(final String message) implements Exception {
   @override
   String toString() => message;
 }
 
 /// An active embedded mirror: a native texture being fed decoded frames from
 /// scrcpy-server. Render it with `Texture(textureId: session.textureId)`.
-class ScrcpyMirrorSession {
-  ScrcpyMirrorSession({
-    required this.serial,
-    required this.textureId,
-    required this.deviceName,
-    required this.width,
-    required this.height,
-    required this.control,
-    required this.exitCode,
-    required this.streamEnded,
-    required Future<void> Function() onStop,
-  }) : _onStop = onStop;
-
+class ScrcpyMirrorSession({
   /// adb serial of the mirrored device.
-  final String serial;
-  final int textureId;
-  final String deviceName;
-  final int width;
-  final int height;
+  required final String serial,
+  required final int textureId,
+  required final String deviceName,
+  required final int width,
+  required final int height,
 
   /// Control channel for injecting input, or null if unavailable.
-  final ScrcpyControl? control;
+  required final ScrcpyControl? control,
 
   /// Completes when scrcpy-server exits (0 = clean stop).
-  final Future<int> exitCode;
+  required final Future<int> exitCode,
 
   /// Completes when the video stream ends unexpectedly (e.g. a framing desync
   /// from a device rotation) while the session is still meant to be running.
   /// Never completes on an intentional [stop]. Consumers can await this to
   /// restart the mirror for a clean handshake.
-  final Future<void> streamEnded;
-
-  final Future<void> Function() _onStop;
-
+  required final Future<void> streamEnded,
+  required final Future<void> Function() _onStop,
+}) {
   Future<void> stop() => _onStop();
 }
 
 /// Orchestrates an embedded screen mirror: allocate a native texture, connect
 /// the [ScrcpyClient], and pump decoded access units into the texture.
-class ScrcpyMirror {
-  ScrcpyMirror({
-    required String serverJarPath,
-    String adbExecutablePath = 'adb',
-    ScrcpyVideoChannel? channel,
-    ScrcpyClient? client,
-    void Function(String message)? onLog,
-  }) : _channel = channel ?? const ScrcpyVideoChannel(),
-       _client =
-           client ??
-           ScrcpyClient(
-             adbExecutablePath: adbExecutablePath,
-             serverJarPath: serverJarPath,
-             onLog: onLog,
-           );
+class ScrcpyMirror({
+  required String serverJarPath,
+  String adbExecutablePath = 'adb',
+  ScrcpyVideoChannel? channel,
+  ScrcpyClient? client,
+  void Function(String message)? onLog,
+}) {
+  this
+    : _channel = channel ?? const ScrcpyVideoChannel(),
+      _client =
+          client ??
+          ScrcpyClient(
+            adbExecutablePath: adbExecutablePath,
+            serverJarPath: serverJarPath,
+            onLog: onLog,
+          );
 
   final ScrcpyVideoChannel _channel;
   final ScrcpyClient _client;

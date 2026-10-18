@@ -227,21 +227,18 @@ exit 0
     expect(result.message, contains('Success'));
   });
 
-  test(
-    'installApp installs IPA or app bundles on iOS devices via ideviceinstaller',
-    () async {
-      final service = buildService(
-        Device.ios('00008110-001234567890801E', 'device'),
-      );
+  test('installApp installs IPA or app bundles on iOS devices via ideviceinstaller', () async {
+    final service = buildService(
+      Device.ios('00008110-001234567890801E', 'device'),
+    );
 
-      final result = await service.installApp(
-        filePath: '${tempDir.path}/Sample.ipa',
-      );
+    final result = await service.installApp(
+      filePath: '${tempDir.path}/Sample.ipa',
+    );
 
-      expect(result.isSuccess, isTrue);
-      expect(result.message, contains('Complete'));
-    },
-  );
+    expect(result.isSuccess, isTrue);
+    expect(result.message, contains('Complete'));
+  });
 }
 
 Future<String> _writeExecutable(

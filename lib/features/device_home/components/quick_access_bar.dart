@@ -11,11 +11,10 @@ import '../../../session/device_session_controller.dart';
 /// The tiles reflow with the window: a single row while every tile can still
 /// hold its sublabel, then multiple rows, then a compact icon+label form once
 /// even two full tiles no longer fit.
-class QuickAccessBar extends StatelessWidget {
-  const QuickAccessBar({super.key, required this.session});
-
-  final DeviceSessionController session;
-
+class const QuickAccessBar({
+  super.key,
+  required final DeviceSessionController session,
+}) extends StatelessWidget {
   static const _gap = 10.0;
 
   /// Width a tile needs for the label/sublabel stack to stay readable.
@@ -138,32 +137,22 @@ class QuickAccessBar extends StatelessWidget {
 
 /// The data behind one launcher tile — kept separate from the widget so the
 /// bar can decide between the full and compact rendering after layout.
-class _ShortcutSpec {
-  const _ShortcutSpec({
-    required this.icon,
-    required this.label,
-    required this.sublabel,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final String sublabel;
-  final bool isActive;
+class const _ShortcutSpec({
+  required final IconData icon,
+  required final String label,
+  required final String sublabel,
+  required final bool isActive,
 
   /// `null` disables the tile — the feature needs a connected device.
-  final VoidCallback? onTap;
-}
+  required final VoidCallback? onTap,
+});
 
-class _ShortcutTile extends StatefulWidget {
-  const _ShortcutTile({required this.spec, required this.compact});
-
-  final _ShortcutSpec spec;
+class const _ShortcutTile({
+  required final _ShortcutSpec spec,
 
   /// Drops the sublabel and tightens the padding.
-  final bool compact;
-
+  required final bool compact,
+}) extends StatefulWidget {
   @override
   State<_ShortcutTile> createState() => _ShortcutTileState();
 }

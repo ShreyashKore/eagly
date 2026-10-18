@@ -13,18 +13,12 @@ import '../../../presentation/theme/app_theme.dart';
 
 /// Top-of-screen identity banner: who the device is, whether it is ready to
 /// work with, and the one action most sessions start with (install a build).
-class DeviceHeroCard extends StatelessWidget {
-  const DeviceHeroCard({
-    super.key,
-    required this.session,
-    required this.homeController,
-    required this.info,
-  });
-
-  final DeviceSessionController session;
-  final DeviceHomeController homeController;
-  final DeviceInfo info;
-
+class const DeviceHeroCard({
+  super.key,
+  required final DeviceSessionController session,
+  required final DeviceHomeController homeController,
+  required final DeviceInfo info,
+}) extends StatelessWidget {
   Future<void> _install(BuildContext context) async {
     final result = await session.installAppFromPicker();
     if (!context.mounted || result.cancelled) return;
@@ -124,11 +118,8 @@ class DeviceHeroCard extends StatelessWidget {
   }
 }
 
-class _PlatformBadge extends StatelessWidget {
-  const _PlatformBadge({required this.device});
-
-  final Device device;
-
+class const _PlatformBadge({required final Device device})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -157,12 +148,10 @@ class _PlatformBadge extends StatelessWidget {
   }
 }
 
-class _InstallAction extends StatelessWidget {
-  const _InstallAction({required this.session, required this.onInstall});
-
-  final DeviceSessionController session;
-  final VoidCallback onInstall;
-
+class const _InstallAction({
+  required final DeviceSessionController session,
+  required final VoidCallback onInstall,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

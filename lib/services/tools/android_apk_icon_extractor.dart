@@ -26,9 +26,7 @@ import 'package:collection/collection.dart';
 /// ([extractDetails]): `android:label` on `<application>` is either a literal
 /// string or a reference into resources.arsc, resolved from the default
 /// (locale-less) configuration.
-class ApkIconExtractor {
-  const ApkIconExtractor._();
-
+class const ApkIconExtractor._() {
   static const int _androidAttrLabel = 0x01010001;
   static const int _androidAttrIcon = 0x01010002;
   static const int _androidAttrRoundIcon = 0x0101021c;
@@ -56,9 +54,8 @@ class ApkIconExtractor {
       final arscBytes = _readEntry(archive, 'resources.arsc');
       if (manifestBytes == null) return (icon: null, label: null);
 
-      final application = _AxmlParser.parseElements(
-        manifestBytes,
-      ).firstWhereOrNull((element) => element.name == 'application');
+      final application = _AxmlParser.parseElements(manifestBytes)
+          .firstWhereOrNull((element) => element.name == 'application');
       if (application == null) return (icon: null, label: null);
 
       final table = arscBytes == null ? null : _ResourceTable.parse(arscBytes);
@@ -174,18 +171,13 @@ class ApkIconExtractor {
 
 // ── Binary XML (AXML) — just enough to read start-element attributes ───────
 
-class _TypedValue {
-  const _TypedValue(this.dataType, this.data);
-  final int dataType;
-  final int data;
-}
+class const _TypedValue(final int dataType, final int data);
 
-class _AxmlElement {
-  const _AxmlElement(this.name, this.attributesByResId, this._pool);
-  final String name;
-  final Map<int, _TypedValue> attributesByResId;
-  final _StringPool _pool;
-
+class const _AxmlElement(
+  final String name,
+  final Map<int, _TypedValue> attributesByResId,
+  final _StringPool _pool,
+) {
   /// Resolves a literal string attribute (whose data is a pool index).
   String? stringAt(int index) => _pool.stringAt(index);
 }
@@ -282,13 +274,12 @@ class _AxmlParser {
 
 /// Shared string pool decoder (used for both AXML and the ARSC's global
 /// pool) — UTF-8 or UTF-16LE, chosen per the pool's flags.
-class _StringPool {
-  _StringPool(this._bytes, this._offsets, this._stringsStart, this._isUtf8);
-
-  final Uint8List _bytes;
-  final List<int> _offsets;
-  final int _stringsStart;
-  final bool _isUtf8;
+class _StringPool(
+  final Uint8List _bytes,
+  final List<int> _offsets,
+  final int _stringsStart,
+  final bool _isUtf8,
+) {
   final Map<int, String> _cache = {};
 
   static _StringPool? parse(Uint8List bytes, int chunkStart) {
@@ -365,17 +356,12 @@ class _StringPool {
 // ── Compiled resource table (ARSC) — resolves a resource id to candidate
 // file paths across every density/config variant it has. ───────────────────
 
-class _FileCandidate {
-  const _FileCandidate(this.density, this.path);
-  final int density;
-  final String path;
-}
+class const _FileCandidate(final int density, final String path);
 
-class _ResourceTable {
-  _ResourceTable(this._globalStrings, this._packages);
-  final _StringPool _globalStrings;
-  final List<_ArscPackage> _packages;
-
+class _ResourceTable(
+  final _StringPool _globalStrings,
+  final List<_ArscPackage> _packages,
+) {
   static const int _typeStringPool = 0x0001;
   static const int _typePackage = 0x0200;
 
@@ -463,11 +449,7 @@ class _ResourceTable {
   }
 }
 
-class _ArscPackage {
-  _ArscPackage(this.id, this.types);
-  final int id;
-  final List<_ArscType> types;
-
+class _ArscPackage(final int id, final List<_ArscType> types) {
   static const int _typeType = 0x0201;
 
   static _ArscPackage? parse(Uint8List bytes, int chunkStart, int chunkSize) {
@@ -495,24 +477,24 @@ class _ArscPackage {
   }
 }
 
-class _ArscType {
-  final int id;
-  final int density;
+class _ArscType(
+  final int id,
+  final int density,
 
   /// ISO-639 language of this config ('' for the default config).
-  final String language;
-  final Uint8List _bytes;
+  final String language,
+  final Uint8List _bytes,
   // Offset of the per-entry index/offset array (ResTable_type's `entries`
   // member for sparse/offset16, or the plain uint32 offset array), which
   // sits right after the chunk header (including the embedded
   // ResTable_config) — distinct from [_entriesStart], the offset of the
   // ResTable_entry *payload* data that those indices point into.
-  final int _offsetsStart;
-  final int _entriesStart;
-  final int _entryCount;
-  final bool _sparse;
-  final bool _offset16;
-
+  final int _offsetsStart,
+  final int _entriesStart,
+  final int _entryCount,
+  final bool _sparse,
+  final bool _offset16,
+) {
   static const int _noEntry32 = 0xFFFFFFFF;
   static const int _noEntry16 = 0xFFFF;
   static const int _flagComplex = 0x0001;
@@ -557,18 +539,6 @@ class _ArscType {
       (flags & 0x02) != 0, // FLAG_OFFSET16
     );
   }
-
-  _ArscType(
-    this.id,
-    this.density,
-    this.language,
-    this._bytes,
-    this._offsetsStart,
-    this._entriesStart,
-    this._entryCount,
-    this._sparse,
-    this._offset16,
-  );
 
   _TypedValue? resolveEntryValue(int entryId) {
     final data = ByteData.sublistView(_bytes);

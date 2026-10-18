@@ -16,8 +16,8 @@ import '../../utils/utils.dart';
 import 'adb_install_failure.dart';
 import 'tool_process_runner.dart';
 
-class AdbTool extends ToolProcessRunner {
-  AdbTool({super.executablePath}) : super(executableName: 'adb');
+class AdbTool({super.executablePath}) extends ToolProcessRunner {
+  this : super(executableName: 'adb');
 
   static const int _defaultServerPort = 5037;
 
@@ -412,12 +412,10 @@ class AdbTool extends ToolProcessRunner {
     final densityMatch =
         RegExp(r'Override density:\s*(\d+)').firstMatch(densityOutput) ??
         RegExp(r'Physical density:\s*(\d+)').firstMatch(densityOutput);
-    final refreshMatch = RegExp(
-      r'refreshRate=([\d.]+)',
-    ).firstMatch(displayDumpOutput);
-    final rotationMatch = RegExp(
-      r'\brotation=(\d)',
-    ).firstMatch(displayDumpOutput);
+    final refreshMatch = RegExp(r'refreshRate=([\d.]+)')
+        .firstMatch(displayDumpOutput);
+    final rotationMatch = RegExp(r'\brotation=(\d)')
+        .firstMatch(displayDumpOutput);
 
     DisplayOrientation? orientation;
     final rotation = rotationMatch != null

@@ -88,9 +88,8 @@ void main() {
     test('maps a real config onto the model', () async {
       writeAvd('Pixel_7a');
 
-      final emulator = await AvdMetadataReader(
-        avdHome: avdHome.path,
-      ).read('Pixel_7a');
+      final emulator = await AvdMetadataReader(avdHome: avdHome.path)
+          .read('Pixel_7a');
 
       expect(emulator.name, 'Pixel_7a');
       expect(emulator.displayName, 'Pixel 7a');
@@ -114,9 +113,8 @@ void main() {
       addTearDown(() => elsewhere.delete(recursive: true));
       writeAvd('Pixel_7a', at: elsewhere);
 
-      final emulator = await AvdMetadataReader(
-        avdHome: avdHome.path,
-      ).read('Pixel_7a');
+      final emulator = await AvdMetadataReader(avdHome: avdHome.path)
+          .read('Pixel_7a');
 
       expect(emulator.avdPath, elsewhere.path);
       expect(emulator.apiLevel, '36.1');
@@ -124,22 +122,19 @@ void main() {
 
     test('falls back to <name>.avd when path= points nowhere', () async {
       writeAvd('Pixel_7a');
-      File(
-        '${avdHome.path}/Pixel_7a.ini',
-      ).writeAsStringSync('path=/definitely/not/here\n');
+      File('${avdHome.path}/Pixel_7a.ini')
+          .writeAsStringSync('path=/definitely/not/here\n');
 
-      final emulator = await AvdMetadataReader(
-        avdHome: avdHome.path,
-      ).read('Pixel_7a');
+      final emulator = await AvdMetadataReader(avdHome: avdHome.path)
+          .read('Pixel_7a');
 
       expect(emulator.avdPath, endsWith('Pixel_7a.avd'));
       expect(emulator.abi, 'arm64-v8a');
     });
 
     test('a listed AVD with no files on disk is still returned', () async {
-      final emulator = await AvdMetadataReader(
-        avdHome: avdHome.path,
-      ).read('Ghost_AVD');
+      final emulator = await AvdMetadataReader(avdHome: avdHome.path)
+          .read('Ghost_AVD');
 
       expect(emulator.name, 'Ghost_AVD');
       expect(emulator.isMetadataMissing, isTrue);
@@ -152,9 +147,8 @@ void main() {
       () async {
         writeAvd('Pixel_7a', config: 'abi.type=arm64-v8a\n');
 
-        final emulator = await AvdMetadataReader(
-          avdHome: avdHome.path,
-        ).read('Pixel_7a');
+        final emulator = await AvdMetadataReader(avdHome: avdHome.path)
+            .read('Pixel_7a');
 
         expect(emulator.apiLevel, '36.1');
       },
@@ -167,9 +161,8 @@ void main() {
         pointerTarget: null,
       );
 
-      final emulator = await AvdMetadataReader(
-        avdHome: avdHome.path,
-      ).read('Old_AVD');
+      final emulator = await AvdMetadataReader(avdHome: avdHome.path)
+          .read('Old_AVD');
 
       expect(emulator.apiLevel, isNull);
     });
@@ -193,9 +186,8 @@ void main() {
       writeAvd('A');
       writeAvd('B');
 
-      final emulators = await AvdMetadataReader(
-        avdHome: avdHome.path,
-      ).readAll(['B', 'A']);
+      final emulators = await AvdMetadataReader(avdHome: avdHome.path)
+          .readAll(['B', 'A']);
 
       expect(emulators.map((e) => e.name), ['B', 'A']);
     });

@@ -56,20 +56,13 @@ bool showsFilterAppIcons(
 
 /// Icon, field name, operator and a delete button — the top line of every
 /// pill editor.
-class FilterEditorHeader extends StatelessWidget {
-  const FilterEditorHeader({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.operator,
-    required this.onRemove,
-  });
-
-  final IconData icon;
-  final String label;
-  final Widget operator;
-  final VoidCallback onRemove;
-
+class const FilterEditorHeader({
+  super.key,
+  required final IconData icon,
+  required final String label,
+  required final Widget operator,
+  required final VoidCallback onRemove,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -95,11 +88,8 @@ class FilterEditorHeader extends StatelessWidget {
 }
 
 /// A small heading over a group of [FilterMenuRow]s.
-class FilterMenuSectionLabel extends StatelessWidget {
-  const FilterMenuSectionLabel(this.text, {super.key});
-
-  final String text;
-
+class const FilterMenuSectionLabel(final String text, {super.key})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -118,29 +108,19 @@ class FilterMenuSectionLabel extends StatelessWidget {
 }
 
 /// A rounded, hover-highlighted row in a popover list.
-class FilterMenuRow extends StatefulWidget {
-  const FilterMenuRow({
-    super.key,
-    required this.child,
-    required this.onTap,
-    this.icon,
-    this.packageName,
-    this.trailing,
-    this.highlighted = false,
-    this.onHover,
-  });
-
-  final Widget child;
-  final VoidCallback onTap;
-  final IconData? icon;
+class const FilterMenuRow({
+  super.key,
+  required final Widget child,
+  required final VoidCallback onTap,
+  final IconData? icon,
 
   /// A package whose cached app icon replaces [icon], which stays the
   /// fallback until the Apps pane has fetched one.
-  final String? packageName;
-  final Widget? trailing;
-  final bool highlighted;
-  final VoidCallback? onHover;
-
+  final String? packageName,
+  final Widget? trailing,
+  final bool highlighted = false,
+  final VoidCallback? onHover,
+}) extends StatefulWidget {
   @override
   State<FilterMenuRow> createState() => _FilterMenuRowState();
 }
@@ -197,9 +177,7 @@ class _FilterMenuRowState extends State<FilterMenuRow> {
 }
 
 /// The ↵ glyph at the end of the highlighted row: what Enter will pick.
-class FilterEnterHint extends StatelessWidget {
-  const FilterEnterHint({super.key});
-
+class const FilterEnterHint({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Icon(

@@ -70,11 +70,8 @@ InputDecoration bareFilterInputDecoration({
 );
 
 /// A small outlined keyboard shortcut, e.g. `⌘F`, shown in an idle control.
-class FilterKeyHint extends StatelessWidget {
-  const FilterKeyHint({super.key, required this.label});
-
-  final String label;
-
+class const FilterKeyHint({super.key, required final String label})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -98,8 +95,8 @@ class FilterKeyHint extends StatelessWidget {
 
 /// The fill, border and label style every filter row control shares, so the
 /// search field and the Filter / Level buttons read as one family.
-class FilterControlStyle {
-  FilterControlStyle.of(BuildContext context) : _theme = Theme.of(context);
+class FilterControlStyle.of(BuildContext context) {
+  this : _theme = Theme.of(context);
 
   final ThemeData _theme;
 
@@ -129,28 +126,18 @@ class FilterControlStyle {
 }
 
 /// A rounded, filled, icon-and-label button in the filter row.
-class FilterControlButton extends StatefulWidget {
-  const FilterControlButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    this.trailing,
-    this.active = false,
-    this.focusNode,
-    this.tooltip,
-  });
-
-  final IconData icon;
-  final Widget label;
-  final Widget? trailing;
-  final VoidCallback onPressed;
+class const FilterControlButton({
+  super.key,
+  required final IconData icon,
+  required final Widget label,
+  required final VoidCallback onPressed,
+  final Widget? trailing,
 
   /// Tints the border — the control currently has something applied.
-  final bool active;
-  final FocusNode? focusNode;
-  final String? tooltip;
-
+  final bool active = false,
+  final FocusNode? focusNode,
+  final String? tooltip,
+}) extends StatefulWidget {
   @override
   State<FilterControlButton> createState() => _FilterControlButtonState();
 }

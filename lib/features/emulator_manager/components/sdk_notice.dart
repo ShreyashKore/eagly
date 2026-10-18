@@ -11,15 +11,14 @@ import '../../../utils/android_sdk_path.dart';
 /// different screens rather than one message with a conditional clause: a
 /// missing SDK sends the user looking for one, while a missing `emulator`
 /// package sends them back to the SDK they already have.
-class SdkNotice extends StatelessWidget {
-  const SdkNotice({super.key, required this.sdk, required this.onLocate});
-
-  final AndroidSdkLocation sdk;
+class const SdkNotice({
+  super.key,
+  required final AndroidSdkLocation sdk,
 
   /// Opens the folder picker. Offered from both states — a wrong-but-plausible
   /// SDK is exactly as likely as no SDK at all.
-  final VoidCallback onLocate;
-
+  required final VoidCallback onLocate,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (sdk.status) {
@@ -43,11 +42,8 @@ class SdkNotice extends StatelessWidget {
 /// Names every place that was searched, rather than leaving the user to guess
 /// where Eagly looked — which is the whole difficulty of a path that is only
 /// wrong by one directory.
-class _NoSdkFound extends StatelessWidget {
-  const _NoSdkFound({required this.onLocate});
-
-  final VoidCallback onLocate;
-
+class const _NoSdkFound({required final VoidCallback onLocate})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -106,12 +102,10 @@ class _NoSdkFound extends StatelessWidget {
   }
 }
 
-class _LocateButton extends StatelessWidget {
-  const _LocateButton({required this.onPressed, required this.label});
-
-  final VoidCallback onPressed;
-  final String label;
-
+class const _LocateButton({
+  required final VoidCallback onPressed,
+  required final String label,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FilledButton.tonalIcon(

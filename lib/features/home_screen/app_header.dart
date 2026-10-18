@@ -2,6 +2,7 @@ import 'package:eagly/features/home_screen/components/context_menu_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:window_manager/window_manager.dart';
+
 import '../../presentation/theme/app_theme.dart';
 import '../../session/device_session_manager.dart';
 import '../updates/update_chip.dart';
@@ -16,22 +17,14 @@ import 'window_controls.dart';
 /// Top app header: logo + name, the horizontal device-tab strip (auto-created
 /// per detected device), home/load/wireless/emulator actions, and a GitHub
 /// link.
-class AppHeader extends StatelessWidget {
-  const AppHeader({
-    super.key,
-    required this.manager,
-    required this.tipsController,
-    required this.onOpenSettings,
-    required this.onShowWireless,
-    required this.onShowEmulators,
-  });
-
-  final DeviceSessionManager manager;
-  final TipsController tipsController;
-  final VoidCallback onOpenSettings;
-  final VoidCallback onShowWireless;
-  final VoidCallback onShowEmulators;
-
+class const AppHeader({
+  super.key,
+  required final DeviceSessionManager manager,
+  required final TipsController tipsController,
+  required final VoidCallback onOpenSettings,
+  required final VoidCallback onShowWireless,
+  required final VoidCallback onShowEmulators,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

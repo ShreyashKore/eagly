@@ -15,9 +15,7 @@ import '../../../presentation/components/workspace_pane_scope.dart';
 ///   chips move their tabs only after [paneDragSlop], like a pane header.
 /// - **A visible divider** with a grip in the middle, so resizing is
 ///   discoverable, lighting up under the pointer.
-class WorkspaceChrome extends DefaultPanelChrome {
-  const WorkspaceChrome();
-
+class const WorkspaceChrome() extends DefaultPanelChrome {
   @override
   double headerHeight(PanelTheme theme, SinglePanel panel) => 0;
 
@@ -64,12 +62,11 @@ class WorkspaceChrome extends DefaultPanelChrome {
 /// pressed. fl_panel starts them after a mouse pan's 2 px, which a shaky click
 /// on a chip reaches, and no gesture setting moves that for a mouse; so the
 /// strip is handed callbacks that wait instead.
-class _DeliberateDragStrip extends StatefulWidget {
-  const _DeliberateDragStrip({required this.scope, required this.builder});
-
-  final StripScope scope;
-  final Widget Function(BuildContext context, StripScope scope) builder;
-
+class const _DeliberateDragStrip({
+  required final StripScope scope,
+  required final Widget Function(BuildContext context, StripScope scope)
+  builder,
+}) extends StatefulWidget {
   @override
   State<_DeliberateDragStrip> createState() => _DeliberateDragStripState();
 }
@@ -194,21 +191,13 @@ class _DeliberateDragStripState extends State<_DeliberateDragStrip> {
 /// started from a pane header runs; fl_panel's chips mark themselves. A drop
 /// here joins the group at the end.
 @immutable
-class WorkspaceStripSlot {
-  const WorkspaceStripSlot(this.leafId, this.tabCount);
-
-  final String leafId;
-  final int tabCount;
-}
+class const WorkspaceStripSlot(final String leafId, final int tabCount);
 
 /// The bar between two panes: drag to resize, right-click for "Equal sizes"
 /// and "Swap". Its whole thickness takes the pointer; the grip in the middle
 /// and the hover tint are there to make that obvious.
-class WorkspaceDivider extends StatefulWidget {
-  const WorkspaceDivider({super.key, required this.scope});
-
-  final DividerScope scope;
-
+class const WorkspaceDivider({super.key, required final DividerScope scope})
+    extends StatefulWidget {
   @override
   State<WorkspaceDivider> createState() => _WorkspaceDividerState();
 }

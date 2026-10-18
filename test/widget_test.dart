@@ -321,9 +321,9 @@ void main() {
     );
 
     expect(
-      messageColumnWidths(tester).whereType<double>().any(
-        (width) => width > LogViewer.defaultUnwrappedMessageWidth,
-      ),
+      messageColumnWidths(tester)
+          .whereType<double>()
+          .any((width) => width > LogViewer.defaultUnwrappedMessageWidth),
       isTrue,
     );
   });
@@ -414,8 +414,7 @@ void main() {
       logs: [
         LogEntryUtils.buildLoggingState(
           type: LogEntryType.stopped,
-          message:
-              'Device disconnected; stopped capturing logs for Pixel 8 (emulator-5554) after a very long session message that should remain visually compact.',
+          message: 'Device disconnected; stopped capturing logs for Pixel 8 (emulator-5554) after a very long session message that should remain visually compact.',
           processName: 'Pixel 8 (emulator-5554)',
         ),
       ],
@@ -680,11 +679,8 @@ void main() {
   );
 }
 
-class _SelectableLogViewerHarness extends StatefulWidget {
-  const _SelectableLogViewerHarness({required this.logs});
-
-  final List<LogEntry> logs;
-
+class const _SelectableLogViewerHarness({required final List<LogEntry> logs})
+    extends StatefulWidget {
   @override
   State<_SelectableLogViewerHarness> createState() =>
       _SelectableLogViewerHarnessState();
@@ -800,15 +796,10 @@ class _SelectableLogViewerHarnessState
   }
 }
 
-class _ToggleableLogViewerHarness extends StatefulWidget {
-  const _ToggleableLogViewerHarness({
-    required this.logs,
-    this.initialRowSelectionMode = true,
-  });
-
-  final List<LogEntry> logs;
-  final bool initialRowSelectionMode;
-
+class const _ToggleableLogViewerHarness({
+  required final List<LogEntry> logs,
+  final bool initialRowSelectionMode = true,
+}) extends StatefulWidget {
   @override
   State<_ToggleableLogViewerHarness> createState() =>
       _ToggleableLogViewerHarnessState();

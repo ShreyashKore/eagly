@@ -45,23 +45,20 @@ void main() {
       },
     );
 
-    test(
-      'drops event when throwable is FlutterErrorDetails for RenderFlex overflow',
-      () {
-        final details = FlutterErrorDetails(
-          exception: FlutterError(
-            'A RenderFlex overflowed by 8 pixels on the top.',
-          ),
-          library: 'rendering library',
-          context: ErrorDescription('during layout'),
-        );
-        final event = SentryEvent(throwable: details);
-        final hint = Hint();
+    test('drops event when throwable is FlutterErrorDetails for RenderFlex overflow', () {
+      final details = FlutterErrorDetails(
+        exception: FlutterError(
+          'A RenderFlex overflowed by 8 pixels on the top.',
+        ),
+        library: 'rendering library',
+        context: ErrorDescription('during layout'),
+      );
+      final event = SentryEvent(throwable: details);
+      final hint = Hint();
 
-        expect(SentryEventFilter.shouldIgnore(event, hint), isTrue);
-        expect(SentryEventFilter.beforeSend(event, hint), isNull);
-      },
-    );
+      expect(SentryEventFilter.shouldIgnore(event, hint), isTrue);
+      expect(SentryEventFilter.beforeSend(event, hint), isNull);
+    });
 
     test('drops fractional and non-RenderFlex overflows', () {
       for (final value in [

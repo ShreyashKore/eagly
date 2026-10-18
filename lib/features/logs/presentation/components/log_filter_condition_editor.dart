@@ -10,20 +10,13 @@ import 'log_filter_parts.dart';
 /// Edits one [FilterCondition]: "Package  contains ▾  🗑" over the value
 /// field. The operator opens as a list inside the card (popovers don't nest);
 /// otherwise the card lists recent and known values for the field.
-class FilterConditionEditor extends StatefulWidget {
-  const FilterConditionEditor({
-    super.key,
-    required this.controller,
-    required this.conditionId,
-    required this.onDone,
-    required this.onRemove,
-  });
-
-  final LogFilterController controller;
-  final int conditionId;
-  final VoidCallback onDone;
-  final VoidCallback onRemove;
-
+class const FilterConditionEditor({
+  super.key,
+  required final LogFilterController controller,
+  required final int conditionId,
+  required final VoidCallback onDone,
+  required final VoidCallback onRemove,
+}) extends StatefulWidget {
   @override
   State<FilterConditionEditor> createState() => _FilterConditionEditorState();
 }
@@ -236,19 +229,12 @@ class _FilterConditionEditorState extends State<FilterConditionEditor> {
 }
 
 /// The "contains ▾" control in an editor header.
-class _OperatorButton extends StatelessWidget {
-  const _OperatorButton({
-    required this.label,
-    required this.negated,
-    required this.open,
-    required this.onPressed,
-  });
-
-  final String label;
-  final bool negated;
-  final bool open;
-  final VoidCallback? onPressed;
-
+class const _OperatorButton({
+  required final String label,
+  required final bool negated,
+  required final bool open,
+  required final VoidCallback? onPressed,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;

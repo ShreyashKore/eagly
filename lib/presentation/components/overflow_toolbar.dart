@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+
 import '../theme/app_theme.dart';
 import 'app_icon_button.dart';
 
@@ -10,53 +11,41 @@ import 'app_icon_button.dart';
 /// description has to serve both: [icon] + [tooltip] in the bar, [icon] +
 /// [label] in the menu.
 @immutable
-class ToolbarAction {
-  const ToolbarAction({
-    required this.icon,
-    required this.label,
-    this.tooltip,
-    this.onPressed,
-    this.isActive = false,
-    this.color,
-    this.iconOverride,
-    this.dividerBefore = false,
-    this.barBuilder,
-  });
-
-  final IconData icon;
+class const ToolbarAction({
+  required final IconData icon,
 
   /// Text in the overflow menu; also the fallback tooltip in the bar.
-  final String label;
-
-  final String? tooltip;
+  required final String label,
+  final String? tooltip,
 
   /// `null` disables the action in both the bar and the menu.
-  final VoidCallback? onPressed;
+  final VoidCallback? onPressed,
 
   /// Toggle-style actions: tints the button and shows a check in the menu.
-  final bool isActive;
-
-  final Color? color;
+  final bool isActive = false,
+  final Color? color,
 
   /// Replaces the icon in the bar (e.g. a progress spinner). The menu always
   /// uses [icon].
-  final Widget? iconOverride;
+  final Widget? iconOverride,
 
   /// Draws a group separator before this action — a vertical divider in the
   /// bar, a [PopupMenuDivider] in the menu.
-  final bool dividerBefore;
+  final bool dividerBefore = false,
 
   /// Renders this action in the bar, overriding the toolbar's default button
   /// (e.g. a labelled switch). The menu entry always uses [icon] / [label].
-  final ToolbarActionBuilder? barBuilder;
-
+  final ToolbarActionBuilder? barBuilder,
+}) {
   bool get enabled => onPressed != null;
 }
 
 /// Builds the in-bar button for an action, so a toolbar can keep its own
 /// button style (e.g. the logs toolbar sizing its `AppIconButton`s).
-typedef ToolbarActionBuilder =
-    Widget Function(BuildContext context, ToolbarAction action);
+typedef ToolbarActionBuilder = Widget Function(
+  BuildContext context,
+  ToolbarAction action,
+);
 
 /// A toolbar row that never overflows: it shows as many [actions] as fit and
 /// collapses the rest — from the end of the list, so put the least important
@@ -67,43 +56,27 @@ typedef ToolbarActionBuilder =
 /// close button); [flexible] takes whatever width is left over (a search field,
 /// or `const SizedBox.shrink()` used as a spacer) and never shrinks below
 /// [flexibleMinWidth] — actions collapse before it does.
-class OverflowToolbar extends StatefulWidget {
-  const OverflowToolbar({
-    super.key,
-    required this.actions,
-    this.leading = const [],
-    this.flexible,
-    this.flexibleMinWidth = 0,
-    this.trailing = const [],
-    this.spacing = 4,
-    this.iconSize = 20,
-    this.actionBuilder,
-    this.overflowIcon = Icons.more_horiz,
-    this.overflowTooltip = 'More actions',
-  });
+class const OverflowToolbar({
+  super.key,
 
   /// Collapsible actions, in display order. The last ones collapse first.
-  final List<ToolbarAction> actions;
-
-  final List<Widget> leading;
+  required final List<ToolbarAction> actions,
+  final List<Widget> leading = const [],
 
   /// Child that absorbs the leftover width, placed after [leading].
-  final Widget? flexible;
-  final double flexibleMinWidth;
-
-  final List<Widget> trailing;
+  final Widget? flexible,
+  final double flexibleMinWidth = 0,
+  final List<Widget> trailing = const [],
 
   /// Horizontal gap inserted between visible children.
-  final double spacing;
-
-  final double iconSize;
+  final double spacing = 4,
+  final double iconSize = 20,
 
   /// Renders an action in the bar. Defaults to an [IconButton].
-  final ToolbarActionBuilder? actionBuilder;
-
-  final IconData overflowIcon;
-  final String overflowTooltip;
-
+  final ToolbarActionBuilder? actionBuilder,
+  final IconData overflowIcon = Icons.more_horiz,
+  final String overflowTooltip = 'More actions',
+}) extends StatefulWidget {
   @override
   State<OverflowToolbar> createState() => _OverflowToolbarState();
 }
@@ -239,24 +212,15 @@ class _OverflowStatus {
 /// Children are laid out in a fixed order: [leadingCount] leading widgets, the
 /// optional flexible child, [actionCount] actions, the overflow button, then
 /// the trailing widgets.
-class _ToolbarLayout extends MultiChildRenderObjectWidget {
-  const _ToolbarLayout({
-    required this.leadingCount,
-    required this.hasFlexible,
-    required this.actionCount,
-    required this.flexibleMinWidth,
-    required this.spacing,
-    required this.status,
-    required super.children,
-  });
-
-  final int leadingCount;
-  final bool hasFlexible;
-  final int actionCount;
-  final double flexibleMinWidth;
-  final double spacing;
-  final _OverflowStatus status;
-
+class const _ToolbarLayout({
+  required final int leadingCount,
+  required final bool hasFlexible,
+  required final int actionCount,
+  required final double flexibleMinWidth,
+  required final double spacing,
+  required final _OverflowStatus status,
+  required super.children,
+}) extends MultiChildRenderObjectWidget {
   @override
   _RenderToolbarLayout createRenderObject(BuildContext context) {
     return _RenderToolbarLayout(
@@ -289,60 +253,47 @@ class _ToolbarParentData extends ContainerBoxParentData<RenderBox> {
   bool visible = true;
 }
 
-class _RenderToolbarLayout extends RenderBox
+class _RenderToolbarLayout({
+  required var int _leadingCount,
+  required var bool _hasFlexible,
+  required var int _actionCount,
+  required var double _flexibleMinWidth,
+  required var double _spacing,
+  required var _OverflowStatus _status,
+}) extends RenderBox
     with
         ContainerRenderObjectMixin<RenderBox, _ToolbarParentData>,
         RenderBoxContainerDefaultsMixin<RenderBox, _ToolbarParentData> {
-  _RenderToolbarLayout({
-    required int leadingCount,
-    required bool hasFlexible,
-    required int actionCount,
-    required double flexibleMinWidth,
-    required double spacing,
-    required _OverflowStatus status,
-  }) : _leadingCount = leadingCount,
-       _hasFlexible = hasFlexible,
-       _actionCount = actionCount,
-       _flexibleMinWidth = flexibleMinWidth,
-       _spacing = spacing,
-       _status = status;
-
-  int _leadingCount;
   set leadingCount(int value) {
     if (_leadingCount == value) return;
     _leadingCount = value;
     markNeedsLayout();
   }
 
-  bool _hasFlexible;
   set hasFlexible(bool value) {
     if (_hasFlexible == value) return;
     _hasFlexible = value;
     markNeedsLayout();
   }
 
-  int _actionCount;
   set actionCount(int value) {
     if (_actionCount == value) return;
     _actionCount = value;
     markNeedsLayout();
   }
 
-  double _flexibleMinWidth;
   set flexibleMinWidth(double value) {
     if (_flexibleMinWidth == value) return;
     _flexibleMinWidth = value;
     markNeedsLayout();
   }
 
-  double _spacing;
   set spacing(double value) {
     if (_spacing == value) return;
     _spacing = value;
     markNeedsLayout();
   }
 
-  _OverflowStatus _status;
   set status(_OverflowStatus value) {
     if (identical(_status, value)) return;
     _status = value;

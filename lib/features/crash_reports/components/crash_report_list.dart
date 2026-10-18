@@ -4,11 +4,10 @@ import '../crash_report_controller.dart';
 
 import '../utils.dart';
 
-class CrashReportList extends StatelessWidget {
-  const CrashReportList({super.key, required this.controller});
-
-  final CrashReportController controller;
-
+class const CrashReportList({
+  super.key,
+  required final CrashReportController controller,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

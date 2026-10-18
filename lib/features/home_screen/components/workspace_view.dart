@@ -20,20 +20,16 @@ import 'workspace_chrome.dart';
 /// pane's own header needs to act as its title bar ([WorkspacePaneScope]),
 /// the drag those headers start, and the label that follows the pointer
 /// saying where a drop would land. See docs/WORKSPACE_LAYOUT.md.
-class WorkspaceView extends StatefulWidget {
-  const WorkspaceView({
-    super.key,
-    required this.layout,
-    required this.paneBuilder,
-  });
-
-  final WorkspaceLayout layout;
+class const WorkspaceView({
+  super.key,
+  required final WorkspaceLayout layout,
 
   /// Builds [pane]'s content. Called for every open pane, including ones
   /// behind another tab, which stay mounted (offstage) so they keep their
   /// state; a moved pane is never rebuilt from scratch either.
-  final Widget Function(BuildContext context, WorkspacePane pane) paneBuilder;
-
+  required final Widget Function(BuildContext context, WorkspacePane pane)
+  paneBuilder,
+}) extends StatefulWidget {
   @override
   State<WorkspaceView> createState() => _WorkspaceViewState();
 }
@@ -244,12 +240,8 @@ class _WorkspaceViewState extends State<WorkspaceView> {
 
 /// One pane's [PaneControls], kept for the life of the view so a pane's
 /// [WorkspacePaneScope] compares equal from frame to frame.
-class _PaneControls implements PaneControls {
-  _PaneControls(this._view, this.pane);
-
-  final _WorkspaceViewState _view;
-  final WorkspacePane pane;
-
+class _PaneControls(final _WorkspaceViewState _view, final WorkspacePane pane)
+    implements PaneControls {
   WorkspaceLayout get _layout => _view._layout;
 
   @override
@@ -324,17 +316,11 @@ class _PaneControls implements PaneControls {
 
 /// The label that follows the pointer during a drag: what is moving and
 /// where it would land if dropped now — the words for the shaded preview.
-class _DragLabel extends StatelessWidget {
-  const _DragLabel({
-    required this.layout,
-    required this.pointer,
-    required this.bounds,
-  });
-
-  final WorkspaceLayout layout;
-  final ValueListenable<Offset?> pointer;
-  final Size bounds;
-
+class const _DragLabel({
+  required final WorkspaceLayout layout,
+  required final ValueListenable<Offset?> pointer,
+  required final Size bounds,
+}) extends StatelessWidget {
   static const double _maxWidth = 280;
 
   @override

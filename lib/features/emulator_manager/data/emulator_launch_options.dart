@@ -2,20 +2,18 @@ import 'package:flutter/foundation.dart';
 
 /// How an AVD should be started.
 @immutable
-class EmulatorLaunchOptions {
-  const EmulatorLaunchOptions({this.coldBoot = false, this.wipeData = false});
-
-  /// The plain "just start it" launch: resume the saved snapshot if there is
-  /// one, keep user data.
-  static const normal = EmulatorLaunchOptions();
-
+class const EmulatorLaunchOptions({
   /// Boot from scratch rather than resuming the saved snapshot. The usual fix
   /// for an AVD that resumes into a broken state.
-  final bool coldBoot;
+  final bool coldBoot = false,
 
   /// Erase the AVD's user data first — a factory reset. Destructive, and it
   /// forces a cold boot regardless of [coldBoot].
-  final bool wipeData;
+  final bool wipeData = false,
+}) {
+  /// The plain "just start it" launch: resume the saved snapshot if there is
+  /// one, keep user data.
+  static const normal = EmulatorLaunchOptions();
 
   /// True when launching this way throws away state the user cannot get back,
   /// which is what puts a confirmation in front of it.
@@ -47,17 +45,15 @@ class EmulatorLaunchOptions {
 /// emulator is launched detached and reports nothing back, so a booted device
 /// is confirmed by watching for it to appear in `adb devices`.
 @immutable
-class EmulatorLaunchOutcome {
-  const EmulatorLaunchOutcome({required this.started, this.pid, this.error});
-
+class const EmulatorLaunchOutcome({
+  required final bool started,
+  final int? pid,
+  final String? error,
+}) {
   const EmulatorLaunchOutcome.success(int pid) : this(started: true, pid: pid);
 
   const EmulatorLaunchOutcome.failure(String error)
     : this(started: false, error: error);
-
-  final bool started;
-  final int? pid;
-  final String? error;
 
   bool get isSuccess => started;
 }

@@ -16,10 +16,10 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.5.3+42
+version: 1.5.7+50
 
 environment:
-  sdk: ^3.9.0
+  sdk: ^3.13.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -54,7 +54,7 @@ dependencies:
   rust_lib_eagly:
     path: rust_builder
   flutter_rust_bridge: 2.13.0
-  freezed_annotation: ^2.4.1
+  freezed_annotation: ^3.1.0
   fl_panel: ^1.1.0
 
 dev_dependencies:
@@ -69,8 +69,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
-  freezed: ^2.5.2
-  build_runner: ^2.4.13
+  freezed: ^4.0.3
+  build_runner: ^2.17.1
   integration_test:
     sdk: flutter
 

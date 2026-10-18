@@ -1,20 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-class CenteredStateMessage extends StatelessWidget {
-  const CenteredStateMessage({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.description,
-    this.footer,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-  final Widget? footer;
-
+class const CenteredStateMessage({
+  super.key,
+  required final IconData icon,
+  required final String title,
+  required final String description,
+  final Widget? footer,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

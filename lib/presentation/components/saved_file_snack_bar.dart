@@ -21,12 +21,10 @@ void showSavedFileSnackBar(
     );
 }
 
-class _SavedFileContent extends StatelessWidget {
-  const _SavedFileContent({required this.message, required this.path});
-
-  final String message;
-  final String path;
-
+class const _SavedFileContent({
+  required final String message,
+  required final String path,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;

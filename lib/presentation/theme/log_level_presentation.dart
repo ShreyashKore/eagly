@@ -4,12 +4,10 @@ import 'package:flutter/material.dart';
 import '../../features/logs/data/models/log_level.dart';
 
 @immutable
-class LogLevelVisualStyle {
-  const LogLevelVisualStyle({required this.icon, required this.color});
-
-  final IconData icon;
-  final Color color;
-
+class const LogLevelVisualStyle({
+  required final IconData icon,
+  required final Color color,
+}) {
   Color backgroundColor(BuildContext context) {
     return color.withValues(
       alpha: Theme.of(context).brightness == Brightness.dark ? 0.22 : 0.12,
@@ -34,28 +32,17 @@ LogLevelVisualStyle resolveLogLevelVisualStyle(
   return LogLevelVisualStyle(icon: icon, color: accentColor);
 }
 
-class LogLevelLabel extends StatelessWidget {
-  const LogLevelLabel({
-    super.key,
-    required this.level,
-    required this.isIos,
-    this.text,
-    this.includeValueInLabel = false,
-    this.compact = false,
-    this.colorizeText = true,
-    this.textStyle,
-    this.mainAxisSize = MainAxisSize.min,
-  });
-
-  final LogLevel level;
-  final bool isIos;
-  final String? text;
-  final bool includeValueInLabel;
-  final bool compact;
-  final bool colorizeText;
-  final TextStyle? textStyle;
-  final MainAxisSize mainAxisSize;
-
+class const LogLevelLabel({
+  super.key,
+  required final LogLevel level,
+  required final bool isIos,
+  final String? text,
+  final bool includeValueInLabel = false,
+  final bool compact = false,
+  final bool colorizeText = true,
+  final TextStyle? textStyle,
+  final MainAxisSize mainAxisSize = MainAxisSize.min,
+}) extends StatelessWidget {
   String get _labelText {
     return text ??
         (includeValueInLabel

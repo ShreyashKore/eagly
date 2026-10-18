@@ -19,14 +19,14 @@ abstract final class AndroidKeycode {
 /// The desktop modifiers held while a key event was produced. Kept separate
 /// from [HardwareKeyboard] so the translator stays pure and testable.
 class ScrcpyModifiers {
-  const ScrcpyModifiers({
+  const new({
     this.shift = false,
     this.alt = false,
     this.control = false,
     this.meta = false,
   });
 
-  ScrcpyModifiers.fromHardwareKeyboard()
+  new fromHardwareKeyboard()
     : shift = HardwareKeyboard.instance.isShiftPressed,
       alt = HardwareKeyboard.instance.isAltPressed,
       control = HardwareKeyboard.instance.isControlPressed,
@@ -41,43 +41,27 @@ class ScrcpyModifiers {
 /// What a desktop key event translates into on the device. `null` from
 /// [ScrcpyKeyboardTranslator.translate] means "not ours" — the event keeps
 /// bubbling so app shortcuts still fire.
-sealed class ScrcpyKeyCommand {
-  const ScrcpyKeyCommand();
-}
+sealed class const ScrcpyKeyCommand();
 
 /// Consume the key without sending anything (e.g. a bare modifier press).
 /// Swallowing it is what stops the host beeping at an unhandled key.
-class ScrcpyIgnoreKey extends ScrcpyKeyCommand {
-  const ScrcpyIgnoreKey();
-}
+class const ScrcpyIgnoreKey() extends ScrcpyKeyCommand;
 
 /// Inject [text] as characters. Preferred over a keycode for anything
 /// printable: the desktop keymap has already resolved the layout, so an
 /// AZERTY or Dvorak host types what the user actually sees on their keys.
-class ScrcpyInjectText extends ScrcpyKeyCommand {
-  const ScrcpyInjectText(this.text);
-  final String text;
-}
+class const ScrcpyInjectText(final String text) extends ScrcpyKeyCommand;
 
 /// Inject an Android keycode press or release.
-class ScrcpyInjectKeycode extends ScrcpyKeyCommand {
-  const ScrcpyInjectKeycode(
-    this.keycode, {
-    required this.down,
-    this.metaState = AndroidMetaState.none,
-    this.repeat = 0,
-  });
-
-  final int keycode;
-  final bool down;
-  final int metaState;
-  final int repeat;
-}
+class const ScrcpyInjectKeycode(
+  final int keycode, {
+  required final bool down,
+  final int metaState = AndroidMetaState.none,
+  final int repeat = 0,
+}) extends ScrcpyKeyCommand;
 
 /// Push the desktop clipboard onto the device and paste it (Ctrl/⌘+V).
-class ScrcpyPasteClipboard extends ScrcpyKeyCommand {
-  const ScrcpyPasteClipboard();
-}
+class const ScrcpyPasteClipboard() extends ScrcpyKeyCommand;
 
 /// Turns Flutter key events into scrcpy control commands.
 ///
@@ -86,14 +70,12 @@ class ScrcpyPasteClipboard extends ScrcpyKeyCommand {
 /// stateful: it remembers which keycodes it pressed so a key-up is only
 /// forwarded for a key-down it actually sent, and so [releaseAll] can unstick
 /// held modifiers when the mirror loses focus.
-class ScrcpyKeyboardTranslator {
-  ScrcpyKeyboardTranslator({this.metaIsControl = false});
-
+class ScrcpyKeyboardTranslator({
   /// Whether the platform's ⌘ key should act as the device's Ctrl (macOS), so
   /// ⌘C/⌘V/⌘A do on the device what they do on the desktop. When false the
   /// Meta key is left to the host app.
-  final bool metaIsControl;
-
+  final bool metaIsControl = false,
+}) {
   final Map<int, int> _pressed = <int, int>{};
   final Map<int, int> _repeats = <int, int>{};
 

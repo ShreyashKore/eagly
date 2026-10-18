@@ -1,18 +1,12 @@
 import 'package:flutter/material.dart';
 
 /// A fixed-width header label cell for the log viewer's column header row.
-class HeaderCell extends StatelessWidget {
-  const HeaderCell({
-    super.key,
-    required this.text,
-    required this.width,
-    required this.style,
-  });
-
-  final String text;
-  final double width;
-  final TextStyle style;
-
+class const HeaderCell({
+  super.key,
+  required final String text,
+  required final double width,
+  required final TextStyle style,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(

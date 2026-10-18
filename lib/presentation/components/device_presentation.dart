@@ -10,18 +10,12 @@ IconData devicePlatformIcon(Device device) {
 }
 
 /// Platform icon, with a subtle Wi-Fi badge for wireless Android devices.
-class DevicePlatformIconWidget extends StatelessWidget {
-  const DevicePlatformIconWidget({
-    super.key,
-    required this.device,
-    required this.color,
-    required this.size,
-  });
-
-  final Device device;
-  final Color color;
-  final double size;
-
+class const DevicePlatformIconWidget({
+  super.key,
+  required final Device device,
+  required final Color color,
+  required final double size,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = Icon(devicePlatformIcon(device), color: color, size: size);
@@ -51,24 +45,15 @@ class DevicePlatformIconWidget extends StatelessWidget {
   }
 }
 
-class DeviceLabel extends StatelessWidget {
-  const DeviceLabel({
-    super.key,
-    required this.device,
-    this.textStyle,
-    this.iconColor,
-    this.maxWidth,
-    this.showStatus = false,
-    this.iconSize,
-  });
-
-  final Device device;
-  final TextStyle? textStyle;
-  final Color? iconColor;
-  final double? maxWidth;
-  final bool showStatus;
-  final double? iconSize;
-
+class const DeviceLabel({
+  super.key,
+  required final Device device,
+  final TextStyle? textStyle,
+  final Color? iconColor,
+  final double? maxWidth,
+  final bool showStatus = false,
+  final double? iconSize,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -133,28 +118,18 @@ class DeviceLabel extends StatelessWidget {
   }
 }
 
-class DeviceSelectionLabel extends StatelessWidget {
-  const DeviceSelectionLabel({
-    super.key,
-    required this.device,
-    this.textStyle,
-    this.secondaryTextStyle,
-    this.iconColor,
-    this.maxWidth,
-    this.iconSize,
-    this.showSecondary = true,
-  });
-
-  final Device device;
-  final TextStyle? textStyle;
-  final TextStyle? secondaryTextStyle;
+class const DeviceSelectionLabel({
+  super.key,
+  required final Device device,
+  final TextStyle? textStyle,
+  final TextStyle? secondaryTextStyle,
+  final Color? iconColor,
+  final double? maxWidth,
+  final double? iconSize,
 
   /// Whether to show the label's secondary part (see [Device.displayLabel]).
-  final bool showSecondary;
-  final Color? iconColor;
-  final double? maxWidth;
-  final double? iconSize;
-
+  final bool showSecondary = true,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

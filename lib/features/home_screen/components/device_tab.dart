@@ -13,18 +13,26 @@ import 'context_menu_helper.dart';
 import 'entrance_reveal.dart';
 import 'workspace_label.dart';
 
-class DeviceTab extends StatefulWidget {
-  const DeviceTab({
-    super.key,
-    required this.session,
-    this.disambiguate = false,
-    required this.selected,
-    required this.animateIn,
-    required this.onSelect,
-    required this.onReload,
-    required this.onClose,
-  });
+class const DeviceTab({
+  super.key,
+  required final DeviceSessionController session,
 
+  /// Whether another tab shows the same name. Only matters under
+  /// [Device.shortNames], whose tabs show the label's secondary part — the
+  /// serial — just to tell such tabs apart; otherwise it always shows.
+  final bool disambiguate = false,
+  required final bool selected,
+
+  /// When true the tab plays a snappy entrance and, shortly after, a one-shot
+  /// highlight wave to draw attention to the freshly-connected device.
+  required final bool animateIn,
+  required final VoidCallback onSelect,
+
+  /// Tears the session down and rebuilds it; null when there is no device
+  /// behind the tab (the imported-logs workspace).
+  required final VoidCallback? onReload,
+  required final VoidCallback? onClose,
+}) extends StatefulWidget {
   /// A tab is as wide as its label needs, up to [maxWidth] — twice the
   /// widest a tab used to be (a 160 px label plus its dot, icon and close
   /// button). When the strip runs out of room the widest tabs shrink first,
@@ -32,24 +40,6 @@ class DeviceTab extends StatefulWidget {
   /// (`DeviceTabStrip.fitTabWidths`); the tab fills whatever it is given.
   static const double minWidth = 140;
   static const double maxWidth = 508;
-
-  final DeviceSessionController session;
-
-  /// Whether another tab shows the same name. Only matters under
-  /// [Device.shortNames], whose tabs show the label's secondary part — the
-  /// serial — just to tell such tabs apart; otherwise it always shows.
-  final bool disambiguate;
-  final bool selected;
-
-  /// When true the tab plays a snappy entrance and, shortly after, a one-shot
-  /// highlight wave to draw attention to the freshly-connected device.
-  final bool animateIn;
-  final VoidCallback onSelect;
-
-  /// Tears the session down and rebuilds it; null when there is no device
-  /// behind the tab (the imported-logs workspace).
-  final VoidCallback? onReload;
-  final VoidCallback? onClose;
 
   @override
   State<DeviceTab> createState() => _DeviceTabState();
@@ -219,13 +209,11 @@ class _DeviceTabState extends State<DeviceTab> with TickerProviderStateMixin {
 
 /// Paints a one-shot shimmer band that sweeps across the tab plus a soft glow
 /// border that pulses in and out — the "highlight wave" for a new device.
-class _HighlightWavePainter extends CustomPainter {
-  _HighlightWavePainter({required this.progress, required this.color});
-
+class _HighlightWavePainter({
   /// 0 → 1 over the life of the wave.
-  final double progress;
-  final Color color;
-
+  required final double progress,
+  required final Color color,
+}) extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rrect = RRect.fromRectAndRadius(

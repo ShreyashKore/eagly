@@ -9,92 +9,48 @@ import '../features/logs/data/models/log_level.dart';
 /// defined in exactly one place.
 
 // ── App / window ────────────────────────────────────────────────────────────
-class OpenSettingsIntent extends Intent {
-  const OpenSettingsIntent();
-}
+class const OpenSettingsIntent() extends Intent;
 
-class ShowAboutIntent extends Intent {
-  const ShowAboutIntent();
-}
+class const ShowAboutIntent() extends Intent;
 
-class QuitAppIntent extends Intent {
-  const QuitAppIntent();
-}
+class const QuitAppIntent() extends Intent;
 
-class ReloadDevicesIntent extends Intent {
-  const ReloadDevicesIntent();
-}
+class const ReloadDevicesIntent() extends Intent;
 
-class InstallAppIntent extends Intent {
-  const InstallAppIntent();
-}
+class const InstallAppIntent() extends Intent;
 
-class ExportLogsIntent extends Intent {
-  const ExportLogsIntent();
-}
+class const ExportLogsIntent() extends Intent;
 
-class OpenCommandPaletteIntent extends Intent {
-  const OpenCommandPaletteIntent();
-}
+class const OpenCommandPaletteIntent() extends Intent;
 
 // ── Capture ──────────────────────────────────────────────────────────────────
-class StartLogcatIntent extends Intent {
-  const StartLogcatIntent();
-}
+class const StartLogcatIntent() extends Intent;
 
-class TogglePauseResumeIntent extends Intent {
-  const TogglePauseResumeIntent();
-}
+class const TogglePauseResumeIntent() extends Intent;
 
-class ClearLogsIntent extends Intent {
-  const ClearLogsIntent();
-}
+class const ClearLogsIntent() extends Intent;
 
-class ScrollToEndIntent extends Intent {
-  const ScrollToEndIntent();
-}
+class const ScrollToEndIntent() extends Intent;
 
 // ── Search ────────────────────────────────────────────────────────────────────
-class ActivateSearchIntent extends Intent {
-  const ActivateSearchIntent();
-}
+class const ActivateSearchIntent() extends Intent;
 
-class NextMatchIntent extends Intent {
-  const NextMatchIntent();
-}
+class const NextMatchIntent() extends Intent;
 
-class PreviousMatchIntent extends Intent {
-  const PreviousMatchIntent();
-}
+class const PreviousMatchIntent() extends Intent;
 
 // ── Filter ────────────────────────────────────────────────────────────────────
-class FocusFilterIntent extends Intent {
-  const FocusFilterIntent();
-}
+class const FocusFilterIntent() extends Intent;
 
-class ClearFilterIntent extends Intent {
-  const ClearFilterIntent();
-}
+class const ClearFilterIntent() extends Intent;
 
-class SetLogLevelIntent extends Intent {
-  const SetLogLevelIntent(this.level);
-
-  final LogLevel level;
-}
+class const SetLogLevelIntent(final LogLevel level) extends Intent;
 
 // ── View ──────────────────────────────────────────────────────────────────────
-class ToggleWrapTextIntent extends Intent {
-  const ToggleWrapTextIntent();
-}
+class const ToggleWrapTextIntent() extends Intent;
 
-class ToggleAutoScrollIntent extends Intent {
-  const ToggleAutoScrollIntent();
-}
+class const ToggleAutoScrollIntent() extends Intent;
 
-class IncreaseFontIntent extends Intent {
-  const IncreaseFontIntent();
-}
+class const IncreaseFontIntent() extends Intent;
 
-class DecreaseFontIntent extends Intent {
-  const DecreaseFontIntent();
-}
+class const DecreaseFontIntent() extends Intent;

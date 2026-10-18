@@ -15,9 +15,8 @@ import 'tool_process_runner.dart';
 /// resolved. There is no sensible fallback to a bare `emulator` on PATH: the
 /// binary refuses to run unless it can find its sibling `lib64/` payload, so a
 /// wrong copy fails in a far more confusing way than no copy at all.
-class EmulatorTool extends ToolProcessRunner {
-  EmulatorTool({required String executablePath})
-    : super(executableName: 'emulator', executablePath: executablePath);
+class EmulatorTool({required String executablePath}) extends ToolProcessRunner {
+  this : super(executableName: 'emulator', executablePath: executablePath);
 
   /// `-list-avds` is quick, but a half-installed SDK can wedge it, and this
   /// runs behind a user-visible refresh.

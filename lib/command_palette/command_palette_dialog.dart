@@ -26,16 +26,11 @@ Future<void> showCommandPalette({
   );
 }
 
-class CommandPaletteDialog extends StatefulWidget {
-  const CommandPaletteDialog({
-    super.key,
-    required this.itemsBuilder,
-    required this.listenable,
-  });
-
-  final List<CommandPaletteItem> Function() itemsBuilder;
-  final Listenable listenable;
-
+class const CommandPaletteDialog({
+  super.key,
+  required final List<CommandPaletteItem> Function() itemsBuilder,
+  required final Listenable listenable,
+}) extends StatefulWidget {
   @override
   State<CommandPaletteDialog> createState() => _CommandPaletteDialogState();
 }
@@ -287,20 +282,13 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
   }
 }
 
-class _CommandTile extends StatelessWidget {
-  const _CommandTile({
-    super.key,
-    required this.item,
-    required this.selected,
-    required this.onTap,
-    required this.onHover,
-  });
-
-  final CommandPaletteItem item;
-  final bool selected;
-  final VoidCallback onTap;
-  final VoidCallback onHover;
-
+class const _CommandTile({
+  super.key,
+  required final CommandPaletteItem item,
+  required final bool selected,
+  required final VoidCallback onTap,
+  required final VoidCallback onHover,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

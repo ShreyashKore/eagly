@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../presentation/theme/app_theme.dart';
 
 /// Thin vertical divider used to group toolbar buttons.
-class ToolbarDivider extends StatelessWidget {
-  const ToolbarDivider({super.key});
-
+class const ToolbarDivider({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(

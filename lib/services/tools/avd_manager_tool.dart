@@ -16,9 +16,9 @@ import 'tool_process_runner.dart';
 ///
 /// Every call pays a JVM start (~1.5s measured), so results worth keeping are
 /// cached by the caller rather than re-read.
-class AvdManagerTool extends ToolProcessRunner {
-  AvdManagerTool({required String executablePath})
-    : super(executableName: 'avdmanager', executablePath: executablePath);
+class AvdManagerTool({required String executablePath})
+    extends ToolProcessRunner {
+  this : super(executableName: 'avdmanager', executablePath: executablePath);
 
   /// Generous because the JVM start dominates and a cold SDK repository scan
   /// can add several seconds on top.

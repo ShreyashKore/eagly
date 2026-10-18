@@ -18,24 +18,15 @@ import 'toolbar_divider.dart';
 /// action first — as the pane narrows. In the device workspace a
 /// [PaneGrip] leads the bar; while the pane sits in a tab group its chip is
 /// the handle and has the close button, so the bar shows neither.
-class Toolbar extends StatelessWidget {
-  const Toolbar({
-    super.key,
-    required this.controller,
-    required this.logManager,
-    required this.onImportLog,
-    required this.onExport,
-    required this.onCopyAll,
-    required this.onClose,
-  });
-
-  final LogController controller;
-  final LogSessionManager logManager;
-  final VoidCallback? onImportLog;
-  final VoidCallback? onExport;
-  final VoidCallback? onCopyAll;
-  final VoidCallback? onClose;
-
+class const Toolbar({
+  super.key,
+  required final LogController controller,
+  required final LogSessionManager logManager,
+  required final VoidCallback? onImportLog,
+  required final VoidCallback? onExport,
+  required final VoidCallback? onCopyAll,
+  required final VoidCallback? onClose,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = controller;

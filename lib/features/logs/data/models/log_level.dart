@@ -4,23 +4,16 @@
 /// [code] is a shared canonical identifier used by settings and filtering.
 /// Raw log-entry values can still differ per platform (`E`, `W`, `debug`, ...)
 /// and are resolved back to one of these shared levels when needed.
-class LogLevel {
-  const LogLevel._({
-    required this.code,
-    required this.label,
-    required this.hierarchy,
-    this.isUnknown = false,
-  });
-
-  final String code;
-  final String label;
+class const LogLevel._({
+  required final String code,
+  required final String label,
 
   /// Lower number = higher priority.
-  final int hierarchy;
+  required final int hierarchy,
 
   /// `true` when this instance represents an unrecognised raw value.
-  final bool isUnknown;
-
+  final bool isUnknown = false,
+}) {
   static const unknown = LogLevel._(
     code: 'unknown',
     label: 'Unknown',

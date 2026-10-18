@@ -16,11 +16,8 @@ import 'log_search_field.dart';
 /// and the search field across the switch, so typed text, focus and an open
 /// menu survive a resize. A pane narrower than [minWidth] clips the row's
 /// right edge rather than squeezing its controls.
-class LogFilterArea extends StatefulWidget {
-  const LogFilterArea({super.key, required this.controller});
-
-  final LogController controller;
-
+class const LogFilterArea({super.key, required final LogController controller})
+    extends StatefulWidget {
   /// Below this width (at 1× zoom; it scales with the zoom) the filter and
   /// the Level / Search controls stack.
   static const double stackBelowWidth = 1050;

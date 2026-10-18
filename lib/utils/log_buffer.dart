@@ -4,13 +4,12 @@ typedef LogFilter<T> = bool Function(T log);
 
 const int _batchOverflowPercent = 20;
 
-class LogBuffer<T> {
-  LogBuffer({required this.baseCapacity})
+class LogBuffer<T>({required final int baseCapacity}) {
+  this
     : assert(baseCapacity > 0, 'baseCapacity must be positive'),
       expandedCapacity = baseCapacity * 2,
       _targetCapacity = baseCapacity;
 
-  final int baseCapacity;
   final int expandedCapacity;
   final ListQueue<_BufferEntry<T>> _entries = ListQueue<_BufferEntry<T>>();
 
@@ -130,9 +129,7 @@ class LogBuffer<T> {
   }
 }
 
-class _BufferEntry<T> {
-  final T value;
-  bool matchesFilter;
-
-  _BufferEntry({required this.value, required this.matchesFilter});
-}
+class _BufferEntry<T>({
+  required final T value,
+  required var bool matchesFilter,
+});

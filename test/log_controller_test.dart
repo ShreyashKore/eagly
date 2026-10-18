@@ -662,44 +662,41 @@ void main() {
     },
   );
 
-  test(
-    'an unresolved PID asks for a pid→package refresh only under a package filter',
-    () async {
-      final log = createLog();
-      await log.startLogcat();
+  test('an unresolved PID asks for a pid→package refresh only under a package filter', () async {
+    final log = createLog();
+    await log.startLogcat();
 
-      service.emit(testLogEntry(message: 'unfiltered', pid: '500'));
-      await Future<void>.delayed(Duration.zero);
-      expect(service.pidRefreshRequests, 0);
+    service.emit(testLogEntry(message: 'unfiltered', pid: '500'));
+    await Future<void>.delayed(Duration.zero);
+    expect(service.pidRefreshRequests, 0);
 
-      applyTypedFilter(log, 'package:com.foo');
-      // Applying the filter asks once on its own; count lines from there.
-      final base = service.pidRefreshRequests;
-      service.emit(
-        testLogEntry(message: 'resolved', pid: '501', packageName: 'com.bar'),
-      );
-      await Future<void>.delayed(Duration.zero);
-      expect(
-        service.pidRefreshRequests,
-        base,
-        reason: 'it already has a package',
-      );
+    applyTypedFilter(log, 'package:com.foo');
+    // Applying the filter asks once on its own; count lines from there.
+    final base = service.pidRefreshRequests;
+    service.emit(
+      testLogEntry(message: 'resolved', pid: '501', packageName: 'com.bar'),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      service.pidRefreshRequests,
+      base,
+      reason: 'it already has a package',
+    );
 
-      service.emit(testLogEntry(message: 'unresolved', pid: '502'));
-      await Future<void>.delayed(Duration.zero);
-      expect(service.pidRefreshRequests, base + 1);
+    service.emit(testLogEntry(message: 'unresolved', pid: '502'));
+    await Future<void>.delayed(Duration.zero);
+    expect(service.pidRefreshRequests, base + 1);
 
-      // Still unresolved after that ask: pid 502 doesn't ask again.
-      service.emit(testLogEntry(message: 'still unresolved', pid: '502'));
-      await Future<void>.delayed(Duration.zero);
-      expect(service.pidRefreshRequests, base + 1);
+    // Still unresolved after that ask: pid 502 doesn't ask again.
+    service.emit(testLogEntry(message: 'still unresolved', pid: '502'));
+    await Future<void>.delayed(Duration.zero);
+    expect(service.pidRefreshRequests, base + 1);
 
-      // pid 501 was learned from the resolved line above.
-      service.emit(testLogEntry(message: 'learned', pid: '501'));
-      await Future<void>.delayed(Duration.zero);
-      expect(service.pidRefreshRequests, base + 1);
-    },
-  );
+    // pid 501 was learned from the resolved line above.
+    service.emit(testLogEntry(message: 'learned', pid: '501'));
+    await Future<void>.delayed(Duration.zero);
+    expect(service.pidRefreshRequests, base + 1);
+  });
 
   test(
     'a pid→package refresh reveals and keeps lines that logged before it',

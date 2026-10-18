@@ -57,36 +57,33 @@ void main() {
     },
   );
 
-  test(
-    'refreshDevices reuses cached Android descriptions when the device remains connected',
-    () async {
-      adbTool.androidDevices = [
-        Device('emulator-5554', 'device', platform: DevicePlatform.android),
-      ];
-      adbTool.androidDescriptions['emulator-5554'] = Device(
-        'emulator-5554',
-        'device',
-        brand: 'Google',
-        model: 'Pixel 8',
-        name: 'husky',
-        platform: DevicePlatform.android,
-      );
+  test('refreshDevices reuses cached Android descriptions when the device remains connected', () async {
+    adbTool.androidDevices = [
+      Device('emulator-5554', 'device', platform: DevicePlatform.android),
+    ];
+    adbTool.androidDescriptions['emulator-5554'] = Device(
+      'emulator-5554',
+      'device',
+      brand: 'Google',
+      model: 'Pixel 8',
+      name: 'husky',
+      platform: DevicePlatform.android,
+    );
 
-      await repository.refreshDevices(force: true);
+    await repository.refreshDevices(force: true);
 
-      adbTool.androidDescriptions['emulator-5554'] = Device(
-        'emulator-5554',
-        'device',
-        platform: DevicePlatform.android,
-      );
-      await repository.refreshDevices(force: true);
+    adbTool.androidDescriptions['emulator-5554'] = Device(
+      'emulator-5554',
+      'device',
+      platform: DevicePlatform.android,
+    );
+    await repository.refreshDevices(force: true);
 
-      expect(adbTool.describeAndroidDeviceCalls['emulator-5554'], 1);
-      expect(repository.devices.single.brand, 'Google');
-      expect(repository.devices.single.model, 'Pixel 8');
-      expect(repository.devices.single.name, 'husky');
-    },
-  );
+    expect(adbTool.describeAndroidDeviceCalls['emulator-5554'], 1);
+    expect(repository.devices.single.brand, 'Google');
+    expect(repository.devices.single.model, 'Pixel 8');
+    expect(repository.devices.single.name, 'husky');
+  });
 
   test('Android models are shown by their marketing name', () async {
     final lookups = <String>[];
@@ -181,33 +178,30 @@ void main() {
     },
   );
 
-  test(
-    'refreshDevices reuses cached iOS descriptions when the device remains connected',
-    () async {
-      iosDevicesService.deviceIds = const ['ios-1'];
-      iosDevicesService.infos['ios-1'] = const IosDeviceInfo(
-        deviceId: 'ios-1',
-        status: 'device',
-        deviceName: 'QA iPhone',
-        hardwareModel: 'iPhone 15',
-      );
+  test('refreshDevices reuses cached iOS descriptions when the device remains connected', () async {
+    iosDevicesService.deviceIds = const ['ios-1'];
+    iosDevicesService.infos['ios-1'] = const IosDeviceInfo(
+      deviceId: 'ios-1',
+      status: 'device',
+      deviceName: 'QA iPhone',
+      hardwareModel: 'iPhone 15',
+    );
 
-      await repository.refreshDevices(force: true);
+    await repository.refreshDevices(force: true);
 
-      iosDevicesService.infos['ios-1'] = const IosDeviceInfo(
-        deviceId: 'ios-1',
-        status: 'device',
-      );
-      await repository.refreshDevices(force: true);
+    iosDevicesService.infos['ios-1'] = const IosDeviceInfo(
+      deviceId: 'ios-1',
+      status: 'device',
+    );
+    await repository.refreshDevices(force: true);
 
-      // The second refresh must not reopen a lockdown session: a connected
-      // device's name cannot change under us, and a TLS handshake per poll is
-      // exactly what the description cache exists to avoid.
-      expect(iosDevicesService.describeCalls['ios-1'], 1);
-      expect(repository.devices.single.name, 'QA iPhone');
-      expect(repository.devices.single.model, 'iPhone 15');
-    },
-  );
+    // The second refresh must not reopen a lockdown session: a connected
+    // device's name cannot change under us, and a TLS handshake per poll is
+    // exactly what the description cache exists to avoid.
+    expect(iosDevicesService.describeCalls['ios-1'], 1);
+    expect(repository.devices.single.name, 'QA iPhone');
+    expect(repository.devices.single.model, 'iPhone 15');
+  });
 
   test(
     'iosSupportUnavailable mirrors usbmuxd state and toggles back',
@@ -224,8 +218,8 @@ void main() {
   );
 }
 
-class _FakeAdbTool extends AdbTool {
-  _FakeAdbTool() : super(executablePath: '/usr/bin/true');
+class _FakeAdbTool() extends AdbTool {
+  this : super(executablePath: '/usr/bin/true');
 
   List<Device> androidDevices = const [];
   final Map<String, Device> androidDescriptions = {};

@@ -9,8 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Records what [launch] would have spawned instead of spawning it, so the
 /// argument list can be asserted without an SDK present.
-class _RecordingEmulatorTool extends EmulatorTool {
-  _RecordingEmulatorTool() : super(executablePath: '/usr/bin/true');
+class _RecordingEmulatorTool() extends EmulatorTool {
+  this : super(executablePath: '/usr/bin/true');
 
   final List<List<String>> started = [];
 

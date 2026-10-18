@@ -7,27 +7,20 @@ import '../../features/device_home/data/device_info.dart';
 /// Both [IosDeviceService] backends produce this shape so the mapping below is
 /// written once: the libimobiledevice backend parses `key: value` stdout into
 /// it, and the Rust backend flattens the plist dictionaries into it.
-class IosDeviceDomains {
-  const IosDeviceDomains({
-    this.root = const {},
-    this.battery = const {},
-    this.diskUsage = const {},
-    this.international = const {},
-  });
-
+class const IosDeviceDomains({
   /// DeviceName, ProductVersion, BuildVersion, SerialNumber, CPUArchitecture,
   /// SIMStatus, TimeZone.
-  final Map<String, String> root;
+  final Map<String, String> root = const {},
 
   /// `com.apple.mobile.battery`.
-  final Map<String, String> battery;
+  final Map<String, String> battery = const {},
 
   /// `com.apple.disk_usage`.
-  final Map<String, String> diskUsage;
+  final Map<String, String> diskUsage = const {},
 
   /// `com.apple.international`.
-  final Map<String, String> international;
-}
+  final Map<String, String> international = const {},
+});
 
 /// Builds the device-home model from lockdownd domains.
 ///

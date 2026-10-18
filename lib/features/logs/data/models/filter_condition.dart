@@ -27,7 +27,16 @@ enum FilterConditionField {
 
 /// A filter pill's comparison: a [FilterMatchMode] plus negation, named the
 /// way a person reads the pill ("Tag is not Chatty").
-enum FilterOperator {
+enum FilterOperator(
+  final FilterMatchMode mode, {
+  required final bool negate,
+
+  /// How the operator reads in a sentence: "Tag does not match regex ^Chat".
+  required final String label,
+
+  /// The one- or two-word form a pill's small label line has room for.
+  required final String shortLabel,
+}) {
   contains(
     FilterMatchMode.contains,
     negate: false,
@@ -60,42 +69,19 @@ enum FilterOperator {
     shortLabel: 'not regex',
   );
 
-  const FilterOperator(
-    this.mode, {
-    required this.negate,
-    required this.label,
-    required this.shortLabel,
-  });
-
-  final FilterMatchMode mode;
-  final bool negate;
-
-  /// How the operator reads in a sentence: "Tag does not match regex ^Chat".
-  final String label;
-
-  /// The one- or two-word form a pill's small label line has room for.
-  final String shortLabel;
-
   static FilterOperator of(FilterMatchMode mode, {required bool negate}) =>
       values.firstWhere((op) => op.mode == mode && op.negate == negate);
 }
 
 /// One filter pill. A pill whose [value] is still blank is a draft:
 /// it is shown while being edited but contributes no [FilterTerm].
-class FilterCondition {
-  const FilterCondition({
-    required this.id,
-    required this.field,
-    this.operator = FilterOperator.contains,
-    this.value = '',
-  });
-
+class const FilterCondition({
   /// Stable identity across edits, so an open editor keeps its pill.
-  final int id;
-  final FilterConditionField field;
-  final FilterOperator operator;
-  final String value;
-
+  required final int id,
+  required final FilterConditionField field,
+  final FilterOperator operator = FilterOperator.contains,
+  final String value = '',
+}) {
   bool get isDraft => value.trim().isEmpty;
 
   /// The term this pill contributes, or null while it is a draft.

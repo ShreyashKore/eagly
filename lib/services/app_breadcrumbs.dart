@@ -6,9 +6,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 ///
 /// Kept dependency-free of [AppLogger] (only depends on `sentry_flutter`) so
 /// `app_logger.dart` can import this without a cycle.
-class AppBreadcrumbs {
-  AppBreadcrumbs._();
-
+class AppBreadcrumbs._() {
   /// Mirrors an [AppLogger] entry (already used across tools/services) as a
   /// breadcrumb. `level` is the raw `AppLogLevel.name` (debug/info/success/
   /// warning/error).

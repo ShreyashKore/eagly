@@ -1,15 +1,10 @@
 import 'package:flutter/material.dart';
 
-class ScrollToEndButton extends StatelessWidget {
-  final bool visible;
-  final VoidCallback onPressed;
-
-  const ScrollToEndButton({
-    super.key,
-    required this.visible,
-    required this.onPressed,
-  });
-
+class const ScrollToEndButton({
+  super.key,
+  required final bool visible,
+  required final VoidCallback onPressed,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
