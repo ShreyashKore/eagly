@@ -34,7 +34,6 @@ them for you.
 ### macOS
 
 - **Xcode** + Command Line Tools (`xcode-select --install`)
-- **CocoaPods** (`sudo gem install cocoapods` or `brew install cocoapods`)
 
 ### Windows
 

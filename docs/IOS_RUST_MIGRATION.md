@@ -149,6 +149,15 @@ flutter_rust_bridge_codegen generate   # regenerate bindings; run from the repo 
 cd rust && cargo clippy && cargo fmt && cargo test
 ```
 
+The app build compiles the crate itself: `hook/build.dart` is a Dart build hook
+(flutter_rust_bridge_hooks over native_toolchain_rust) that `flutter build`, `run` and `test`
+invoke, and Flutter bundles the result as a code asset (`rust_lib_eagly.framework` on macOS,
+`librust_lib_eagly.so` on Linux, `rust_lib_eagly.dll` on Windows). There is no CocoaPods or
+Swift Package Manager plugin behind it. The Rust version and targets come from
+`rust/rust-toolchain.toml`; rustup installs them on first build, and the hook refuses a target
+that isn't listed there. It always builds `--release`, and it builds into `.dart_tool/`, not
+`rust/target/`.
+
 `rust/src/frb_generated.rs` and `lib/src/rust/**` are generated — never edit them. A new file
 under `rust/src/api/` is invisible to codegen until it is declared in `rust/src/api/mod.rs`.
 

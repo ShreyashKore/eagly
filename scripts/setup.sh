@@ -14,7 +14,7 @@
 #   ./scripts/setup.sh --help
 #
 # Install yourself first (the script cannot — see docs/SETUP.md):
-#   macOS    — Xcode + Command Line Tools, CocoaPods
+#   macOS    — Xcode + Command Line Tools
 #   Linux    — nothing extra; the apt build packages are installed for you
 #   Windows  — Visual Studio 2022 (Desktop C++), Git for Windows, iTunes (runtime)
 
@@ -99,10 +99,6 @@ check_macos_build_deps() {
   if ! xcode-select -p >/dev/null 2>&1; then
     warn "Xcode Command Line Tools not found. Install Xcode from the App Store and run:"
     warn "  xcode-select --install"
-  fi
-  if ! have pod; then
-    warn "CocoaPods not found (needed by some Flutter plugins). Install it with:"
-    warn "  sudo gem install cocoapods   # or: brew install cocoapods"
   fi
   # macOS uses VideoToolbox for the scrcpy decoder, so no FFmpeg dev libs are needed.
 }
