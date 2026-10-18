@@ -140,19 +140,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _showSnackBar('Column widths reset.');
   }
 
-  /// One line covering both halves of the question: which SDK, and whether it
-  /// can actually launch anything. `adb` is bundled and always works, so the
-  /// emulator is the only reason this setting exists.
-  String get _androidSdkSummary {
+  /// Both halves of the question: which SDK (the path, in [pathStyle]), and
+  /// whether it can actually launch anything. `adb` is bundled and always
+  /// works, so the emulator is the only reason this setting exists.
+  InlineSpan _androidSdkSummary(TextStyle pathStyle) {
     final path = _androidSdk.sdkPath;
-    return switch (_androidSdk.status) {
-      AndroidSdkStatus.ready => '$path\nEmulator ready',
-      AndroidSdkStatus.emulatorMissing =>
-        '$path\nNo emulator package in this SDK',
+    final status = switch (_androidSdk.status) {
+      AndroidSdkStatus.ready => 'Emulator ready',
+      AndroidSdkStatus.emulatorMissing => 'No emulator package in this SDK',
       AndroidSdkStatus.sdkMissing =>
         'Not found — choose the folder that contains platform-tools '
             'and emulator',
     };
+    if (path == null || _androidSdk.status == AndroidSdkStatus.sdkMissing) {
+      return TextSpan(text: status);
+    }
+    return TextSpan(
+      children: [
+        TextSpan(text: path, style: pathStyle),
+        TextSpan(text: '\n$status'),
+      ],
+    );
   }
 
   int get _themeIndex {
@@ -176,6 +184,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final hiddenColumns = PreferencesService.hiddenColumns;
     final theme = Theme.of(context);
+    // Folder paths read as values to copy or compare, not prose.
+    final pathStyle = context.eaglyTheme.monoStyle.copyWith(
+      fontSize: theme.textTheme.bodySmall?.fontSize,
+      height: 1.4,
+    );
     Widget sectionCard({
       required String title,
       required List<Widget> children,
@@ -466,7 +479,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _captureDirectory,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall,
+                      style: pathStyle,
                     ),
                   ),
                   trailing: Row(
@@ -515,8 +528,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('SDK location'),
                   subtitle: Tooltip(
                     message: _androidSdk.sdkPath ?? '',
-                    child: Text(
-                      _androidSdkSummary,
+                    child: Text.rich(
+                      _androidSdkSummary(pathStyle),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(

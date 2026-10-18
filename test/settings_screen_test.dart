@@ -97,6 +97,14 @@ void main() {
 
     expect(find.text('Screenshots & recordings'), findsOneWidget);
     expect(find.text(CaptureStorage.defaultDirectory()), findsOneWidget);
+    // A path is a value, so it is set in the monospace face.
+    expect(
+      tester
+          .widget<Text>(find.text(CaptureStorage.defaultDirectory()))
+          .style
+          ?.fontFamily,
+      contains('JetBrains'),
+    );
     expect(PreferencesService.captureAskEveryTime, isFalse);
 
     await tester.tap(askSwitch);
