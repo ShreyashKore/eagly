@@ -23,6 +23,10 @@ Covering WebViews is a stretch goal. Covering other people's apps is a further s
 - **The wire protocol is the contract between the two projects; there is no shared library.** It
   must be implementable in Kotlin (JVM and Native) and in Dart, so it is plain length-prefixed JSON
   over a stream socket. §4 is the v1 draft; the spec itself should live in the Inspektor repo.
+- **Development builds only, and no authentication.** Production releases ship Inspektor's no-op
+  artifacts. In debug, UAT and dev-release builds, the remote server runs only when the app turns
+  it on. Like Metro, the protocol trusts whoever connects (§4.3). UAT builds are what keep the
+  socket: the journal-file and device-log alternatives can't serve them (§1.1).
 - **Mocking comes from Inspektor's override engine, edited from Eagly.** That was the main reason
   to build a MITM proxy. For apps that ship Inspektor, we no longer need one.
 - **Two routes that need nothing installed stay as complements**, in this order:
@@ -66,6 +70,36 @@ Seen from Inspektor's side, Eagly *is* the "remote viewer" that its plan lists a
 It lets Flutter and React Native apps be inspected without shipping Compose Multiplatform UI into
 them.
 
+### 1.1 Scope decision: development builds only, no authentication (2026-10-18)
+
+Inspektor is a development tool, like Chucker.
+- **Production releases** ship the no-op artifacts, so there is no server code in them at all.
+- **Debug, UAT and dev-release builds** include the remote server, which starts only when the app
+  opts in.
+
+Within that scope:
+
+- **Authentication is dropped from the protocol.** This is the same trade Metro makes: while an
+  opted-in build runs, anything that can reach its socket can read the traffic and set overrides.
+  - The socket is loopback TCP (iOS) or an abstract Unix socket (Android). So "anything" means the
+    host, through adb or usbmux, and other apps on the same device. It never means the network.
+  - §4.3 lists what bounds the risk.
+- **The socket stays, and the app stays the server.** UAT and dev-release builds are usually
+  neither debuggable (Android) nor dev-signed (iOS). That rules out the alternatives:
+
+  | Transport | Debug builds | UAT / dev-release builds | iOS over USB | Bodies, overrides, backfill |
+  |---|---|---|---|---|
+  | **Socket in the app; Eagly connects (chosen)** | ✅ | ✅ | ✅ through usbmux | ✅ |
+  | App connects out to Eagly (Metro's direction) | ✅ | ✅ | ❌ No device→host route; needs Wi-Fi and a LAN listener | ✅ |
+  | Journal file in app storage, tailed by Eagly | ✅ | ❌ `run-as` and `house_arrest` refuse these builds | ✅ | Partly |
+  | Device log | ✅ | ✅ | ✅ | ❌ One-way, ~4 KB per entry, floods the app's own logs |
+
+  The rejected transports, and the authentication design this decision removed, are written up in
+  [the dropped-routes doc](NETWORK_INSPECTOR_DROPPED_ROUTES.md#transports-between-inspektor-and-eagly).
+- **What this removes from the plan:** the authentication handshake, Eagly's iOS log-token tap,
+  and two of the three spikes that had to run before phase 2.
+- **What stays:** discovery, the tunnels, backfill, and the iOS paused state.
+
 ## 2. Capture routes
 
 This section lists every route that was evaluated, so deferred ones don't have to be researched
@@ -73,7 +107,7 @@ again.
 
 | Route | What it sees | What it needs | Android | iOS | Status |
 |---|---|---|---|---|---|
-| Inspektor SDK | Whatever its adapter hooks: OkHttp, URLSession, Ktor, React Native (through those two), Dart `HttpClient` / `http` / dio | The dependency | ✅ | ✅ | **Primary** |
+| Inspektor SDK | Whatever its adapter hooks: OkHttp, URLSession, Ktor, React Native (through those two), Dart `HttpClient` / `http` / dio | The dependency, with its remote server turned on, in a non-production build | ✅ | ✅ | **Primary** |
 | CDP to `*_devtools_remote` sockets | Chrome, debuggable WebViews, Stetho apps. Full Network domain, bodies included | Nothing, for debuggable apps | ✅ | – | Phase 4 |
 | Dart VM service HTTP profile | `dart:io`, plus `cupertino_http` / `cronet_http` / `ok_http` through `http_profile` | A debug or profile build | ✅ | ✅ | Phase 4 |
 | `pcapd` | Per-packet process name, DNS, SNI and byte counts; a `.pcap` | USB | – | ✅ | Optional |
@@ -172,7 +206,7 @@ later UI decision.
   so this needs nothing extra.
 
 **Features stay isolated.** Discovery lives in `services/network/`, not in the Logs feature. When
-it needs log lines (the iOS auth token, the VM-service banner), it opens **its own filtered log
+it needs log lines (the Dart VM service banner in phase 4b), it opens **its own filtered log
 tap**: `os_trace_relay` `start_trace(Some(pid))` on iOS, and `adb logcat -T 1 -s <tag>` on
 Android. The Network pane never depends on a Logs pane being open.
 
@@ -238,6 +272,7 @@ The rules:
   this.
 - **The server runs in the app and the client in Eagly.** That is the only direction that works
   over USB on both platforms: iOS has no device→host route without a jailbreak.
+- **No authentication.** The scope and the safeguards that replace it are in §4.3.
 - **Additive evolution.** Clients ignore unknown fields and unknown events.
 - **No body bytes on the wire unless asked for.**
 
@@ -254,28 +289,34 @@ The rules:
 Don't end socket names in `_devtools_remote`. `chrome://inspect` would list the socket and then
 fail to speak CDP to it.
 
-### 4.3 Authentication
+### 4.3 Trust model: no authentication
 
-Payloads include auth headers and bodies, so another app on the device must not be able to read
-them.
+There is no authentication step. Whoever reaches the socket can read every transaction and
+create or delete overrides. That covers Eagly through adb or usbmux, and also other apps on the
+same device, because iOS apps can connect to each other's loopback ports and Android apps can
+connect to each other's abstract sockets. This was decided in §1.1.
 
-- **`peercred` (Android):**
-  - The server reads `SO_PEERCRED` and accepts uid 0 (adbd running as root), uid 2000 (shell) and
-    its own uid. Connections that arrive through `adb forward` come from shell.
-  - This is the rule Chromium's `devtools_auth.cc` applies to its own DevTools sockets.
-  - Kotlin uses `LocalSocket.getPeerCredentials()`.
-  - Dart would read the option through `RawSocketOption` / `getRawOption` with `SOL_SOCKET` and
-    `SO_PEERCRED`. That is *unverified* (spike 2); if it doesn't work, Dart falls back to
-    `logtoken`.
-- **`logtoken` (iOS, and the fallback):**
-  1. On each new connection, the server generates a one-time token.
-  2. It writes the token to the device log as a public `os_log` line (logcat on Android).
-  3. Eagly reads it from its filtered log tap and sends it back.
+What bounds it:
 
-  Only a host that can read the device log through lockdown or adb learns the token. iOS apps can
-  connect to each other's loopback ports, which is why a bare TCP listener isn't enough.
-- **`hello` comes before auth.** It carries only public identity and no traffic, so discovery can
-  label a target without authenticating.
+- **Production releases have no server.** They ship the no-op artifacts, which contain no
+  transport code.
+- **The server is opt-in.** It starts only when the app turns it on in Inspektor's config (§5).
+- **It is reachable only on the device.**
+  - The iOS listener binds `127.0.0.1`, and the Android listener is an abstract Unix socket, so
+    the network can't reach either. That is unlike Metro, which listens on every interface.
+  - It isn't HTTP, so a web page in a browser can't talk to it usefully. That is the attack
+    Metro's `Origin` check exists for.
+- **It is visible.** When the server starts, Inspektor writes one line to the device log naming
+  its socket or port. On Android, Inspektor's existing notification can say so too.
+
+Optional hardening, outside the protocol: the Kotlin Android server can reject peers whose uid
+isn't 0 (adbd as root), 2000 (shell, which is how `adb forward` connections arrive) or its own.
+That is a few lines with `LocalSocket.getPeerCredentials()`, and it's the rule Chromium applies to
+its DevTools sockets. Eagly doesn't notice either way.
+
+If authentication is ever needed again, the superseded design is written up in
+[the dropped-routes doc](NETWORK_INSPECTOR_DROPPED_ROUTES.md#authentication-on-the-socket-superseded).
+A later protocol version could add it, with `hello` announcing the method.
 
 ### 4.4 Framing
 
@@ -292,18 +333,10 @@ The server speaks first:
            "adapters": ["okhttp", "ktor"], "overrides": true},
  "app":   {"id": "com.example.app", "name": "Example", "version": "1.4.0 (51)",
            "pid": 12345, "process": "com.example.app"},
- "store": {"id": "7c0e2f4a-…", "persistent": true, "oldestId": "1201"},
- "auth":  ["peercred"]}
+ "store": {"id": "7c0e2f4a-…", "persistent": true, "oldestId": "1201"}}
 ```
 
-What happens next depends on the auth method:
-
-- **`logtoken`:** the client sends `{"type": "auth", "method": "logtoken", "token": "…"}`.
-- **`peercred`:** the server has already accepted or rejected the peer, so the client sends
-  nothing.
-
-The server then sends `{"type": "ready"}`, or closes the connection after sending
-`{"type": "error", "code": "unauthorized"}`.
+The client can send requests as soon as `hello` arrives. There is no authentication step (§4.3).
 
 If Eagly can't speak the server's `protocol` version, it says which side needs updating. A server
 can also refuse a client with `{"type": "error", "code": "unsupported_protocol", "supported": [1]}`.
@@ -397,7 +430,6 @@ attached, such as during app start-up, are still there.
 Golden transcripts are files of JSON frames for each case:
 
 - handshake;
-- auth success and auth failure;
 - backfill followed by live events;
 - body ranges;
 - an override round trip;
@@ -410,13 +442,15 @@ Eagly's client tests use a copy pinned to a protocol version.
 
 **Must have, blocking phase 2 (milestone I-1):**
 
-1. **A remote server in `inspektor-core`, on Android and iOS, started automatically, with an
-   opt-out in `InspektorCoreConfig`.**
-   - On Android it starts through androidx.startup; `ContextInitializer` already exists.
-   - On iOS it starts when the first `TransactionRecorder` is created.
-   - Keeping it in core avoids another no-op twin, and core is already debug-only through the
-     no-op artifacts. *Alternative:* a separate `:inspektor-remote` module with no public symbols;
-     nothing names it, so it needs no twin either.
+1. **A remote server in `inspektor-core`, on Android and iOS, that stays off unless the app turns
+   it on.**
+   - The switch is something like `InspektorCoreConfig.remote = true`; the name is still open.
+     The Dart package takes the same flag.
+   - The server starts when the first `TransactionRecorder` is created with the flag on.
+   - On start, it logs one line naming its socket or port (§4.3).
+   - Keeping it in core avoids another no-op twin, because the no-op artifacts already keep core
+     out of production. *Alternative:* a separate `:inspektor-remote` module with no public
+     symbols. Nothing would name it, so it wouldn't need a twin either.
 2. **A live event stream out of `TransactionRecorder`.** The recorder already inserts, then
    updates; emit an event after each. Also persist `store.id` (§4.9).
 3. **Header sanitisation applied in core, before anything reaches the transport.** The
@@ -473,8 +507,8 @@ so.
 
 ### Phase 0: agree the protocol
 
-- Move §4 into the Inspektor repo, and settle the iOS port range, the socket names and the auth
-  methods.
+- Move §4 into the Inspektor repo, and settle the iOS port range, the socket names and how the
+  remote server is switched on.
 - Write the golden transcripts.
 - **Exit:** the spec and fixtures are merged in Inspektor, and this section is a link.
 
@@ -500,13 +534,11 @@ so.
 - **Android:**
   - Move `AdbTool.forward` and `removeForward` out of `ScrcpyClient`.
   - Discovery through `/proc/net/unix`.
-  - The `peercred` path.
 - **iOS, behind a new `IosNetworkService` interface in `services/ios/`.** The implementation is
   Rust only, following docs/IOS_RUST_MIGRATION.md; no CLI version, since the CLIs are being
   removed.
   - `start_ios_port_forward(udid, device_port) -> host_port` and `stop_ios_port_forward`.
   - `probe_ios_ports(udid, ports) -> Vec<u16>`.
-  - A filtered log tap for `logtoken`: `os_trace_relay` with `start_trace(Some(pid))`.
   - `PidList`, for process names.
 - **Target lifecycle:**
   - backfill and reconnect;
@@ -556,10 +588,10 @@ so.
 
 - **The Kotlin and Dart servers drift apart.** Mitigation: the §4.10 fixtures run in CI on both,
   and Eagly pins a protocol version.
-- **The iOS `logtoken` route depends on reading the device log** (spike 1). If Eagly can't read
-  app logs on some iOS version, the fallback is a trust-on-first-use prompt in the app, with the
-  host key kept in the Keychain. A token written into the app's container through `house_arrest`
-  is a second option, for dev-signed apps only (*unverified*).
+- **No authentication, by decision (§1.1).** While an opted-in build runs, other apps on that
+  device can read its traffic and set overrides. The bounds are in §4.3: no server in production,
+  explicit opt-in, and on-device listeners only. Revisit if Inspektor is ever meant for builds
+  that real users install.
 - **iOS apps are suspended in the background**, so live capture stops. The paused state and
   backfill cover the gap, and the UI should say so rather than look broken.
 - **Polling adb and usbmux costs the device link.** Mitigation: one shell per Android poll, polling
@@ -569,121 +601,26 @@ so.
 - **Moving the forward helpers out of `ScrcpyClient` could regress mirroring.** Mitigation: the
   move is mechanical; check it with the existing mirror tests and one device session.
 
-## 8. Spikes to run before committing
+## 8. Spikes and checks
 
-Run these before phase 2. Each one answers a single question that decides part of §4, and each has
-a fallback, so a failed spike changes the design but not the plan. The first three decide the
-protocol; the two smaller checks shape the UX.
+Dropping authentication (§1.1) removed two spikes: whether Dart can read the connecting peer's uid,
+and whether iOS delivers a token line to Eagly's log tap. Both are kept with the superseded design
+in
+[the dropped-routes doc](NETWORK_INSPECTOR_DROPPED_ROUTES.md#authentication-on-the-socket-superseded).
+
+What's left:
+- before phase 2: one spike and two smaller checks;
+- before phase 4b: one check.
 
 How to run them:
 
-- **Rust spikes:** a throwaway binary crate that depends on `idevice` with the same version and
-  features as `rust/Cargo.toml`. It can't live inside `rust/`: that crate builds only `cdylib` and
-  `staticlib`, so examples there can't link it.
-- **App spikes:** small test apps. Inspektor's `:sample` is the natural host once it has a server.
+- **Rust experiments:** a throwaway binary crate that depends on `idevice` with the same version
+  and features as `rust/Cargo.toml`. It can't live inside `rust/`: that crate builds only `cdylib`
+  and `staticlib`, so examples there can't link it.
+- **App experiments:** small test apps. Inspektor's `:sample` is the natural host once it has a
+  server.
 
-### Spike 1: can Eagly read an app's log line quickly on iOS 17, 18 and 26?
-
-**Decides:**
-- `logtoken` authentication on iOS (§4.3);
-- the banner fast path for iOS discovery: the Dart VM service in phase 4b, and the fallback in
-  spike 3.
-
-**Background**
-- `logtoken` only works if the token line reaches Eagly quickly and isn't redacted. Eagly already
-  streams iOS logs through `os_trace_relay`, so app logs reach it in general. The open questions
-  are latency, redaction, pid filtering and the newest iOS.
-- flutter_tools' iOS code carries comments saying:
-  - syslog scraping broke on iOS 13 and works again from at least iOS 16;
-  - `idevicesyslog` doesn't work for iOS 17 devices connected over Wi-Fi;
-  - it "stopped working with at least Xcode 26", after which flutter_tools switched to `devicectl`
-    and lldb.
-
-  It's unknown whether that last one was a device change or a tooling change.
-- Different writers behave differently:
-  - Kotlin/Native can call `NSLog` or `os_log`.
-  - A Dart-only Inspektor has Flutter's `print`, which the engine routes into the device log (it
-    shows up as `Runner(Flutter)[pid] <Notice>: flutter: …`), or FFI to `syslog(3)`.
-  - `os_log` replaces a dynamic string with `<private>` unless the format marks it `%{public}`.
-
-**How to run**
-1. **Build a test app** with a button that writes `INSPEKTOR-SPIKE <nonce> <monotonic ms>` in five
-   ways:
-   - `NSLog`;
-   - `os_log` with `%{public}s`;
-   - `syslog(LOG_NOTICE, …)`;
-   - Flutter's `print`;
-   - Kotlin/Native `NSLog`, from Inspektor's sample.
-2. **Write the Rust tap.** Get the app's pid from `OsTraceRelayClient::get_pid_list`, call
-   `start_trace(Some(pid))`, and print when each line matching the nonce arrives. Run it once with
-   `None` as well (the unfiltered stream Eagly uses today), to confirm the pid filter doesn't drop
-   lines.
-3. **Measure each writer** over 100 taps: the latency from tap to arrival, and whether the text
-   arrives intact rather than as `<private>` or truncated.
-4. **Cover the matrix:**
-   - iOS 17.x, 18.x and 26.x;
-   - the app launched from Xcode (debugger attached), from the home screen, and by Eagly;
-   - USB, plus Wi-Fi where the device is paired.
-5. **Cross-check failures** with `pymobiledevice3 syslog live --pid <pid>`, to tell an Eagly bug
-   from device behaviour.
-
-**Pass:** on all three iOS versions and in every launch mode, `os_log` with `%{public}` and `NSLog`
-arrive intact within one second with the pid filter on. Record which Dart writer works; the
-protocol names it.
-
-**If it fails**
-- **If only some writers fail:** pin the protocol to a writer that works, and name it in §4.3.
-- **If no writer works on some iOS version:** switch iOS authentication to trust-on-first-use,
-  the same model as adb's RSA prompt.
-  1. On the first connection from a host, the app shows "Allow Eagly to inspect this app?".
-  2. It stores a per-host key in the Keychain, so it doesn't ask again.
-
-  A second option is writing the token into the app's container through `house_arrest`, but that
-  works only for dev-signed apps (*unverified*).
-
-### Spike 2: can Dart read the connecting peer's uid on Android?
-
-**Decides:** whether a Dart-only Inspektor on Android uses `peercred`, like the Kotlin one, or falls
-back to `logtoken` (§4.3).
-
-**Background**
-- **The Kotlin side is easy:** it gets the peer from `LocalSocket.getPeerCredentials()`.
-- **The Dart side has no direct API.** `dart:io` has no peer-credential call, but
-  `Socket.getRawOption(RawSocketOption(level, option, value))` exposes a raw `getsockopt`.
-- **The values involved:** on Linux and every Android ABI, `SOL_SOCKET` is 1
-  (`RawSocketOption.levelSocket`) and `SO_PEERCRED` is 17. The value is
-  `struct ucred { int32 pid; uint32 uid; uint32 gid; }`: 12 bytes, little-endian.
-- **What's unknown:**
-  - whether `getRawOption` works on a Unix-domain socket in Dart, and from which Dart version;
-  - whether SELinux allows the call inside an app.
-- **The uids to expect:** connections that come through `adb forward` should arrive as uid 2000
-  (shell) on user builds, and as uid 0 when adbd runs as root.
-
-**How to run**
-1. **Build a minimal Flutter app** that binds
-   `ServerSocket.bind(InternetAddress('@inspektor_spike', type: InternetAddressType.unix), 0)`.
-   On each connection, it reads the peer with
-   `getRawOption(RawSocketOption(RawSocketOption.levelSocket, 17, Uint8List(12)))`, decodes pid,
-   uid and gid, and `print`s them.
-2. **Check discovery:** `adb shell grep @inspektor_spike /proc/net/unix` should list the socket.
-3. **Connect from the host:** run `adb forward tcp:0 localabstract:inspektor_spike`, then connect
-   with `nc 127.0.0.1 <port>`. Expect uid 2000, or 0 when adbd runs as root.
-4. **Connect from another app:** a second tiny app connects with `LocalSocket`. Expect that app's
-   uid, and expect the server to reject it.
-5. **Cover the matrix:**
-   - API 26, 29, 34 and 36;
-   - an arm64 phone, and an x86_64 emulator on both user and userdebug images;
-   - Flutter debug and release builds.
-
-**Pass:** every row reports the right uid.
-
-**If it fails:** the Dart implementation uses `logtoken` on Android.
-- **It's equally safe.** Since Android 4.1 an app can read only its own logcat entries, so only
-  shell and root can see the token.
-- **It's cheap.** Flutter's `print` already lands in logcat under the `flutter` tag. The cost is a
-  filtered `adb logcat` tap on Eagly's side for each connection.
-
-### Spike 3: how fast does a usbmux probe of a closed port fail?
+### Before phase 2: how fast does a usbmux probe of a closed port fail?
 
 **Decides:** whether iOS discovery can poll a port range (§3.2, §4.2), and how often.
 
@@ -721,13 +658,14 @@ back to `logtoken` (§4.3).
 **If it fails**
 - **Probe only when something changes:** when `os_trace_relay`'s `PidList` shows a new process, and
   when the pane opens. Add a slow sweep every ~10 s as a safety net.
-- **Or invert discovery:** the app logs a banner with its port when it starts listening, and again
-  periodically, and Eagly reads it from the log tap. This leans on spike 1.
+- **Or invert discovery:** Inspektor already logs a line naming its port when it starts (§4.3), and
+  could repeat it periodically. Eagly would read it from a filtered log tap. Whether iOS delivers
+  that line reliably is the phase 4b check below.
 - **Bonjour (`_inspektor._tcp`) is the last resort.** It needs the Local Network permission and an
   `NSBonjourServices` entry in the app. Whether it is reachable over USB from Windows and Linux is
   *unverified*.
 
-### Smaller checks
+### Before phase 2: smaller checks
 
 - **A. Is a backgrounded iOS app's listener reachable?** The expectation is no while the app is
   suspended. Run the sample, connect, background it, and watch the socket. Then foreground it and
@@ -736,10 +674,62 @@ back to `logtoken` (§4.3).
   transport? If it does, Inspektor targets work on wireless iPhones for free. If it doesn't, the
   pane says "connect over USB" for iOS.
 
+### Before phase 4b: can Eagly read an app's log line quickly on iOS 17, 18 and 26?
+
+**Decides:**
+- how Eagly finds a Flutter app's Dart VM service on iOS: its banner in the log, raced against
+  mDNS;
+- whether Inspektor's port line could replace probing if the phase-2 spike fails.
+
+**Background**
+- **What's already known:** Eagly streams iOS logs through `os_trace_relay`, so app logs reach it in
+  general.
+- **What's open:** latency, redaction, filtering by pid, and the newest iOS.
+- **Signs of trouble:** flutter_tools' iOS code carries comments saying:
+  - syslog scraping broke on iOS 13 and works again from at least iOS 16;
+  - `idevicesyslog` doesn't work for iOS 17 devices connected over Wi-Fi;
+  - it "stopped working with at least Xcode 26", after which flutter_tools switched to `devicectl`
+    and lldb. It's unknown whether that was a device change or a tooling change.
+- **Writers behave differently:**
+  - Flutter's `print`, which carries the VM service banner, shows up as
+    `Runner(Flutter)[pid] <Notice>: flutter: …`.
+  - `os_log` replaces a dynamic string with `<private>` unless the format marks it `%{public}`.
+
+**How to run**
+1. **Build a test app** with a button that writes `INSPEKTOR-SPIKE <nonce> <monotonic ms>` in four
+   ways:
+   - `NSLog`;
+   - `os_log` with `%{public}s`;
+   - Flutter's `print`;
+   - Kotlin/Native `NSLog`, from Inspektor's sample.
+2. **Write the Rust tap.** Get the app's pid from `OsTraceRelayClient::get_pid_list`, call
+   `start_trace(Some(pid))`, and timestamp each line matching the nonce. Run it once with `None` as
+   well (the unfiltered stream Eagly uses today), to confirm the pid filter doesn't drop lines.
+3. **Measure each writer** over 100 taps: the latency from tap to arrival, and whether the text
+   arrives intact.
+4. **Cover the matrix:**
+   - iOS 17.x, 18.x and 26.x;
+   - the app launched from Xcode, from the home screen, and by Eagly;
+   - USB, plus Wi-Fi where the device is paired.
+5. **Cross-check failures** with `pymobiledevice3 syslog live --pid <pid>`, to tell an Eagly bug
+   from device behaviour.
+
+**Pass:** Flutter's `print`, and either `NSLog` or public `os_log`, arrive intact within a second
+on all three iOS versions and in every launch mode.
+
+**If it fails:**
+- Find the VM service through mDNS alone: `_dartVmService._tcp`, with the token in TXT record
+  `authCode`.
+- Rely on port probing alone for Inspektor.
+
 ## 9. Open questions
 
 - **The iOS port range.** It should avoid the Dart VM service's random ports and common dev-server
   ports.
+- **How the remote server is switched on.** A code flag only, or also a manifest / `Info.plist`
+  key, so a UAT build can be switched on or off without a code change? And should overrides over
+  the wire need a second, separate switch, since they let the connecting side change the app's
+  responses?
 - **Auto-attach.** Should Eagly attach to the foreground app, or to every target found?
 - **Keeping the Flutter package out of release builds** (§5).
 - **Host targets.** Inspektor's JVM desktop target could be inspected over loopback TCP with no
