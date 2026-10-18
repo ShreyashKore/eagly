@@ -113,6 +113,20 @@ void main() {
     expect(PreferencesService.captureAskEveryTime, isTrue);
   });
 
+  testWidgets("a tappable row's ink spans its card edge to edge", (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(theme: AppTheme.lightTheme, home: const SettingsScreen()),
+    );
+
+    final tile = find.widgetWithText(SwitchListTile, 'Feature tips');
+    final ink = find.descendant(of: tile, matching: find.byType(InkWell));
+    final card = find.ancestor(of: tile, matching: find.byType(Card));
+
+    expect(tester.getSize(ink.first).width, tester.getSize(card).width);
+  });
+
   group('Android SDK', () {
     late Directory tempDir;
 
