@@ -34,10 +34,11 @@ Covering WebViews is a stretch goal. Covering other people's apps is a further s
   - iOS HAR logging through Apple's developer tools (DVT). It needs a developer disk image and a
     tunnel stack, which Eagly should build for other features first.
   - iOS WebView inspection.
-- **Dropped:**
-  - A JVMTI port of Android Studio's Network Inspector.
-  - React Native through Metro.
-  - A VPN companion app.
+- **Dropped:** each is written up in detail (how it works, what it would take, why it was dropped,
+  when to revisit) in [NETWORK_INSPECTOR_DROPPED_ROUTES.md](NETWORK_INSPECTOR_DROPPED_ROUTES.md):
+  - a JVMTI port of Android Studio's Network Inspector;
+  - React Native through Metro;
+  - a VPN companion app.
 
 ## 1. What changed once Inspektor went multi-client
 
@@ -52,13 +53,13 @@ and that changes the order:
 | Inspektor SDK → Eagly | Phase 3, Ktor apps only | **Primary**, phases 0–3 | Covers every framework. Traffic is already decrypted, the on-device database gives history, and overrides come with it. |
 | Dart VM service | Phase 1, primary for Flutter | Complement, phase 4. For Flutter debug/profile apps *without* Inspektor | It needs no package. Inspektor's Dart client adds release/QA builds, overrides and history. |
 | Android WebView and Chrome over CDP | Phase 1 | Complement, phase 4, first in line | Chromium's in-process network stack is invisible to every Inspektor adapter. |
-| React Native through Metro's CDP | Phase 1 | Dropped | Inspektor's React Native package covers it, and RN 0.83 ships its own Network panel. |
+| React Native through Metro's CDP | Phase 1 | [Dropped](NETWORK_INSPECTOR_DROPPED_ROUTES.md#react-native-through-metro) | Inspektor's React Native package covers it, and RN 0.83 ships its own Network panel. |
 | Desktop MITM proxy | Phase 2 | Deferred, phase 5 | Mocking for your own app now comes from Inspektor. The proxy only adds *other* apps. |
 | iOS HAR logging (DVT) | Phase 4 | Deferred. Build the DVT stack for its other uses first | The URLSession adapter covers your own iOS apps. |
 | iOS WebView (`webinspector`) | Optional | Optional (unchanged) | The only route to WKWebView traffic. |
-| JVMTI port of Studio's Network Inspector | Optional | Dropped | Inspektor's OkHttp adapter covers the same stacks. |
+| JVMTI port of Studio's Network Inspector | Optional | [Dropped](NETWORK_INSPECTOR_DROPPED_ROUTES.md#a-port-of-android-studios-network-inspector) | Inspektor's OkHttp adapter covers the same stacks. |
 | `pcapd` connection metadata | Optional | Optional (unchanged) | The only way to see other iOS apps with no setup. |
-| VPN companion app | Optional | Dropped unless the proxy is built | Its only job is to feed the proxy. |
+| VPN companion app | Optional | [Dropped](NETWORK_INSPECTOR_DROPPED_ROUTES.md#vpn-companion-app) unless the proxy is built | Its only job is to feed the proxy. |
 | Eagly's data model | Shaped like CDP | **Shaped like Inspektor's transaction** (HAR-like). CDP and the VM service map onto it | The primary source should map with no loss, including an override's "original vs replaced" values. |
 
 Seen from Inspektor's side, Eagly *is* the "remote viewer" that its plan lists as the escape hatch.
@@ -80,8 +81,9 @@ again.
 | iOS HAR logging (DVT `activitytracetap`) | Every URLSession request of a dev-signed app, bodies included | Developer Mode, a developer disk image (DDI), and the iOS 17.4+ tunnel | – | ✅ | Deferred |
 | `com.apple.webinspector` | WKWebView and Safari | The Web Inspector toggle, and `isInspectable` in the app | – | ✅ | Optional |
 | DVT network monitor | Per-process connections and byte counters | DDI and tunnel | – | ✅ | With the DVT stack |
-| JVMTI agent (Studio's inspector) | OkHttp, HttpURLConnection and gRPC in debuggable apps | API 26+ | ✅ | – | Dropped |
-| React Native through Metro | React Native `fetch` / XHR | RN 0.83 or later | ✅ | ✅ | Dropped |
+| JVMTI agent (Studio's inspector) | OkHttp, HttpURLConnection and gRPC in debuggable apps | API 26+ | ✅ | – | [Dropped](NETWORK_INSPECTOR_DROPPED_ROUTES.md#a-port-of-android-studios-network-inspector) |
+| React Native through Metro | React Native `fetch` / XHR | RN 0.83 or later | ✅ | ✅ | [Dropped](NETWORK_INSPECTOR_DROPPED_ROUTES.md#react-native-through-metro) |
+| VPN companion app | All TCP from all apps, routed into the proxy | The proxy; a consent dialog; root for Flutter's CA | ✅ | – | [Dropped](NETWORK_INSPECTOR_DROPPED_ROUTES.md#vpn-companion-app) |
 | eBPF (eCapture) or Frida | Everything | Root | ✅ | – | Out of scope |
 | `CFNETWORK_DIAGNOSTICS` | Headers only | A DVT launch | – | ✅ | Rejected: HAR logging does strictly more |
 
@@ -555,8 +557,9 @@ so.
 - **The Kotlin and Dart servers drift apart.** Mitigation: the §4.10 fixtures run in CI on both,
   and Eagly pins a protocol version.
 - **The iOS `logtoken` route depends on reading the device log** (spike 1). If Eagly can't read
-  app logs on some iOS version, the fallback is a token Eagly writes into the app's container
-  through `house_arrest`. That only works for dev-signed apps (*unverified*).
+  app logs on some iOS version, the fallback is a trust-on-first-use prompt in the app, with the
+  host key kept in the Keychain. A token written into the app's container through `house_arrest`
+  is a second option, for dev-signed apps only (*unverified*).
 - **iOS apps are suspended in the background**, so live capture stops. The paused state and
   backfill cover the gap, and the UI should say so rather than look broken.
 - **Polling adb and usbmux costs the device link.** Mitigation: one shell per Android poll, polling
@@ -568,15 +571,170 @@ so.
 
 ## 8. Spikes to run before committing
 
-1. **iOS 17, 18 and 26:** does Eagly's Rust `os_trace_relay` tap show an app's public `os_log` line
-   within about a second? flutter_tools notes that its own syslog scraping "stopped working with at
-   least Xcode 26", which may be specific to that tool. The answer decides `logtoken`.
-2. **Android, Dart:** can Dart read `SO_PEERCRED` through `getRawOption` on an abstract socket?
-3. **iOS:** can Eagly reach a listener in a backgrounded app? The expectation is no while it is
-   suspended; the answer shapes the paused state.
-4. **Probe cost:** how fast does a usbmux connect to a closed port fail, under Windows' Apple Mobile
-   Device Service and Linux's usbmuxd?
-5. **Wi-Fi-paired iPhones:** does `connect_to_device` work over usbmux's network transport?
+Run these before phase 2. Each one answers a single question that decides part of §4, and each has
+a fallback, so a failed spike changes the design but not the plan. The first three decide the
+protocol; the two smaller checks shape the UX.
+
+How to run them:
+
+- **Rust spikes:** a throwaway binary crate that depends on `idevice` with the same version and
+  features as `rust/Cargo.toml`. It can't live inside `rust/`: that crate builds only `cdylib` and
+  `staticlib`, so examples there can't link it.
+- **App spikes:** small test apps. Inspektor's `:sample` is the natural host once it has a server.
+
+### Spike 1: can Eagly read an app's log line quickly on iOS 17, 18 and 26?
+
+**Decides:**
+- `logtoken` authentication on iOS (§4.3);
+- the banner fast path for iOS discovery: the Dart VM service in phase 4b, and the fallback in
+  spike 3.
+
+**Background**
+- `logtoken` only works if the token line reaches Eagly quickly and isn't redacted. Eagly already
+  streams iOS logs through `os_trace_relay`, so app logs reach it in general. The open questions
+  are latency, redaction, pid filtering and the newest iOS.
+- flutter_tools' iOS code carries comments saying:
+  - syslog scraping broke on iOS 13 and works again from at least iOS 16;
+  - `idevicesyslog` doesn't work for iOS 17 devices connected over Wi-Fi;
+  - it "stopped working with at least Xcode 26", after which flutter_tools switched to `devicectl`
+    and lldb.
+
+  It's unknown whether that last one was a device change or a tooling change.
+- Different writers behave differently:
+  - Kotlin/Native can call `NSLog` or `os_log`.
+  - A Dart-only Inspektor has Flutter's `print`, which the engine routes into the device log (it
+    shows up as `Runner(Flutter)[pid] <Notice>: flutter: …`), or FFI to `syslog(3)`.
+  - `os_log` replaces a dynamic string with `<private>` unless the format marks it `%{public}`.
+
+**How to run**
+1. **Build a test app** with a button that writes `INSPEKTOR-SPIKE <nonce> <monotonic ms>` in five
+   ways:
+   - `NSLog`;
+   - `os_log` with `%{public}s`;
+   - `syslog(LOG_NOTICE, …)`;
+   - Flutter's `print`;
+   - Kotlin/Native `NSLog`, from Inspektor's sample.
+2. **Write the Rust tap.** Get the app's pid from `OsTraceRelayClient::get_pid_list`, call
+   `start_trace(Some(pid))`, and print when each line matching the nonce arrives. Run it once with
+   `None` as well (the unfiltered stream Eagly uses today), to confirm the pid filter doesn't drop
+   lines.
+3. **Measure each writer** over 100 taps: the latency from tap to arrival, and whether the text
+   arrives intact rather than as `<private>` or truncated.
+4. **Cover the matrix:**
+   - iOS 17.x, 18.x and 26.x;
+   - the app launched from Xcode (debugger attached), from the home screen, and by Eagly;
+   - USB, plus Wi-Fi where the device is paired.
+5. **Cross-check failures** with `pymobiledevice3 syslog live --pid <pid>`, to tell an Eagly bug
+   from device behaviour.
+
+**Pass:** on all three iOS versions and in every launch mode, `os_log` with `%{public}` and `NSLog`
+arrive intact within one second with the pid filter on. Record which Dart writer works; the
+protocol names it.
+
+**If it fails**
+- **If only some writers fail:** pin the protocol to a writer that works, and name it in §4.3.
+- **If no writer works on some iOS version:** switch iOS authentication to trust-on-first-use,
+  the same model as adb's RSA prompt.
+  1. On the first connection from a host, the app shows "Allow Eagly to inspect this app?".
+  2. It stores a per-host key in the Keychain, so it doesn't ask again.
+
+  A second option is writing the token into the app's container through `house_arrest`, but that
+  works only for dev-signed apps (*unverified*).
+
+### Spike 2: can Dart read the connecting peer's uid on Android?
+
+**Decides:** whether a Dart-only Inspektor on Android uses `peercred`, like the Kotlin one, or falls
+back to `logtoken` (§4.3).
+
+**Background**
+- **The Kotlin side is easy:** it gets the peer from `LocalSocket.getPeerCredentials()`.
+- **The Dart side has no direct API.** `dart:io` has no peer-credential call, but
+  `Socket.getRawOption(RawSocketOption(level, option, value))` exposes a raw `getsockopt`.
+- **The values involved:** on Linux and every Android ABI, `SOL_SOCKET` is 1
+  (`RawSocketOption.levelSocket`) and `SO_PEERCRED` is 17. The value is
+  `struct ucred { int32 pid; uint32 uid; uint32 gid; }`: 12 bytes, little-endian.
+- **What's unknown:**
+  - whether `getRawOption` works on a Unix-domain socket in Dart, and from which Dart version;
+  - whether SELinux allows the call inside an app.
+- **The uids to expect:** connections that come through `adb forward` should arrive as uid 2000
+  (shell) on user builds, and as uid 0 when adbd runs as root.
+
+**How to run**
+1. **Build a minimal Flutter app** that binds
+   `ServerSocket.bind(InternetAddress('@inspektor_spike', type: InternetAddressType.unix), 0)`.
+   On each connection, it reads the peer with
+   `getRawOption(RawSocketOption(RawSocketOption.levelSocket, 17, Uint8List(12)))`, decodes pid,
+   uid and gid, and `print`s them.
+2. **Check discovery:** `adb shell grep @inspektor_spike /proc/net/unix` should list the socket.
+3. **Connect from the host:** run `adb forward tcp:0 localabstract:inspektor_spike`, then connect
+   with `nc 127.0.0.1 <port>`. Expect uid 2000, or 0 when adbd runs as root.
+4. **Connect from another app:** a second tiny app connects with `LocalSocket`. Expect that app's
+   uid, and expect the server to reject it.
+5. **Cover the matrix:**
+   - API 26, 29, 34 and 36;
+   - an arm64 phone, and an x86_64 emulator on both user and userdebug images;
+   - Flutter debug and release builds.
+
+**Pass:** every row reports the right uid.
+
+**If it fails:** the Dart implementation uses `logtoken` on Android.
+- **It's equally safe.** Since Android 4.1 an app can read only its own logcat entries, so only
+  shell and root can see the token.
+- **It's cheap.** Flutter's `print` already lands in logcat under the `flutter` tag. The cost is a
+  filtered `adb logcat` tap on Eagly's side for each connection.
+
+### Spike 3: how fast does a usbmux probe of a closed port fail?
+
+**Decides:** whether iOS discovery can poll a port range (§3.2, §4.2), and how often.
+
+**Background**
+- **The load:** discovery would try every port in the range, about 8, every ~2 s while the Network
+  pane is open. That's 4 connection attempts per second per device.
+- **What a probe costs:** each attempt is a usbmux `Connect` request.
+  - `idevice`'s `connect_to_device` consumes its `UsbmuxdConnection`, so every probe also opens a
+    new connection to the usbmux daemon.
+  - A closed port should come back quickly with `ConnectionRefused` (usbmux result code 3).
+- **Three different daemons:** Apple's `usbmuxd` on macOS, Apple Mobile Device Service (from iTunes
+  or the Apple Devices app) on Windows, and the open-source `usbmuxd` on Linux. They may not behave
+  the same.
+- **Interference:** the same daemon and USB link carry Eagly's log stream and file transfers.
+
+**How to run**
+1. **Time the probes.** In a throwaway Rust binary, call `UsbmuxdConnection::default()`, then
+   `connect_to_device(device_id, port, label)`, against:
+   - a closed port;
+   - the open port of Inspektor's sample.
+
+   Do 100 rounds of each, both sequentially and with all 8 ports in parallel. Record p50 and p95
+   latency, and the error returned.
+2. **Check interference.** While probing, run the `os_trace_relay` stream and an AFC upload of a
+   large file. Compare against a baseline without probing, watching for gaps in the log stream and
+   drops in throughput.
+3. **Cover the matrix:** macOS, Windows (Apple Mobile Device Service) and Linux (`usbmuxd`); over
+   USB, and over Wi-Fi where the device is paired (see check B).
+
+**Pass:**
+- closed ports fail with a p95 under about 100 ms;
+- parallel probes behave;
+- the log stream and the file transfer show no visible effect.
+
+**If it fails**
+- **Probe only when something changes:** when `os_trace_relay`'s `PidList` shows a new process, and
+  when the pane opens. Add a slow sweep every ~10 s as a safety net.
+- **Or invert discovery:** the app logs a banner with its port when it starts listening, and again
+  periodically, and Eagly reads it from the log tap. This leans on spike 1.
+- **Bonjour (`_inspektor._tcp`) is the last resort.** It needs the Local Network permission and an
+  `NSBonjourServices` entry in the app. Whether it is reachable over USB from Windows and Linux is
+  *unverified*.
+
+### Smaller checks
+
+- **A. Is a backgrounded iOS app's listener reachable?** The expectation is no while the app is
+  suspended. Run the sample, connect, background it, and watch the socket. Then foreground it and
+  reconnect. This confirms the *paused* state and the backfill path in §4.9.
+- **B. Do Wi-Fi-paired iPhones work?** Does `connect_to_device` work over usbmux's network
+  transport? If it does, Inspektor targets work on wireless iPhones for free. If it doesn't, the
+  pane says "connect over USB" for iOS.
 
 ## 9. Open questions
 
@@ -593,7 +751,10 @@ so.
 
 ## Appendix A — research notes
 
-These are condensed findings for the complementary and deferred routes, checked 2026-10-18.
+These are condensed findings for the complementary and deferred routes, checked 2026-10-18. The
+dropped routes have their own write-up in
+[NETWORK_INSPECTOR_DROPPED_ROUTES.md](NETWORK_INSPECTOR_DROPPED_ROUTES.md): React Native through
+Metro, a port of Android Studio's Network Inspector, and a VPN companion app.
 
 ### Android
 
@@ -652,32 +813,6 @@ Sources: [android_device_info_query.cc](https://chromium.googlesource.com/chromi
 [devtools_auth.cc](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/content/browser/android/devtools_auth.cc),
 [StartupTasks.java](https://github.com/chromium/chromium/blob/main/android_webview/java/src/org/chromium/android_webview/StartupTasks.java),
 [Network.pdl](https://github.com/ChromeDevTools/devtools-protocol/blob/master/pdl/domains/Network.pdl).
-
-**Android Studio's Network Inspector (dropped)**
-
-- Apache-2.0, in AOSP `platform/tools/base` under `app-inspection/inspectors/network`. Minimum API
-  26.
-- It rewrites bytecode through JVMTI, using androidx.inspection `ArtTooling`. It hooks
-  `URL.openConnection`, `OkHttpClient.networkInterceptors()` (OkHttp 2 and 3) and the gRPC channel
-  builders.
-- `cmd activity attach-agent` loads only a native `.so`, so reusing it would mean writing our own
-  JVMTI host and loader and adding the androidx.inspection runtime. That is moderate-to-high
-  effort, and no project reuses it outside Studio.
-
-Sources: [inspector source](https://android.googlesource.com/platform/tools/base/+/refs/heads/mirror-goog-studio-main/app-inspection/inspectors/network/),
-[androidx inspection](https://github.com/androidx/androidx/tree/androidx-main/inspection/inspection).
-
-**VPN apps**
-
-- HTTP Toolkit's Android app is AGPL-3.0. It is driven by
-  `am start -a tech.httptoolkit.android.ACTIVATE -d <url>`, falls back to `adb reverse`, and does
-  not block QUIC.
-- PCAPdroid is GPL-3.0 and has a documented intent API. Its SOCKS5 mode combined with `adb reverse`
-  is a no-root path into a desktop proxy.
-- Neither can be bundled into Eagly, but both can be driven as separate apps.
-
-Sources: [httptoolkit-android](https://github.com/httptoolkit/httptoolkit-android),
-[PCAPdroid app API](https://github.com/emanuele-f/PCAPdroid/blob/master/docs/app_api.md).
 
 **Root only**
 
@@ -790,12 +925,11 @@ Sources: [service_extension.md](https://dart.googlesource.com/sdk/+/stable/runti
 **React Native**
 
 - RN 0.83 added a Network panel to React Native DevTools, using plain CDP through Metro's inspector
-  proxy (`/json/list`).
-- A second debugger can disconnect React Native DevTools unless the device reports
-  `supportsMultipleDebuggers`.
+  proxy. This is behind §5's correction to Inspektor's plan.
+- Reading that stream from Eagly was considered and dropped. See
+  [React Native through Metro](NETWORK_INSPECTOR_DROPPED_ROUTES.md#react-native-through-metro).
 
-Sources: [RN 0.83](https://reactnative.dev/blog/2025/12/10/react-native-0.83),
-[inspector-proxy](https://github.com/facebook/react-native/blob/main/packages/dev-middleware/src/inspector-proxy/__docs__/README.md).
+Sources: [RN 0.83](https://reactnative.dev/blog/2025/12/10/react-native-0.83).
 
 ### Proxy libraries and comparable products
 

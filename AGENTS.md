@@ -380,7 +380,8 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   starting any network-capture work.** It covers Eagly as the desktop viewer for
   [Inspektor](https://github.com/ShreyashKore/inspektor), the device↔desktop protocol draft, the
   phased plan, and research notes on the routes that were deferred (proxy, iOS DVT, WebViews).
-  Update it as phases land.
+  The dropped routes are written up in docs/NETWORK_INSPECTOR_DROPPED_ROUTES.md. Update both as
+  phases land.
 
 ## Conventions
 
