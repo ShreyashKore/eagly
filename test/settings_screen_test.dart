@@ -127,6 +127,21 @@ void main() {
     expect(tester.getSize(ink.first).width, tester.getSize(card).width);
   });
 
+  testWidgets('the max log lines field is sized for a number', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(theme: AppTheme.lightTheme, home: const SettingsScreen()),
+    );
+
+    final row = find.ancestor(
+      of: find.text('Max log lines'),
+      matching: find.byType(Row),
+    );
+    final field = find.descendant(of: row, matching: find.byType(TextField));
+    expect(tester.getSize(field).width, 120);
+  });
+
   group('Android SDK', () {
     late Directory tempDir;
 

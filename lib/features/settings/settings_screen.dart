@@ -399,24 +399,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SettingsRow(
                   child: Row(
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Max log lines'),
-                          Text(
-                            'Minimum 1000',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: context.eaglyTheme.tertiaryTextColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Gap(200),
                       Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Max log lines'),
+                            Text(
+                              'Minimum 1000',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: context.eaglyTheme.tertiaryTextColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Sized for the number it holds — seven digits — not
+                      // for whatever the row has left over.
+                      SizedBox(
+                        width: 120,
                         child: TextField(
                           controller: _logLinesController,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
+                            isDense: true,
                             hintText:
                                 '${PreferencesService.defaultLogLinesLimit}',
                           ),
