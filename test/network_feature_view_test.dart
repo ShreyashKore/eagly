@@ -2,6 +2,7 @@ import 'package:eagly/data/device.dart';
 import 'package:eagly/features/network/components/network_filter_bar.dart';
 import 'package:eagly/features/network/data/network_transaction.dart';
 import 'package:eagly/features/network/network_controller.dart';
+import 'package:eagly/features/network/services/network_source.dart';
 import 'package:eagly/features/network/network_feature_view.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/services/preferences_service.dart';
@@ -84,6 +85,89 @@ void main() {
 
     expect(find.text('No network traffic yet'), findsOneWidget);
     expect(find.text('Open HAR file'), findsOneWidget);
+    expect(find.text('What is Inspektor?'), findsOneWidget);
+    expect(
+      find.text('Looking for apps with Inspektor on Pixel 8…'),
+      findsOneWidget,
+    );
+    // A tester's steps come first, and know the device is already connected.
+    expect(find.text('Get a test build that includes Inspektor'), findsOne);
+    expect(find.text('Pixel 8 is connected'), findsOneWidget);
+
+    session.dispose();
+  });
+
+  testWidgets('the empty pane walks a developer through adding Inspektor', (
+    tester,
+  ) async {
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied.add((call.arguments as Map)['text'] as String);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await pumpView(tester);
+
+    await tester.ensureVisible(find.text('I’m building the app'));
+    await tester.tap(find.text('I’m building the app'));
+    await tester.pumpAndSettle();
+
+    // An Android device starts on OkHttp.
+    expect(find.textContaining('inspektor-okhttp-no-op'), findsOneWidget);
+    expect(find.textContaining('InspektorRemote.start()'), findsOneWidget);
+
+    final ktor = find.widgetWithText(ChoiceChip, 'Ktor');
+    await tester.ensureVisible(ktor);
+    await tester.tap(ktor);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('inspektor-okhttp'), findsNothing);
+    expect(find.textContaining('install(Inspektor)'), findsOneWidget);
+
+    await tester.ensureVisible(find.byTooltip('Copy').first);
+    await tester.tap(find.byTooltip('Copy').first);
+    await tester.pump();
+    expect(copied.single, contains('inspektor-no-op:<version>'));
+
+    session.dispose();
+  });
+
+  testWidgets('the empty pane names an app that is connected but quiet', (
+    tester,
+  ) async {
+    await pumpView(tester);
+    final source = FakeNetworkSource();
+    controller.attach(source);
+    source.status(NetworkSourceStatus.live);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('Connected to Example app.'), findsOneWidget);
+
+    await tearDownView(tester);
+  });
+
+  testWidgets('the empty pane fits a narrow pane', (tester) async {
+    await pumpView(tester, size: const Size(340, 700));
+    expect(tester.takeException(), isNull);
+
+    await tester.ensureVisible(find.text('I’m building the app'));
+    await tester.tap(find.text('I’m building the app'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Swift / React Native'));
+    await tester.tap(find.text('Swift / React Native'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('InspektorRemote.shared.start()'), findsOne);
+    expect(tester.takeException(), isNull);
 
     session.dispose();
   });

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../presentation/components/app_icon_button.dart';
-import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/feature_view.dart';
 import '../../presentation/components/overflow_toolbar.dart';
 import '../../presentation/theme/app_theme.dart';
 import '../../utils/utils.dart';
+import 'components/network_empty_guide.dart';
 import 'components/network_filter_bar.dart';
 import 'components/network_overview.dart';
 import 'components/network_presentation.dart';
@@ -173,19 +173,7 @@ class _NetworkFeatureViewState extends FeatureViewState<NetworkFeatureView> {
     required bool stacked,
   }) {
     if (controller.isEmpty) {
-      return CenteredStateMessage(
-        icon: Icons.http,
-        title: 'No network traffic yet',
-        description:
-            'Apps that ship Inspektor and call InspektorRemote.start() '
-            'show their requests here while they run. You can also open a '
-            'HAR file exported from Inspektor, a browser or a proxy.',
-        footer: FilledButton.icon(
-          onPressed: _openHar,
-          icon: const Icon(Icons.file_open_outlined),
-          label: const Text('Open HAR file'),
-        ),
-      );
+      return NetworkEmptyGuide(controller: controller, onOpenHar: _openHar);
     }
     final list = NetworkTransactionList(
       controller: controller,
