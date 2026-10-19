@@ -111,7 +111,7 @@ extension LogEntryExt on LogEntry {
     bool isIos = false,
   }) => switch (column) {
     LogColumn.timestamp => timestamp,
-    // iOS: packageName holds the compact process name ("novio", "runningboardd").
+    // iOS: packageName holds the compact process name ("Runner", "runningboardd").
     // Android: packageName is the resolved package name, or PID as fallback.
     LogColumn.pid => packageName ?? processName ?? pid,
     // iOS has no thread ID in syslog output (stored as '0'); show PID instead.
