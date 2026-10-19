@@ -82,6 +82,7 @@ class InspektorSource(
       StreamController<NetworkSourceEvent>();
   final Map<int, Completer<Object?>> _pending = {};
   final Completer<InspektorHello> _ready = Completer<InspektorHello>();
+  final Completer<void> _closedCompleter = Completer<void>();
   int _nextRequestId = 1;
   String? _lastId;
   bool _closed = false;
@@ -92,6 +93,10 @@ class InspektorSource(
   /// Completes with the server's `hello` once the source has subscribed, or
   /// with an error if the connection fails first.
   Future<InspektorHello> get ready => _ready.future;
+
+  /// Completes once the session is over: the app closed the connection, it
+  /// failed, or the source was disposed.
+  Future<void> get closed => _closedCompleter.future;
 
   /// The highest transaction id seen, to resume from after a reconnect. Only
   /// meaningful together with [InspektorHello.storeId].
@@ -268,6 +273,7 @@ class InspektorSource(
   void _finish(String? failure) {
     if (_closed) return;
     _closed = true;
+    _closedCompleter.complete();
     final pendingError = StateError(
       failure ?? 'The connection to the app closed.',
     );

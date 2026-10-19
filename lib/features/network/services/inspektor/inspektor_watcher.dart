@@ -23,6 +23,9 @@ String inspektorStoreKey(InspektorHello hello) =>
 ///   instead of starting a second one or sending its history again.
 /// - An endpoint that disappears has its tunnel closed. Its source has ended
 ///   by then: the app's socket closed when the process did.
+/// - A connection that ends is let go of, tunnel and all, so the next poll
+///   connects to the endpoint again if it is still there. On iOS a restarted
+///   app usually takes the same port, so this is the only way to see it.
 /// - A failed connection is retried after [retryDelay], not on every poll.
 ///
 /// [stop] only stops polling: connections stay up, so traffic keeps arriving
@@ -146,6 +149,13 @@ class InspektorWatcher({
       }
       _failedAt.remove(endpoint);
       attach(source, inspektorStoreKey(hello));
+      unawaited(
+        source.closed.then((_) {
+          if (!current()) return;
+          _connections.remove(endpoint);
+          unawaited(claim.close());
+        }),
+      );
     } catch (error) {
       _logger.warning('Could not connect to ${endpoint.name}: $error');
       await source?.dispose();

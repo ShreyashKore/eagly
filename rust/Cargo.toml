@@ -12,8 +12,9 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 flutter_rust_bridge = "=2.13.0"
 idevice = { version = "=0.1.65", default-features = false, features = ["usbmuxd", "tcp", "pair", "syslog_relay", "installation_proxy", "crashreportcopymobile", "afc"] }
 plist = "1.8"
-# `macros` for tokio::select!; FRB's own tokio brings only rt-multi-thread + sync.
-tokio = { version = "1", features = ["macros", "fs"] }
+# `macros` for tokio::select!; FRB's own tokio brings only rt-multi-thread + sync. `net`, `time`
+# and `io-util` for the usbmux port forward (api/ios_network.rs).
+tokio = { version = "1", features = ["macros", "fs", "net", "time", "io-util", "rt"] }
 tokio-util = { version = "0.7", default-features = false }
 
 [features]

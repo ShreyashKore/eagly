@@ -100,6 +100,24 @@ void main() {
     },
   );
 
+  test('an app whose connection ends is connected again on the next poll, '
+      'through a new tunnel', () async {
+    var closes = 0;
+    watch(
+      () => [endpoint(100)],
+      openTunnel: (_) async => server.tunnel(onClose: () => closes++),
+    );
+    await eventually(() => attached.isNotEmpty);
+
+    // An iOS app that restarts takes the same port: the endpoint never
+    // leaves the list, only the connection ends.
+    await server.dropClients();
+
+    await eventually(() => attached.length == 2);
+    expect(closes, 1);
+    expect(attached.last.$2, attached.first.$2);
+  });
+
   test('stop stops polling, and reset closes every tunnel', () async {
     var polls = 0;
     var closes = 0;

@@ -1,20 +1,28 @@
 import 'dart:io';
 
-/// Where one Inspektor server listens on a device.
+/// Where one Inspektor server listens on a device; see Inspektor's
+/// docs/REMOTE_PROTOCOL.md.
 ///
 /// On Android that is an abstract Unix socket named
-/// `inspektor_<pid>_<runtime>`; see Inspektor's docs/REMOTE_PROTOCOL.md.
-/// Two endpoints are the same when their [name]s are: a restarted app gets a
-/// new pid, so a new name and a new endpoint.
+/// `inspektor_<pid>_<runtime>`, and a restarted app gets a new pid, so a new
+/// name and a new endpoint. On iOS it is a loopback [port], which a restarted
+/// app usually takes again. Two endpoints are the same when their [name]s
+/// are.
 class const InspektorEndpoint({
-  /// The socket's name without the leading `@`, as `adb forward
-  /// localabstract:` wants it.
+  /// Android: the socket's name without the leading `@`, as adb's
+  /// `localabstract:` forwards take it. iOS: `tcp:<port>`.
   required final String name,
   final int? pid,
 
   /// `kotlin` or `dart`.
   final String? runtime,
+
+  /// The device-side TCP port, on iOS.
+  final int? port,
 }) {
+  /// The server listening on [port] of an iOS device.
+  InspektorEndpoint.tcp(int port) : this(name: 'tcp:$port', port: port);
+
   @override
   bool operator ==(Object other) =>
       other is InspektorEndpoint && other.name == name;
@@ -34,6 +42,16 @@ class const InspektorTunnel({
   required final int port,
   required final Future<void> Function() close,
 });
+
+/// The ports an Inspektor server takes on iOS and desktop: the first free one
+/// from [inspektorFirstPort], so one per app running at once.
+final List<int> inspektorPorts = List.unmodifiable([
+  for (var port = inspektorFirstPort; port < inspektorFirstPort + 8; port++)
+    port,
+]);
+
+/// Matches Inspektor's `REMOTE_FIRST_PORT`.
+const int inspektorFirstPort = 38470;
 
 /// What every Inspektor abstract socket's path starts with in
 /// `/proc/net/unix`.

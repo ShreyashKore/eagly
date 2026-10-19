@@ -35,4 +35,21 @@ Num       RefCount Protocol Flags    Type St Inode Path
     expect(parseInspektorSockets(dump), isEmpty);
     expect(parseInspektorSockets(''), isEmpty);
   });
+
+  test('an iOS endpoint is its port, one of the eight from 38470', () {
+    expect(inspektorPorts, [
+      38470,
+      38471,
+      38472,
+      38473,
+      38474,
+      38475,
+      38476,
+      38477,
+    ]);
+    final endpoint = InspektorEndpoint.tcp(38471);
+    expect(endpoint.port, 38471);
+    expect(endpoint, InspektorEndpoint.tcp(38471));
+    expect(endpoint, isNot(InspektorEndpoint.tcp(38470)));
+  });
 }
