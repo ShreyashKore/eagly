@@ -382,7 +382,15 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   plan, and research notes on deferred routes. Dropped routes are in
   docs/NETWORK_INSPECTOR_DROPPED_ROUTES.md. Update both as phases land.
   - **Phase 1 is in `features/network/`:** the pane, the model and store, HAR open/export, and
-    the Inspektor protocol client (`InspektorSource`). Live capture from devices is phase 2.
+    the Inspektor protocol client (`InspektorSource`).
+  - **Phase 2 on Android:** while the pane is open, `InspektorWatcher` finds apps through
+    `DeviceSessionRepository.findInspektorEndpoints`, which runs one `adb shell grep` over
+    `/proc/net/unix`. It tunnels to each with `adb forward` and attaches it under its store's key
+    (`inspektor:<app>:<store>`), so a restarted app continues its list instead of repeating it.
+    iOS finds nothing yet.
+  - **Device test:** `EAGLY_TEST_ANDROID_SERIAL=<serial> fvm flutter test
+    test/device/network_inspektor_device_test.dart`. It needs Inspektor's sample app (dev flavour)
+    running.
   - **Sources implement `NetworkSource`.** The controller files each one's transactions under
     its own key, because ids are only unique within a source.
   - **Decode frames with `const InspektorFrameDecoder().bind(stream)`, never

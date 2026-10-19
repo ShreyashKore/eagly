@@ -150,10 +150,12 @@ sources            services/network_source.dart           ✓ interface, one imp
                      ├─ services/har_source.dart           ✓ a HAR file opened from disk
                      ├─ services/cdp/  CdpSource              phase 4
                      └─ services/dart_vm/  DartVmSource       phase 4
-discovery          services/target_discovery.dart           phase 2; per device, polls only while the pane is open
-tunnels            lib/services/tools/adb_tool.dart          phase 2; forward / removeForward, moved out of ScrcpyClient
-                   rust/src/api/                             phase 2; iOS port forward over usbmux
-iOS backend        lib/services/ios/ios_network_service.dart phase 2; interface, Rust implementation only
+discovery          services/inspektor/inspektor_watcher.dart ✓ Android; polls only while the pane is open
+                   services/inspektor/inspektor_endpoint.dart ✓ endpoints, tunnels, /proc/net/unix parsing
+device facade      lib/services/device_session_repository.dart ✓ findInspektorEndpoints / openInspektorTunnel
+tunnels            lib/services/tools/adb_tool.dart          ✓ forwardToAbstractSocket / removeForward / grepProcNetUnix
+                   rust/src/api/                             phase 2, iOS; port forward over usbmux
+iOS backend        lib/services/ios/ios_network_service.dart phase 2, iOS; interface, Rust implementation only
 feature controller network_controller.dart                ✓ FeatureController; lazy in DeviceSessionController
 view               network_feature_view.dart, components/ ✓ WorkspacePane.network, rail, command palette
 ```
@@ -585,11 +587,37 @@ Two traps the tests caught, both now documented in the code:
 **Still open:** the golden transcripts belong to phase 0. Until they exist, the client tests
 script the server by hand (`test/support/inspektor_test_support.dart`).
 
-### Phase 2: Inspektor over the wire (needs I-1)
+### Phase 2: Inspektor over the wire (needs I-1) — Android done, iOS next
 
-- **Android:**
-  - Move `AdbTool.forward` and `removeForward` out of `ScrcpyClient`.
-  - Discovery through `/proc/net/unix`.
+**Android landed** (§3 has the map):
+
+- **Discovery.** `InspektorWatcher` runs while the pane is open and the device is connected. Every
+  2 s it makes one `adb shell grep -F @inspektor_ /proc/net/unix`.
+- **Connecting.** For each new socket it opens an `adb forward` and connects an `InspektorSource`.
+- **Filing.** Once `hello` names the store, the source is attached under
+  `inspektor:<app>:<store>`, not per connection. A restarted app (new pid, new socket) therefore
+  continues the same list, resuming after the last id Eagly saw, and its old bodies load through
+  the new connection.
+- **The resume point** is kept per store and survives Clear, so cleared requests don't come back on
+  a reconnect.
+- **Connection lifetime.** Connections outlive a closed pane; only polling stops. A socket that
+  disappears has its forward removed, and disposing the session removes the rest.
+- **Retries.** A failed connect is retried after 10 s, not on every poll.
+- **Decision:** `ScrcpyClient` keeps its own forward helpers rather than moving to `AdbTool`. It
+  stays a self-contained module, and mirroring isn't touched. The plan used to say "move".
+- **Device test:** `test/device/network_inspektor_device_test.dart` (`EAGLY_TEST_ANDROID_SERIAL`).
+  It follows the Inspektor sample live, restarts it, and checks the list continues with no repeats
+  and that every forward it opened is gone afterwards.
+  - It ignores forwards it didn't open: another Eagly watching the same device makes its own.
+  - It passed on an API 36 emulator.
+
+**Still to do:**
+
+- **Android, superseded:**
+  - ~~Move `AdbTool.forward` and `removeForward` out of `ScrcpyClient`.~~
+  - ~~Discovery through `/proc/net/unix`.~~
+- **Connection failures in the pane.** A protocol mismatch ("update Eagly") is only logged for
+  now.
 - **iOS, behind a new `IosNetworkService` interface in `services/ios/`.** The implementation is
   Rust only, following docs/IOS_RUST_MIGRATION.md; no CLI version, since the CLIs are being
   removed.
