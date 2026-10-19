@@ -11,6 +11,7 @@ import '../features/device_home/data/device_info.dart';
 import '../features/device_home/data/device_performance_stats.dart';
 import '../features/device_home/data/installed_app_info.dart';
 import '../features/logs/data/models/log_entry.dart';
+import '../features/network/services/inspektor/inspektor_endpoint.dart';
 import '../features/terminal/data/terminal_line.dart';
 import '../features/terminal/data/terminal_process.dart';
 import '../features/terminal/data/terminal_tools.dart';
@@ -535,6 +536,39 @@ class DeviceSessionRepository({
     }
     _sessionLogger.info('Reading crash reports for ${device.displayName}');
     return _iosCrashReportService.pullReports(_deviceId);
+  }
+
+  // ── Network inspection ────────────────────────────────────────────────
+
+  /// The Inspektor servers listening on the device right now, found by
+  /// scanning `/proc/net/unix` for their abstract sockets. iOS is not wired
+  /// up yet and finds none.
+  Future<List<InspektorEndpoint>> findInspektorEndpoints() async {
+    if (device is! AndroidDevice) return const [];
+    final lines = await _adbTool.grepProcNetUnix(
+      _deviceId,
+      inspektorSocketMarker,
+    );
+    return parseInspektorSockets(lines);
+  }
+
+  /// Opens a host-side tunnel to [endpoint]: an `adb forward` from a free
+  /// loopback port to its abstract socket.
+  Future<InspektorTunnel> openInspektorTunnel(
+    InspektorEndpoint endpoint,
+  ) async {
+    if (device is! AndroidDevice) {
+      throw UnsupportedError('Inspektor tunnels need an Android device.');
+    }
+    final port = await _adbTool.forwardToAbstractSocket(
+      _deviceId,
+      endpoint.name,
+    );
+    return InspektorTunnel(
+      host: InternetAddress.loopbackIPv4,
+      port: port,
+      close: () => _adbTool.removeForward(_deviceId, port),
+    );
   }
 
   Future<ScrcpyMirrorSession> startScreenMirror({

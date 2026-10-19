@@ -1035,6 +1035,64 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
     return properties;
   }
 
+  /// Forwards a free host TCP port to the abstract Unix socket [socketName]
+  /// on the device (`adb forward tcp:0 localabstract:<name>`) and returns the
+  /// port. Throws a [StateError] carrying adb's message when it fails.
+  ///
+  /// The forward lives in the adb server until [removeForward], or until the
+  /// device's transport goes away — a device that drops offline even briefly
+  /// loses every forward, so callers re-forward rather than reuse one.
+  Future<int> forwardToAbstractSocket(
+    String deviceId,
+    String socketName,
+  ) async {
+    final result = await runTextWithTimeout([
+      '-s',
+      deviceId,
+      'forward',
+      'tcp:0',
+      'localabstract:$socketName',
+    ], timeout: const Duration(seconds: 10));
+    final port = int.tryParse(result.stdout.trim());
+    if (!result.isSuccess || port == null) {
+      throw StateError(
+        'adb forward to $socketName failed: ${result.combinedOutput.trim()}',
+      );
+    }
+    return port;
+  }
+
+  /// Removes the forward on host [port]. Failures are ignored: the forward is
+  /// gone either way once the device disconnects.
+  Future<void> removeForward(String deviceId, int port) async {
+    try {
+      await runTextWithTimeout([
+        '-s',
+        deviceId,
+        'forward',
+        '--remove',
+        'tcp:$port',
+      ], timeout: const Duration(seconds: 10));
+    } catch (_) {}
+  }
+
+  /// The lines of the device's `/proc/net/unix` containing [needle], as one
+  /// `adb shell` — it runs on a poll, and bursts of adb clients starve other
+  /// users of the transport (see `_deviceInfoScript`). Empty when nothing
+  /// matches: `grep` exits 1 then, which is an answer, not an error.
+  Future<String> grepProcNetUnix(String deviceId, String needle) async {
+    final result = await runTextWithTimeout([
+      '-s',
+      deviceId,
+      'shell',
+      'grep',
+      '-F',
+      needle,
+      '/proc/net/unix',
+    ], timeout: const Duration(seconds: 10));
+    return result.exitCode == 0 ? result.stdout : '';
+  }
+
   Future<String?> readProcFile(String deviceId, String path) async {
     try {
       final result = await runText(['-s', deviceId, 'shell', 'cat', path]);

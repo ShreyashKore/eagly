@@ -8,6 +8,7 @@ import '../../utils/utils.dart';
 import 'components/network_transaction_detail.dart';
 import 'components/network_transaction_list.dart';
 import 'network_controller.dart';
+import 'data/network_transaction.dart';
 import 'services/network_file_service.dart';
 import 'services/network_source.dart';
 
@@ -123,9 +124,9 @@ class _NetworkFeatureViewState extends FeatureViewState<NetworkFeatureView> {
           icon: Icons.http,
           title: 'No network traffic yet',
           description:
-              'Apps that ship Inspektor will show their requests here. '
-              'You can also open a HAR file exported from Inspektor, a '
-              'browser or a proxy.',
+              'Apps that ship Inspektor and call InspektorRemote.start() '
+              'show their requests here while they run. You can also open a '
+              'HAR file exported from Inspektor, a browser or a proxy.',
           footer: FilledButton.icon(
             onPressed: _openHar,
             icon: const Icon(Icons.file_open_outlined),
@@ -149,7 +150,11 @@ class _NetworkFeatureViewState extends FeatureViewState<NetworkFeatureView> {
   String _describeSource(NetworkSourceInfo source) => switch (source.status) {
     NetworkSourceStatus.connecting => '${source.label}: connecting…',
     NetworkSourceStatus.live => '${source.label}: live',
-    NetworkSourceStatus.ended => source.message ?? source.label,
+    NetworkSourceStatus.ended => switch (source.kind) {
+      NetworkSourceKind.har => source.message ?? source.label,
+      // The app quit or went to the background; it continues on return.
+      NetworkSourceKind.inspektor => '${source.label}: disconnected',
+    },
     NetworkSourceStatus.failed =>
       '${source.label}: ${source.message ?? 'failed'}',
   };

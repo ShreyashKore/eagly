@@ -5,11 +5,13 @@ import 'package:flutter/foundation.dart';
 
 import '../../services/eagly_info_service.dart';
 import '../../session/feature_controller.dart';
+import '../../session/workspace_layout.dart';
 import '../../utils/utils.dart';
 import 'data/har.dart';
 import 'data/network_transaction.dart';
 import 'data/network_transaction_store.dart';
 import 'services/har_source.dart';
+import 'services/inspektor/inspektor_watcher.dart';
 import 'services/network_source.dart';
 
 /// One source attached to the Network pane, as the pane shows it.
@@ -43,7 +45,17 @@ final class const NetworkBodyFailed(final String message)
 /// Sources can deliver thousands of transactions at once (a HAR file, the
 /// backfill after connecting to an app), so their events are applied straight
 /// away but listeners hear about them at most once per [notifyInterval].
+///
+/// While the Network pane is open and the device connected, an
+/// [InspektorWatcher] finds apps that serve their traffic and attaches each
+/// under its store's key (see [attach]).
 class NetworkController(super.session) extends FeatureController {
+  this {
+    // The pane may already be open when its controller is first built (a
+    // restored layout), with no session change to come.
+    scheduleMicrotask(_syncWatching);
+  }
+
   /// The most often a burst of source events notifies listeners.
   @visibleForTesting
   static Duration notifyInterval = const Duration(milliseconds: 100);
@@ -62,7 +74,19 @@ class NetworkController(super.session) extends FeatureController {
   final Map<(NetworkTransactionKey, NetworkBodyPart), String> _bodyFailures =
       {};
   int _nextSourceId = 1;
+
+  /// Per source key, the highest transaction id seen — where a reconnecting
+  /// app resumes. Kept apart from the store so [clear] does not bring cleared
+  /// transactions back on the next reconnect.
+  final Map<String, String> _cursors = {};
   NetworkTransactionKey? _selectedKey;
+
+  late final InspektorWatcher _watcher = InspektorWatcher(
+    findEndpoints: service.findInspektorEndpoints,
+    openTunnel: service.openInspektorTunnel,
+    resumeAfter: lastIdFor,
+    attach: (source, key) => attach(source, key: key),
+  );
   Timer? _notifyTimer;
   bool _disposed = false;
 
@@ -88,10 +112,21 @@ class NetworkController(super.session) extends FeatureController {
 
   // ── Sources ───────────────────────────────────────────────────────────
 
-  /// Starts showing what [source] delivers. Returns the id it is filed under.
-  /// The controller owns [source] from here and disposes it.
-  String attach(NetworkSource source) {
-    final id = 's${_nextSourceId++}';
+  /// Starts showing what [source] delivers. Returns the id it is filed under:
+  /// [key], or a fresh one. The controller owns [source] from here and
+  /// disposes it.
+  ///
+  /// A [key] already in use replaces that source but keeps its transactions —
+  /// a restarted app's new connection continues the old one's list, and its
+  /// bodies are fetched through the new connection.
+  String attach(NetworkSource source, {String? key}) {
+    final id = key ?? 's${_nextSourceId++}';
+    final previous = _sources[id];
+    if (previous != null && !identical(previous.source, source)) {
+      unawaited(previous.subscription?.cancel());
+      unawaited(previous.source.dispose());
+      _bodyFailures.removeWhere((request, _) => request.$1.source == id);
+    }
     final attached = _AttachedSource(id, source);
     _sources[id] = attached;
     attached.subscription = source.events.listen(
@@ -130,10 +165,25 @@ class NetworkController(super.session) extends FeatureController {
     return source.label;
   }
 
+  /// The highest transaction id seen from the source filed under [key], for
+  /// resuming after it. Null when nothing has been seen.
+  String? lastIdFor(String key) => _cursors[key];
+
+  void _advanceCursor(String key, String id) {
+    final current = _cursors[key];
+    final number = int.tryParse(id);
+    final currentNumber = current == null ? null : int.tryParse(current);
+    if (current == null ||
+        (number != null && currentNumber != null && number > currentNumber)) {
+      _cursors[key] = id;
+    }
+  }
+
   void _handleEvent(_AttachedSource attached, NetworkSourceEvent event) {
     if (_disposed || _sources[attached.id] != attached) return;
     switch (event) {
       case NetworkTransactionUpserted(:final transaction):
+        _advanceCursor(attached.id, transaction.id);
         final key = (source: attached.id, id: transaction.id);
         final wasPending =
             _store[key]?.state == NetworkTransactionState.pending;
@@ -265,6 +315,35 @@ class NetworkController(super.session) extends FeatureController {
     await File(path).writeAsString(await exportHarText());
   }
 
+  // ── Watching for apps ─────────────────────────────────────────────────
+
+  /// Whether the device is being polled for apps to connect to.
+  bool get isWatching => _watcher.isRunning;
+
+  @override
+  void onSessionChanged() => _syncWatching();
+
+  @override
+  void onDeviceDisconnected() {
+    // Tunnels die with the device's transport; start over when it is back.
+    _watcher.reset();
+  }
+
+  /// Polls for apps while the pane is open and the device connected; open
+  /// connections outlive a closed pane.
+  void _syncWatching() {
+    if (_disposed) return;
+    final watch =
+        isConnected &&
+        !session.isImportedWorkspace &&
+        session.isPaneOpen(WorkspacePane.network);
+    if (watch) {
+      _watcher.start();
+    } else {
+      _watcher.stop();
+    }
+  }
+
   // ── Plumbing ──────────────────────────────────────────────────────────
 
   void _forget(List<NetworkTransactionKey> keys) {
@@ -298,6 +377,7 @@ class NetworkController(super.session) extends FeatureController {
   @override
   void dispose() {
     _disposed = true;
+    _watcher.dispose();
     _notifyTimer?.cancel();
     for (final attached in _sources.values) {
       unawaited(attached.subscription?.cancel());

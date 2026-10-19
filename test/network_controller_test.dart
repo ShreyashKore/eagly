@@ -5,13 +5,17 @@ import 'package:eagly/data/device.dart';
 import 'package:eagly/features/network/data/har.dart';
 import 'package:eagly/features/network/data/network_transaction.dart';
 import 'package:eagly/features/network/network_controller.dart';
+import 'package:eagly/features/network/services/inspektor/inspektor_endpoint.dart';
+import 'package:eagly/features/network/services/inspektor/inspektor_watcher.dart';
 import 'package:eagly/features/network/services/network_source.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
+import 'package:eagly/session/workspace_layout.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/loopback_inspektor_server.dart';
 import 'support/network_test_support.dart';
 import 'support/session_test_support.dart';
 
@@ -19,6 +23,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   DeviceSessionController? session;
+  late FakeSessionService service;
 
   setUpAll(() async {
     SharedPreferences.setMockInitialValues({});
@@ -32,10 +37,8 @@ void main() {
       platform: DevicePlatform.android,
       model: 'Pixel 8',
     );
-    session = DeviceSessionController(
-      device: device,
-      service: FakeSessionService(device),
-    );
+    service = FakeSessionService(device);
+    session = DeviceSessionController(device: device, service: service);
     return session!.networkController;
   }
 
@@ -321,5 +324,111 @@ void main() {
         expect(controller.sources, isEmpty);
       },
     );
+  });
+
+  group('one store per app', () {
+    test('a source attached under a used key replaces the old one, keeps its '
+        'transactions, and serves their bodies', () async {
+      final controller = createController();
+      final first = FakeNetworkSource();
+      controller.attach(first, key: 'inspektor:app:store');
+      first.upsert(networkTransaction('1'));
+      await pumpEventQueue();
+
+      final second = FakeNetworkSource()
+        ..onBody = (id, _) async => NetworkBody(bytes: utf8.encode('new $id'));
+      controller.attach(second, key: 'inspektor:app:store');
+      second.upsert(networkTransaction('2'));
+      await pumpEventQueue();
+
+      expect(ids(controller), ['1', '2']);
+      expect(controller.sources, hasLength(1));
+      expect(first.disposed, isTrue);
+      final body = await controller.loadBody(
+        controller.entries.first.key,
+        NetworkBodyPart.response,
+      );
+      expect(body.text, 'new 1');
+    });
+
+    test('the resume point survives clearing the list', () async {
+      final controller = createController();
+      final source = FakeNetworkSource();
+      controller.attach(source, key: 'k');
+      source
+        ..upsert(networkTransaction('9'))
+        ..upsert(networkTransaction('10'))
+        ..upsert(networkTransaction('2'));
+      await pumpEventQueue();
+
+      controller.clear();
+
+      expect(controller.lastIdFor('k'), '10');
+      expect(controller.lastIdFor('other'), isNull);
+    });
+  });
+
+  group('watching for apps', () {
+    late LoopbackInspektorServer app;
+
+    setUp(() async {
+      InspektorWatcher.pollInterval = const Duration(milliseconds: 10);
+      app = await LoopbackInspektorServer.start(transactionIds: ['1', '2']);
+    });
+
+    tearDown(() async {
+      await app.close();
+      InspektorWatcher.pollInterval = const Duration(seconds: 2);
+    });
+
+    Future<void> eventually(bool Function() done) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (!done()) {
+        if (DateTime.now().isAfter(deadline)) fail('Timed out waiting.');
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    }
+
+    test('polls only while the pane is open', () async {
+      final controller = createController();
+      await pumpEventQueue();
+      expect(controller.isWatching, isFalse);
+
+      session!.openPane(WorkspacePane.network);
+      expect(controller.isWatching, isTrue);
+
+      session!.closePane(WorkspacePane.network);
+      expect(controller.isWatching, isFalse);
+    });
+
+    test('an app on the device shows up, and after a restart its list '
+        'continues without repeats', () async {
+      final controller = createController();
+      service
+        ..inspektorEndpoints = const [
+          InspektorEndpoint(name: 'inspektor_100_kotlin'),
+        ]
+        ..onOpenInspektorTunnel = (_) async => app.tunnel();
+      session!.openPane(WorkspacePane.network);
+
+      await eventually(() => controller.entries.length == 2);
+      expect(controller.sources.single.label, 'Example');
+      expect(controller.sources.single.status, NetworkSourceStatus.live);
+
+      // The app dies and comes back under a new pid with one more request.
+      await app.dropClients();
+      app.transactions.add('3');
+      service.inspektorEndpoints = const [
+        InspektorEndpoint(name: 'inspektor_200_kotlin'),
+      ];
+
+      await eventually(() => controller.entries.length == 3);
+      expect(ids(controller), ['1', '2', '3']);
+      expect(app.subscribes.last['afterId'], '2');
+      expect(controller.sources, hasLength(1));
+
+      app.record('4');
+      await eventually(() => controller.entries.length == 4);
+    });
   });
 }

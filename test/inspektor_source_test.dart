@@ -54,6 +54,26 @@ void main() {
     ]);
   });
 
+  test(
+    'lets the caller pick where to resume once the store is known',
+    () async {
+      server = FakeInspektorServer();
+      source = InspektorSource(
+        server.connectRaw.$1,
+        server.connectRaw.$2,
+        afterId: '1',
+        resumeAfter: (hello) => hello.storeId == 'store-9' ? '77' : null,
+      );
+      events = [];
+      eventsDone = Completer<void>();
+      source.events.listen(events.add, onDone: eventsDone.complete);
+
+      server.hello(storeId: 'store-9');
+
+      expect((await server.acceptSubscribe())['afterId'], '77');
+    },
+  );
+
   test('leaves afterId out on a first connection', () async {
     connect();
     server.hello();

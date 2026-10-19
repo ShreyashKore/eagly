@@ -24,6 +24,10 @@ class FakeInspektorServer() {
   /// Whether the source closed its half of the connection.
   bool clientClosed = false;
 
+  /// The client's ends of the connection, for building a source by hand.
+  (Stream<List<int>>, StreamSink<List<int>>) get connectRaw =>
+      (_toClient.stream, _fromClient.sink);
+
   /// A source connected to this server.
   InspektorSource connect({String? afterId, int inlineBodyLimit = 0}) =>
       InspektorSource(

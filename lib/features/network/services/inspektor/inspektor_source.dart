@@ -32,6 +32,11 @@ class InspektorSource(
   final StreamSink<List<int>> _output, {
   final String? afterId,
 
+  /// Picks where to resume once the app's `hello` names its store, for a
+  /// caller that keeps a position per store (a restarted app is the same
+  /// store behind a new socket). A non-null answer wins over [afterId].
+  final String? Function(InspektorHello hello)? resumeAfter,
+
   /// Bodies up to this many bytes arrive inline with their transaction.
   /// Zero keeps every body on the device until it is asked for.
   final int inlineBodyLimit = 0,
@@ -53,6 +58,7 @@ class InspektorSource(
     Object host,
     int port, {
     String? afterId,
+    String? Function(InspektorHello hello)? resumeAfter,
     int inlineBodyLimit = 0,
     Duration timeout = const Duration(seconds: 5),
   }) async {
@@ -62,6 +68,7 @@ class InspektorSource(
       socket,
       socket,
       afterId: afterId,
+      resumeAfter: resumeAfter,
       inlineBodyLimit: inlineBodyLimit,
     );
   }
@@ -165,8 +172,9 @@ class InspektorSource(
 
   Future<void> _subscribe(InspektorHello received) async {
     try {
+      final after = resumeAfter?.call(received) ?? afterId;
       await _request('subscribe', {
-        'afterId': ?afterId,
+        'afterId': ?after,
         'inlineBodyLimit': inlineBodyLimit,
       });
       if (!_ready.isCompleted) _ready.complete(received);
