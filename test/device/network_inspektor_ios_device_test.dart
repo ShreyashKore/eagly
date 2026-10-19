@@ -128,8 +128,15 @@ void main() {
       await PreferencesService.init();
       await _relaunch();
 
-      // What a poll costs: every port in the range, probed in parallel.
+      // The app opens its server a moment after it launches.
       final probe = RustIosNetworkService();
+      final serving = DateTime.now().add(const Duration(seconds: 30));
+      while ((await probe.probePorts(_udid!, inspektorPorts)).isEmpty) {
+        if (DateTime.now().isAfter(serving)) fail('$_bundle never served.');
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      }
+
+      // What a poll costs: every port in the range, probed in parallel.
       final timings = <int>[];
       var open = <int>[];
       for (var i = 0; i < 10; i++) {

@@ -651,7 +651,7 @@ Two traps the tests caught, both now documented in the code:
 **Still open:** the golden transcripts belong to phase 0. Until they exist, the client tests
 script the server by hand (`test/support/inspektor_test_support.dart`).
 
-### Phase 2: Inspektor over the wire (needs I-1) — Android done, iOS built but not yet run on hardware
+### Phase 2: Inspektor over the wire (needs I-1) — Android and iOS done
 
 **Android landed** (§3 has the map):
 
@@ -675,7 +675,7 @@ script the server by hand (`test/support/inspektor_test_support.dart`).
   - It ignores forwards it didn't open: another Eagly watching the same device makes its own.
   - It passed on an API 36 emulator.
 
-**iOS is built** (2026-10-19), behind `IosNetworkService` in `services/ios/`. It is Rust only
+**iOS landed** (2026-10-20), behind `IosNetworkService` in `services/ios/`. It is Rust only
 (`rust/src/api/ios_network.rs`), following docs/IOS_RUST_MIGRATION.md, with no CLI version:
 
 - **`probe_ios_ports(udid, ports)`** makes a usbmuxd `Connect` per port, all in parallel, each on
@@ -694,8 +694,14 @@ script the server by hand (`test/support/inspektor_test_support.dart`).
 - **Device test:** `test/device/network_inspektor_ios_device_test.dart`
   (`EAGLY_TEST_IOS_UDID`, `EAGLY_TEST_INSPEKTOR_BUNDLE`). It relaunches the app with `devicectl`,
   so it needs an app that makes requests at launch. It also prints what a poll's probes cost (§8).
-- **First target:** a React Native app (see §5). It hasn't run end to end yet: the iPhone
-  went offline before the device test could.
+- **On hardware:** the device test passed on an iPhone 16 (iOS 27.0) against a React Native app
+  (§5). It found the app, loaded a body, and continued the list across a relaunch with no
+  repeats. Every forward it opened was closed afterwards.
+- **The first run found a crash in Inspektor.** The iOS log line was `NSLog("%@", message)`.
+  Kotlin/Native passes a `String` vararg as a C string, so the app trapped as soon as the server
+  listened. The line is now its own escaped format. iOS still shows it as `<private>`, because a
+  format built at run time is redacted. Nothing reads it yet, but phase 4b's log-tap discovery
+  would need it public.
 
 **Still to do:**
 
@@ -704,7 +710,7 @@ script the server by hand (`test/support/inspektor_test_support.dart`).
   - ~~Discovery through `/proc/net/unix`.~~
 - **Connection failures in the pane.** A protocol mismatch ("update Eagly") is only logged for
   now.
-- **iOS on hardware:** run the device test, and the probe-cost and backgrounding checks (§8).
+- **The probe cost matrix** beyond macOS and USB: Windows, Linux, Wi-Fi (§8).
 - **iOS `PidList`**, for process names.
 - **Target lifecycle:**
   - backfill and reconnect;
@@ -791,6 +797,10 @@ How to run them:
 
 **Decides:** whether iOS discovery can poll a port range (§3.2, §4.2), and how often.
 
+**Result on macOS over USB (2026-10-20), iPhone 16 on iOS 27.0:** all 8 ports probed in parallel,
+one open, take a median of 1–2 ms and at most 7 ms per poll, from Dart through the bridge. Polling
+every 2 s is cheap. The interference check and the Windows, Linux and Wi-Fi runs are still to do.
+
 **Background**
 - **The load:** discovery would try every port in the range, about 8, every ~2 s while the Network
   pane is open. That's 4 connection attempts per second per device.
@@ -837,6 +847,9 @@ How to run them:
 - **A. Is a backgrounded iOS app's listener reachable?** The expectation is no while the app is
   suspended. Run the sample, connect, background it, and watch the socket. Then foreground it and
   reconnect. This confirms the *paused* state and the backfill path in §4.9.
+  - **Answered (2026-10-20): no.** With the phone locked, a probe of the app's port is refused at
+    once. Today Eagly shows the source as ended, then live again once the app comes back. A
+    *paused* state is still to build.
 - **B. Do Wi-Fi-paired iPhones work?** Does `connect_to_device` work over usbmux's network
   transport? If it does, Inspektor targets work on wireless iPhones for free. If it doesn't, the
   pane says "connect over USB" for iOS.

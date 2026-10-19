@@ -83,7 +83,7 @@ EAGLY_IOS_BACKEND=cli fvm flutter run -d macos   # fall back to libimobiledevice
 | App install / list / uninstall | `IdeviceInstallerTool` | `list_ios_apps`, `install_ios_app`, `uninstall_ios_app` | both, **unverified on hardware** |
 | Crash reports | `IdeviceCrashReportTool` | `pull_ios_crash_reports` | both, **unverified on hardware** |
 | File manager (AFC) | `IosFileSystem` (`afcclient`, **not bundled**) | `RustIosFileSystem` | both, **unverified on hardware** |
-| Network inspection: port probe and forward | — | `probe_ios_ports`, `start_ios_port_forward`, `stop_ios_port_forward` (`api/ios_network.rs`) | Rust only (`IosNetworkService`), **unverified on hardware** |
+| Network inspection: port probe and forward | — | `probe_ios_ports`, `start_ios_port_forward`, `stop_ios_port_forward` (`api/ios_network.rs`) | Rust only (`IosNetworkService`), verified on an iPhone 16 (iOS 27.0) with `test/device/network_inspektor_ios_device_test.dart` |
 | Utilities / Terminal | `DeviceToolRunner` | — | **blocked on a product decision — see below** |
 
 ### Syslog: what hardware showed
