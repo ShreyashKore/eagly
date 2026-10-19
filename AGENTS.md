@@ -376,12 +376,18 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   synthetic `DeviceSessionController` (`isImportedWorkspace`, id `__imported-logs__`); each
   file becomes a sub-tab. It appears as a tab but is excluded from the landing-screen
   device list.
-- **Network inspector (planned, #72):** not built yet. **Read docs/NETWORK_INSPECTOR.md before
-  starting any network-capture work.** It covers Eagly as the desktop viewer for
-  [Inspektor](https://github.com/ShreyashKore/inspektor), the device↔desktop protocol draft, the
-  phased plan, and research notes on the routes that were deferred (proxy, iOS DVT, WebViews).
-  The dropped routes are written up in docs/NETWORK_INSPECTOR_DROPPED_ROUTES.md. Update both as
-  phases land.
+- **Network inspector (#72):** **read docs/NETWORK_INSPECTOR.md before any network-capture
+  work.** It covers Eagly as the desktop viewer for
+  [Inspektor](https://github.com/ShreyashKore/inspektor), the device↔desktop protocol, the phased
+  plan, and research notes on deferred routes. Dropped routes are in
+  docs/NETWORK_INSPECTOR_DROPPED_ROUTES.md. Update both as phases land.
+  - **Phase 1 is in `features/network/`:** the pane, the model and store, HAR open/export, and
+    the Inspektor protocol client (`InspektorSource`). Live capture from devices is phase 2.
+  - **Sources implement `NetworkSource`.** The controller files each one's transactions under
+    its own key, because ids are only unique within a source.
+  - **Decode frames with `const InspektorFrameDecoder().bind(stream)`, never
+    `socket.transform(…)`.** A `Socket` is a `Stream<Uint8List>`, and `transform` fails the
+    runtime type check.
 
 ## Conventions
 

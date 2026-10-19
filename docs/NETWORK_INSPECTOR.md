@@ -138,19 +138,24 @@ support has to come from the SDK or the VM service.
 
 ## 3. Architecture in Eagly
 
-The new pieces slot into the layering described in AGENTS.md:
+The feature keeps its own `data/` and `services/` folders, the way the Logs feature does. Paths
+below are under `lib/features/network/` unless they start with `lib/`. ✓ marks what phase 1 built.
 
 ```
-tunnels            AdbTool.forward / removeForward       moved out of ScrcpyClient
-                   Rust: iOS port forward over usbmux     new, under rust/src/api/
-discovery          services/network/target_discovery.dart  per device; polls only while the pane is open
-sources            services/network/network_source.dart    interface, one implementation per route
-                     ├─ inspektor/  InspektorSource         protocol client (§4)
-                     ├─ cdp/        CdpSource               phase 4
-                     └─ dart_vm/    DartVmSource            phase 4
-feature controller features/network/network_controller.dart  extends FeatureController; lazy in DeviceSessionController
-view               features/network/network_feature_view.dart; WorkspacePane.network
-iOS backend        services/ios/ios_network_service.dart   interface, Rust implementation only (the CLIs are going away)
+model              data/network_transaction.dart          ✓ NetworkTransaction, headers, bodies, timings
+                   data/network_transaction_store.dart    ✓ capped store + body cache with a byte budget
+                   data/har.dart                          ✓ HAR 1.2 encode / decode
+sources            services/network_source.dart           ✓ interface, one implementation per route
+                     ├─ services/inspektor/                ✓ frame codec, messages, InspektorSource (§4)
+                     ├─ services/har_source.dart           ✓ a HAR file opened from disk
+                     ├─ services/cdp/  CdpSource              phase 4
+                     └─ services/dart_vm/  DartVmSource       phase 4
+discovery          services/target_discovery.dart           phase 2; per device, polls only while the pane is open
+tunnels            lib/services/tools/adb_tool.dart          phase 2; forward / removeForward, moved out of ScrcpyClient
+                   rust/src/api/                             phase 2; iOS port forward over usbmux
+iOS backend        lib/services/ios/ios_network_service.dart phase 2; interface, Rust implementation only
+feature controller network_controller.dart                ✓ FeatureController; lazy in DeviceSessionController
+view               network_feature_view.dart, components/ ✓ WorkspacePane.network, rail, command palette
 ```
 
 ### 3.1 Model
@@ -205,7 +210,7 @@ later UI decision.
 - Discovery polls about every 2 s, and only while the Network pane is open. Controllers are lazy,
   so this needs nothing extra.
 
-**Features stay isolated.** Discovery lives in `services/network/`, not in the Logs feature. When
+**Features stay isolated.** Discovery lives in the Network feature's `services/`, not in Logs. When
 it needs log lines (the Dart VM service banner in phase 4b), it opens **its own filtered log
 tap**: `os_trace_relay` `start_trace(Some(pid))` on iOS, and `adb logcat -T 1 -s <tag>` on
 Android. The Network pane never depends on a Logs pane being open.
@@ -534,22 +539,29 @@ so.
 - Write the golden transcripts.
 - **Exit:** the spec and fixtures are merged in Inspektor, and this section is a link.
 
-### Phase 1: Eagly foundation, with no device work
+### Phase 1: Eagly foundation, with no device work — done
 
-- **`features/network/`:**
-  - `NetworkController`, a `FeatureController` created lazily in `DeviceSessionController`.
-  - `NetworkFeatureView`: a plain list and detail view. Polish comes later.
-  - `WorkspacePane.network`, following *Adding a pane* in docs/WORKSPACE_LAYOUT.md.
-- **`services/network/`:** the model, `NetworkSource`, a ring buffer with a byte budget for bodies,
-  and HAR export and import.
-- **Protocol client:** an `InspektorProtocol` codec (framing and messages) and an
-  `InspektorSource`, both tested against a **fake in-process server** that replays the fixtures.
-- **Tests:**
-  - the codec against the fixtures;
-  - the controller against a fake source: upsert, merge, clear, fetching bodies, and the ring
-    buffer evicting old entries;
-  - a golden file for HAR export.
-- **Exit:** `fvm flutter test` is green, and the pane shows fixture traffic in a debug build.
+What landed, all under `lib/features/network/` (§3 has the map):
+
+- **The pane.** `NetworkController` is a `FeatureController` created lazily in
+  `DeviceSessionController`. `NetworkFeatureView` has a list and a detail view, and the pane is
+  reachable from `WorkspacePane.network`, the rail and the command palette. Polish comes later.
+- **The model and its store.** A capped store keeps an updated transaction where it first
+  appeared. Fetched bodies sit in a cache with a byte budget. Listeners hear about a burst of
+  events (a backfill, a HAR file) at most once per `notifyInterval`.
+- **HAR.** Opening a HAR file makes it a source of its own, so the pane is useful before any live
+  capture exists. Export writes HAR 1.2 with every body the sources can still provide.
+- **The Inspektor client:** the frame codec (§4.4, including the rules in §4.3), message parsing,
+  and `InspektorSource`. It's tested against a fake in-process server and once over a real
+  loopback socket.
+
+Two traps the tests caught, both now documented in the code:
+- Apply the frame decoder with `bind`, not `socket.transform`. A `Socket` is a
+  `Stream<Uint8List>`, and `transform` throws on that runtime type.
+- `loadBody` is called while widgets build, so it announces the fetch asynchronously.
+
+**Still open:** the golden transcripts belong to phase 0. Until they exist, the client tests
+script the server by hand (`test/support/inspektor_test_support.dart`).
 
 ### Phase 2: Inspektor over the wire (needs I-1)
 
