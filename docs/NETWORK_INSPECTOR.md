@@ -266,9 +266,18 @@ The rules:
 
 ## 4. Eagly ↔ Inspektor protocol, v1 draft
 
-> **The canonical spec should live in the Inspektor repo**, as `docs/REMOTE_PROTOCOL.md` plus
-> fixtures. Every capture implementation conforms to it, and Eagly is just one client. Once it
-> moves, shrink this section to a summary and a link, so there aren't two copies to drift apart.
+> **The canonical spec now lives in the Inspektor repo, as
+> [`docs/REMOTE_PROTOCOL.md`](https://github.com/ShreyashKore/inspektor/blob/main/docs/REMOTE_PROTOCOL.md).**
+> It is on Inspektor's `feature/remote-inspection` branch until that merges, together with the
+> Kotlin server that implements it. Where the two differ, that spec wins. This section is the
+> original draft: once the Inspektor branch merges, shrink it to a summary and a link, so there
+> aren't two copies to drift apart.
+>
+> **Settled since this draft:**
+> - the iOS and desktop port range is 38470–38477;
+> - the Android socket is `@inspektor_<pid>_kotlin`;
+> - the switch is `InspektorRemote.start()`;
+> - `store.id` is kept in a file beside the database (§4.9).
 
 ### 4.1 Principles
 
@@ -438,8 +447,11 @@ false.
 ### 4.9 Backfill and reconnect
 
 - **Kotlin core:**
-  - `store.id` is a UUID kept *inside* the database, in a one-row table added by a migration. A
-    recreated database therefore gets a new id.
+  - `store.id` is a UUID kept in a file beside the database
+    (`<app data dir>/inspektor-remote/store-id`), so it goes away with the app's data.
+    - A table in the database was the first idea. It was dropped because Inspektor's schema sets
+      its own `user_version`, which makes a new migration risky on iOS.
+    - The cost: deleting only the database file keeps the old id.
   - Rows are `INTEGER PRIMARY KEY AUTOINCREMENT`, so ids are never reused, even after `deleteAll`.
     `afterId` is enough as a cursor and needs no "updated" column.
   - Eagly remembers `(store.id, lastId)` per target. On reconnect it calls `subscribe(afterId)`,
@@ -467,27 +479,33 @@ Eagly's client tests use a copy pinned to a protocol version.
 
 ## 5. What Eagly needs from Inspektor
 
-**Must have, blocking phase 2 (milestone I-1):**
+**Must have, blocking phase 2 (milestone I-1).** Items 1–3 are done on Inspektor's
+`feature/remote-inspection` branch; item 4 is still open.
 
 1. **A remote server in `inspektor-core`, on Android and iOS, that stays off unless the app turns
-   it on.**
-   - The switch is something like `InspektorCoreConfig.remote = true`; the name is still open.
-     The Dart package takes the same flag.
-   - The server starts when the first `TransactionRecorder` is created with the flag on.
+   it on.** *(Done.)*
+   - The switch became `InspektorRemote.start()`, an `@UnstableInspektorAPI` object with an empty
+     twin in `inspektor-core-no-op`. It isn't a config flag, so one call covers every integration
+     in the process. The Dart package should take the same shape.
    - On start, it logs one line naming its socket or port (§4.3).
    - Keeping it in core avoids another no-op twin, because the no-op artifacts already keep core
      out of production. *Alternative:* a separate `:inspektor-remote` module with no public
      symbols. Nothing would name it, so it wouldn't need a twin either.
 2. **A live event stream out of `TransactionRecorder`.** The recorder already inserts, then
-   updates; emit an event after each. Also persist `store.id` (§4.9).
+   updates; emit an event after each. Also persist `store.id` (§4.9). *(Done, one level lower:
+   `InspektorDataSourceImpl` emits on every insert, update and delete, so writes from any
+   integration, and from Inspektor's own UI, reach Eagly.)*
 3. **Header sanitisation applied in core, before anything reaches the transport.** The
-   modularization plan already puts sanitisation there.
-4. **The `adapter` recorded on every transaction.**
+   modularization plan already puts sanitisation there. *(Done: the recorder sanitises before
+   storing.)*
+4. **The `adapter` recorded on every transaction.** *(Open. It needs a schema column, so it waits
+   for a migration that is safe on iOS. Until then `hello.sdk.adapters` is `[]` and transactions
+   carry no `adapter`.)*
 
 **Should have, for phase 3 onward:**
 
-- **Override create/delete over the wire (milestone I-2).** `OverrideRepository` already keeps a
-  warm `StateFlow` cache; it only needs `put` and `delete` exposed.
+- **Override create/delete over the wire (milestone I-2).** *(Done ahead of time:
+  `overrides.list`, `overrides.put`, `overrides.delete` and the `overrides.changed` event.)*
 - **Bodies as bytes with a content type, not only as `String`, for images and protobuf (I-3).**
   Today they are text plus `isRequestBodyEncoded`.
 - **Timing phases (I-3)** from OkHttp's `EventListener` and `URLSessionTaskMetrics`.
@@ -532,12 +550,16 @@ implementation needs:
 Each phase ships on its own. Where a phase depends on an Inspektor milestone (I-n from §5), it says
 so.
 
-### Phase 0: agree the protocol
+### Phase 0: agree the protocol — mostly done
 
-- Move §4 into the Inspektor repo, and settle the iOS port range, the socket names and how the
-  remote server is switched on.
-- Write the golden transcripts.
-- **Exit:** the spec and fixtures are merged in Inspektor, and this section is a link.
+- ~~Move §4 into the Inspektor repo, and settle the iOS port range, the socket names and how the
+  remote server is switched on.~~
+  - The spec is Inspektor's `docs/REMOTE_PROTOCOL.md`, on `feature/remote-inspection`, with the
+    Kotlin server that implements it.
+  - Eagly's `InspektorSource` was run end to end against that server: hello, backfill, a live
+    event, a failed request, and `body.get`.
+- **Still open:** write the golden transcripts.
+- **Exit:** the spec and fixtures are merged in Inspektor, and §4 here is a link.
 
 ### Phase 1: Eagly foundation, with no device work — done
 
