@@ -309,6 +309,24 @@ What bounds it:
 - **It is visible.** When the server starts, Inspektor writes one line to the device log naming
   its socket or port. On Android, Inspektor's existing notification can say so too.
 
+Two rules keep "a browser can't use it" true. Both are requirements on every server
+implementation:
+
+1. **Close the connection on a frame that's too large or isn't valid JSON** (§4.4). That's what
+   turns "a web page can send bytes" into "a web page gets disconnected".
+   - A browser can only put an HTTP request on the socket, and the first 4 bytes of one are
+     text.
+   - Read as a length, `GET ` is about 1.1 GiB and `POST` about 1.25 GiB, far over the frame
+     cap.
+   - The page controls only the request body, which comes after headers the browser writes
+     itself, so it can never forge a valid first frame.
+   - The page can't read anything back either. `hello` isn't an HTTP response, so `fetch` fails,
+     and a WebSocket attempt never gets its `101 Switching Protocols` reply.
+2. **Any HTTP or WebSocket endpoint added later needs a token,** like the Dart VM service's.
+   Adding one, for example so a browser-based viewer can connect, removes the protection above.
+   Flutter's VM service binds to loopback and still requires a secret token in its URL for
+   exactly this reason.
+
 Optional hardening, outside the protocol: the Kotlin Android server can reject peers whose uid
 isn't 0 (adbd as root), 2000 (shell, which is how `adb forward` connections arrive) or its own.
 That is a few lines with `LocalSocket.getPeerCredentials()`, and it's the rule Chromium applies to
@@ -322,6 +340,10 @@ A later protocol version could add it, with `hello` announcing the method.
 
 Each frame is a 4-byte big-endian unsigned length followed by that many bytes of UTF-8 JSON, one
 object per frame. A frame is at most 16 MiB; larger bodies are read in ranges with `body.get`.
+
+When either side receives a frame longer than 16 MiB, or one that isn't a JSON object, it closes
+the connection without replying. For the server this is a security rule (§4.3). For Eagly it means
+a broken peer fails fast instead of being buffered.
 
 ### 4.5 Handshake
 
