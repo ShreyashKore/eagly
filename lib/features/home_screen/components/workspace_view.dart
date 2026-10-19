@@ -456,5 +456,6 @@ extension WorkspacePaneIcon on WorkspacePane {
     WorkspacePane.apps => Icons.apps_outlined,
     WorkspacePane.utilities => Icons.handyman_outlined,
     WorkspacePane.terminal => Icons.terminal_outlined,
+    WorkspacePane.network => Icons.http,
   };
 }

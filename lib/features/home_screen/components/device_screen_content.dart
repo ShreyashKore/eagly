@@ -10,6 +10,7 @@ import '../../device_home/device_home_feature_view.dart';
 import '../../file_manager/file_manager_feature_view.dart';
 import '../../logs/log_feature_view.dart';
 import '../../mirror/mirror_feature_view.dart';
+import '../../network/network_feature_view.dart';
 import '../../terminal/terminal_feature_view.dart';
 import '../../utilities/utilities_feature_view.dart';
 import 'android_unauthorized_guidance.dart';
@@ -106,6 +107,10 @@ class const _Workspace({
         WorkspacePane.terminal => TerminalFeatureView(
           manager: session.terminalSessionManager,
           onClose: session.closeTerminal,
+        ),
+        WorkspacePane.network => NetworkFeatureView(
+          controller: session.networkController,
+          onClose: session.closeNetwork,
         ),
       },
     );

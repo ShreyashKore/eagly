@@ -10,6 +10,7 @@ import '../features/device_home/device_home_controller.dart';
 import '../features/file_manager/file_manager_controller.dart';
 import '../features/logs/log_session_manager.dart';
 import '../features/mirror/mirror_controller.dart';
+import '../features/network/network_controller.dart';
 import '../features/terminal/terminal_session_manager.dart';
 import '../features/utilities/utilities_controller.dart';
 import '../services/app_breadcrumbs.dart';
@@ -99,6 +100,7 @@ class DeviceSessionController._({
   AppsController? _appsController;
   UtilitiesController? _utilitiesController;
   TerminalSessionManager? _terminalSessionManager;
+  NetworkController? _networkController;
 
   bool _homeOpen = true;
   bool _activated = false;
@@ -118,6 +120,7 @@ class DeviceSessionController._({
   bool get isAppsOpen => isPaneOpen(WorkspacePane.apps);
   bool get isUtilitiesOpen => isPaneOpen(WorkspacePane.utilities);
   bool get isTerminalOpen => isPaneOpen(WorkspacePane.terminal);
+  bool get isNetworkOpen => isPaneOpen(WorkspacePane.network);
   bool get isLogsOpen => isPaneOpen(WorkspacePane.logs);
   bool get isHomeOpen => _homeOpen;
   bool get isActivated => _activated;
@@ -154,6 +157,10 @@ class DeviceSessionController._({
   /// the device-less imported-logs workspace.
   bool get canUseTerminal => !isImportedWorkspace;
 
+  /// Whether the Network pane is offered. It shows what this device's apps
+  /// send, so the device-less imported-logs workspace has none.
+  bool get canInspectNetwork => !isImportedWorkspace;
+
   LogSessionManager get logSessionManager =>
       _logSessionManager ??= isImportedWorkspace
       ? LogSessionManager.importsOnly(session: this)
@@ -178,6 +185,9 @@ class DeviceSessionController._({
 
   TerminalSessionManager get terminalSessionManager =>
       _terminalSessionManager ??= TerminalSessionManager(session: this);
+
+  NetworkController get networkController =>
+      _networkController ??= NetworkController(this);
 
   void openHome() {
     if (_homeOpen) return;
@@ -225,6 +235,7 @@ class DeviceSessionController._({
       case WorkspacePane.logs:
       case WorkspacePane.utilities:
       case WorkspacePane.terminal:
+      case WorkspacePane.network:
         break;
     }
   }
@@ -272,6 +283,10 @@ class DeviceSessionController._({
   void openTerminal() => openPane(WorkspacePane.terminal);
   void closeTerminal() => closePane(WorkspacePane.terminal);
   void toggleTerminal() => togglePane(WorkspacePane.terminal);
+
+  void openNetwork() => openPane(WorkspacePane.network);
+  void closeNetwork() => closePane(WorkspacePane.network);
+  void toggleNetwork() => togglePane(WorkspacePane.network);
 
   void _editLayout(VoidCallback edit) {
     _editingLayout = true;
@@ -570,6 +585,7 @@ class DeviceSessionController._({
     _appsController?.dispose();
     _utilitiesController?.dispose();
     _terminalSessionManager?.dispose();
+    _networkController?.dispose();
     workspaceLayout
       ..removeListener(_handleWorkspaceChanged)
       ..dispose();
