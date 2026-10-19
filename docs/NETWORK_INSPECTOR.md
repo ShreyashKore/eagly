@@ -536,6 +536,21 @@ implementation needs:
 - **iOS:** `RCTSetCustomNSURLSessionConfigurationProvider`, declared in `RCTHTTPRequestHandler.h`.
   It hands RN a session configuration whose `protocolClasses` include Inspektor's `URLProtocol`.
   That scopes the hook to RN's own session instead of a global `URLProtocol` registration.
+  - **Built 2026-10-19, and tried first in a React Native app** through a short Swift file in
+    that app.
+  - **Inspektor ships it as a static XCFramework** with a podspec
+    (`InspektorUrlSession.podspec`). The framework exports core too, so `InspektorRemote` is
+    visible from Swift.
+  - **Swift reaches the protocol through `InspektorUrlProtocolBridge`.** Kotlin/Native writes a
+    Kotlin subclass of an Objective-C class into the header with none of its members, so the
+    protocol's own `register` is invisible from Swift.
+  - **`prepare` + `addTo` set up the scoped path** without the global `registerClass`.
+  - **The Podfile keeps it out of production:** `:configurations` leaves Release-prod out, so
+    there the app's `#if canImport(InspektorUrlSession)` is false.
+  - **Cost: no TLS pinning on captured requests.** They go out through Inspektor's own session,
+    so RN's session delegate never sees their TLS challenges, and delegate-based pinning (TrustKit,
+    as react-native-ssl-public-key-pinning does it) isn't enforced. Forwarding challenges through
+    `URLProtocolClient` would fix that.
 - **iOS UI:** with Eagly as the viewer, the RN package could ship without the Compose UI on iOS.
   XCFramework weight is risk 12 in Inspektor's plan.
 
@@ -587,7 +602,7 @@ Two traps the tests caught, both now documented in the code:
 **Still open:** the golden transcripts belong to phase 0. Until they exist, the client tests
 script the server by hand (`test/support/inspektor_test_support.dart`).
 
-### Phase 2: Inspektor over the wire (needs I-1) — Android done, iOS next
+### Phase 2: Inspektor over the wire (needs I-1) — Android done, iOS built but not yet run on hardware
 
 **Android landed** (§3 has the map):
 
@@ -611,6 +626,28 @@ script the server by hand (`test/support/inspektor_test_support.dart`).
   - It ignores forwards it didn't open: another Eagly watching the same device makes its own.
   - It passed on an API 36 emulator.
 
+**iOS is built** (2026-10-19), behind `IosNetworkService` in `services/ios/`. It is Rust only
+(`rust/src/api/ios_network.rs`), following docs/IOS_RUST_MIGRATION.md, with no CLI version:
+
+- **`probe_ios_ports(udid, ports)`** makes a usbmuxd `Connect` per port, all in parallel, each on
+  its own daemon connection. Each probe has a 3 s timeout. A refused port is closed, and a device
+  usbmuxd no longer knows is an error.
+- **`start_ios_port_forward(udid, device_port)`** is Eagly's `iproxy`. It listens on
+  `127.0.0.1:0`, and pipes every accepted connection to the device port through a new usbmux
+  connection. The device is looked up again each time, because its usbmux id changes on replug.
+  **`stop_ios_port_forward(host_port)`** closes the forward and every connection through it.
+- **Discovery:** the watcher's iOS poll probes 38470–38477. A port this session already tunnels to
+  isn't probed, since a probe is a connection the app sees. Instead it is reported for as long as
+  the tunnel lasts.
+- **Restarts:** a restarted iOS app usually takes the same port, so the endpoint never leaves the
+  list. The watcher therefore drops any connection that ends, and the next poll connects again.
+  That also covers an Android app that stops and restarts its server in the same process.
+- **Device test:** `test/device/network_inspektor_ios_device_test.dart`
+  (`EAGLY_TEST_IOS_UDID`, `EAGLY_TEST_INSPEKTOR_BUNDLE`). It relaunches the app with `devicectl`,
+  so it needs an app that makes requests at launch. It also prints what a poll's probes cost (§8).
+- **First target:** a React Native app (see §5). It hasn't run end to end yet: the iPhone
+  went offline before the device test could.
+
 **Still to do:**
 
 - **Android, superseded:**
@@ -618,12 +655,8 @@ script the server by hand (`test/support/inspektor_test_support.dart`).
   - ~~Discovery through `/proc/net/unix`.~~
 - **Connection failures in the pane.** A protocol mismatch ("update Eagly") is only logged for
   now.
-- **iOS, behind a new `IosNetworkService` interface in `services/ios/`.** The implementation is
-  Rust only, following docs/IOS_RUST_MIGRATION.md; no CLI version, since the CLIs are being
-  removed.
-  - `start_ios_port_forward(udid, device_port) -> host_port` and `stop_ios_port_forward`.
-  - `probe_ios_ports(udid, ports) -> Vec<u16>`.
-  - `PidList`, for process names.
+- **iOS on hardware:** run the device test, and the probe-cost and backgrounding checks (§8).
+- **iOS `PidList`**, for process names.
 - **Target lifecycle:**
   - backfill and reconnect;
   - process death;

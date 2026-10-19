@@ -387,10 +387,15 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     `DeviceSessionRepository.findInspektorEndpoints`, which runs one `adb shell grep` over
     `/proc/net/unix`. It tunnels to each with `adb forward` and attaches it under its store's key
     (`inspektor:<app>:<store>`), so a restarted app continues its list instead of repeating it.
-    iOS finds nothing yet.
-  - **Device test:** `EAGLY_TEST_ANDROID_SERIAL=<serial> fvm flutter test
-    test/device/network_inspektor_device_test.dart`. It needs Inspektor's sample app (dev flavour)
-    running.
+  - **Phase 2 on iOS:** the same watcher, with `IosNetworkService` (Rust only,
+    `rust/src/api/ios_network.rs`) probing ports 38470–38477 over usbmux and forwarding to the
+    open ones. A port with a tunnel isn't probed again: each probe is a connection the app sees.
+    A connection that ends is dropped, so the next poll reconnects; on iOS a restarted app usually
+    takes the same port.
+  - **Device tests:** `EAGLY_TEST_ANDROID_SERIAL=<serial> fvm flutter test
+    test/device/network_inspektor_device_test.dart`, with Inspektor's sample app (dev flavour)
+    running; `EAGLY_TEST_IOS_UDID=<udid> EAGLY_TEST_INSPEKTOR_BUNDLE=<bundle id>` for
+    `network_inspektor_ios_device_test.dart`, after `cargo build --release` in `rust/`.
   - **Sources implement `NetworkSource`.** The controller files each one's transactions under
     its own key, because ids are only unique within a source.
   - **Decode frames with `const InspektorFrameDecoder().bind(stream)`, never
