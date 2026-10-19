@@ -409,6 +409,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
       therefore assert on `CodeEditor.controller.text`.
     - Opening an exchange must not remount the list, or it loses its scroll position and any
       open menu.
+  - **The empty pane is a set-up guide** (`components/network_empty_guide.dart`), written for
+    testers as much as developers. It links to the user guide, docs/NETWORK_PANE.md, and to
+    anchors in Inspektor's README (`NetworkGuideLinks`). When Inspektor's set-up or a README
+    heading changes, update the guide's snippets, its links and docs/NETWORK_PANE.md together.
   - **Decode frames with `const InspektorFrameDecoder().bind(stream)`, never
     `socket.transform(…)`.** A `Socket` is a `Stream<Uint8List>`, and `transform` fails the
     runtime type check.
