@@ -8,6 +8,7 @@ import '../../session/feature_controller.dart';
 import '../../session/workspace_layout.dart';
 import '../../utils/utils.dart';
 import 'data/har.dart';
+import 'data/network_filter.dart';
 import 'data/network_transaction.dart';
 import 'data/network_transaction_store.dart';
 import 'services/har_source.dart';
@@ -33,6 +34,28 @@ final class const NetworkBodyLoaded(final NetworkBody body)
 
 final class const NetworkBodyFailed(final String message)
     extends NetworkBodyLoad;
+
+/// The tabs of an open exchange. The pane remembers the last one picked, so
+/// stepping through the list keeps showing the same part of each exchange.
+enum NetworkDetailTab { headers, payload, response, timing }
+
+/// The list columns that can be sorted on.
+enum NetworkSortColumn { status, method, name, type, size, time }
+
+/// How the list is ordered when it is not in capture order.
+class const NetworkSort(
+  final NetworkSortColumn column, {
+  final bool descending = false,
+}) {
+  @override
+  bool operator ==(Object other) =>
+      other is NetworkSort &&
+      other.column == column &&
+      other.descending == descending;
+
+  @override
+  int get hashCode => Object.hash(column, descending);
+}
 
 /// Per-device Network feature: the HTTP exchanges captured from this device's
 /// apps, whichever [NetworkSource] they came from. See docs/NETWORK_INSPECTOR.md.
@@ -81,6 +104,15 @@ class NetworkController(super.session) extends FeatureController {
   final Map<String, String> _cursors = {};
   NetworkTransactionKey? _selectedKey;
 
+  NetworkFilter _filter = NetworkFilter.none;
+  NetworkSort? _sort;
+  bool _showOverview = true;
+
+  /// The tab an opened exchange starts on: the last one picked. View state
+  /// only, so changing it notifies no one.
+  NetworkDetailTab detailTab = NetworkDetailTab.headers;
+  _VisibleCache? _visibleCache;
+
   late final InspektorWatcher _watcher = InspektorWatcher(
     findEndpoints: service.findInspektorEndpoints,
     openTunnel: service.openInspektorTunnel,
@@ -110,6 +142,126 @@ class NetworkController(super.session) extends FeatureController {
   NetworkSourceInfo? sourceOf(NetworkTransactionKey key) =>
       _sources[key.source]?.info;
 
+  // ── Filtering and sorting ─────────────────────────────────────────────
+
+  NetworkFilter get filter => _filter;
+
+  void setFilter(NetworkFilter filter) {
+    if (filter == _filter) return;
+    _filter = filter;
+    _notify();
+  }
+
+  /// Null while the list is in capture order.
+  NetworkSort? get sort => _sort;
+
+  void setSort(NetworkSort? sort) {
+    if (sort == _sort) return;
+    _sort = sort;
+    _notify();
+  }
+
+  /// Whether the timeline overview is shown above the list.
+  bool get showOverview => _showOverview;
+
+  void toggleOverview() {
+    _showOverview = !_showOverview;
+    _notify();
+  }
+
+  /// The entries the list shows: [entries] through [filter], in [sort]
+  /// order. Cached until either, or the store, changes.
+  List<NetworkEntry> get visibleEntries => _visible().list;
+
+  /// The entries the overview draws: everything [filter] lets through except
+  /// its time window, which is drawn over them instead.
+  List<NetworkEntry> get timelineEntries => _visible().timeline;
+
+  _VisibleCache _visible() {
+    final all = _store.entries;
+    final cached = _visibleCache;
+    if (cached != null &&
+        identical(cached.source, all) &&
+        cached.filter == _filter &&
+        cached.sort == _sort &&
+        cached.sourcesVersion == _sourcesVersion) {
+      return cached;
+    }
+    final unwindowed = _filter.timeWindow == null
+        ? _filter
+        : _filter.copyWith(timeWindow: () => null);
+    final timeline = !unwindowed.isActive
+        ? all
+        : [
+            for (final entry in all)
+              if (unwindowed.matches(
+                entry.transaction,
+                sourceLabel: _sources[entry.key.source]?.source.label,
+              ))
+                entry,
+          ];
+    final window = _filter.timeWindow == null
+        ? null
+        : NetworkFilter(timeWindow: _filter.timeWindow);
+    var list = window == null
+        ? timeline
+        : [
+            for (final entry in timeline)
+              if (window.matches(entry.transaction)) entry,
+          ];
+    if (_sort case final sort?) {
+      list = [...list];
+      mergeSort(list, compare: _comparator(sort));
+    }
+    return _visibleCache = _VisibleCache(
+      all,
+      _filter,
+      _sort,
+      _sourcesVersion,
+      list: list,
+      timeline: timeline,
+    );
+  }
+
+  int _sourcesVersion = 0;
+
+  static Comparator<NetworkEntry> _comparator(NetworkSort sort) {
+    int compare(NetworkEntry a, NetworkEntry b) {
+      final x = a.transaction;
+      final y = b.transaction;
+      return switch (sort.column) {
+        NetworkSortColumn.status => _statusRank(x).compareTo(_statusRank(y)),
+        NetworkSortColumn.method => x.request.method.compareTo(
+          y.request.method,
+        ),
+        NetworkSortColumn.name => _nameOf(x).compareTo(_nameOf(y)),
+        NetworkSortColumn.type => (x.response?.contentType ?? '').compareTo(
+          y.response?.contentType ?? '',
+        ),
+        NetworkSortColumn.size => (x.response?.size ?? -1).compareTo(
+          y.response?.size ?? -1,
+        ),
+        NetworkSortColumn.time => (x.elapsed?.inMicroseconds ?? -1).compareTo(
+          y.elapsed?.inMicroseconds ?? -1,
+        ),
+      };
+    }
+
+    return sort.descending ? (a, b) => compare(b, a) : compare;
+  }
+
+  static int _statusRank(NetworkTransaction t) => switch (t.state) {
+    NetworkTransactionState.pending => -2,
+    NetworkTransactionState.failed => -1,
+    NetworkTransactionState.complete => t.response?.code ?? 0,
+  };
+
+  static String _nameOf(NetworkTransaction t) {
+    final uri = t.request.uri;
+    if (uri == null) return t.request.url;
+    return '${uri.path}${uri.hasQuery ? '?${uri.query}' : ''}';
+  }
+
   // ── Sources ───────────────────────────────────────────────────────────
 
   /// Starts showing what [source] delivers. Returns the id it is filed under:
@@ -129,6 +281,7 @@ class NetworkController(super.session) extends FeatureController {
     }
     final attached = _AttachedSource(id, source);
     _sources[id] = attached;
+    _sourcesVersion++;
     attached.subscription = source.events.listen(
       (event) => _handleEvent(attached, event),
       onError: (Object error) {
@@ -146,6 +299,7 @@ class NetworkController(super.session) extends FeatureController {
   Future<void> detach(String sourceId) async {
     final attached = _sources.remove(sourceId);
     if (attached == null) return;
+    _sourcesVersion++;
     await attached.subscription?.cancel();
     _forget(_store.removeSource(sourceId));
     _notify();
@@ -210,6 +364,21 @@ class NetworkController(super.session) extends FeatureController {
     if (key == _selectedKey) return;
     _selectedKey = key;
     _notify();
+  }
+
+  /// Moves the selection [delta] rows through [visibleEntries], clamped at
+  /// either end. With nothing selected, a step down picks the first row and
+  /// a step up the last.
+  void selectAdjacent(int delta) {
+    final visible = visibleEntries;
+    if (visible.isEmpty) return;
+    final current = _selectedKey == null
+        ? -1
+        : visible.indexWhere((entry) => entry.key == _selectedKey);
+    final next = current < 0
+        ? (delta > 0 ? 0 : visible.length - 1)
+        : (current + delta).clamp(0, visible.length - 1);
+    select(visible[next].key);
   }
 
   /// Where the [part] body of the transaction with [key] has got to, or null
@@ -280,6 +449,10 @@ class NetworkController(super.session) extends FeatureController {
     _bodyRequests.clear();
     _bodyFailures.clear();
     _selectedKey = null;
+    // The window points at a stretch of time that is no longer listed.
+    if (_filter.timeWindow != null) {
+      _filter = _filter.copyWith(timeWindow: () => null);
+    }
     _notify();
   }
 
@@ -387,6 +560,15 @@ class NetworkController(super.session) extends FeatureController {
     super.dispose();
   }
 }
+
+class const _VisibleCache(
+  final List<NetworkEntry> source,
+  final NetworkFilter filter,
+  final NetworkSort? sort,
+  final int sourcesVersion, {
+  required final List<NetworkEntry> list,
+  required final List<NetworkEntry> timeline,
+});
 
 class _AttachedSource(final String id, final NetworkSource source) {
   StreamSubscription<NetworkSourceEvent>? subscription;

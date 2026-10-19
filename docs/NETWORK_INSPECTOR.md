@@ -145,6 +145,9 @@ below are under `lib/features/network/` unless they start with `lib/`. ✓ marks
 model              data/network_transaction.dart          ✓ NetworkTransaction, headers, bodies, timings
                    data/network_transaction_store.dart    ✓ capped store + body cache with a byte budget
                    data/har.dart                          ✓ HAR 1.2 encode / decode
+                   data/network_filter.dart               ✓ the list's filter: query syntax, toggles, time window
+                   data/network_timeline.dart             ✓ time ranges for the overview and waterfall
+                   data/network_copy.dart                 ✓ Copy as cURL, headers as text
 sources            services/network_source.dart           ✓ interface, one implementation per route
                      ├─ services/inspektor/                ✓ frame codec, messages, InspektorSource (§4)
                      ├─ services/har_source.dart           ✓ a HAR file opened from disk
@@ -157,7 +160,8 @@ tunnels            lib/services/tools/adb_tool.dart          ✓ forwardToAbstra
                    rust/src/api/                             phase 2, iOS; port forward over usbmux
 iOS backend        lib/services/ios/ios_network_service.dart phase 2, iOS; interface, Rust implementation only
 feature controller network_controller.dart                ✓ FeatureController; lazy in DeviceSessionController
-view               network_feature_view.dart, components/ ✓ WorkspacePane.network, rail, command palette
+view               network_feature_view.dart, components/ ✓ WorkspacePane.network, rail, command palette;
+                                                          the DevTools-style pane in §3.7
 ```
 
 ### 3.1 Model
@@ -265,6 +269,51 @@ The rules:
 - HAR export offers header redaction for `Authorization`, `Cookie` and `Set-Cookie`. Inspektor's
   `sanitizeHeader` already redacts on the device, before anything reaches the wire.
 - Under `--record-mode`, the pane redacts the same headers. That mode exists for product videos.
+
+### 3.7 The pane
+
+The pane follows Chrome DevTools' Network panel, so it needs no learning. Top to bottom:
+
+- **Filter bar** (`components/network_filter_bar.dart`). One query field that takes DevTools'
+  syntax, parsed by `NetworkFilter` (`data/network_filter.dart`):
+  - Bare text matches the URL. `-` negates a term, `/…/` is a regex, and quotes keep spaces.
+  - Keys: `domain:` (with `*`), `path:`, `method:`, `status-code:` (`4xx`), `mime-type:`,
+    `larger-than:`, `slower-than:`, `is:` (`pending`, `failed`, `error`, `overridden`),
+    `scheme:`, `has-request-header:`, `has-response-header:` and `source:`.
+  - The field suggests keys, then the values the capture holds for that key, with counts.
+  - Below it sit status toggles (2xx … Failed, Pending) and type toggles (JSON, Doc, Text, Img,
+    Media, Other). An empty set means all.
+- **Timeline overview** (`components/network_overview.dart`). Every request the filter keeps,
+  as a bar on one time axis, packed into lanes and colored by status:
+  - hovering reads out the time, and the request under the pointer;
+  - clicking a bar opens that request;
+  - dragging sets the filter's `NetworkTimeWindow`.
+  The header's timeline button hides it.
+- **Request table** (`components/network_transaction_list.dart`):
+  - Columns: Status, Method, Name (path over host), Type, Size, Time and Waterfall. Columns
+    drop as the pane narrows. Every header sorts: ascending, then descending, then capture order.
+  - Rows highlight on hover, and their cells explain themselves in tooltips. ↑/↓/PgUp/PgDn move
+    the selection, and Esc closes it.
+  - Right-click offers copy (URL, cURL, headers, response body) and "Show only / Hide …"
+    entries. Those add a term to the query rather than setting hidden state, so they can be
+    seen and edited there.
+- **Detail** (`components/network_transaction_detail.dart`). It sits beside the list when the
+  pane is at least 720 dp wide, with a draggable divider; on narrower panes it replaces the list.
+  - Tabs: Headers, Payload, Response and Timing. The last tab picked sticks while you step
+    through rows.
+  - Header sections fold, and their rows have copy and "has header" menus.
+- **Bodies** (`components/network_body_view.dart`) use `re_editor`, Reqable's read-only code
+  view, highlighted with `re_highlight`:
+  - fold markers for `{}`/`[]`, and line numbers;
+  - a find bar (⌘F/Ctrl+F) with case and regex toggles;
+  - pretty-printed or as-sent JSON and form bodies, and a wrap toggle;
+  - image previews, and a hex dump for any other binary body.
+
+Two things to keep in mind when changing it:
+- **The list keeps one place in the widget tree.** Opening an exchange beside it, or over it,
+  must not remount it. Remounting reset the scroll position and orphaned an open row menu.
+- **re_editor highlights and folds in a background isolate.** Widget tests see the text with
+  neither applied, so assert on `CodeEditor.controller.text`, not on colors.
 
 ## 4. Eagly ↔ Inspektor protocol, v1 draft
 
@@ -670,8 +719,9 @@ script the server by hand (`test/support/inspektor_test_support.dart`).
 ### Phase 3: overrides and richer detail (needs I-2; I-3 parts as they land)
 
 - An override list and editor in Eagly, plus "mock this response" on a transaction.
-- Previews for binary bodies, a timing waterfall, and "Copy as cURL". The format should match
-  Inspektor's `Curl.kt`.
+- ~~Previews for binary bodies, a timing waterfall, and "Copy as cURL"~~: landed early with the
+  pane in §3.7. cURL follows `Curl.kt`'s layout (long options, one per line) and quotes values
+  for the shell; `Curl.kt`'s `\'` escape inside single quotes does not work in a shell.
 - **Exit:** an override created in Eagly changes the app's next response.
 
 ### Phase 4: complements that need no install

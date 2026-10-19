@@ -56,6 +56,8 @@ dependencies:
   flutter_rust_bridge_hooks: 2.13.0
   freezed_annotation: ^3.1.0
   fl_panel: ^1.1.0
+  re_editor: ^0.10.0
+  re_highlight: ^0.0.3
 
 dev_dependencies:
   sentry_dart_plugin: ^3.4.0

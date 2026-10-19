@@ -398,6 +398,17 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     `network_inspektor_ios_device_test.dart`, after `cargo build --release` in `rust/`.
   - **Sources implement `NetworkSource`.** The controller files each one's transactions under
     its own key, because ids are only unique within a source.
+  - **The pane is laid out like DevTools' Network panel.** It has a filter bar, a timeline
+    overview, a sortable table and detail tabs; docs/NETWORK_INSPECTOR.md §3.7 maps them.
+    - The filter is one `NetworkFilter` on the controller. The table reads
+      `visibleEntries` and the overview reads `timelineEntries`.
+    - The query syntax lives in `data/network_filter.dart`. Its suggestions and syntax help are
+      built from `networkFilterKeys`, so add a key there.
+    - Row menus narrow the list by adding a query term, never hidden state.
+    - Bodies render in `re_editor`, which highlights and folds in an isolate. Widget tests
+      therefore assert on `CodeEditor.controller.text`.
+    - Opening an exchange must not remount the list, or it loses its scroll position and any
+      open menu.
   - **Decode frames with `const InspektorFrameDecoder().bind(stream)`, never
     `socket.transform(…)`.** A `Socket` is a `Stream<Uint8List>`, and `transform` fails the
     runtime type check.

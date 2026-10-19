@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/network/data/har.dart';
+import 'package:eagly/features/network/data/network_filter.dart';
 import 'package:eagly/features/network/data/network_transaction.dart';
 import 'package:eagly/features/network/network_controller.dart';
 import 'package:eagly/features/network/services/inspektor/inspektor_endpoint.dart';
@@ -218,6 +219,85 @@ void main() {
     source.upsert(networkTransaction('2'));
     await pumpEventQueue();
     expect(ids(controller), ['2']);
+  });
+
+  group('filtering and sorting', () {
+    List<String> visible(NetworkController controller) => [
+      for (final entry in controller.visibleEntries) entry.key.id,
+    ];
+
+    Future<NetworkController> withEntries() async {
+      final controller = createController();
+      final source = FakeNetworkSource(label: 'Sample app');
+      controller.attach(source);
+      source
+        ..upsert(networkTransaction('1'))
+        ..upsert(networkTransaction('2', code: 404))
+        ..upsert(networkTransaction('3', code: 500))
+        ..upsert(
+          networkTransaction('4', state: NetworkTransactionState.pending),
+        );
+      await pumpEventQueue();
+      return controller;
+    }
+
+    test('the query and toggles narrow what the list shows', () async {
+      final controller = await withEntries();
+      expect(visible(controller), ['1', '2', '3', '4']);
+
+      controller.setFilter(NetworkFilter(query: 'status-code:4xx'));
+      expect(visible(controller), ['2']);
+
+      controller.setFilter(
+        NetworkFilter(
+          statusClasses: {
+            NetworkStatusClass.serverError,
+            NetworkStatusClass.pending,
+          },
+        ),
+      );
+      expect(visible(controller), ['3', '4']);
+
+      controller.setFilter(NetworkFilter(query: 'source:sample -items/1'));
+      expect(visible(controller), ['2', '3', '4']);
+      expect(controller.entries, hasLength(4), reason: 'nothing is dropped');
+    });
+
+    test('sorting reorders without touching capture order', () async {
+      final controller = await withEntries();
+      controller.setSort(const NetworkSort(NetworkSortColumn.status));
+      expect(visible(controller), ['4', '1', '2', '3']);
+      controller.setSort(
+        const NetworkSort(NetworkSortColumn.status, descending: true),
+      );
+      expect(visible(controller), ['3', '2', '1', '4']);
+      controller.setSort(null);
+      expect(visible(controller), ['1', '2', '3', '4']);
+    });
+
+    test('arrow-key selection walks the visible rows', () async {
+      final controller = await withEntries();
+      controller.setFilter(NetworkFilter(query: '-items/2'));
+      controller.selectAdjacent(1);
+      expect(controller.selected?.key.id, '1');
+      controller.selectAdjacent(1);
+      expect(controller.selected?.key.id, '3');
+      controller.selectAdjacent(5);
+      expect(controller.selected?.key.id, '4');
+      controller.selectAdjacent(-10);
+      expect(controller.selected?.key.id, '1');
+    });
+
+    test('clearing drops the time window but keeps the query', () async {
+      final controller = await withEntries();
+      final now = DateTime(2026);
+      controller.setFilter(
+        NetworkFilter(query: 'items', timeWindow: NetworkTimeWindow(now, now)),
+      );
+      controller.clear();
+      expect(controller.filter.timeWindow, isNull);
+      expect(controller.filter.query, 'items');
+    });
   });
 
   test('a source clearing its store drops only its own entries', () async {
