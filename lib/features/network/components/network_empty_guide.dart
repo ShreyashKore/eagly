@@ -75,11 +75,9 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
               Text('No network traffic yet', style: theme.textTheme.titleLarge),
               const Gap(6),
               _Paragraph(
-                'This pane shows the HTTP requests an app makes, live, while '
-                'it runs on ${_controller.device.displayName}. The app has to '
-                'include Inspektor, a free debugging library, in a test '
-                'build. You can also open a HAR file someone recorded '
-                'earlier.',
+                'Requests an app makes on ${_controller.device.displayName} '
+                'show up here, live, when a test build of the app includes '
+                'Inspektor. You can also open a saved HAR file.',
               ),
               const Gap(14),
               ListenableBuilder(
@@ -107,12 +105,9 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
               const _SectionDivider(),
               const _Heading('What is Inspektor?'),
               const _Paragraph(
-                'Inspektor is an open-source library that app developers add '
-                'to Android and iOS apps. It records every request the app '
-                'sends and every response it gets back: the address, the '
-                'status code, the headers and the bodies. Eagly connects to '
-                'it over USB, so you can watch the traffic here without a '
-                'proxy, certificates or Wi-Fi settings.',
+                'An open-source library developers add to Android and iOS '
+                'apps. It records each request and response, and Eagly reads '
+                'them over USB: no proxy or certificates needed.',
               ),
               const Gap(10),
               const Wrap(
@@ -154,13 +149,9 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
               const _SectionDivider(),
               const _Heading('What is a HAR file?'),
               const _Paragraph(
-                'A HAR file is a saved recording of network traffic. '
-                'Inspektor’s own screen on the phone can export one '
-                '(Export as HAR), and so can a browser’s developer tools and '
-                'proxies such as Charles or Proxyman. Open one here to look '
-                'through it with the same filters and detail view. Use '
-                'Export as HAR in this pane’s toolbar to save what you '
-                'captured and send it to someone else.',
+                'A saved recording of network traffic. Inspektor, browser '
+                'developer tools and proxies like Charles can export one. To '
+                'share what you captured here, use Export as HAR above.',
               ),
               const _SectionDivider(),
               const _Heading('More help'),
