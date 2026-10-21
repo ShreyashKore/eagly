@@ -11,6 +11,7 @@ import '../features/device_home/data/device_info.dart';
 import '../features/device_home/data/device_performance_stats.dart';
 import '../features/device_home/data/installed_app_info.dart';
 import '../features/logs/data/models/log_entry.dart';
+import '../features/network/services/inspektor/inspektor_endpoint.dart';
 import '../features/terminal/data/terminal_line.dart';
 import '../features/terminal/data/terminal_process.dart';
 import '../features/terminal/data/terminal_tools.dart';
@@ -28,6 +29,7 @@ import 'ios/ios_app_service.dart';
 import 'ios/ios_crash_report_service.dart';
 import 'ios/ios_device_service.dart';
 import 'ios/ios_log_service.dart';
+import 'ios/ios_network_service.dart';
 import 'ios/libimobiledevice_ios_app_service.dart';
 import 'ios/libimobiledevice_ios_crash_report_service.dart';
 import 'ios/libimobiledevice_ios_log_service.dart';
@@ -54,6 +56,7 @@ class DeviceSessionRepository({
   IosCrashReportService? iosCrashReportService,
   IosDeviceService? iosDeviceService,
   IosLogService? iosLogService,
+  IosNetworkService? iosNetworkService,
   ScrcpyMirror? scrcpyMirror,
 }) {
   final AdbTool _adbTool;
@@ -61,6 +64,7 @@ class DeviceSessionRepository({
   final IosCrashReportService _iosCrashReportService;
   final IosDeviceService _iosDeviceService;
   final IosLogService _iosLogService;
+  final IosNetworkService _iosNetworkService;
   final ScrcpyMirror _scrcpyMirror;
   final AppLogger _logger = AppLogger(source: 'DeviceSessionService');
   final Map<String, String> _pidToPackageCache = {};
@@ -106,6 +110,7 @@ class DeviceSessionRepository({
       _iosLogService =
           iosLogService ??
           _defaultIosLogService(ideviceSyslogTool, ideviceSyslogPath),
+      _iosNetworkService = iosNetworkService ?? createIosNetworkService(),
       _scrcpyMirror =
           scrcpyMirror ??
           ScrcpyMirror(
@@ -535,6 +540,77 @@ class DeviceSessionRepository({
     }
     _sessionLogger.info('Reading crash reports for ${device.displayName}');
     return _iosCrashReportService.pullReports(_deviceId);
+  }
+
+  // ── Network inspection ────────────────────────────────────────────────
+
+  /// The iOS ports this session holds an Inspektor tunnel to. They are not
+  /// probed: a probe is a connection the app sees, and the app is there for as
+  /// long as the connection through the tunnel lasts.
+  final Set<int> _tunnelledIosPorts = {};
+
+  /// The Inspektor servers listening on the device right now. Android: their
+  /// abstract sockets in `/proc/net/unix`. iOS: the ports in [inspektorPorts]
+  /// that accept a connection over usbmux.
+  Future<List<InspektorEndpoint>> findInspektorEndpoints() async {
+    switch (device) {
+      case AndroidDevice():
+        final lines = await _adbTool.grepProcNetUnix(
+          _deviceId,
+          inspektorSocketMarker,
+        );
+        return parseInspektorSockets(lines);
+      case IosDevice():
+        final open = {
+          ..._tunnelledIosPorts,
+          ...await _iosNetworkService.probePorts(_deviceId, [
+            for (final port in inspektorPorts)
+              if (!_tunnelledIosPorts.contains(port)) port,
+          ]),
+        };
+        return [
+          for (final port in inspektorPorts)
+            if (open.contains(port)) InspektorEndpoint.tcp(port),
+        ];
+    }
+  }
+
+  /// Opens a host-side tunnel to [endpoint]: from a free loopback port, an
+  /// `adb forward` to its abstract socket on Android, a usbmux forward to its
+  /// port on iOS.
+  Future<InspektorTunnel> openInspektorTunnel(
+    InspektorEndpoint endpoint,
+  ) async {
+    switch (device) {
+      case AndroidDevice():
+        final port = await _adbTool.forwardToAbstractSocket(
+          _deviceId,
+          endpoint.name,
+        );
+        return InspektorTunnel(
+          host: InternetAddress.loopbackIPv4,
+          port: port,
+          close: () => _adbTool.removeForward(_deviceId, port),
+        );
+      case IosDevice():
+        final devicePort = endpoint.port;
+        if (devicePort == null) {
+          throw ArgumentError.value(endpoint, 'endpoint', 'has no iOS port');
+        }
+        final port = await _iosNetworkService.forwardPort(
+          _deviceId,
+          devicePort,
+        );
+        _tunnelledIosPorts.add(devicePort);
+        return InspektorTunnel(
+          host: InternetAddress.loopbackIPv4,
+          port: port,
+          close: () {
+            _tunnelledIosPorts.remove(devicePort);
+            return _iosNetworkService.removeForward(port);
+          },
+        );
+    }
   }
 
   Future<ScrcpyMirrorSession> startScreenMirror({

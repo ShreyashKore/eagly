@@ -121,6 +121,18 @@ List<CommandPaletteItem> buildCommandPaletteItems({
         ),
       );
     }
+    if (session.canInspectNetwork) {
+      items.add(
+        CommandPaletteItem(
+          id: 'nav.network',
+          label: 'Network',
+          category: 'Navigate',
+          icon: Icons.http,
+          subtitle: deviceName,
+          run: session.toggleNetwork,
+        ),
+      );
+    }
     if (session.canUseTerminal) {
       items.add(
         CommandPaletteItem(

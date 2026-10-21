@@ -43,6 +43,10 @@ IosCrashReportService                  crash report retrieval
  ├─ LibimobiledeviceIosCrashReportService  wraps IdeviceCrashReportTool
  └─ RustIosCrashReportService              wraps lib/src/rust/api/ios.dart     ← default
 
+IosNetworkService                      TCP ports on the device, for the Network pane
+ └─ RustIosNetworkService              wraps lib/src/rust/api/ios_network.dart (no CLI version:
+                                       with the CLIs the device simply has no ports)
+
 DeviceFileSystem                       file browsing (shared with Android)
  ├─ IosFileSystem                      drives the afcclient REPL
  └─ RustIosFileSystem                  wraps lib/src/rust/api/ios.dart         ← default
@@ -79,6 +83,7 @@ EAGLY_IOS_BACKEND=cli fvm flutter run -d macos   # fall back to libimobiledevice
 | App install / list / uninstall | `IdeviceInstallerTool` | `list_ios_apps`, `install_ios_app`, `uninstall_ios_app` | both, **unverified on hardware** |
 | Crash reports | `IdeviceCrashReportTool` | `pull_ios_crash_reports` | both, **unverified on hardware** |
 | File manager (AFC) | `IosFileSystem` (`afcclient`, **not bundled**) | `RustIosFileSystem` | both, **unverified on hardware** |
+| Network inspection: port probe and forward | — | `probe_ios_ports`, `start_ios_port_forward`, `stop_ios_port_forward` (`api/ios_network.rs`) | Rust only (`IosNetworkService`), verified on an iPhone 16 (iOS 27.0) with `test/device/network_inspektor_ios_device_test.dart` |
 | Utilities / Terminal | `DeviceToolRunner` | — | **blocked on a product decision — see below** |
 
 ### Syslog: what hardware showed

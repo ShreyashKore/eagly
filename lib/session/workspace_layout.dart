@@ -22,7 +22,8 @@ enum WorkspacePane(
   files('Files', preferredWidth: 600, minWidth: 260),
   apps('Apps', preferredWidth: 420, minWidth: 240),
   utilities('Utilities', preferredWidth: 420, minWidth: 240),
-  terminal('Terminal', preferredWidth: 520, minWidth: 240);
+  terminal('Terminal', preferredWidth: 520, minWidth: 240),
+  network('Network', preferredWidth: 560, minWidth: 260);
 
   double get minHeight => 140;
 

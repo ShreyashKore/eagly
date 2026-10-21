@@ -9,6 +9,7 @@ import 'package:eagly/features/logs/data/models/log_column.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/features/logs/data/models/log_tab_settings.dart';
+import 'package:eagly/features/network/services/inspektor/inspektor_endpoint.dart';
 import 'package:eagly/features/terminal/data/terminal_line.dart';
 import 'package:eagly/features/terminal/data/terminal_process.dart';
 import 'package:eagly/features/terminal/data/terminal_tools.dart';
@@ -138,6 +139,25 @@ class FakeSessionService(Device device) extends DeviceSessionRepository {
     await installGate?.future;
     return installResult;
   }
+
+  /// What [findInspektorEndpoints] reports: no apps unless a test says so.
+  List<InspektorEndpoint> inspektorEndpoints = const [];
+  int inspektorScans = 0;
+
+  /// How [openInspektorTunnel] answers; refuses when unset.
+  Future<InspektorTunnel> Function(InspektorEndpoint endpoint)?
+  onOpenInspektorTunnel;
+
+  @override
+  Future<List<InspektorEndpoint>> findInspektorEndpoints() async {
+    inspektorScans++;
+    return inspektorEndpoints;
+  }
+
+  @override
+  Future<InspektorTunnel> openInspektorTunnel(InspektorEndpoint endpoint) =>
+      onOpenInspektorTunnel?.call(endpoint) ??
+      Future.error(StateError('No tunnel in this test.'));
 
   /// Loopback control channel handed to the next mirror session, so tests can
   /// assert on the bytes the controller actually writes. Null ⇒ no control.

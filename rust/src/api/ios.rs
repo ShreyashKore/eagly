@@ -22,7 +22,7 @@ use crate::frb_generated::StreamSink;
 
 /// Label lockdownd records against our session. Shows up in the device's
 /// pairing records, so it should name the app rather than the library.
-const CLIENT_LABEL: &str = "eagly";
+pub(crate) const CLIENT_LABEL: &str = "eagly";
 
 /// A device usbmuxd knows about, before anything has asked lockdownd about it.
 ///
@@ -154,7 +154,7 @@ pub async fn describe_ios_device(udid: String) -> Result<IosDeviceSummary, IosEr
 /// Any failure here means usbmuxd is not running, which arrives as
 /// `IdeviceError::Socket` rather than `IdeviceError::Usbmuxd` — the latter is
 /// reserved for protocol errors on an established connection.
-async fn connect_usbmuxd() -> Result<UsbmuxdConnection, IosError> {
+pub(crate) async fn connect_usbmuxd() -> Result<UsbmuxdConnection, IosError> {
     UsbmuxdConnection::default()
         .await
         .map_err(|_| IosError::UsbmuxdUnavailable)

@@ -64,7 +64,7 @@ void main() {
 
       logs.addAll(
         parser.addLine(
-          'Apr 23 17:10:40.588177 novio (R14)(Flutter)[5727] <Notice>: flutter: ╟ x-xss-protection: [1; mode=block]',
+          'Apr 23 17:10:40.588177 Runner (R14)(Flutter)[5727] <Notice>: flutter: ╟ x-xss-protection: [1; mode=block]',
         ),
       );
       final trailingEntry = parser.flush();
@@ -78,8 +78,8 @@ void main() {
       // Tag is the last bracketed value (the iOS subsystem/category); the bare
       // process name and the full label are kept separately.
       expect(logs.single.tag, 'Flutter');
-      expect(logs.single.packageName, 'novio');
-      expect(logs.single.processName, 'novio (R14)(Flutter)');
+      expect(logs.single.packageName, 'Runner');
+      expect(logs.single.processName, 'Runner (R14)(Flutter)');
       expect(
         logs.single.message,
         'flutter: ╟ x-xss-protection: [1; mode=block]',
@@ -90,7 +90,7 @@ void main() {
       final parser = IosSyslogParser(now: () => DateTime(2026, 6, 9));
       final logs = <LogEntry>[];
       final lines = <String>[
-        'Jun  9 15:06:06.533981 novio (R14)(CoreFoundation)[2768] <Debug>: looked up value',
+        'Jun  9 15:06:06.533981 Runner (R14)(CoreFoundation)[2768] <Debug>: looked up value',
         'Jun  9 15:06:06.534469 runningboardd(RunningBoard)[33] <Info>: PERF: Received request',
       ];
       for (final line in lines) {
@@ -101,10 +101,10 @@ void main() {
 
       expect(logs, hasLength(2));
 
-      // "novio (R14)(CoreFoundation)" → process "novio", category "CoreFoundation".
-      expect(logs.first.packageName, 'novio');
+      // "Runner (R14)(CoreFoundation)" → process "Runner", category "CoreFoundation".
+      expect(logs.first.packageName, 'Runner');
       expect(logs.first.tag, 'CoreFoundation');
-      expect(logs.first.processName, 'novio (R14)(CoreFoundation)');
+      expect(logs.first.processName, 'Runner (R14)(CoreFoundation)');
       // TID is never available in idevicesyslog output; PID is captured.
       expect(logs.first.pid, '2768');
       expect(logs.first.tid, '0');
@@ -119,7 +119,7 @@ void main() {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 26));
 
       parser.addLine(
-        r'Apr 26 20:54:02.025982 novio (R14)(Flutter)[1800] <Notice>: flutter: \M-b\M^U\M^T Query Parameters',
+        r'Apr 26 20:54:02.025982 Runner (R14)(Flutter)[1800] <Notice>: flutter: \M-b\M^U\M^T Query Parameters',
       );
 
       final entry = parser.flush();
@@ -130,7 +130,7 @@ void main() {
     test('export round-trips parsed iOS log entries', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
       parser.addLine(
-        'Apr 23 17:10:40.588246 novio (R14)(Flutter)[5727] <Notice>: flutter: ╟ server: [None]',
+        'Apr 23 17:10:40.588246 Runner (R14)(Flutter)[5727] <Notice>: flutter: ╟ server: [None]',
       );
 
       final entry = parser.flush();
@@ -153,7 +153,7 @@ void main() {
     test('continuations after a flush start a new entry under its header', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
       parser.addLine(
-        'Apr 23 17:10:40.588246 novio (R14)(Flutter)[5727] <Notice>: head',
+        'Apr 23 17:10:40.588246 Runner (R14)(Flutter)[5727] <Notice>: head',
       );
       final first = parser.flush()!;
 
@@ -171,7 +171,7 @@ void main() {
 
     test('blank continuations after a flush add no empty row', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
-      parser.addLine('Apr 23 17:10:40.588246 novio[5727] <Notice>: head');
+      parser.addLine('Apr 23 17:10:40.588246 Runner[5727] <Notice>: head');
       parser.flush();
 
       parser.addLine('');
@@ -189,7 +189,7 @@ void main() {
     test('idevicesyslog status lines end an entry and are dropped', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
       expect(parser.addLine('[connected:00008140-001564CA3493801C]'), isEmpty);
-      parser.addLine('Apr 23 17:10:40.588246 novio[5727] <Notice>: before');
+      parser.addLine('Apr 23 17:10:40.588246 Runner[5727] <Notice>: before');
       parser.addLine('  continued');
 
       final ended = parser.addLine('[disconnected:00008140-001564CA3493801C]');
@@ -198,7 +198,7 @@ void main() {
       // Neither the status lines nor what follows them join that entry.
       expect(parser.addLine('[connected:00008140-001564CA3493801C]'), isEmpty);
       expect(parser.addLine('orphan'), isEmpty);
-      parser.addLine('Apr 23 17:10:41.000000 novio[5727] <Notice>: after');
+      parser.addLine('Apr 23 17:10:41.000000 Runner[5727] <Notice>: after');
       expect(parser.flush()?.message, 'after');
     });
 
@@ -206,7 +206,7 @@ void main() {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
 
       parser.addLine(
-        'Apr 23 17:10:40.588246 novio[5727] <Panic>: flutter: something unexpected happened',
+        'Apr 23 17:10:40.588246 Runner[5727] <Panic>: flutter: something unexpected happened',
       );
 
       final entry = parser.flush();

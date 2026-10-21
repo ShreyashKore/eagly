@@ -172,6 +172,16 @@ class const FeatureRail({
                                         : 'Type adb / idevice commands',
                                     onTap: session.toggleTerminal,
                                   ),
+                                if (session.canInspectNetwork)
+                                  RailButton(
+                                    icon: Icons.http,
+                                    label: 'Network',
+                                    isActive: session.isNetworkOpen,
+                                    tooltip: session.isNetworkOpen
+                                        ? 'Hide network'
+                                        : 'Inspect HTTP traffic',
+                                    onTap: session.toggleNetwork,
+                                  ),
                                 RailButton(
                                   icon: Icons.system_update_outlined,
                                   label: session.isInstallingApp

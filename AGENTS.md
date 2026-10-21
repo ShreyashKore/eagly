@@ -376,6 +376,46 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   synthetic `DeviceSessionController` (`isImportedWorkspace`, id `__imported-logs__`); each
   file becomes a sub-tab. It appears as a tab but is excluded from the landing-screen
   device list.
+- **Network inspector (#72):** **read docs/NETWORK_INSPECTOR.md before any network-capture
+  work.** It covers Eagly as the desktop viewer for
+  [Inspektor](https://github.com/ShreyashKore/inspektor), the device↔desktop protocol, the phased
+  plan, and research notes on deferred routes. Dropped routes are in
+  docs/NETWORK_INSPECTOR_DROPPED_ROUTES.md. Update both as phases land.
+  - **Phase 1 is in `features/network/`:** the pane, the model and store, HAR open/export, and
+    the Inspektor protocol client (`InspektorSource`).
+  - **Phase 2 on Android:** while the pane is open, `InspektorWatcher` finds apps through
+    `DeviceSessionRepository.findInspektorEndpoints`, which runs one `adb shell grep` over
+    `/proc/net/unix`. It tunnels to each with `adb forward` and attaches it under its store's key
+    (`inspektor:<app>:<store>`), so a restarted app continues its list instead of repeating it.
+  - **Phase 2 on iOS:** the same watcher, with `IosNetworkService` (Rust only,
+    `rust/src/api/ios_network.rs`) probing ports 38470–38477 over usbmux and forwarding to the
+    open ones. A port with a tunnel isn't probed again: each probe is a connection the app sees.
+    A connection that ends is dropped, so the next poll reconnects; on iOS a restarted app usually
+    takes the same port.
+  - **Device tests:** `EAGLY_TEST_ANDROID_SERIAL=<serial> fvm flutter test
+    test/device/network_inspektor_device_test.dart`, with Inspektor's sample app (dev flavour)
+    running; `EAGLY_TEST_IOS_UDID=<udid> EAGLY_TEST_INSPEKTOR_BUNDLE=<bundle id>` for
+    `network_inspektor_ios_device_test.dart`, after `cargo build --release` in `rust/`.
+  - **Sources implement `NetworkSource`.** The controller files each one's transactions under
+    its own key, because ids are only unique within a source.
+  - **The pane is laid out like DevTools' Network panel.** It has a filter bar, a timeline
+    overview, a sortable table and detail tabs; docs/NETWORK_INSPECTOR.md §3.7 maps them.
+    - The filter is one `NetworkFilter` on the controller. The table reads
+      `visibleEntries` and the overview reads `timelineEntries`.
+    - The query syntax lives in `data/network_filter.dart`. Its suggestions and syntax help are
+      built from `networkFilterKeys`, so add a key there.
+    - Row menus narrow the list by adding a query term, never hidden state.
+    - Bodies render in `re_editor`, which highlights and folds in an isolate. Widget tests
+      therefore assert on `CodeEditor.controller.text`.
+    - Opening an exchange must not remount the list, or it loses its scroll position and any
+      open menu.
+  - **The empty pane is a set-up guide** (`components/network_empty_guide.dart`), written for
+    testers as much as developers. It links to the user guide, docs/NETWORK_PANE.md, and to
+    anchors in Inspektor's README (`NetworkGuideLinks`). When Inspektor's set-up or a README
+    heading changes, update the guide's snippets, its links and docs/NETWORK_PANE.md together.
+  - **Decode frames with `const InspektorFrameDecoder().bind(stream)`, never
+    `socket.transform(…)`.** A `Socket` is a `Stream<Uint8List>`, and `transform` fails the
+    runtime type check.
 
 ## Conventions
 
