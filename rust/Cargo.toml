@@ -10,12 +10,19 @@ crate-type = ["cdylib", "staticlib"]
 # `clock` for `Local`: os_trace_relay timestamps arrive as UTC and are shown in host time.
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 flutter_rust_bridge = "=2.13.0"
-idevice = { version = "=0.1.65", default-features = false, features = ["usbmuxd", "tcp", "pair", "syslog_relay", "installation_proxy", "crashreportcopymobile", "afc"] }
+# The second line is the screen mirror (api/ios_mirror.rs): the CoreDevice tunnel and the
+# Device Hub services behind it. `display_stream` also gates the crate's HID module.
+idevice = { version = "=0.1.65", default-features = false, features = [
+    "usbmuxd", "tcp", "pair", "syslog_relay", "installation_proxy", "crashreportcopymobile", "afc",
+    "core_device_proxy", "tunnel_tcp_stack", "rsd", "core_device", "display_stream", "springboardservices",
+] }
 plist = "1.8"
 # `macros` for tokio::select!; FRB's own tokio brings only rt-multi-thread + sync. `net`, `time`
 # and `io-util` for the usbmux port forward (api/ios_network.rs).
 tokio = { version = "1", features = ["macros", "fs", "net", "time", "io-util", "rt"] }
 tokio-util = { version = "0.7", default-features = false }
+# Session ids for the media stream that opens the iOS 27 input gate (api/ios_mirror.rs).
+uuid = { version = "1", features = ["v4"] }
 
 [features]
 default = ["ring"]

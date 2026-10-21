@@ -6,14 +6,18 @@ import 'scrcpy_mirror.dart';
 /// interactions to the device. Frames are decoded natively (VideoToolbox /
 /// FFmpeg) and composited into [textureId]; we present that texture at the
 /// device's aspect ratio. Wrap it in your own chrome (header / start-stop /
-/// close controls).
+/// close controls). The iPhone mirror uses it too, with its own texture or
+/// a [child] showing the latest screenshot.
 ///
 /// Keyboard forwarding is focus-gated: keys only reach the device while the
 /// surface holds focus (click it to take focus), so the host app keeps its own
 /// shortcuts the rest of the time.
 class const ScrcpyView({
   super.key,
-  required final int textureId,
+  final int? textureId,
+
+  /// Shown instead of [textureId]'s texture, such as a polled screenshot.
+  final Widget? child,
   required final double aspectRatio,
 
   /// Called with a normalized (0..1) position within the video rect.
@@ -29,6 +33,8 @@ class const ScrcpyView({
   final KeyEventResult Function(KeyEvent event)? onKey,
   final ValueChanged<bool>? onFocusChange,
 }) extends StatelessWidget {
+  this : assert(textureId != null || child != null);
+
   void _emit(ScrcpyTouchAction action, Offset position, Size size) {
     if (onTouch == null || size.width <= 0 || size.height <= 0) return;
     onTouch!(
@@ -55,7 +61,7 @@ class const ScrcpyView({
               _emit(ScrcpyTouchAction.move, e.localPosition, size),
           onPointerUp: (e) =>
               _emit(ScrcpyTouchAction.up, e.localPosition, size),
-          child: Texture(textureId: textureId),
+          child: child ?? Texture(textureId: textureId!),
         );
       },
     );

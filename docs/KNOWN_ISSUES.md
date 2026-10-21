@@ -4,6 +4,27 @@ Bugs found and deliberately left for a later branch. Each entry gives the cause 
 suggested fix. Delete an entry in the commit that fixes it. iOS Rust backend issues are
 tracked separately, in docs/IOS_RUST_MIGRATION.md → *Open issues*.
 
+## From the iPhone screen mirror (`feat/ios-screen-mirror`, 2026-10-21)
+
+### macOS crashes in Impeller while a mirror streams and the window changes
+
+A Flutter engine bug: when the window's size changes and changes back, the macOS
+back-buffer cache can return a surface of the wrong size, and Impeller dereferences a null
+texture in `impeller::Canvas::SetupRenderPass` on the raster thread (EXC_BAD_ACCESS at 0x0,
+through `EmbedderExternalViewEmbedder::SubmitFlutterView`). Window drags, resizes, full
+screen, Space and display changes and coming to the front trigger it, and a video texture on
+screen makes it reliable, because every frame redraws the window. It took Eagly down
+seconds into an iPhone mirror. The fix,
+[flutter/flutter#192522](https://github.com/flutter/flutter/pull/192522), is not merged and is
+not in 3.47.7. The Android mirror's texture is exposed the same way.
+
+`IosScreenCapturePlugin.swift` holds its redraws back while the window or screen is changing
+(`WindowTransitionGuard`), which lowers the odds without removing them.
+
+**Fix:** move to a Flutter release with #192522. Until then, `FLTEnableImpeller` = `false` in
+`macos/Runner/Info.plist` (Skia) avoids it, at the cost of Impeller app-wide. If it stays on,
+give `ScrcpyVideoPlugin.swift` the same guard.
+
 ## From the `release/1.5.4` review (2026-10-18)
 
 ### Every new session pulls every visible app's APK again

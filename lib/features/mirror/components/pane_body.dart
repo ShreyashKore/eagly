@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../data/device.dart';
+import '../../../presentation/components/delayed_reveal.dart';
+import '../../../presentation/components/hint_note.dart';
 import '../../flutter_scrcpy/flutter_scrcpy.dart';
 import '../mirror_controller.dart';
+import '../services/ios_screen_capture.dart';
+import 'ios_mirror_surface.dart';
 
 class const PaneBody({super.key, required final MirrorController controller})
     extends StatelessWidget {
@@ -11,6 +16,12 @@ class const PaneBody({super.key, required final MirrorController controller})
     final theme = Theme.of(context);
     final device = controller.device;
     final session = controller.screenMirrorSession;
+    final ios = controller.iosMirror;
+    final isIos = device is IosDevice;
+
+    if (ios != null && controller.isScreenMirrorRunning) {
+      return IosMirrorSurface(controller: controller, mirror: ios);
+    }
 
     // Display the live texture once the mirror is running.
     if (session != null && controller.isScreenMirrorRunning) {
@@ -35,7 +46,10 @@ class const PaneBody({super.key, required final MirrorController controller})
       ScreenMirrorState.starting => (
         icon: Icons.hourglass_top_rounded,
         title: 'Starting mirror',
-        description: 'Opening scrcpy for ${device.displayName}.',
+        description: isIos
+            ? "Waiting for ${device.displayName}'s screen. The first picture "
+                  'takes a few seconds.'
+            : 'Opening scrcpy for ${device.displayName}.',
       ),
       ScreenMirrorState.running => (
         icon: Icons.cast_connected_rounded,
@@ -47,7 +61,7 @@ class const PaneBody({super.key, required final MirrorController controller})
         title: 'Unsupported device',
         description:
             controller.screenMirrorError ??
-            'Screen mirroring is available for Android devices.',
+            "Screen mirroring isn't available for this device.",
       ),
       ScreenMirrorState.error => (
         icon: Icons.error_outline_rounded,
@@ -59,7 +73,10 @@ class const PaneBody({super.key, required final MirrorController controller})
       ScreenMirrorState.stopped => (
         icon: Icons.mobile_screen_share,
         title: 'Ready to mirror',
-        description: 'Launch scrcpy for ${device.displayName}.',
+        description: isIos
+            ? "Show ${device.displayName}'s screen here and control it with "
+                  'the mouse and keyboard.'
+            : 'Launch scrcpy for ${device.displayName}.',
       ),
     };
 
@@ -83,6 +100,23 @@ class const PaneBody({super.key, required final MirrorController controller})
             ),
             textAlign: TextAlign.center,
           ),
+          // Starting the capture makes the iPhone take the Mac for an audio
+          // device, and the question it asks holds back every touch.
+          if (isIos &&
+              IosScreenCapture.isAvailable &&
+              controller.screenMirrorState == ScreenMirrorState.starting)
+            const DelayedReveal(
+              delay: Duration(seconds: 3),
+              child: Padding(
+                padding: EdgeInsets.only(top: 16),
+                child: HintNote(
+                  text:
+                      'If the iPhone asks whether you are connecting '
+                      'headphones, answer it on the phone. Touches from here '
+                      "don't get through until it's gone.",
+                ),
+              ),
+            ),
           const Gap(18),
           FilledButton.icon(
             onPressed: controller.isScreenMirrorRunning

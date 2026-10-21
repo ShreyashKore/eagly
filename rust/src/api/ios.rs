@@ -832,7 +832,7 @@ async fn afc_client(udid: &str) -> Result<AfcClient, IosError> {
 }
 
 /// Resolves a UDID to a connection provider — every service starts here.
-async fn provider_for(udid: &str) -> Result<UsbmuxdProvider, IosError> {
+pub(crate) async fn provider_for(udid: &str) -> Result<UsbmuxdProvider, IosError> {
     let mut usbmuxd = connect_usbmuxd().await?;
     let device = usbmuxd.get_device(udid).await?;
     let address = UsbmuxdAddr::from_env_var().unwrap_or_default();

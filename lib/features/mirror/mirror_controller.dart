@@ -8,9 +8,12 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import '../../data/device.dart';
 import '../../services/app_breadcrumbs.dart';
 import '../../services/device_session_repository.dart';
+import '../../services/ios/ios_mirror_service.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/utils.dart';
 import '../flutter_scrcpy/flutter_scrcpy.dart';
+import 'ios/ios_mirror_session.dart';
+import 'services/ios_screen_capture.dart';
 
 enum ScreenMirrorState { stopped, starting, running, unsupported, error }
 
@@ -50,9 +53,10 @@ enum MirrorQuality(final String label, final String description) {
   };
 }
 
-/// Per-device screen-mirroring feature. Owns the live scrcpy session, encoder
-/// quality, on-device recording, and pane width. Pane *visibility* lives on the
-/// owning [DeviceSessionController]; this controller only manages the session.
+/// Per-device screen-mirroring feature. Owns the live session — scrcpy on
+/// Android, an [IosMirrorSession] on iOS — encoder quality, on-device
+/// recording, and pane width. Pane *visibility* lives on the owning
+/// [DeviceSessionController]; this controller only manages the session.
 class MirrorController(super.session) extends FeatureController {
   var screenMirrorState = ScreenMirrorState.stopped;
   String? screenMirrorError;
@@ -61,6 +65,16 @@ class MirrorController(super.session) extends FeatureController {
   ScrcpyMirrorSession? _session;
   ScreenRecordingSession? _recordingSession;
   bool _disposed = false;
+
+  IosMirrorSession? _ios;
+
+  /// An iPhone mirror still starting, so a stop or restart can end it
+  /// before it finishes rather than leave its capture running.
+  IosMirrorSession? _iosStarting;
+
+  /// Bumped by every start and stop, so an iOS start that takes seconds can
+  /// tell it was overtaken.
+  int _iosGeneration = 0;
 
   /// Whether device→desktop clipboard changes are mirrored automatically.
   bool clipboardSyncEnabled = true;
@@ -91,6 +105,9 @@ class MirrorController(super.session) extends FeatureController {
 
   ScrcpyMirrorSession? get screenMirrorSession => _session;
 
+  /// The running iPhone mirror, when the device is an iPhone.
+  IosMirrorSession? get iosMirror => _ios;
+
   /// Native texture id of the live mirror, or null when not running.
   int? get textureId => _session?.textureId;
 
@@ -113,9 +130,10 @@ class MirrorController(super.session) extends FeatureController {
   }
 
   Future<void> start() async {
-    if (device is! AndroidDevice) {
+    if (device is IosDevice && !IosMirrorSession.isAvailableOnHost) {
       screenMirrorError =
-          'Screen mirroring is currently available for Android devices.';
+          "Mirroring an iPhone needs macOS, or the Rust iOS backend for its "
+          'screenshots.';
       screenMirrorState = ScreenMirrorState.unsupported;
       _notify();
       return;
@@ -138,6 +156,11 @@ class MirrorController(super.session) extends FeatureController {
       data: {'quality': mirrorQuality.name},
     );
     _notify();
+
+    if (device is IosDevice) {
+      await _startIos();
+      return;
+    }
 
     try {
       final mirror = await service.startScreenMirror(
@@ -186,9 +209,89 @@ class MirrorController(super.session) extends FeatureController {
     }
   }
 
+  Future<void> _startIos() async {
+    final generation = ++_iosGeneration;
+    try {
+      final mirror = await IosMirrorSession.start(
+        service,
+        liveCapture: IosScreenCapture.isAvailable,
+        controlIsCommand: defaultTargetPlatform != TargetPlatform.macOS,
+        onCreated: (mirror) {
+          if (_disposed || generation != _iosGeneration) {
+            unawaited(mirror.stop());
+          } else {
+            _iosStarting = mirror;
+          }
+        },
+      );
+      if (identical(_iosStarting, mirror)) _iosStarting = null;
+      if (_disposed || generation != _iosGeneration) {
+        await mirror.stop();
+        return;
+      }
+      _ios = mirror;
+      mirror.addListener(_notify);
+      screenMirrorState = ScreenMirrorState.running;
+      AppBreadcrumbs.action(
+        'Screen mirror running for ${device.displayName}',
+        category: 'mirror',
+        data: {
+          'video': mirror.video.name,
+          'input': mirror.hasInput,
+          'displayStream': mirror.support.displayStream,
+        },
+      );
+      _notify();
+      unawaited(_watchIos(mirror));
+    } catch (error) {
+      if (generation == _iosGeneration) _iosStarting = null;
+      if (_disposed || generation != _iosGeneration) return;
+      final message = error is IosMirrorException
+          ? error.message
+          : describeError(error);
+      screenMirrorState = ScreenMirrorState.error;
+      screenMirrorError = message;
+      AppBreadcrumbs.action(
+        'Screen mirror failed for ${device.displayName}',
+        category: 'mirror',
+        level: SentryLevel.error,
+        data: {'error': message},
+      );
+      _notify();
+    }
+  }
+
+  /// Turns an iPhone mirror that stopped by itself (the phone unplugged, the
+  /// capture failing) into an error the pane can show.
+  Future<void> _watchIos(IosMirrorSession mirror) async {
+    final reason = await mirror.ended;
+    if (reason == null || _disposed || !identical(_ios, mirror)) return;
+    _ios = null;
+    mirror.removeListener(_notify);
+    await mirror.stop();
+    if (_disposed) return;
+    screenMirrorState = ScreenMirrorState.error;
+    screenMirrorError = reason;
+    _notify();
+  }
+
   Future<void> stop({bool notify = true}) async {
     final mirror = _session;
     _session = null;
+    final ios = _ios;
+    _ios = null;
+    final iosStarting = _iosStarting;
+    _iosStarting = null;
+    _iosGeneration++;
+    await iosStarting?.stop();
+    if (ios != null) {
+      ios.removeListener(_notify);
+      await ios.stop();
+      AppBreadcrumbs.action(
+        'Stopped screen mirror for ${device.displayName}',
+        category: 'mirror',
+      );
+    }
     await _clipboardSub?.cancel();
     _clipboardSub = null;
     _lastPushedClipboard = null;
@@ -258,6 +361,10 @@ class MirrorController(super.session) extends FeatureController {
   /// Forwards a pointer interaction on the mirror surface to the device.
   /// [nx]/[ny] are normalized (0..1) positions within the video rect.
   void handleTouch(ScrcpyTouchAction action, double nx, double ny) {
+    if (_ios case final ios?) {
+      ios.touch(action, nx, ny);
+      return;
+    }
     final mirror = _session;
     final control = mirror?.control;
     if (mirror == null || control == null) return;
@@ -279,13 +386,21 @@ class MirrorController(super.session) extends FeatureController {
   }
 
   /// Whether desktop key presses currently go to the device.
-  bool get isKeyboardForwarding =>
-      keyboardFocusNode.hasFocus && _session?.control != null;
+  bool get isKeyboardForwarding => keyboardFocusNode.hasFocus && hasControl;
+
+  /// Whether the running mirror takes input: scrcpy's control socket, or an
+  /// iPhone's HID services.
+  bool get hasControl => _session?.control != null || (_ios?.hasInput ?? false);
+
+  /// Presses one of an iPhone's hardware buttons.
+  Future<void> pressIosButton(IosButton button) async =>
+      _ios?.pressButton(button);
 
   /// Forwards a desktop key event to the mirrored device. Returns
   /// [KeyEventResult.handled] for anything the device consumed — which also
   /// stops the platform beeping at a key the app never handled.
   KeyEventResult handleKeyEvent(KeyEvent event) {
+    if (_ios case final ios?) return ios.handleKeyEvent(event);
     final control = _session?.control;
     if (control == null) return KeyEventResult.ignored;
     final command = _keyboard.translate(
@@ -301,6 +416,7 @@ class MirrorController(super.session) extends FeatureController {
   /// the user was holding doesn't stay stuck down on the device.
   void handleKeyboardFocusChange(bool focused) {
     if (!focused) {
+      _ios?.releaseKeys();
       final control = _session?.control;
       for (final command in _keyboard.releaseAll()) {
         if (control != null) _dispatchKeyCommand(control, command);
@@ -353,12 +469,14 @@ class MirrorController(super.session) extends FeatureController {
 
   /// Whether pasting from the desktop clipboard is currently possible.
   bool get canPasteToDevice =>
-      isScreenMirrorRunning && _session?.control != null;
+      isScreenMirrorRunning &&
+      (_session?.control != null || (_ios?.canPaste ?? false));
 
   /// Sends the desktop clipboard's text to the mirrored device and pastes it
   /// into the focused field. Returns false when there's no live control
   /// channel or the desktop clipboard holds no text.
   Future<bool> pasteFromClipboard() async {
+    if (_ios case final ios?) return ios.pasteFromClipboard();
     final control = _session?.control;
     if (control == null) return false;
     final data = await Clipboard.getData(Clipboard.kTextPlain);
@@ -382,12 +500,14 @@ class MirrorController(super.session) extends FeatureController {
 
   /// Captures a PNG screenshot of the mirrored device, or null if unavailable.
   Future<Uint8List?> captureScreenshot() async {
+    if (_ios case final ios?) return ios.captureScreenshot();
     if (_session == null) return null;
     return service.captureScreenshot();
   }
 
   /// Cycles the mirrored device's display orientation.
   Future<void> rotate() async {
+    if (_ios case final ios?) return ios.rotate();
     if (_session == null) return;
     await service.rotateDevice();
   }

@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/ios.dart';
+import 'api/ios_mirror.dart';
 import 'api/ios_network.dart';
 import 'api/simple.dart';
 
@@ -71,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1539802975;
+  int get rustContentHash => -570210100;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -83,6 +84,10 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
+  Future<Uint8List> crateApiIosMirrorCaptureIosScreenshot({
+    required String udid,
+  });
+
   Future<void> crateApiIosCreateIosDirectory({
     required String udid,
     required String path,
@@ -119,6 +124,10 @@ abstract class RustLibApi extends BaseApi {
     required String path,
   });
 
+  Future<IosMirrorSupport> crateApiIosMirrorProbeIosMirror({
+    required String udid,
+  });
+
   Future<Uint16List> crateApiIosNetworkProbeIosPorts({
     required String udid,
     required List<int> ports,
@@ -133,10 +142,49 @@ abstract class RustLibApi extends BaseApi {
     required String udid,
   });
 
+  Future<IosInterfaceOrientation> crateApiIosMirrorReadIosInterfaceOrientation({
+    required String udid,
+  });
+
   Future<void> crateApiIosRenameIosPath({
     required String udid,
     required String from,
     required String to,
+  });
+
+  Future<void> crateApiIosMirrorRotateIosDevice({
+    required String sessionId,
+    required IosRotation rotation,
+  });
+
+  bool crateApiIosMirrorSendIosButton({
+    required String sessionId,
+    required int usagePage,
+    required int usage,
+    required bool down,
+  });
+
+  bool crateApiIosMirrorSendIosKey({
+    required String sessionId,
+    required int usage,
+    required bool down,
+  });
+
+  bool crateApiIosMirrorSendIosTouch({
+    required String sessionId,
+    required IosTouchPhase phase,
+    required double x,
+    required double y,
+  });
+
+  Future<void> crateApiIosMirrorSetIosPasteboardText({
+    required String sessionId,
+    required String text,
+  });
+
+  Future<void> crateApiIosMirrorStartIosInput({
+    required String udid,
+    required String sessionId,
   });
 
   Future<int> crateApiIosNetworkStartIosPortForward({
@@ -144,12 +192,23 @@ abstract class RustLibApi extends BaseApi {
     required int devicePort,
   });
 
+  Stream<Uint8List> crateApiIosMirrorStartIosScreenshotStream({
+    required String udid,
+    required String sessionId,
+  });
+
   Stream<String> crateApiIosStartIosSyslog({
     required String udid,
     required String sessionId,
   });
 
+  Future<void> crateApiIosMirrorStopIosInput({required String sessionId});
+
   Future<void> crateApiIosNetworkStopIosPortForward({required int hostPort});
+
+  Future<void> crateApiIosMirrorStopIosScreenshotStream({
+    required String sessionId,
+  });
 
   Future<void> crateApiIosStopIosSyslog({required String sessionId});
 
@@ -174,6 +233,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
+  Future<Uint8List> crateApiIosMirrorCaptureIosScreenshot({
+    required String udid,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(udid, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 1,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_8_strict,
+          decodeErrorData: sse_decode_ios_error,
+        ),
+        constMeta: kCrateApiIosMirrorCaptureIosScreenshotConstMeta,
+        argValues: [udid],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosMirrorCaptureIosScreenshotConstMeta =>
+      const TaskConstMeta(
+        debugName: "capture_ios_screenshot",
+        argNames: ["udid"],
+      );
+
+  @override
   Future<void> crateApiIosCreateIosDirectory({
     required String udid,
     required String path,
@@ -187,7 +279,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 1,
+            funcId: 2,
             port: port_,
           );
         },
@@ -222,7 +314,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 3,
             port: port_,
           );
         },
@@ -254,7 +346,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 4,
             port: port_,
           );
         },
@@ -288,7 +380,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 5,
             port: port_,
           );
         },
@@ -315,7 +407,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -340,7 +432,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 7,
             port: port_,
           );
         },
@@ -372,7 +464,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -402,7 +494,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -429,7 +521,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -461,7 +553,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -482,6 +574,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<IosMirrorSupport> crateApiIosMirrorProbeIosMirror({
+    required String udid,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(udid, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 12,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_ios_mirror_support,
+          decodeErrorData: sse_decode_ios_error,
+        ),
+        constMeta: kCrateApiIosMirrorProbeIosMirrorConstMeta,
+        argValues: [udid],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosMirrorProbeIosMirrorConstMeta =>
+      const TaskConstMeta(debugName: "probe_ios_mirror", argNames: ["udid"]);
+
+  @override
   Future<Uint16List> crateApiIosNetworkProbeIosPorts({
     required String udid,
     required List<int> ports,
@@ -495,7 +617,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 13,
             port: port_,
           );
         },
@@ -530,7 +652,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 14,
             port: port_,
           );
         },
@@ -563,7 +685,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 15,
             port: port_,
           );
         },
@@ -585,6 +707,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<IosInterfaceOrientation> crateApiIosMirrorReadIosInterfaceOrientation({
+    required String udid,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(udid, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_ios_interface_orientation,
+          decodeErrorData: sse_decode_ios_error,
+        ),
+        constMeta: kCrateApiIosMirrorReadIosInterfaceOrientationConstMeta,
+        argValues: [udid],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosMirrorReadIosInterfaceOrientationConstMeta =>
+      const TaskConstMeta(
+        debugName: "read_ios_interface_orientation",
+        argNames: ["udid"],
+      );
+
+  @override
   Future<void> crateApiIosRenameIosPath({
     required String udid,
     required String from,
@@ -600,7 +755,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 17,
             port: port_,
           );
         },
@@ -621,6 +776,211 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<void> crateApiIosMirrorRotateIosDevice({
+    required String sessionId,
+    required IosRotation rotation,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(sessionId, serializer);
+          sse_encode_ios_rotation(rotation, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_ios_error,
+        ),
+        constMeta: kCrateApiIosMirrorRotateIosDeviceConstMeta,
+        argValues: [sessionId, rotation],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosMirrorRotateIosDeviceConstMeta =>
+      const TaskConstMeta(
+        debugName: "rotate_ios_device",
+        argNames: ["sessionId", "rotation"],
+      );
+
+  @override
+  bool crateApiIosMirrorSendIosButton({
+    required String sessionId,
+    required int usagePage,
+    required int usage,
+    required bool down,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(sessionId, serializer);
+          sse_encode_u_16(usagePage, serializer);
+          sse_encode_u_16(usage, serializer);
+          sse_encode_bool(down, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiIosMirrorSendIosButtonConstMeta,
+        argValues: [sessionId, usagePage, usage, down],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosMirrorSendIosButtonConstMeta =>
+      const TaskConstMeta(
+        debugName: "send_ios_button",
+        argNames: ["sessionId", "usagePage", "usage", "down"],
+      );
+
+  @override
+  bool crateApiIosMirrorSendIosKey({
+    required String sessionId,
+    required int usage,
+    required bool down,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(sessionId, serializer);
+          sse_encode_u_16(usage, serializer);
+          sse_encode_bool(down, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiIosMirrorSendIosKeyConstMeta,
+        argValues: [sessionId, usage, down],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosMirrorSendIosKeyConstMeta =>
+      const TaskConstMeta(
+        debugName: "send_ios_key",
+        argNames: ["sessionId", "usage", "down"],
+      );
+
+  @override
+  bool crateApiIosMirrorSendIosTouch({
+    required String sessionId,
+    required IosTouchPhase phase,
+    required double x,
+    required double y,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(sessionId, serializer);
+          sse_encode_ios_touch_phase(phase, serializer);
+          sse_encode_f_64(x, serializer);
+          sse_encode_f_64(y, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiIosMirrorSendIosTouchConstMeta,
+        argValues: [sessionId, phase, x, y],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosMirrorSendIosTouchConstMeta =>
+      const TaskConstMeta(
+        debugName: "send_ios_touch",
+        argNames: ["sessionId", "phase", "x", "y"],
+      );
+
+  @override
+  Future<void> crateApiIosMirrorSetIosPasteboardText({
+    required String sessionId,
+    required String text,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(sessionId, serializer);
+          sse_encode_String(text, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 22,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_ios_error,
+        ),
+        constMeta: kCrateApiIosMirrorSetIosPasteboardTextConstMeta,
+        argValues: [sessionId, text],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosMirrorSetIosPasteboardTextConstMeta =>
+      const TaskConstMeta(
+        debugName: "set_ios_pasteboard_text",
+        argNames: ["sessionId", "text"],
+      );
+
+  @override
+  Future<void> crateApiIosMirrorStartIosInput({
+    required String udid,
+    required String sessionId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(udid, serializer);
+          sse_encode_String(sessionId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 23,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_ios_error,
+        ),
+        constMeta: kCrateApiIosMirrorStartIosInputConstMeta,
+        argValues: [udid, sessionId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosMirrorStartIosInputConstMeta =>
+      const TaskConstMeta(
+        debugName: "start_ios_input",
+        argNames: ["udid", "sessionId"],
+      );
+
+  @override
   Future<int> crateApiIosNetworkStartIosPortForward({
     required String udid,
     required int devicePort,
@@ -634,7 +994,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 24,
             port: port_,
           );
         },
@@ -656,6 +1016,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Stream<Uint8List> crateApiIosMirrorStartIosScreenshotStream({
+    required String udid,
+    required String sessionId,
+  }) {
+    final sink = RustStreamSink<Uint8List>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_StreamSink_list_prim_u_8_strict_Sse(sink, serializer);
+            sse_encode_String(udid, serializer);
+            sse_encode_String(sessionId, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 25,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_ios_error,
+          ),
+          constMeta: kCrateApiIosMirrorStartIosScreenshotStreamConstMeta,
+          argValues: [sink, udid, sessionId],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiIosMirrorStartIosScreenshotStreamConstMeta =>
+      const TaskConstMeta(
+        debugName: "start_ios_screenshot_stream",
+        argNames: ["sink", "udid", "sessionId"],
+      );
+
+  @override
   Stream<String> crateApiIosStartIosSyslog({
     required String udid,
     required String sessionId,
@@ -672,7 +1072,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 16,
+              funcId: 26,
               port: port_,
             );
           },
@@ -695,6 +1095,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<void> crateApiIosMirrorStopIosInput({required String sessionId}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(sessionId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 27,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiIosMirrorStopIosInputConstMeta,
+        argValues: [sessionId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosMirrorStopIosInputConstMeta =>
+      const TaskConstMeta(debugName: "stop_ios_input", argNames: ["sessionId"]);
+
+  @override
   Future<void> crateApiIosNetworkStopIosPortForward({required int hostPort}) {
     return handler.executeNormal(
       NormalTask(
@@ -704,7 +1132,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 28,
             port: port_,
           );
         },
@@ -726,6 +1154,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiIosMirrorStopIosScreenshotStream({
+    required String sessionId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(sessionId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 29,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiIosMirrorStopIosScreenshotStreamConstMeta,
+        argValues: [sessionId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiIosMirrorStopIosScreenshotStreamConstMeta =>
+      const TaskConstMeta(
+        debugName: "stop_ios_screenshot_stream",
+        argNames: ["sessionId"],
+      );
+
+  @override
   Future<void> crateApiIosStopIosSyslog({required String sessionId}) {
     return handler.executeNormal(
       NormalTask(
@@ -735,7 +1196,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 30,
             port: port_,
           );
         },
@@ -769,7 +1230,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 31,
             port: port_,
           );
         },
@@ -805,7 +1266,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 32,
             port: port_,
           );
         },
@@ -847,6 +1308,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RustStreamSink<Uint8List> dco_decode_StreamSink_list_prim_u_8_strict_Sse(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
+  @protected
   String dco_decode_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as String;
@@ -862,6 +1331,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_i_64(raw);
+  }
+
+  @protected
+  double dco_decode_f_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as double;
+  }
+
+  @protected
+  int dco_decode_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
   }
 
   @protected
@@ -961,6 +1442,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       modifiedMs: dco_decode_opt_box_autoadd_i_64(arr[3]),
       linkTarget: dco_decode_opt_String(arr[4]),
     );
+  }
+
+  @protected
+  IosInterfaceOrientation dco_decode_ios_interface_orientation(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return IosInterfaceOrientation.values[raw as int];
+  }
+
+  @protected
+  IosMirrorSupport dco_decode_ios_mirror_support(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return IosMirrorSupport(
+      screenshots: dco_decode_bool(arr[0]),
+      input: dco_decode_bool(arr[1]),
+      pasteboard: dco_decode_bool(arr[2]),
+      rotation: dco_decode_bool(arr[3]),
+      displayStream: dco_decode_bool(arr[4]),
+    );
+  }
+
+  @protected
+  IosRotation dco_decode_ios_rotation(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return IosRotation.values[raw as int];
+  }
+
+  @protected
+  IosTouchPhase dco_decode_ios_touch_phase(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return IosTouchPhase.values[raw as int];
   }
 
   @protected
@@ -1082,6 +1596,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RustStreamSink<Uint8List> sse_decode_StreamSink_list_prim_u_8_strict_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_prim_u_8_strict(deserializer);
@@ -1098,6 +1620,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_i_64(deserializer));
+  }
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getFloat64();
+  }
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getInt32();
   }
 
   @protected
@@ -1208,6 +1742,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       modifiedMs: var_modifiedMs,
       linkTarget: var_linkTarget,
     );
+  }
+
+  @protected
+  IosInterfaceOrientation sse_decode_ios_interface_orientation(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return IosInterfaceOrientation.values[inner];
+  }
+
+  @protected
+  IosMirrorSupport sse_decode_ios_mirror_support(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_screenshots = sse_decode_bool(deserializer);
+    var var_input = sse_decode_bool(deserializer);
+    var var_pasteboard = sse_decode_bool(deserializer);
+    var var_rotation = sse_decode_bool(deserializer);
+    var var_displayStream = sse_decode_bool(deserializer);
+    return IosMirrorSupport(
+      screenshots: var_screenshots,
+      input: var_input,
+      pasteboard: var_pasteboard,
+      rotation: var_rotation,
+      displayStream: var_displayStream,
+    );
+  }
+
+  @protected
+  IosRotation sse_decode_ios_rotation(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return IosRotation.values[inner];
+  }
+
+  @protected
+  IosTouchPhase sse_decode_ios_touch_phase(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return IosTouchPhase.values[inner];
   }
 
   @protected
@@ -1353,12 +1927,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getInt32();
-  }
-
-  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -1397,6 +1965,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_StreamSink_list_prim_u_8_strict_Sse(
+    RustStreamSink<Uint8List> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_8_strict,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
@@ -1415,6 +2000,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putFloat64(self);
+  }
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putInt32(self);
   }
 
   @protected
@@ -1501,6 +2098,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_64(self.sizeBytes, serializer);
     sse_encode_opt_box_autoadd_i_64(self.modifiedMs, serializer);
     sse_encode_opt_String(self.linkTarget, serializer);
+  }
+
+  @protected
+  void sse_encode_ios_interface_orientation(
+    IosInterfaceOrientation self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_ios_mirror_support(
+    IosMirrorSupport self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.screenshots, serializer);
+    sse_encode_bool(self.input, serializer);
+    sse_encode_bool(self.pasteboard, serializer);
+    sse_encode_bool(self.rotation, serializer);
+    sse_encode_bool(self.displayStream, serializer);
+  }
+
+  @protected
+  void sse_encode_ios_rotation(IosRotation self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_ios_touch_phase(
+    IosTouchPhase self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
@@ -1646,11 +2280,5 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_unit(void self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-  }
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putInt32(self);
   }
 }

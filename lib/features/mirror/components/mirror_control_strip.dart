@@ -3,14 +3,17 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../data/device.dart';
 import '../../../presentation/components/app_icon_button.dart';
 import '../../../presentation/components/saved_file_snack_bar.dart';
 import '../../flutter_scrcpy/flutter_scrcpy.dart';
+import '../ios/ios_mirror_session.dart';
 import '../mirror_controller.dart';
 import '../services/capture_storage.dart';
 
 /// Vertical strip on the pane's right edge: session actions (screenshot,
 /// record, rotate, quality) at the top, then device hardware/navigation keys.
+/// An iPhone gets its own buttons, and no recording or clipboard sync.
 class const MirrorControlStrip({
   super.key,
   required final MirrorController controller,
@@ -19,15 +22,27 @@ class const MirrorControlStrip({
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final running = controller.isScreenMirrorRunning;
-    final controlEnabled =
-        running && controller.screenMirrorSession?.control != null;
+    final controlEnabled = running && controller.hasControl;
     final recording = controller.isRecording;
+    final isIos = controller.device is IosDevice;
+    final ios = controller.iosMirror;
 
     Widget keyButton(IconData icon, String tooltip, ScrcpyKey key) {
       return AppIconButton(
         tooltip: tooltip,
         iconSize: 16,
         onPressed: controlEnabled ? () => controller.handleKey(key) : null,
+        icon: icon,
+      );
+    }
+
+    Widget iosButton(IconData icon, String tooltip, IosButton button) {
+      return AppIconButton(
+        tooltip: tooltip,
+        iconSize: 16,
+        onPressed: controlEnabled
+            ? () => controller.pressIosButton(button)
+            : null,
         icon: icon,
       );
     }
@@ -75,20 +90,23 @@ class const MirrorControlStrip({
               () => _captureScreenshot(context),
               enabled: running,
             ),
-            actionButton(
-              recording ? Icons.stop_circle : Icons.videocam_outlined,
-              recording ? 'Stop recording' : 'Record screen',
-              () => recording
-                  ? _stopRecording(context)
-                  : _startRecording(context),
-              enabled: running,
-              color: recording ? theme.colorScheme.error : null,
-            ),
+            if (!isIos)
+              actionButton(
+                recording ? Icons.stop_circle : Icons.videocam_outlined,
+                recording ? 'Stop recording' : 'Record screen',
+                () => recording
+                    ? _stopRecording(context)
+                    : _startRecording(context),
+                enabled: running,
+                color: recording ? theme.colorScheme.error : null,
+              ),
             actionButton(
               Icons.screen_rotation_outlined,
-              'Rotate device',
+              isIos
+                  ? 'Rotate device (apps that can turn follow)'
+                  : 'Rotate device',
               () => _rotate(context),
-              enabled: running,
+              enabled: isIos ? (ios?.canRotate ?? false) : running,
             ),
             const Gap(8),
             divider(),
@@ -98,7 +116,7 @@ class const MirrorControlStrip({
               'Paste clipboard to device '
               '(${Platform.isMacOS ? '⌘V' : 'Ctrl+V'} in the mirror)',
               () => _paste(context),
-              enabled: controlEnabled,
+              enabled: controller.canPasteToDevice,
             ),
             AppIconButton(
               tooltip: controller.isKeyboardForwarding
@@ -113,31 +131,47 @@ class const MirrorControlStrip({
                   ? Icons.keyboard
                   : Icons.keyboard_outlined,
             ),
-            AppIconButton(
-              tooltip: controller.clipboardSyncEnabled
-                  ? 'Device clipboard sync: on'
-                  : 'Device clipboard sync: off',
-              iconSize: 16,
-              isActive: controller.clipboardSyncEnabled,
-              onPressed: () => controller.setClipboardSyncEnabled(
-                !controller.clipboardSyncEnabled,
+            if (!isIos)
+              AppIconButton(
+                tooltip: controller.clipboardSyncEnabled
+                    ? 'Device clipboard sync: on'
+                    : 'Device clipboard sync: off',
+                iconSize: 16,
+                isActive: controller.clipboardSyncEnabled,
+                onPressed: () => controller.setClipboardSyncEnabled(
+                  !controller.clipboardSyncEnabled,
+                ),
+                icon: controller.clipboardSyncEnabled
+                    ? Icons.sync
+                    : Icons.sync_disabled,
               ),
-              icon: controller.clipboardSyncEnabled
-                  ? Icons.sync
-                  : Icons.sync_disabled,
-            ),
             const Gap(8),
             divider(),
             const Gap(8),
-            keyButton(Icons.arrow_back, 'Back', ScrcpyKey.back),
-            keyButton(Icons.circle_outlined, 'Home', ScrcpyKey.home),
-            keyButton(Icons.crop_square, 'Overview', ScrcpyKey.appSwitch),
+            if (isIos) ...[
+              iosButton(Icons.circle_outlined, 'Home', IosButton.home),
+              iosButton(
+                Icons.crop_square,
+                'App switcher',
+                IosButton.appSwitcher,
+              ),
+            ] else ...[
+              keyButton(Icons.arrow_back, 'Back', ScrcpyKey.back),
+              keyButton(Icons.circle_outlined, 'Home', ScrcpyKey.home),
+              keyButton(Icons.crop_square, 'Overview', ScrcpyKey.appSwitch),
+            ],
             const Gap(8),
             divider(),
             const Gap(8),
-            keyButton(Icons.volume_up, 'Volume up', ScrcpyKey.volumeUp),
-            keyButton(Icons.volume_down, 'Volume down', ScrcpyKey.volumeDown),
-            keyButton(Icons.power_settings_new, 'Power', ScrcpyKey.power),
+            if (isIos) ...[
+              iosButton(Icons.volume_up, 'Volume up', IosButton.volumeUp),
+              iosButton(Icons.volume_down, 'Volume down', IosButton.volumeDown),
+              iosButton(Icons.lock_outline, 'Lock', IosButton.lock),
+            ] else ...[
+              keyButton(Icons.volume_up, 'Volume up', ScrcpyKey.volumeUp),
+              keyButton(Icons.volume_down, 'Volume down', ScrcpyKey.volumeDown),
+              keyButton(Icons.power_settings_new, 'Power', ScrcpyKey.power),
+            ],
             const Gap(8),
           ],
         ),

@@ -96,7 +96,7 @@ class const FeatureRail({
                                       ? (session.isMirrorOpen
                                             ? 'Hide mirror'
                                             : 'Open mirror')
-                                      : 'Screen mirror supports connected Android devices',
+                                      : session.mirrorUnavailableReason,
                                   onTap:
                                       session.canMirror || session.isMirrorOpen
                                       ? session.toggleMirror

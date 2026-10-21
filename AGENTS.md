@@ -192,7 +192,7 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   No save dialog unless `PreferencesService.captureAskEveryTime` is on. The confirmation
   uses `showSavedFileSnackBar`, whose Open / Show-in-folder actions go through
   `utils/file_reveal.dart` (`open -R` / `explorer /select,` / `xdg-open` on the parent).
-- **Mirror input:** touches, keys and clipboard all ride the scrcpy *control*
+- **Mirror input (Android):** touches, keys and clipboard all ride the scrcpy *control*
   socket (`ScrcpyControl`, opened only when `ScrcpyVideoOptions.control`). Keyboard
   forwarding is **focus-gated**: `MirrorController.keyboardFocusNode` is handed to
   `ScrcpyView`, clicking the surface takes focus, and only then do key events go to
@@ -211,6 +211,24 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   (clipboard 262130 bytes, inject-text 300 — longer text is chunked on UTF-8
   boundaries). Device→desktop clipboard mirroring stays on by default, minus the
   echo of our own push.
+- **iPhone mirror:** **read docs/IOS_SCREEN_MIRROR.md before touching it.** `MirrorController`
+  hands an iPhone to an `IosMirrorSession` (`features/mirror/ios/`). The picture is QuickTime's
+  capture route on macOS (`macos/Runner/IosScreenCapturePlugin.swift`, camera permission) or
+  CoreDevice screenshots elsewhere. Input goes through the CoreDevice HID services in Xcode's
+  developer disk image (`rust/src/api/ios_mirror.rs`). The rules most easily broken:
+  - **Picture first, then input.** Starting the QuickTime route re-enumerates the phone on USB,
+    which cuts every usbmux connection once. An input tunnel opened before the first frame dies.
+  - **Touch takes the panel's portrait frame**, in fractions. A landscape picture is mapped back
+    through SpringBoard's interface orientation (`toPanel`).
+  - **A still finger has to wobble.** The input worker re-sends a held touch with a ±1-pixel
+    wobble every 16 ms. Without it, a drag that stops and then lets go flings the page.
+  - **Send calls stay synchronous** (`#[frb(sync)]`), so touches reach the worker in order.
+  - **A session is handed out 300 ms after it connects.** The phone creates its virtual
+    touchscreen per session and drops or bunches up events sent before it opens.
+  - **iOS 27 drops HID events unless a `displayservice` stream is open**, so `start_ios_input`
+    opens one and drains it. iOS 26.6 takes them without.
+  - Spawned futures that connect an RSD service go through the `connect!` macro. A generic helper
+    fails to compile ("implementation of `RsdService` is not general enough").
 - **App install & drag-and-drop:** `DeviceSessionController.handleDroppedPaths()` routes
   dropped paths — installable bundles (`.apk` on Android / `.ipa` on iOS, classified by
   `AppInstallService.inferSupportedPlatform`) go to `installAppFromPath()`; everything else

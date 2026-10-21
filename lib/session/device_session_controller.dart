@@ -9,6 +9,7 @@ import '../features/crash_reports/crash_report_controller.dart';
 import '../features/device_home/device_home_controller.dart';
 import '../features/file_manager/file_manager_controller.dart';
 import '../features/logs/log_session_manager.dart';
+import '../features/mirror/ios/ios_mirror_session.dart';
 import '../features/mirror/mirror_controller.dart';
 import '../features/network/network_controller.dart';
 import '../features/terminal/terminal_session_manager.dart';
@@ -134,7 +135,17 @@ class DeviceSessionController._({
   }
 
   /// Whether this device can be screen-mirrored right now.
-  bool get canMirror => _device is AndroidDevice && _device.isConnected;
+  bool get canMirror =>
+      _device.isConnected &&
+      switch (_device) {
+        AndroidDevice() => true,
+        IosDevice() => IosMirrorSession.isAvailableOnHost,
+      };
+
+  /// Why [canMirror] is false, for a disabled Mirror button's tooltip.
+  String get mirrorUnavailableReason => !_device.isConnected
+      ? 'Connect the device to mirror its screen'
+      : 'Mirroring an iPhone needs macOS or the Rust iOS backend';
 
   /// Whether crash reports can be read for this device (iOS only).
   bool get canReadCrashReports => _device is IosDevice;
