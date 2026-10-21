@@ -12,15 +12,17 @@ import '../../utils/file_reveal.dart';
 /// [SnackBarAction] only fits one action, so both buttons live inside the
 /// snack bar's content row.
 ///
-/// With [preview] (the saved image's encoded bytes) the snack bar leads with
-/// a thumbnail of it. When [previewOrigin] is the widget the picture was taken
-/// from, the picture flashes there and then flies into that thumbnail.
+/// With [preview] (the saved image's encoded bytes, or a still from a saved
+/// video, marked by [previewIsVideo]) the snack bar leads with a thumbnail of
+/// it. When [previewOrigin] is the widget the picture was taken from, the
+/// picture flashes there and then flies into that thumbnail.
 Future<void> showSavedFileSnackBar(
   ScaffoldMessengerState messenger, {
   required String message,
   required String path,
   Uint8List? preview,
   BuildContext? previewOrigin,
+  bool previewIsVideo = false,
 }) async {
   // Decoded up front: the thumbnail's width follows the picture's shape, and a
   // decoded picture paints on the flight's first frame.
@@ -29,7 +31,7 @@ Future<void> showSavedFileSnackBar(
   if (!messenger.mounted) return;
   final thumbnail = image == null || size == null
       ? null
-      : _Preview(image, size);
+      : _Preview(image, size, isVideo: previewIsVideo);
 
   // The flight needs its target on screen right away, so it replaces the
   // current snack bar instead of waiting for it to animate out.
@@ -80,7 +82,11 @@ Future<Size?> _decodedSize(ImageProvider image) {
 
 /// A saved picture shown in the snack bar, and what its flight needs to find
 /// the thumbnail.
-class _Preview(final MemoryImage image, final Size size) {
+class _Preview(
+  final MemoryImage image,
+  final Size size, {
+  required final bool isVideo,
+}) {
   final GlobalKey thumbnailKey = GlobalKey(debugLabel: 'SavedFileThumbnail');
 
   /// False while the flight is on its way; the thumbnail stays empty until
@@ -288,7 +294,8 @@ class const _SavedFileContent({
   }
 }
 
-/// The saved picture, fitted into a small box; clicking it opens the file.
+/// The saved picture, fitted into a small box, with a play mark on a video's
+/// still; clicking it opens the file.
 class const _Thumbnail({
   required final _Preview preview,
   required final VoidCallback onTap,
@@ -323,11 +330,33 @@ class const _Thumbnail({
               ),
               child: ClipRRect(
                 borderRadius: radius,
-                child: Image(
-                  image: preview.image,
-                  fit: BoxFit.fill,
-                  gaplessPlayback: true,
-                  filterQuality: FilterQuality.medium,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image(
+                      image: preview.image,
+                      fit: BoxFit.fill,
+                      gaplessPlayback: true,
+                      filterQuality: FilterQuality.medium,
+                    ),
+                    if (preview.isVideo)
+                      const Center(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Color(0x99000000),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.all(2),
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),

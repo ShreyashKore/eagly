@@ -6,6 +6,7 @@ import '../../presentation/components/overflow_toolbar.dart';
 import 'components/mirror_control_strip.dart';
 import 'components/pane_body.dart';
 import 'components/quality_button.dart';
+import 'components/recording_badge.dart';
 import 'mirror_controller.dart';
 
 /// Screen-mirror feature pane. Renders the live texture + controls, driven by a
@@ -63,10 +64,28 @@ class _MirrorFeatureViewState extends FeatureViewState<MirrorFeatureView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: Container(
-              alignment: Alignment.center,
-              padding: EdgeInsets.all(8),
-              child: PaneBody(controller: controller),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Container(
+                    alignment: Alignment.center,
+                    padding: EdgeInsets.all(8),
+                    child: PaneBody(controller: controller),
+                  ),
+                ),
+                if (controller.recordingClock case final clock?)
+                  Positioned(
+                    top: 16,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: RecordingBadge(
+                        startedAt: clock.startedAt,
+                        timeLimit: clock.timeLimit,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           MirrorControlStrip(controller: controller),

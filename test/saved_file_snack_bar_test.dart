@@ -127,6 +127,40 @@ void main() {
     expect(thumbnailOpacity(tester), 1);
   });
 
+  testWidgets("a video's still carries a play mark", (tester) async {
+    final png = (await tester.runAsync(() => _png(200, 100)))!;
+    final messenger = await pumpHost(tester);
+
+    await tester.runAsync(
+      () => showSavedFileSnackBar(
+        messenger,
+        message: 'Recording saved',
+        path: '/tmp/clip.mp4',
+        preview: png,
+        previewIsVideo: true,
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.descendant(
+        of: find.byTooltip('Open'),
+        matching: find.byIcon(Icons.play_arrow_rounded),
+      ),
+      findsOneWidget,
+    );
+    // A 2:1 still fills the thumbnail's width.
+    expect(
+      tester.getSize(
+        find.descendant(
+          of: find.byTooltip('Open'),
+          matching: find.byType(Image),
+        ),
+      ),
+      const Size(112, 56),
+    );
+  });
+
   testWidgets('without a preview there is no thumbnail', (tester) async {
     final messenger = await pumpHost(tester);
 

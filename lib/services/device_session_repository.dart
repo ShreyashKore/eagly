@@ -678,17 +678,20 @@ class DeviceSessionRepository({
   }) async {
     final devicePath =
         '/sdcard/eagly-rec-${DateTime.now().millisecondsSinceEpoch}.mp4';
+    // screenrecord's own cap; it stops writing (and keeps the file) there.
+    const timeLimit = Duration(minutes: 3);
     final process = await _adbTool.startScreenRecord(
       _deviceId,
       devicePath,
       bitRate: bitRate,
-      timeLimitSeconds: 180,
+      timeLimitSeconds: timeLimit.inSeconds,
     );
     return ScreenRecordingSession(
       adbTool: _adbTool,
       deviceId: _deviceId,
       devicePath: devicePath,
       process: process,
+      timeLimit: timeLimit,
     );
   }
 
@@ -900,7 +903,13 @@ class ScreenRecordingSession({
   required final String deviceId,
   required final String devicePath,
   required final Process process,
+
+  /// How long screenrecord runs before it stops by itself.
+  required final Duration timeLimit,
 }) {
+  /// When recording began (roughly: when screenrecord was launched).
+  final DateTime startedAt = DateTime.now();
+
   Future<void> _finish() async {
     await _adbTool.signalStopScreenRecord(deviceId);
     try {

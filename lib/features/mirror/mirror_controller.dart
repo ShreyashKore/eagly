@@ -123,6 +123,17 @@ class MirrorController(super.session) extends FeatureController {
 
   bool get isRecording => _recordingSession != null;
 
+  /// When the running recording began, and how long it may run; null while
+  /// not recording.
+  ({DateTime startedAt, Duration timeLimit})? get recordingClock =>
+      switch (_recordingSession) {
+        final recording? => (
+          startedAt: recording.startedAt,
+          timeLimit: recording.timeLimit,
+        ),
+        null => null,
+      };
+
   void _notify() {
     if (!_disposed) notifyListeners();
   }

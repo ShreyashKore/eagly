@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
@@ -228,6 +229,12 @@ class const MirrorControlStrip({
 
   Future<void> _stopRecording(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
+    // The screen as the recording ends, for the saved snack bar's thumbnail.
+    // Taken alongside stopping, so it never holds the recording open.
+    final poster = controller.captureScreenshot().then<Uint8List?>(
+      (bytes) => bytes,
+      onError: (_) => null,
+    );
     try {
       final path = await CaptureStorage.resolveTargetPath(
         dialogTitle: 'Save screen recording',
@@ -245,10 +252,13 @@ class const MirrorControlStrip({
         const SnackBar(content: Text('Saving recording…')),
       );
       await controller.stopRecording(path);
-      showSavedFileSnackBar(
+      await showSavedFileSnackBar(
         messenger,
         message: 'Recording saved to ${_displayPath(path)}',
         path: path,
+        preview: await poster,
+        previewOrigin: controller.surfaceKey.currentContext,
+        previewIsVideo: true,
       );
     } catch (error) {
       messenger.showSnackBar(
