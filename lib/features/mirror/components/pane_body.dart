@@ -29,6 +29,7 @@ class const PaneBody({super.key, required final MirrorController controller})
           ? session.width / session.height
           : 9 / 16;
       return ScrcpyView(
+        key: controller.surfaceKey,
         textureId: session.textureId,
         aspectRatio: aspectRatio,
         onTouch: controller.handleTouch,

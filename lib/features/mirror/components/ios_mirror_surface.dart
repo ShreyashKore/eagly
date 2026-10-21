@@ -22,6 +22,7 @@ class const IosMirrorSurface({
     final input = mirror.hasInput;
 
     final view = ScrcpyView(
+      key: controller.surfaceKey,
       textureId: textureId,
       aspectRatio: size == null || size.height == 0
           ? 9 / 19.5

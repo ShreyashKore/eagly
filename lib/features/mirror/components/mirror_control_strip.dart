@@ -196,10 +196,12 @@ class const MirrorControlStrip({
       );
       if (path == null) return; // user cancelled the save dialog
       await File(path).writeAsBytes(bytes);
-      showSavedFileSnackBar(
+      await showSavedFileSnackBar(
         messenger,
         message: 'Screenshot saved to ${_displayPath(path)}',
         path: path,
+        preview: bytes,
+        previewOrigin: controller.surfaceKey.currentContext,
       );
     } catch (error) {
       messenger.showSnackBar(

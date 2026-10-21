@@ -89,6 +89,10 @@ class MirrorController(super.session) extends FeatureController {
   /// presses are forwarded to the device instead of the app.
   final FocusNode keyboardFocusNode = FocusNode(debugLabel: 'MirrorKeyboard');
 
+  /// On the surface showing the device's screen, so a saved screenshot can
+  /// fly from where the picture was taken into its snack bar.
+  final GlobalKey surfaceKey = GlobalKey(debugLabel: 'MirrorSurface');
+
   final ScrcpyKeyboardTranslator _keyboard = ScrcpyKeyboardTranslator(
     // On macOS ⌘ is the editing modifier the user reaches for, so it stands in
     // for the device's Ctrl; elsewhere the Meta key is left to the host.
