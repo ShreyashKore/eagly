@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
+import 'package:re_highlight/languages/bash.dart';
+import 'package:re_highlight/languages/kotlin.dart';
+import 'package:re_highlight/languages/ruby.dart';
+import 'package:re_highlight/languages/swift.dart';
+import 'package:re_highlight/re_highlight.dart';
 
 import '../../../data/device.dart';
 import '../../../presentation/components/app_icon_button.dart';
+import '../../../presentation/components/code_view.dart';
 import '../../../presentation/components/feature_view.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../../../utils/url_launcher.dart';
@@ -427,7 +433,7 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
         ),
       ],
       _Client.swift => [
-        const _Step(
+        _Step(
           number: 1,
           title: 'Build the framework and add the pod',
           body:
@@ -439,12 +445,14 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
             children: [
               _Snippet(
                 caption: 'In the Inspektor checkout',
+                language: langBash,
                 code:
                     './gradlew :inspektor-urlsession:'
                     'assembleInspektorUrlSessionReleaseXCFramework',
               ),
               _Snippet(
                 caption: 'ios/Podfile',
+                language: langRuby,
                 code:
                     "pod 'InspektorUrlSession', :path => '../inspektor',\n"
                     "    :configurations => ['Debug']",
@@ -452,7 +460,7 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
             ],
           ),
         ),
-        const _Step(
+        _Step(
           number: 2,
           title: 'Record traffic and turn on remote inspection',
           body:
@@ -465,6 +473,7 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
             children: [
               _Snippet(
                 caption: 'AppDelegate.swift',
+                language: langSwift,
                 code:
                     '#if canImport(InspektorUrlSession)\n'
                     'import InspektorUrlSession\n'
@@ -609,9 +618,15 @@ class const _Step({
   }
 }
 
-/// Code to paste, in the app's monospace face, with a copy button.
-class const _Snippet({required final String code, final String? caption})
-    extends StatelessWidget {
+/// Code to paste, highlighted in the app's monospace face, with a copy
+/// button. Most snippets are Kotlin, code and Gradle Kotlin DSL alike.
+class const _Snippet({
+  required final String code,
+  final String? caption,
+
+  /// Defaults to Kotlin.
+  final Mode? language,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -656,8 +671,9 @@ class const _Snippet({required final String code, final String? caption})
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: SelectableText(
-                code,
+              child: HighlightedCodeText(
+                code: code,
+                language: language ?? langKotlin,
                 style: context.eaglyTheme.monoStyle.copyWith(
                   fontSize: 12,
                   height: 1.45,

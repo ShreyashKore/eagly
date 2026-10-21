@@ -423,8 +423,8 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     - The query syntax lives in `data/network_filter.dart`. Its suggestions and syntax help are
       built from `networkFilterKeys`, so add a key there.
     - Row menus narrow the list by adding a query term, never hidden state.
-    - Bodies render in `re_editor`, which highlights and folds in an isolate. Widget tests
-      therefore assert on `CodeEditor.controller.text`.
+    - Bodies render in `CodeView` (see the convention below), which highlights and folds in
+      an isolate. Widget tests therefore assert on `CodeEditor.controller.text`.
     - Opening an exchange must not remount the list, or it loses its scroll position and any
       open menu.
   - **The empty pane is a set-up guide** (`components/network_empty_guide.dart`), written for
@@ -472,6 +472,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   stretch in `PaneDragArea`, and show the close button only if
   `WorkspacePaneScope.showsOwnClose(context)` (a tab chip has it otherwise). Outside a
   workspace these draw nothing. See docs/WORKSPACE_LAYOUT.md.
+- Read-only text worth searching — a body, a crash report — goes in `CodeView`
+  (`presentation/components/code_view.dart`): `re_editor` with `re_highlight` grammars, line
+  numbers, folding, wrap, a ⌘F find bar and copy, under a toolbar that takes a `leading`
+  widget and extra `actions`. A short snippet shown whole uses `HighlightedCodeText` instead.
+  The editor needs a bounded height, so it doesn't suit a panel that shrinks to its text.
 - Explanations for a user who looks stuck go in a `HintNote`
   (`presentation/components/hint_note.dart`) wrapped in a `DelayedReveal`
   (`presentation/components/delayed_reveal.dart`): the note is not built at all until the

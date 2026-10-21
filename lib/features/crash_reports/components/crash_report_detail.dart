@@ -1,14 +1,17 @@
+import 'dart:isolate';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:re_highlight/languages/json.dart';
 
 import '../../../presentation/components/app_icon_button.dart';
+import '../../../presentation/components/code_view.dart';
 import '../../../presentation/theme/app_theme.dart';
-import '../../../presentation/components/search_highlight.dart';
-import '../../../presentation/components/text_search_bar.dart';
-import '../../../utils/text_search_pattern.dart';
 import '../crash_report_controller.dart';
 import '../utils.dart';
 
+/// The selected crash report in a [CodeView]. An `.ips` report (a JSON
+/// header line, then a JSON body) is highlighted and shown pretty-printed,
+/// with a toggle back to the file as written; a `.crash` report is plain text.
 class const CrashReportDetail({
   super.key,
   required final CrashReportController controller,
@@ -18,179 +21,86 @@ class const CrashReportDetail({
 }
 
 class _CrashReportDetailState extends State<CrashReportDetail> {
-  final TextEditingController _searchController = TextEditingController();
-  final FocusNode _searchFocusNode = FocusNode();
+  /// Reports above this size are pretty-printed off the UI thread.
+  static const _backgroundThreshold = 256 * 1024;
 
-  bool _searchVisible = false;
-  TextSearchConfig _search = const TextSearchConfig();
-  int _currentMatch = 0;
-  int _matchCount = 0;
+  String? _preparedFor;
+  String? _pretty;
+  bool _showPretty = true;
 
   @override
-  void dispose() {
-    _searchController.dispose();
-    _searchFocusNode.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _prepare();
   }
 
-  void _openSearch() {
-    setState(() => _searchVisible = true);
+  @override
+  void didUpdateWidget(CrashReportDetail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _prepare();
   }
 
-  void _closeSearch() {
-    setState(() => _searchVisible = false);
-  }
-
-  void _onSearchChanged(TextSearchConfig config) {
-    setState(() {
-      _search = config;
-      _currentMatch = 0;
-    });
-  }
-
-  void _nextMatch() {
-    if (_matchCount == 0) return;
-    setState(() => _currentMatch = (_currentMatch + 1) % _matchCount);
-  }
-
-  void _previousMatch() {
-    if (_matchCount == 0) return;
-    setState(
-      () => _currentMatch = (_currentMatch - 1 + _matchCount) % _matchCount,
-    );
+  Future<void> _prepare() async {
+    final body = widget.controller.selectedReportBody;
+    if (identical(body, _preparedFor)) return;
+    _preparedFor = body;
+    _pretty = null;
+    if (body == null) return;
+    final pretty = body.length > _backgroundThreshold
+        ? await Isolate.run(() => CrashReportUtils.prettyIps(body))
+        : CrashReportUtils.prettyIps(body);
+    if (!mounted || !identical(body, _preparedFor)) return;
+    setState(() => _pretty = pretty);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final controller = widget.controller;
-    final report = controller.selectedReport!;
-    final body = controller.selectedReportBody;
+    final report = widget.controller.selectedReport!;
+    final body = widget.controller.selectedReportBody;
+    if (body == null) return const Center(child: CircularProgressIndicator());
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(report.fileName, style: theme.textTheme.bodySmall),
-                    Text(
-                      CrashReportUtils.formatTimestamp(report.timestamp),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              AppIconButton(
-                tooltip: 'Copy report',
-                onPressed: body == null
-                    ? null
-                    : () {
-                        Clipboard.setData(ClipboardData(text: body));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Crash report copied to clipboard.'),
-                          ),
-                        );
-                      },
-                icon: Icons.copy,
-              ),
-            ],
-          ),
-        ),
-        Divider(
-          height: 1,
-          thickness: 1,
-          color: theme.colorScheme.outlineVariant,
-        ),
-        Expanded(
-          child: body == null
-              ? const Center(child: CircularProgressIndicator())
-              : _buildBody(context, body),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBody(BuildContext context, String body) {
-    final pattern = TextSearchPattern.fromConfig(_search);
-    final matches = _searchVisible && pattern.isActive && pattern.isValid
-        ? pattern.allMatches(body)
-        : const <TextSearchMatch>[];
-    _matchCount = matches.length;
-    final currentMatch = matches.isEmpty
-        ? -1
-        : _currentMatch.clamp(0, matches.length - 1);
-
-    final bodyStyle = context.eaglyTheme.logBodyStyle.copyWith(height: 1.4);
-
-    return CallbackShortcuts(
-      bindings: <ShortcutActivator, VoidCallback>{
-        const SingleActivator(LogicalKeyboardKey.keyF, control: true):
-            _openSearch,
-        const SingleActivator(LogicalKeyboardKey.keyF, meta: true): _openSearch,
-      },
-      child: Focus(
-        child: Stack(
+    final pretty = _pretty;
+    final showPretty = _showPretty && pretty != null;
+    return CodeView(
+      text: showPretty ? pretty : body,
+      language: pretty == null ? null : langJson,
+      // A raw `.ips` body is one very long line.
+      wordWrap: !showPretty,
+      noun: 'report',
+      copyText: body,
+      leading: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Scrollbar(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: SelectableText.rich(
-                  TextSpan(
-                    style: bodyStyle,
-                    children: buildSearchHighlightSpans(
-                      context: context,
-                      text: body,
-                      style: bodyStyle,
-                      matches: matches,
-                      currentMatchIndex: currentMatch < 0 ? null : currentMatch,
-                    ),
-                  ),
-                ),
+            Text(
+              report.fileName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall,
+            ),
+            Text(
+              CrashReportUtils.formatTimestamp(report.timestamp),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: context.eaglyTheme.tertiaryTextColor,
               ),
             ),
-            if (_searchVisible)
-              Positioned(
-                top: 12,
-                right: 12,
-                child: TextSearchBar(
-                  controller: _searchController,
-                  focusNode: _searchFocusNode,
-                  search: _search,
-                  hasError: pattern.hasError,
-                  errorText: pattern.errorText,
-                  hintText: 'Search in report...',
-                  onSearchChanged: _onSearchChanged,
-                  onSearchOptionsChanged: _onSearchChanged,
-                  onNext: _nextMatch,
-                  onPrevious: _previousMatch,
-                  onClose: _closeSearch,
-                  totalMatches: matches.length,
-                  currentMatch: matches.isEmpty ? 0 : currentMatch + 1,
-                ),
-              )
-            else
-              Positioned(
-                bottom: 16,
-                right: 16,
-                child: FloatingActionButton.small(
-                  heroTag: 'crash-report-search',
-                  tooltip: 'Search in report (Ctrl/Cmd+F)',
-                  onPressed: _openSearch,
-                  child: const Icon(Icons.search),
-                ),
-              ),
           ],
         ),
       ),
+      actions: [
+        if (pretty != null)
+          AppIconButton(
+            tooltip: _showPretty ? 'Show as written' : 'Pretty-print',
+            icon: Icons.data_object,
+            iconSize: 16,
+            padding: 4,
+            isActive: _showPretty,
+            onPressed: () => setState(() => _showPretty = !_showPretty),
+          ),
+      ],
     );
   }
 }
