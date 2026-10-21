@@ -16,6 +16,8 @@ class MainFlutterWindow: NSWindow {
 
     ScrcpyVideoPlugin.register(
       with: flutterViewController.registrar(forPlugin: "ScrcpyVideoPlugin"))
+    IosScreenCapturePlugin.register(
+      with: flutterViewController.registrar(forPlugin: "IosScreenCapturePlugin"))
 
     super.awakeFromNib()
   }

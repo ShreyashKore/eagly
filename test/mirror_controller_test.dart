@@ -1,5 +1,8 @@
 import 'package:eagly/data/device.dart';
+import 'package:eagly/features/flutter_scrcpy/flutter_scrcpy.dart';
 import 'package:eagly/features/mirror/mirror_controller.dart';
+import 'package:eagly/features/mirror/services/ios_screen_capture.dart';
+import 'package:eagly/services/ios/ios_mirror_service.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
 import 'package:flutter/services.dart';
@@ -51,15 +54,69 @@ void main() {
     expect(service.startedMirrorCount, 1);
   });
 
-  test('mirror is unsupported for iOS devices', () async {
-    final mirror = createMirror(
+  group('iPhone', () {
+    setUp(() => IosScreenCapture.debugIsAvailable = true);
+    tearDown(() => IosScreenCapture.debugIsAvailable = null);
+
+    MirrorController createIosMirror() => createMirror(
       withDevice: Device.ios('00008110-001234567890801E', 'device'),
     );
 
-    await mirror.start();
+    test('the mirror runs once the first frame is in', () async {
+      final mirror = createIosMirror();
 
-    expect(mirror.screenMirrorState, ScreenMirrorState.unsupported);
-    expect(service.startedMirrorCount, 0);
+      final starting = mirror.start();
+      await pumpEventQueue();
+      expect(mirror.screenMirrorState, ScreenMirrorState.starting);
+
+      service.iosCapture!.frame(const Size(1170, 2532));
+      await starting;
+
+      expect(mirror.screenMirrorState, ScreenMirrorState.running);
+      expect(mirror.iosMirror?.textureId, 7);
+      expect(mirror.hasControl, isTrue);
+      expect(service.startedMirrorCount, 0);
+    });
+
+    test('a click on the picture becomes a touch on the phone', () async {
+      final mirror = createIosMirror();
+      final starting = mirror.start();
+      await pumpEventQueue();
+      service.iosCapture!.frame(const Size(1170, 2532));
+      await starting;
+
+      mirror.handleTouch(ScrcpyTouchAction.down, 0.5, 0.25);
+
+      expect(service.lastIosInput!.touches, [(IosTouchPhase.down, 0.5, 0.25)]);
+    });
+
+    test('stopping while it starts discards the late session', () async {
+      final mirror = createIosMirror();
+      final starting = mirror.start();
+      await pumpEventQueue();
+
+      await mirror.stop();
+      service.iosCapture!.frame(const Size(1170, 2532));
+      await starting;
+
+      expect(mirror.screenMirrorState, ScreenMirrorState.stopped);
+      expect(mirror.iosMirror, isNull);
+      expect(service.iosCapture!.stopped, isTrue);
+    });
+
+    test('a capture that ends by itself shows why', () async {
+      final mirror = createIosMirror();
+      final starting = mirror.start();
+      await pumpEventQueue();
+      service.iosCapture!.frame(const Size(1170, 2532));
+      await starting;
+
+      service.iosCapture!.end('The iPhone was disconnected.');
+      await pumpEventQueue();
+
+      expect(mirror.screenMirrorState, ScreenMirrorState.error);
+      expect(mirror.screenMirrorError, 'The iPhone was disconnected.');
+    });
   });
 
   test('mirror stops when the device disconnects', () async {

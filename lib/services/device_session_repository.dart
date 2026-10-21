@@ -19,6 +19,7 @@ import '../features/utilities/data/utility_command.dart';
 import '../features/wireless_connection/data/wireless_debug_models.dart';
 import '../features/app_log/app_logger.dart';
 import '../features/flutter_scrcpy/flutter_scrcpy.dart';
+import '../features/mirror/services/ios_screen_capture.dart';
 import '../utils/tools_path.dart';
 import 'tools/adb_tool.dart';
 import 'tools/device_tool_runner.dart';
@@ -29,6 +30,7 @@ import 'ios/ios_app_service.dart';
 import 'ios/ios_crash_report_service.dart';
 import 'ios/ios_device_service.dart';
 import 'ios/ios_log_service.dart';
+import 'ios/ios_mirror_service.dart';
 import 'ios/ios_network_service.dart';
 import 'ios/libimobiledevice_ios_app_service.dart';
 import 'ios/libimobiledevice_ios_crash_report_service.dart';
@@ -56,7 +58,9 @@ class DeviceSessionRepository({
   IosCrashReportService? iosCrashReportService,
   IosDeviceService? iosDeviceService,
   IosLogService? iosLogService,
+  IosMirrorService? iosMirrorService,
   IosNetworkService? iosNetworkService,
+  final IosScreenCapture _iosScreenCapture = const IosScreenCapture(),
   ScrcpyMirror? scrcpyMirror,
 }) {
   final AdbTool _adbTool;
@@ -64,6 +68,7 @@ class DeviceSessionRepository({
   final IosCrashReportService _iosCrashReportService;
   final IosDeviceService _iosDeviceService;
   final IosLogService _iosLogService;
+  final IosMirrorService _iosMirrorService;
   final IosNetworkService _iosNetworkService;
   final ScrcpyMirror _scrcpyMirror;
   final AppLogger _logger = AppLogger(source: 'DeviceSessionService');
@@ -110,6 +115,7 @@ class DeviceSessionRepository({
       _iosLogService =
           iosLogService ??
           _defaultIosLogService(ideviceSyslogTool, ideviceSyslogPath),
+      _iosMirrorService = iosMirrorService ?? createIosMirrorService(),
       _iosNetworkService = iosNetworkService ?? createIosNetworkService(),
       _scrcpyMirror =
           scrcpyMirror ??
@@ -631,10 +637,33 @@ class DeviceSessionRepository({
     }
   }
 
-  /// Captures a full-resolution PNG screenshot via `screencap`.
-  Future<Uint8List> captureScreenshot() {
-    return _adbTool.captureScreenshotPng(_deviceId);
-  }
+  /// Captures a full-resolution PNG screenshot: `screencap` on Android,
+  /// CoreDevice's screenshot service on iOS.
+  Future<Uint8List> captureScreenshot() => switch (device) {
+    AndroidDevice() => _adbTool.captureScreenshotPng(_deviceId),
+    IosDevice() => _iosMirrorService.captureScreenshot(_deviceId),
+  };
+
+  // ── iOS screen mirror (docs/IOS_SCREEN_MIRROR.md) ─────────────────────
+
+  /// What the phone offers the mirror through CoreDevice. Never throws.
+  Future<IosMirrorSupport> probeIosMirror() =>
+      _iosMirrorService.probe(_deviceId);
+
+  /// Starts QuickTime's capture route for this phone: macOS only. Throws
+  /// [IosScreenCaptureException].
+  Future<IosScreenCaptureHandle> startIosScreenCapture() =>
+      _iosScreenCapture.start(device.name ?? '');
+
+  /// PNG screenshots back to back, where the capture route is not available.
+  Stream<Uint8List> iosScreenshots() =>
+      _iosMirrorService.screenshots(_deviceId);
+
+  Future<IosInputSession> startIosInput() =>
+      _iosMirrorService.startInput(_deviceId);
+
+  Future<IosInterfaceOrientation> iosInterfaceOrientation() =>
+      _iosMirrorService.interfaceOrientation(_deviceId);
 
   /// Cycles the device display orientation (0→1→2→3) via `settings`.
   Future<void> rotateDevice() async {

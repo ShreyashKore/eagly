@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/device.dart';
 import '../../presentation/components/feature_view.dart';
 import '../../presentation/components/overflow_toolbar.dart';
 import 'components/mirror_control_strip.dart';
@@ -52,7 +53,11 @@ class _MirrorFeatureViewState extends FeatureViewState<MirrorFeatureView> {
                 : null,
           ),
         ],
-        trailing: [QualityButton(controller: controller)],
+        // QuickTime's route and CoreDevice offer no quality settings.
+        trailing: [
+          if (controller.device is AndroidDevice)
+            QualityButton(controller: controller),
+        ],
       ),
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,

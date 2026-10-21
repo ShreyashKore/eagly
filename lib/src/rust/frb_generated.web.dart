@@ -7,6 +7,7 @@
 // ignore_for_file: argument_type_not_assignable
 
 import 'api/ios.dart';
+import 'api/ios_mirror.dart';
 import 'api/ios_network.dart';
 import 'api/simple.dart';
 
@@ -35,6 +36,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustStreamSink<String> dco_decode_StreamSink_String_Sse(dynamic raw);
 
   @protected
+  RustStreamSink<Uint8List> dco_decode_StreamSink_list_prim_u_8_strict_Sse(
+    dynamic raw,
+  );
+
+  @protected
   String dco_decode_String(dynamic raw);
 
   @protected
@@ -42,6 +48,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  double dco_decode_f_64(dynamic raw);
+
+  @protected
+  int dco_decode_i_32(dynamic raw);
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
@@ -63,6 +75,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   IosFileEntry dco_decode_ios_file_entry(dynamic raw);
+
+  @protected
+  IosInterfaceOrientation dco_decode_ios_interface_orientation(dynamic raw);
+
+  @protected
+  IosMirrorSupport dco_decode_ios_mirror_support(dynamic raw);
+
+  @protected
+  IosRotation dco_decode_ios_rotation(dynamic raw);
+
+  @protected
+  IosTouchPhase dco_decode_ios_touch_phase(dynamic raw);
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
@@ -123,6 +147,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<Uint8List> sse_decode_StreamSink_list_prim_u_8_strict_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
@@ -130,6 +159,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
@@ -151,6 +186,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   IosFileEntry sse_decode_ios_file_entry(SseDeserializer deserializer);
+
+  @protected
+  IosInterfaceOrientation sse_decode_ios_interface_orientation(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  IosMirrorSupport sse_decode_ios_mirror_support(SseDeserializer deserializer);
+
+  @protected
+  IosRotation sse_decode_ios_rotation(SseDeserializer deserializer);
+
+  @protected
+  IosTouchPhase sse_decode_ios_touch_phase(SseDeserializer deserializer);
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
@@ -206,9 +255,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_decode_unit(SseDeserializer deserializer);
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
-
-  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -227,6 +273,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_list_prim_u_8_strict_Sse(
+    RustStreamSink<Uint8List> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
@@ -237,6 +289,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     PlatformInt64 self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
@@ -267,6 +325,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ios_file_entry(IosFileEntry self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ios_interface_orientation(
+    IosInterfaceOrientation self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ios_mirror_support(
+    IosMirrorSupport self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ios_rotation(IosRotation self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ios_touch_phase(IosTouchPhase self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
@@ -339,9 +415,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
 }
 
 // Section: wire_class

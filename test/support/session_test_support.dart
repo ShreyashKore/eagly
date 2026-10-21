@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' show Size;
 
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/apps/data/app_info.dart';
@@ -16,11 +17,13 @@ import 'package:eagly/features/terminal/data/terminal_tools.dart';
 import 'package:eagly/features/utilities/data/utility_command.dart';
 import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
 import 'package:eagly/features/flutter_scrcpy/flutter_scrcpy.dart';
+import 'package:eagly/features/mirror/services/ios_screen_capture.dart';
 import 'package:eagly/services/device_session_repository.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/data/ios_device_info.dart';
 import 'package:eagly/services/ios/ios_device_domains.dart';
 import 'package:eagly/services/ios/ios_device_service.dart';
+import 'package:eagly/services/ios/ios_mirror_service.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
 import 'package:eagly/services/tools/tool_process_runner.dart';
 
@@ -186,6 +189,61 @@ class FakeSessionService(Device device) extends DeviceSessionRepository {
       },
     );
   }
+
+  // ── iOS screen mirror ─────────────────────────────────────────────────────
+  IosMirrorSupport iosMirrorSupport = const IosMirrorSupport(
+    screenshots: true,
+    input: true,
+    pasteboard: true,
+    rotation: true,
+  );
+
+  /// The next live capture; null fails the start the way denied camera
+  /// access does.
+  FakeIosScreenCapture? iosCapture = FakeIosScreenCapture();
+  int iosCaptureStarts = 0;
+
+  /// What [iosScreenshots] streams.
+  final iosScreenshotFeed = StreamController<Uint8List>.broadcast();
+  IosInterfaceOrientation iosOrientation = IosInterfaceOrientation.portrait;
+  final List<FakeIosInputSession> iosInputs = [];
+  Uint8List iosScreenshot = Uint8List.fromList([1, 2, 3]);
+
+  FakeIosInputSession? get lastIosInput =>
+      iosInputs.isEmpty ? null : iosInputs.last;
+
+  @override
+  Future<IosMirrorSupport> probeIosMirror() async => iosMirrorSupport;
+
+  @override
+  Future<IosScreenCaptureHandle> startIosScreenCapture() async {
+    iosCaptureStarts++;
+    final capture = iosCapture;
+    if (capture == null) {
+      throw const IosScreenCaptureException(
+        'permission_denied',
+        'Camera access is off.',
+      );
+    }
+    return capture;
+  }
+
+  @override
+  Stream<Uint8List> iosScreenshots() => iosScreenshotFeed.stream;
+
+  @override
+  Future<IosInputSession> startIosInput() async {
+    final input = FakeIosInputSession();
+    iosInputs.add(input);
+    return input;
+  }
+
+  @override
+  Future<IosInterfaceOrientation> iosInterfaceOrientation() async =>
+      iosOrientation;
+
+  @override
+  Future<Uint8List> captureScreenshot() async => iosScreenshot;
 
   // ── Apps feature ──────────────────────────────────────────────────────────
   List<AppInfo> appsToReturn = const [];
@@ -457,5 +515,83 @@ class FakeScrcpyControlChannel._(
     await control.close();
     _peer.destroy();
     await _server.close();
+  }
+}
+
+/// A QuickTime-route capture whose frames a test delivers by hand.
+class FakeIosScreenCapture implements IosScreenCaptureHandle {
+  final _sizes = StreamController<Size>.broadcast();
+  final _ended = Completer<String>();
+  Size? _size;
+  bool stopped = false;
+
+  @override
+  int get textureId => 7;
+
+  @override
+  Stream<Size> get sizes => _sizes.stream;
+
+  @override
+  Size? get size => _size;
+
+  @override
+  Future<String> get ended => _ended.future;
+
+  /// A frame of [size] arrives: the first one, or a rotation.
+  void frame(Size size) {
+    _size = size;
+    _sizes.add(size);
+  }
+
+  /// The capture stops by itself.
+  void end(String reason) => _ended.complete(reason);
+
+  @override
+  Future<Uint8List?> snapshot() async => Uint8List.fromList([9]);
+
+  @override
+  Future<void> stop() async => stopped = true;
+}
+
+/// Records what the mirror sends to an iPhone.
+class FakeIosInputSession implements IosInputSession {
+  final List<(IosTouchPhase, double, double)> touches = [];
+  final List<(int, bool)> keys = [];
+  final List<(int, int, bool)> buttons = [];
+  final List<String> pasteboard = [];
+  final List<IosRotation> rotations = [];
+  bool closed = false;
+
+  /// Set to false to make the phone stop taking input.
+  bool open = true;
+
+  @override
+  bool touch(IosTouchPhase phase, double x, double y) {
+    if (open) touches.add((phase, x, y));
+    return open;
+  }
+
+  @override
+  bool key(int usage, {required bool down}) {
+    if (open) keys.add((usage, down));
+    return open;
+  }
+
+  @override
+  bool button(int usagePage, int usage, {required bool down}) {
+    if (open) buttons.add((usagePage, usage, down));
+    return open;
+  }
+
+  @override
+  Future<void> setPasteboardText(String text) async => pasteboard.add(text);
+
+  @override
+  Future<void> rotate(IosRotation rotation) async => rotations.add(rotation);
+
+  @override
+  Future<void> close() async {
+    closed = true;
+    open = false;
   }
 }

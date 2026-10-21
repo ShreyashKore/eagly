@@ -39,14 +39,13 @@ class const QuickAccessBar({
         isActive: s.isLogsOpen,
         onTap: s.toggleLogs,
       ),
-      if (isAndroid)
-        _ShortcutSpec(
-          icon: Icons.mobile_screen_share_outlined,
-          label: 'Mirror',
-          sublabel: 'Control the screen',
-          isActive: s.isMirrorOpen,
-          onTap: s.canMirror ? s.toggleMirror : null,
-        ),
+      _ShortcutSpec(
+        icon: Icons.mobile_screen_share_outlined,
+        label: 'Mirror',
+        sublabel: 'Control the screen',
+        isActive: s.isMirrorOpen,
+        onTap: s.canMirror ? s.toggleMirror : null,
+      ),
       if (!isAndroid)
         _ShortcutSpec(
           icon: Icons.bug_report_outlined,
