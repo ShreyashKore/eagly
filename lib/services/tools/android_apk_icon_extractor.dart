@@ -76,6 +76,25 @@ class const ApkIconExtractor._() {
     }
   }
 
+  /// The package name the APK declares, read from the file at [apkPath]
+  /// without loading the whole APK; null when it can't be read.
+  static String? readPackageName(String apkPath) {
+    InputFileStream? input;
+    try {
+      input = InputFileStream(apkPath);
+      final archive = ZipDecoder().decodeStream(input, verify: false);
+      final manifestBytes = _readEntry(archive, 'AndroidManifest.xml');
+      if (manifestBytes == null) return null;
+      return _AxmlParser.parseElements(manifestBytes)
+          .firstWhereOrNull((element) => element.name == 'manifest')
+          ?.rawString('package');
+    } catch (_) {
+      return null;
+    } finally {
+      input?.closeSync();
+    }
+  }
+
   static String? _resolveLabel(
     _AxmlElement application,
     _ResourceTable? table,
@@ -176,10 +195,22 @@ class const _TypedValue(final int dataType, final int data);
 class const _AxmlElement(
   final String name,
   final Map<int, _TypedValue> attributesByResId,
-  final _StringPool _pool,
-) {
+  final _StringPool _pool, [
+
+  /// (name, raw value) pool indices of every attribute with a raw string,
+  /// for the few that have no resource id — `package` on `<manifest>`.
+  final List<(int, int)> _rawStrings = const [],
+]) {
   /// Resolves a literal string attribute (whose data is a pool index).
   String? stringAt(int index) => _pool.stringAt(index);
+
+  /// The raw string value of the attribute called [attribute], if any.
+  String? rawString(String attribute) {
+    for (final (nameIdx, valueIdx) in _rawStrings) {
+      if (_pool.stringAt(nameIdx) == attribute) return _pool.stringAt(valueIdx);
+    }
+    return null;
+  }
 }
 
 /// Minimal AXML walker: yields every start-element tag with its attributes
@@ -192,6 +223,9 @@ class _AxmlParser {
   static const int _typeStringPool = 0x0001;
   static const int _typeResourceMap = 0x0180;
   static const int _typeStartElement = 0x0102;
+
+  /// An attribute's raw value index when it has no raw string.
+  static const int _noRawValue = 0xFFFFFFFF;
 
   static List<_AxmlElement> parseElements(Uint8List bytes) {
     final elements = <_AxmlElement>[];
@@ -256,11 +290,16 @@ class _AxmlParser {
     if (name == null) return null;
 
     final attrsByResId = <int, _TypedValue>{};
+    final rawStrings = <(int, int)>[];
     final attrsBase = extStart + attrStart;
     for (var i = 0; i < attrCount; i++) {
       final attrOffset = attrsBase + i * attrSize;
       if (attrOffset + 20 > bytes.length) break;
       final attrNameIdx = data.getUint32(attrOffset + 4, Endian.little);
+      final rawValueIdx = data.getUint32(attrOffset + 8, Endian.little);
+      if (rawValueIdx != _noRawValue) {
+        rawStrings.add((attrNameIdx, rawValueIdx));
+      }
       final dataType = data.getUint8(attrOffset + 15);
       final value = data.getUint32(attrOffset + 16, Endian.little);
       if (resourceMap != null && attrNameIdx < resourceMap.length) {
@@ -268,7 +307,7 @@ class _AxmlParser {
       }
     }
 
-    return _AxmlElement(name, attrsByResId, pool);
+    return _AxmlElement(name, attrsByResId, pool, rawStrings);
   }
 }
 

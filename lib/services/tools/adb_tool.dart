@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:eagly/features/logs/services/log_parsers/log_line_parser.dart';
 import 'package:eagly/features/logs/services/log_parsers/logcat_parser.dart';
 
+import '../../data/app_install_conflict.dart';
 import '../../data/device.dart';
 import '../../features/apps/data/app_info.dart';
 import '../../features/device_home/data/device_info.dart';
@@ -14,6 +15,7 @@ import '../../features/logs/data/models/log_entry.dart';
 import '../../features/wireless_connection/data/wireless_debug_models.dart';
 import '../../utils/utils.dart';
 import 'adb_install_failure.dart';
+import 'android_apk_icon_extractor.dart';
 import 'tool_process_runner.dart';
 
 class AdbTool({super.executablePath}) extends ToolProcessRunner {
@@ -605,8 +607,9 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
           result,
         );
         logError('APK install failed for $deviceId', details);
-        return DeviceCommandResult.failure(
+        return DeviceCommandResult(
           error: describeAdbInstallFailure(output) ?? details,
+          installConflict: _installConflict(output, apkPath),
         );
       }
 
@@ -619,6 +622,19 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
         error: 'Failed to install APK on $deviceId: ${describeError(error)}',
       );
     }
+  }
+
+  /// The conflict a failed install hit, when uninstalling the device's copy
+  /// would clear it. adb names the package for a signature mismatch only, so
+  /// otherwise it is read from the APK; without one there is nothing to
+  /// uninstall, and so no conflict to offer.
+  AppInstallConflict? _installConflict(String output, String apkPath) {
+    final conflict = adbInstallConflict(output);
+    if (conflict == null) return null;
+    final packageName =
+        conflict.packageName ?? ApkIconExtractor.readPackageName(apkPath);
+    if (packageName == null) return null;
+    return AppInstallConflict(kind: conflict.kind, packageName: packageName);
   }
 
   Future<Map<String, String>> getPidToPackageMap(String deviceId) async {

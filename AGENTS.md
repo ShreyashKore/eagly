@@ -250,6 +250,13 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     fix for the common ones (downgrade, signature mismatch, minSdk, storage…) and passed
     through as `CODE: first line` otherwise. That sentence is what the snackbar shows; the raw
     output still goes to the log. Add a case there when a new code shows up as unreadable.
+  - **Conflicting installed copy:** a signature mismatch or a downgrade is not a snackbar.
+    `adbInstallConflict` spots it, the package comes from adb's detail or the APK's manifest
+    (`ApkIconExtractor.readPackageName`), and it rides `AppInstallResult.conflict` to
+    `presentAppInstallResult` (`presentation/components/install_conflict_dialog.dart`), which
+    warns that the app's data goes and offers *Uninstall and install*
+    (`forceInstallAppFromPath`). Every install entry point reports through it; drops collect
+    these in `DropHandlingResult.conflicts` and ask once each, after the summary.
 - **Apps pane names:** Android's package manager reports no app names, so the label is
   read out of the same pulled APK as the icon (`ApkIconExtractor.extractDetails`, default
   locale first) and cached across sessions by `AppIconCache` (`app_labels.json`). A label

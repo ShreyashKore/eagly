@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:eagly/services/tools/android_apk_icon_extractor.dart';
@@ -27,6 +28,18 @@ void main() {
         0x00, 0x00, // comment length
       ]);
       expect(ApkIconExtractor.extractIconBytes(emptyZip), isNull);
+    });
+
+    test('reads no package name from a missing or non-zip file', () {
+      final dir = Directory.systemTemp.createTempSync('apk_package');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final notApk = File('${dir.path}/a.apk')..writeAsStringSync('not a zip');
+
+      expect(
+        ApkIconExtractor.readPackageName('${dir.path}/missing.apk'),
+        isNull,
+      );
+      expect(ApkIconExtractor.readPackageName(notApk.path), isNull);
     });
   });
 }

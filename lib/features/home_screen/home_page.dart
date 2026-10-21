@@ -10,6 +10,7 @@ import '../logs/log_controller.dart';
 import '../../app_menu/intents.dart';
 import '../../command_palette/command_palette_dialog.dart';
 import '../../command_palette/command_palette_items.dart';
+import '../../presentation/components/install_conflict_dialog.dart';
 import '../../services/eagly_info_service.dart';
 import '../../services/preferences_service.dart';
 import '../../services/tools/tool_process_runner.dart';
@@ -168,8 +169,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final session = _manager.selected;
     if (session == null) return;
     final result = await session.installAppFromPicker();
-    if (!mounted || result.cancelled) return;
-    _showSnackBar(formatAppInstallMessage(result));
+    if (!mounted) return;
+    await presentAppInstallResult(
+      context,
+      session: session,
+      result: result,
+      showMessage: (message) {
+        if (mounted) _showSnackBar(message);
+      },
+    );
   }
 
   Future<void> _handleExportLogs() async {

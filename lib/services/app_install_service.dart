@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 
+import '../data/app_install_conflict.dart';
 import '../data/device.dart';
 import '../utils/utils.dart';
 import 'preferences_service.dart';
@@ -39,6 +40,13 @@ class const AppInstallResult({
   final String? message,
   final String? error,
   final bool cancelled = false,
+
+  /// The file that failed to install, kept with [conflict] to retry it.
+  final String? filePath,
+
+  /// Set when uninstalling the device's copy of the app would let this
+  /// install through; the caller offers that instead of just the [error].
+  final AppInstallConflict? conflict,
 }) {
   bool get isSuccess => !cancelled && error == null;
 
@@ -58,8 +66,16 @@ class const AppInstallResult({
     String? fileName,
     Device? device,
     required String error,
+    String? filePath,
+    AppInstallConflict? conflict,
   }) {
-    return AppInstallResult(fileName: fileName, device: device, error: error);
+    return AppInstallResult(
+      fileName: fileName,
+      device: device,
+      error: error,
+      filePath: filePath,
+      conflict: conflict,
+    );
   }
 
   factory AppInstallResult.cancelled() {

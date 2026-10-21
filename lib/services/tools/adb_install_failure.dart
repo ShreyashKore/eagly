@@ -1,3 +1,5 @@
+import '../../data/app_install_conflict.dart';
+
 /// Turns `adb install` output into one short sentence a person can act on.
 ///
 /// adb's failure text is a progress line, the APK's full path and the
@@ -31,6 +33,23 @@ String? describeAdbInstallFailure(String output) {
   return last.isEmpty ? null : _sentence(last);
 }
 
+/// The conflict behind a failed install when uninstalling the device's copy
+/// would clear it, with the package when adb's detail names one (a downgrade
+/// never does). Null for every other failure.
+({AppInstallConflictKind kind, String? packageName})? adbInstallConflict(
+  String output,
+) {
+  final failure = _failurePattern.firstMatch(output);
+  if (failure == null) return null;
+  final kind = switch (failure.group(1)) {
+    'INSTALL_FAILED_UPDATE_INCOMPATIBLE' => AppInstallConflictKind.signature,
+    'INSTALL_FAILED_VERSION_DOWNGRADE' => AppInstallConflictKind.downgrade,
+    _ => null,
+  };
+  if (kind == null) return null;
+  return (kind: kind, packageName: _packageIn(failure.group(2) ?? ''));
+}
+
 /// `Failure [CODE]` or `Failure [CODE: detail]`; the detail may span lines.
 final _failurePattern = RegExp(r'Failure \[([A-Z0-9_]+)(?::\s*([\s\S]*?))?\]');
 
@@ -55,10 +74,12 @@ String? _explain(String code, String detail) {
           'with version code $current or higher, or uninstall the app first. '
           '$_uninstallLosesData';
     case 'INSTALL_FAILED_UPDATE_INCOMPATIBLE':
-      final package = RegExp(r'Package (\S+)').firstMatch(detail)?.group(1);
-      final app = package ?? 'the installed app';
-      return 'The installed copy of $app is signed with a different key. '
-          'Uninstall it first, then install again. $_uninstallLosesData';
+      final package = _packageIn(detail);
+      return package == null
+          ? 'The installed copy of this app is signed with a different key. '
+                'Uninstall it first, then install again. $_uninstallLosesData'
+          : 'The installed copy of $package is signed with a different key. '
+                'Uninstall it first, then install again. $_uninstallLosesData';
     case 'INSTALL_FAILED_ALREADY_EXISTS':
       return 'This app is already installed. Uninstall it first. '
           '$_uninstallLosesData';
@@ -108,6 +129,11 @@ String? _explain(String code, String detail) {
   }
   return null;
 }
+
+/// The package in a signature-mismatch detail, which reads `Package x …` on
+/// recent Android and `Existing package x …` on older releases.
+String? _packageIn(String detail) =>
+    RegExp(r'\b[Pp]ackage ([\w.]+)').firstMatch(detail)?.group(1);
 
 /// An unknown code: keep it, since it is what people search for, and the
 /// first line of its detail.

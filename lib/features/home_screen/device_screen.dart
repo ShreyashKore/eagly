@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../presentation/components/drop_zone.dart';
+import '../../presentation/components/install_conflict_dialog.dart';
 import '../../session/device_session_controller.dart';
-import '../../utils/log_feedback.dart';
 import '../logs/log_feature_view.dart';
 import 'components/device_screen_content.dart';
 import 'components/drop_overlay.dart';
@@ -32,6 +32,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
   DropZoneHandle? _hoveredZone;
 
   void _showSnackBar(String message) {
+    if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(SnackBar(content: Text(message)));
@@ -39,8 +40,13 @@ class _DeviceScreenState extends State<DeviceScreen> {
 
   Future<void> _handleInstallApp() async {
     final result = await widget.session.installAppFromPicker();
-    if (!mounted || result.cancelled) return;
-    _showSnackBar(formatAppInstallMessage(result));
+    if (!mounted) return;
+    await presentAppInstallResult(
+      context,
+      session: widget.session,
+      result: result,
+      showMessage: _showSnackBar,
+    );
   }
 
   void _handleDragMove(DropEventDetails details) {
@@ -85,6 +91,15 @@ class _DeviceScreenState extends State<DeviceScreen> {
     if (!mounted || result == null) return;
     final message = result.message;
     if (message != null) _showSnackBar(message);
+    for (final conflict in result.conflicts) {
+      if (!mounted) return;
+      await presentAppInstallResult(
+        context,
+        session: widget.session,
+        result: conflict,
+        showMessage: _showSnackBar,
+      );
+    }
   }
 
   @override
