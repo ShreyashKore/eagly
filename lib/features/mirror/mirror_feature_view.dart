@@ -63,7 +63,11 @@ class _MirrorFeatureViewState extends FeatureViewState<MirrorFeatureView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: Center(child: PaneBody(controller: controller)),
+            child: Container(
+              alignment: Alignment.center,
+              padding: EdgeInsets.all(8),
+              child: PaneBody(controller: controller),
+            ),
           ),
           MirrorControlStrip(controller: controller),
         ],

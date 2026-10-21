@@ -84,6 +84,7 @@ EAGLY_IOS_BACKEND=cli fvm flutter run -d macos   # fall back to libimobiledevice
 | Crash reports | `IdeviceCrashReportTool` | `pull_ios_crash_reports` | both, **unverified on hardware** |
 | File manager (AFC) | `IosFileSystem` (`afcclient`, **not bundled**) | `RustIosFileSystem` | both, **unverified on hardware** |
 | Network inspection: port probe and forward | — | `probe_ios_ports`, `start_ios_port_forward`, `stop_ios_port_forward` (`api/ios_network.rs`) | Rust only (`IosNetworkService`), verified on an iPhone 16 (iOS 27.0) with `test/device/network_inspektor_ios_device_test.dart` |
+| Screen mirror: probe, screenshots, touch / keys / buttons, pasteboard, rotation | — | `probe_ios_mirror`, `capture_ios_screenshot`, `start_ios_screenshot_stream`, `start_ios_input` and the `send_ios_*` calls (`api/ios_mirror.rs`) | Rust only (`IosMirrorService`). Probe, screenshots, the screenshot stream, touch and Home verified on an iPhone 16e (iOS 26.6) with `test/device/ios_mirror_device_test.dart`; keys, the pasteboard and rotation are not covered by it. The picture on macOS comes from QuickTime's route instead. See **docs/IOS_SCREEN_MIRROR.md** |
 | Utilities / Terminal | `DeviceToolRunner` | — | **blocked on a product decision — see below** |
 
 ### Syslog: what hardware showed
@@ -182,7 +183,9 @@ per device, because eagly opens one log stream per tab and several tabs may watc
 
 Cargo features are enabled per surface in `rust/Cargo.toml` rather than via `full`, which is the
 difference between a 30-second and a 4-minute cold build. Note `crashreportcopymobile` implies
-`afc`, and the pairing error variants above need `pair`.
+`afc`, and the pairing error variants above need `pair`. The screen mirror adds the CoreDevice tunnel
+(`core_device_proxy`, `tunnel_tcp_stack`, `rsd`, `core_device`), `display_stream` (which also gates
+the crate's HID module) and `springboardservices`.
 
 The crate is pinned exactly (`=0.1.65`): it is pre-1.0 and its README warns of breaking changes at
 every release until 0.2.0. It is also built against the `ring` TLS backend rather than the default
