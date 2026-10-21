@@ -226,6 +226,14 @@ void main() {
       expect(command, contains(r"""--data-raw '{"name":"O'\''Brien"}'"""));
     });
 
+    test('a method that is not plain letters is quoted for the shell', () {
+      expect(
+        curlCommand(_transaction(method: 'get|`id`')),
+        contains("--request 'GET|`ID`'"),
+      );
+      expect(curlCommand(_transaction(method: '')), contains("--request ''"));
+    });
+
     test('the content type is sent when no header carries it', () {
       final transaction = NetworkTransaction(
         id: '1',

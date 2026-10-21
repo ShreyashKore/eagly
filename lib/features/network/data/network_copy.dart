@@ -12,7 +12,7 @@ String curlCommand(NetworkTransaction transaction, {String? body}) {
   final request = transaction.request;
   final lines = <String>[
     'curl',
-    '--request ${request.method.toUpperCase()}',
+    '--request ${_shellToken(request.method.toUpperCase())}',
     '--url ${_shellQuote(request.url)}',
   ];
   var hasContentType = false;
@@ -38,3 +38,8 @@ String headersText(List<NetworkHeader> headers) =>
     headers.map((header) => '${header.name}: ${header.value}').join('\n');
 
 String _shellQuote(String value) => "'${value.replaceAll("'", r"'\''")}'";
+
+/// [value] bare when it is plain letters (every real HTTP method), so the
+/// command reads `--request GET`; anything else, quoted.
+String _shellToken(String value) =>
+    RegExp(r'^[A-Za-z]+$').hasMatch(value) ? value : _shellQuote(value);

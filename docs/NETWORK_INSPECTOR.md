@@ -1,6 +1,6 @@
 # Network Inspector: plan
 
-> **Status: plan only. Nothing here is implemented yet.** It tracks
+> **Status: phases 1 and 2 have landed on Android and iOS (§6); phases 3–5 are still plans.** It tracks
 > [#72](https://github.com/ShreyashKore/eagly/issues/72). It was written on 2026-10-18 from research
 > against primary sources: AOSP, Chromium, the Dart SDK, WebKit, React Native, pymobiledevice3 and
 > the `idevice` crate. Claims that could not be confirmed are marked *unverified*. Sources are in
@@ -266,9 +266,11 @@ The rules:
 ### 3.6 Privacy
 
 - Captured traffic is kept in memory only. Nothing is written unless the user exports it.
-- HAR export offers header redaction for `Authorization`, `Cookie` and `Set-Cookie`. Inspektor's
-  `sanitizeHeader` already redacts on the device, before anything reaches the wire.
-- Under `--record-mode`, the pane redacts the same headers. That mode exists for product videos.
+- Inspektor's `sanitizeHeader` can redact headers on the device, before anything reaches the wire.
+  That is the app's choice; Eagly shows and exports whatever it receives.
+- **Not built yet:** HAR export redacting `Authorization`, `Cookie` and `Set-Cookie`, and the pane
+  redacting the same headers under `--record-mode` (the mode for product videos). Until they land,
+  an exported HAR and a recorded video contain these headers as captured.
 
 ### 3.7 The pane
 

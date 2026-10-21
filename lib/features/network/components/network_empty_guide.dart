@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 
 import '../../../data/device.dart';
+import '../../../presentation/components/app_icon_button.dart';
 import '../../../presentation/components/feature_view.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../../../utils/url_launcher.dart';
@@ -219,18 +220,24 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const _Bullet(
-              'Open the Logs pane and search for “Inspektor: remote '
-              'inspection listening”. If that line never appears, this build '
-              'doesn’t start Inspektor. Ask the developers for one that does.',
-            ),
-            _Bullet(
-              _isIos
-                  ? 'Keep the app in front. iOS pauses apps in the background, '
-                        'and Eagly reconnects when the app comes back.'
-                  : 'If the app restarted or crashed, give it a moment. Eagly '
-                        'reconnects and carries on with the same list.',
-            ),
+            if (_isIos)
+              const _Bullet(
+                'Keep the app in the foreground and the iPhone unlocked. iOS '
+                'pauses apps in the background, and Eagly reconnects when the '
+                'app comes back.',
+              )
+            else ...const [
+              _Bullet(
+                'Open the Logs pane and search for “Inspektor: remote '
+                'inspection listening”. If that line never appears, this '
+                'build doesn’t start Inspektor. Ask the developers for one '
+                'that does.',
+              ),
+              _Bullet(
+                'If the app restarted or crashed, give it a moment. Eagly '
+                'reconnects and carries on with the same list.',
+              ),
+            ],
             const _Bullet(
               'Only requests made through OkHttp, Ktor or URLSession are '
               'recorded. A web page shown inside the app (a web view) is not.',
@@ -632,12 +639,12 @@ class const _Snippet({required final String code, final String? caption})
                       style: theme.textTheme.labelSmall?.copyWith(color: muted),
                     ),
                   ),
-                  IconButton(
+                  AppIconButton(
                     tooltip: 'Copy',
-                    visualDensity: VisualDensity.compact,
+                    icon: Icons.copy_rounded,
                     iconSize: 15,
+                    padding: 4,
                     color: muted,
-                    icon: const Icon(Icons.copy_rounded),
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: code));
                       FeatureView.showSnackBar(context, 'Copied to clipboard.');

@@ -125,12 +125,14 @@ A HAR file is a saved recording of network traffic in a standard format. You can
 
 **The pane says "Looking for apps with Inspektor…" and nothing happens.**
 
-- Open Eagly's **Logs** pane and search for `Inspektor: remote inspection listening`. Inspektor
-  writes that line when remote inspection starts. If it never appears, the build doesn't call
-  `InspektorRemote.start()`, or it is a release build with the no-op library. Ask the developers
-  for a build that does.
-- Make sure the app is open. On iPhone, keep it in front: iOS pauses apps in the background, and
-  Eagly reconnects when the app comes back.
+- On Android, open Eagly's **Logs** pane and search for `Inspektor: remote inspection listening`.
+  Inspektor writes that line when remote inspection starts. If it never appears, the build doesn't
+  call `InspektorRemote.start()`, or it is a release build with the no-op library. Ask the
+  developers for a build that does.
+- On iPhone, keep the app in the foreground and the phone unlocked: iOS pauses apps in the
+  background, and Eagly reconnects when the app comes back. (iOS hides Inspektor's log line as
+  `<private>`, so searching the Logs pane doesn't help there.)
+- On Android, make sure the app is open.
 
 **The app shows up, but some requests are missing.**
 
