@@ -308,6 +308,12 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `DeviceSessionRepository.startTerminalProcess()`, which owns startup/merging/teardown
   only — no timeout (`adb logcat` may stream forever), stdin is writable, and cancellation
   is the caller's job. Adding a dispatchable binary = one entry in `terminalTools`.
+  Find (⌘F, the toolbar's search button) is per tab (`TerminalController.find`, a
+  `TerminalFind`) and draws the shared `FindBar` that `CodeView` uses too. It is not a
+  `CodeView`: that re-sets and re-highlights its whole text on every change and has no
+  per-line colours. Matches are collected again on each flush, and the current one is held
+  by its line, so streaming output doesn't move it; the scrollback is a `SuperListView` so
+  a match's line can be scrolled to by index.
 - **Wireless ADB:** one dialog (`features/wireless_connection/`) with two panes — **Pair a
   device** (QR card pinned on top, discovered devices scrolling under it) and **Manual
   entry**. The whole pane is driven by *one* background mDNS scan

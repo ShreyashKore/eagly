@@ -141,6 +141,71 @@ void main() {
     expect(notice.style?.fontFamily, mono.fontFamily);
   });
 
+  testWidgets('find highlights matches in the scrollback', (tester) async {
+    final manager = createManager();
+    await tester.pumpWidget(host(manager));
+    final tokens = AppTheme.darkTheme.extension<EaglyTheme>()!;
+    final findField = find.byWidgetPredicate(
+      (w) => w is TextField && w.decoration?.hintText == 'Find in output',
+    );
+
+    expect(findField, findsNothing);
+    await tester.tap(find.byTooltip('Find in output (Ctrl+F)'));
+    await tester.pump();
+    expect(findField, findsOneWidget);
+
+    await tester.enterText(findField, 'pixel');
+    await tester.pump();
+    expect(find.text('1 / 1'), findsOneWidget);
+
+    // The notice line's "Pixel" is painted as the current match.
+    final notice = tester.widget<RichText>(
+      find.descendant(
+        of: find.byType(SelectionArea),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is RichText &&
+              w.text.toPlainText().startsWith('Commands run on'),
+        ),
+      ),
+    );
+    final highlighted = <String>[];
+    notice.text.visitChildren((span) {
+      if (span is TextSpan &&
+          span.style?.backgroundColor == tokens.searchCurrentMatchColor) {
+        highlighted.add(span.text!);
+      }
+      return true;
+    });
+    expect(highlighted, ['Pixel']);
+
+    await tester.enterText(findField, 'nothing like this');
+    await tester.pump();
+    expect(find.text('No results'), findsOneWidget);
+
+    // Esc closes it and hands the keyboard back to the prompt.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(findField, findsNothing);
+    final prompt = tester.widget<TextField>(find.byType(TextField));
+    expect(prompt.focusNode!.hasFocus, isTrue);
+  });
+
+  testWidgets('Ctrl+F in the prompt opens find', (tester) async {
+    final manager = createManager();
+    await tester.pumpWidget(host(manager));
+
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+
+    expect(find.text('Find in output'), findsOneWidget);
+    expect(manager.selectedTab.find.focusNode.hasFocus, isTrue);
+  });
+
   testWidgets('a disconnected device is called out in the prompt hint', (
     tester,
   ) async {

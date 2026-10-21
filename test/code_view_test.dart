@@ -51,6 +51,53 @@ void main() {
       expect(find.text('Find in report'), findsNothing);
     });
 
+    testWidgets('the current match is selected in its own colour', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        host(const CodeView(text: 'one two\ntwo three', noun: 'report')),
+      );
+      final tokens = AppTheme.lightTheme.extension<EaglyTheme>()!;
+      CodeEditorStyle style() =>
+          tester.widget<CodeEditor>(find.byType(CodeEditor)).style!;
+
+      await tester.tap(find.byTooltip('Find in report (Ctrl+F)'));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'two');
+      // re_editor searches off the frame it was asked on.
+      for (var i = 0; i < 5 && find.text('1 / 2').evaluate().isEmpty; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)),
+        );
+        await tester.pump();
+      }
+      expect(find.text('1 / 2'), findsOneWidget);
+
+      final editor = tester.widget<CodeEditor>(find.byType(CodeEditor));
+      expect(
+        editor.controller!.selection,
+        editor.findController!.currentMatchSelection,
+      );
+      expect(
+        style().selectionColor!.toARGB32() & 0xFFFFFF,
+        tokens.searchCurrentMatchColor.toARGB32() & 0xFFFFFF,
+      );
+      // Every match is painted see-through, so the current one shows.
+      expect(style().highlightColor!.a, lessThan(1));
+
+      await tester.tap(find.byTooltip('Close (Esc)'));
+      await tester.pump();
+      editor.controller!.selection = const CodeLineSelection.collapsed(
+        index: 0,
+        offset: 0,
+      );
+      await tester.pump();
+      expect(
+        style().selectionColor!.toARGB32() & 0xFFFFFF,
+        isNot(tokens.searchCurrentMatchColor.toARGB32() & 0xFFFFFF),
+      );
+    });
+
     testWidgets('copies copyText rather than what is shown', (tester) async {
       String? copied;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(

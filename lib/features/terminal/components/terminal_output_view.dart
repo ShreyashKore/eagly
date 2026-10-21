@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 
+import '../../../presentation/components/search_highlight.dart';
 import '../../../presentation/theme/app_theme.dart';
+import '../../../utils/text_search_pattern.dart';
 import '../data/terminal_line.dart';
+import '../terminal_find.dart';
 
-/// The scrollback: one styled, selectable line per [TerminalLine].
+/// The scrollback: one styled, selectable line per [TerminalLine], with
+/// [find]'s matches highlighted.
 ///
 /// Sticks to the bottom while the user is at the bottom, and stops following
 /// (offering a "jump to latest" pill instead) the moment they scroll up — so a
 /// streaming command can't yank the view away from something being read.
+/// Stepping through matches scrolls to the current one; output arriving
+/// doesn't.
 class const TerminalOutputView({
   super.key,
   required final List<TerminalLine> lines,
+  required final TerminalFind find,
   required final double fontSize,
 }) extends StatefulWidget {
   @override
@@ -21,7 +29,10 @@ class _TerminalOutputViewState extends State<TerminalOutputView> {
   static const _stickThreshold = 24.0;
 
   final ScrollController _scroll = ScrollController();
+  // Lines wrap, so only the list knows where line n is; this asks it.
+  final ListController _list = ListController();
   bool _stickToBottom = true;
+  late int _revealedMoves = widget.find.moves;
 
   @override
   void initState() {
@@ -32,12 +43,18 @@ class _TerminalOutputViewState extends State<TerminalOutputView> {
   @override
   void didUpdateWidget(TerminalOutputView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _scrollToEndIfSticking();
+    if (widget.find.moves != _revealedMoves) {
+      _revealedMoves = widget.find.moves;
+      _revealCurrentMatch();
+    } else {
+      _scrollToEndIfSticking();
+    }
   }
 
   @override
   void dispose() {
     _scroll.dispose();
+    _list.dispose();
     super.dispose();
   }
 
@@ -51,32 +68,68 @@ class _TerminalOutputViewState extends State<TerminalOutputView> {
 
   void _scrollToEndIfSticking() {
     if (!_stickToBottom) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scroll.hasClients) return;
-      _scroll.jumpTo(_scroll.position.maxScrollExtent);
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _landOnTail());
   }
 
   void _jumpToEnd() {
-    if (!_scroll.hasClients) return;
     setState(() => _stickToBottom = true);
-    _scroll.jumpTo(_scroll.position.maxScrollExtent);
+    _landOnTail();
+  }
+
+  // The list estimates the height of lines it hasn't laid out, so its
+  // maxScrollExtent is partly a guess; jumping to the last item lands exactly.
+  void _landOnTail() {
+    if (!mounted || !_scroll.hasClients || !_list.isAttached) return;
+    if (widget.lines.isEmpty) return;
+    _list.jumpToItem(
+      index: widget.lines.length - 1,
+      scrollController: _scroll,
+      alignment: 1.0,
+    );
+  }
+
+  void _revealCurrentMatch() {
+    final match = widget.find.current;
+    if (match == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients || !_list.isAttached) return;
+      final index = widget.lines.indexOf(match.line);
+      if (index < 0) return;
+      // Leave the view alone when the line is already in full view.
+      final visible = _list.visibleRange;
+      if (visible != null && index > visible.$1 && index < visible.$2) return;
+      _list.jumpToItem(index: index, scrollController: _scroll, alignment: 0.5);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final find = widget.find;
+    final current = find.current;
+
     return Stack(
       children: [
         Positioned.fill(
           child: SelectionArea(
-            child: ListView.builder(
+            child: SuperListView.builder(
               controller: _scroll,
+              listController: _list,
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
               itemCount: widget.lines.length,
-              itemBuilder: (context, index) => _TerminalLineView(
-                line: widget.lines[index],
-                fontSize: widget.fontSize,
-              ),
+              itemBuilder: (context, index) {
+                final line = widget.lines[index];
+                final matches = find.matchesIn(line);
+                return _TerminalLineView(
+                  line: line,
+                  fontSize: widget.fontSize,
+                  matches: matches,
+                  currentMatch: current != null && identical(current.line, line)
+                      ? matches.indexWhere(
+                          (m) => m.start == current.range.start,
+                        )
+                      : null,
+                );
+              },
             ),
           ),
         ),
@@ -94,6 +147,10 @@ class _TerminalOutputViewState extends State<TerminalOutputView> {
 class const _TerminalLineView({
   required final TerminalLine line,
   required final double fontSize,
+  required final List<TextSearchMatch> matches,
+
+  /// Index into [matches] of the find bar's current match, if it's here.
+  required final int? currentMatch,
 }) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -121,9 +178,22 @@ class const _TerminalLineView({
       fontWeight: isEmphasised ? FontWeight.w600 : FontWeight.normal,
     );
 
+    // Matches cover the line's own text, never the prompt prefix.
+    final text = matches.isEmpty
+        ? TextSpan(text: line.text)
+        : TextSpan(
+            children: buildSearchHighlightSpans(
+              context: context,
+              text: line.text,
+              style: style,
+              matches: matches,
+              currentMatchIndex: currentMatch,
+            ),
+          );
+
     if (line.kind != TerminalLineKind.command &&
         line.kind != TerminalLineKind.input) {
-      return Text(line.text, style: style);
+      return Text.rich(text, style: style);
     }
 
     // Prompt lines get the device label and a `$`, and — when a device
@@ -142,7 +212,7 @@ class const _TerminalLineView({
               fontWeight: FontWeight.normal,
             ),
           ),
-          TextSpan(text: line.text),
+          text,
         ],
       ),
       style: style,
