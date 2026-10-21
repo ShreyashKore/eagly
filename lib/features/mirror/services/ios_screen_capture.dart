@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'screen_recording.dart';
+
 class const IosScreenCaptureException(final String code, final String message)
     implements Exception {
   @override
@@ -94,6 +96,10 @@ abstract interface class IosScreenCaptureHandle {
   /// its screen is captured. Null before the first frame.
   Future<Uint8List?> snapshot();
 
+  /// Starts writing the picture to an mp4 on the Mac, from the frames as they
+  /// arrive. Stopping the capture finishes it; it can still be saved then.
+  Future<ScreenRecording> record();
+
   Future<void> stop();
 }
 
@@ -141,6 +147,27 @@ class _ChannelCaptureHandle(
       .invokeMethod<Uint8List>('snapshot', {'textureId': textureId});
 
   @override
+  Future<ScreenRecording> record() async {
+    try {
+      final path = await IosScreenCapture._method.invokeMethod<String>(
+        'startRecording',
+        {'textureId': textureId},
+      );
+      return _HostRecording(
+        File(path!),
+        () => IosScreenCapture._method.invokeMethod<void>('stopRecording', {
+          'textureId': textureId,
+        }),
+      );
+    } on PlatformException catch (error) {
+      throw IosScreenCaptureException(
+        error.code,
+        error.message ?? 'Recording the iPhone failed.',
+      );
+    }
+  }
+
+  @override
   Future<void> stop() async {
     if (_stopped) return;
     _stopped = true;
@@ -149,5 +176,49 @@ class _ChannelCaptureHandle(
     await IosScreenCapture._method.invokeMethod<void>('stop', {
       'textureId': textureId,
     });
+  }
+}
+
+/// A recording the Mac writes to a temporary file, moved into place on save.
+class _HostRecording(final File _file, final Future<void> Function() _stop)
+    implements ScreenRecording {
+  @override
+  final DateTime startedAt = DateTime.now();
+
+  Future<void>? _stopped;
+
+  @override
+  Duration? get timeLimit => null;
+
+  Future<void> _finish() async {
+    try {
+      await (_stopped ??= _stop());
+    } on PlatformException catch (error) {
+      throw IosScreenCaptureException(
+        error.code,
+        error.message ?? 'Finishing the recording failed.',
+      );
+    }
+  }
+
+  @override
+  Future<void> save(String localPath) async {
+    await _finish();
+    try {
+      await _file.rename(localPath);
+    } on FileSystemException {
+      // Another volume: rename cannot cross it.
+      await _file.copy(localPath);
+      await _file.delete();
+    }
+  }
+
+  @override
+  Future<void> cancel() async {
+    try {
+      await _finish();
+    } finally {
+      if (await _file.exists()) await _file.delete();
+    }
   }
 }

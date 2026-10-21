@@ -3,14 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-/// Floats over the mirror while the device records its screen: a pulsing
-/// dot and the time recorded against screenrecord's limit. The recording is
-/// made on the device, so none of this ends up in it. It lets clicks through
-/// to the mirror; the control strip's button stops the recording.
+/// Floats over the mirror while the screen is recorded: a pulsing dot and
+/// the time recorded, against screenrecord's limit where there is one. The
+/// recording is made from the device's own picture, so none of this ends up
+/// in it. It lets clicks through to the mirror; the control strip's button
+/// stops the recording.
 class const RecordingBadge({
   super.key,
   required final DateTime startedAt,
-  required final Duration timeLimit,
+
+  /// Null when the recording has no limit (an iPhone's).
+  required final Duration? timeLimit,
 }) extends StatefulWidget {
   /// From here on the time turns to a warning.
   static const nearLimit = Duration(seconds: 15);
@@ -68,8 +71,8 @@ class _RecordingBadgeState extends State<RecordingBadge>
     final limit = widget.timeLimit;
     final raw = DateTime.now().difference(widget.startedAt);
     final elapsed = raw < Duration.zero ? Duration.zero : raw;
-    final reachedLimit = elapsed >= limit;
-    final warn = limit - elapsed <= RecordingBadge.nearLimit;
+    final reachedLimit = limit != null && elapsed >= limit;
+    final warn = limit != null && limit - elapsed <= RecordingBadge.nearLimit;
     final textStyle = theme.textTheme.labelLarge?.copyWith(
       color: scheme.onInverseSurface,
       fontFeatures: const [FontFeature.tabularFigures()],
@@ -121,12 +124,13 @@ class _RecordingBadgeState extends State<RecordingBadge>
                     color: warn && !reachedLimit ? Colors.orange : null,
                   ),
                 ),
-                Text(
-                  reachedLimit
-                      ? '  ·  limit reached, stop to save'
-                      : ' / ${_format(limit)}',
-                  style: textStyle?.copyWith(color: dimmed),
-                ),
+                if (limit != null)
+                  Text(
+                    reachedLimit
+                        ? '  ·  limit reached, stop to save'
+                        : ' / ${_format(limit)}',
+                    style: textStyle?.copyWith(color: dimmed),
+                  ),
               ],
             ),
           ),

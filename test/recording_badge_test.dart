@@ -11,7 +11,11 @@ void main() {
 
   /// A badge for a recording that has run [elapsed] so far. The badge reads
   /// the wall clock, so each case sits half a second into its second.
-  Future<void> pumpBadge(WidgetTester tester, Duration elapsed) async {
+  Future<void> pumpBadge(
+    WidgetTester tester,
+    Duration elapsed, {
+    Duration? timeLimit = limit,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightTheme,
@@ -21,7 +25,7 @@ void main() {
               startedAt: DateTime.now().subtract(
                 elapsed + const Duration(milliseconds: 500),
               ),
-              timeLimit: limit,
+              timeLimit: timeLimit,
             ),
           ),
         ),
@@ -52,6 +56,15 @@ void main() {
 
     expect(find.text('3:00'), findsOneWidget);
     expect(find.textContaining('limit reached'), findsOneWidget);
+  });
+
+  testWidgets('shows only the time when there is no limit', (tester) async {
+    await pumpBadge(tester, const Duration(minutes: 4), timeLimit: null);
+
+    expect(find.text('4:00'), findsOneWidget);
+    expect(find.textContaining('/'), findsNothing);
+    expect(find.textContaining('limit'), findsNothing);
+    expect(timeColor(tester, '4:00'), isNot(Colors.orange));
   });
 
   testWidgets('lets clicks through to the mirror underneath', (tester) async {

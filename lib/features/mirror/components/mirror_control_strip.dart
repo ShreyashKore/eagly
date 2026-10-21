@@ -14,7 +14,8 @@ import '../services/capture_storage.dart';
 
 /// Vertical strip on the pane's right edge: session actions (screenshot,
 /// record, rotate, quality) at the top, then device hardware/navigation keys.
-/// An iPhone gets its own buttons, and no recording or clipboard sync.
+/// An iPhone gets its own buttons and no clipboard sync, and records only
+/// with live video (macOS).
 class const MirrorControlStrip({
   super.key,
   required final MirrorController controller,
@@ -91,16 +92,19 @@ class const MirrorControlStrip({
               () => _captureScreenshot(context),
               enabled: running,
             ),
-            if (!isIos)
-              actionButton(
-                recording ? Icons.stop_circle : Icons.videocam_outlined,
-                recording ? 'Stop recording' : 'Record screen',
-                () => recording
-                    ? _stopRecording(context)
-                    : _startRecording(context),
-                enabled: running,
-                color: recording ? theme.colorScheme.error : null,
-              ),
+            actionButton(
+              recording ? Icons.stop_circle : Icons.videocam_outlined,
+              recording
+                  ? 'Stop recording'
+                  : isIos && running && !controller.canRecord
+                  ? 'Recording needs live video, which only macOS has'
+                  : 'Record screen',
+              () => recording
+                  ? _stopRecording(context)
+                  : _startRecording(context),
+              enabled: controller.canRecord,
+              color: recording ? theme.colorScheme.error : null,
+            ),
             actionButton(
               Icons.screen_rotation_outlined,
               isIos

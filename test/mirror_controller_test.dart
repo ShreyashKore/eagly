@@ -105,6 +105,27 @@ void main() {
       expect(service.iosCapture!.stopped, isTrue);
     });
 
+    test('records the live picture, savable after the mirror stops', () async {
+      final mirror = createIosMirror();
+      final starting = mirror.start();
+      await pumpEventQueue();
+      service.iosCapture!.frame(const Size(1170, 2532));
+      await starting;
+
+      expect(mirror.canRecord, isTrue);
+      await mirror.startRecording();
+      expect(mirror.isRecording, isTrue);
+      expect(mirror.recordingClock?.timeLimit, isNull);
+
+      await mirror.stop();
+      expect(mirror.canRecord, isTrue);
+      await mirror.stopRecording('/tmp/recording.mp4');
+
+      expect(service.iosCapture!.recording?.savedTo, '/tmp/recording.mp4');
+      expect(mirror.isRecording, isFalse);
+      expect(mirror.canRecord, isFalse);
+    });
+
     test('a capture that ends by itself shows why', () async {
       final mirror = createIosMirror();
       final starting = mirror.start();

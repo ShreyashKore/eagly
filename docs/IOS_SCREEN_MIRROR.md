@@ -85,6 +85,15 @@ async bridge calls have none.
   `start_ios_input` starts one — audio then video, exactly as Device Hub does — and drains its RTP.
   The phone then shows its screen-sharing indicator. iOS 26.6 takes the events without one.
 
+## Recording
+
+iOS has no `screenrecord`, so on macOS the Mac records: the capture plugin hands each frame it
+already has to an `AVAssetWriter` (`IosScreenRecorder`), H.264 at about 4 bits a pixel a second,
+into a temporary mp4 that Dart moves to where the user saves it. Its size is the first frame's; a
+frame rotated mid-recording is letterboxed into it. There is no time limit and no sound (only the
+capture's video port is connected). Stopping the mirror finishes the recording, and the record
+button stays live so it can still be saved. Unverified on hardware.
+
 ## Starting
 
 `IosMirrorSession.start` probes what the phone offers, starts the picture, **waits for the first
@@ -141,8 +150,8 @@ workarounds.
   touch mapping, rotation, the pasteboard, and a phone with two capture devices of one name.
 - Mounting the developer disk image from Eagly (the crate can, with a TSS request to Apple), so a
   restarted phone does not need Xcode again.
-- Recording (no `screenrecord`: the host would have to write the picture to a file), scroll-wheel
-  and trackpad scrolling, and phone→desktop clipboard sync.
+- Recording on Windows / Linux (screenshots are too slow to record), scroll-wheel and trackpad
+  scrolling, and phone→desktop clipboard sync.
 
 ## Tests
 

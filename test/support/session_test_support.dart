@@ -18,6 +18,7 @@ import 'package:eagly/features/utilities/data/utility_command.dart';
 import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
 import 'package:eagly/features/flutter_scrcpy/flutter_scrcpy.dart';
 import 'package:eagly/features/mirror/services/ios_screen_capture.dart';
+import 'package:eagly/features/mirror/services/screen_recording.dart';
 import 'package:eagly/services/device_session_repository.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/data/ios_device_info.dart';
@@ -549,8 +550,32 @@ class FakeIosScreenCapture implements IosScreenCaptureHandle {
   @override
   Future<Uint8List?> snapshot() async => Uint8List.fromList([9]);
 
+  /// The latest recording started from this capture.
+  FakeScreenRecording? recording;
+
+  @override
+  Future<ScreenRecording> record() async => recording = FakeScreenRecording();
+
   @override
   Future<void> stop() async => stopped = true;
+}
+
+/// A recording that notes where it was saved, or that it was thrown away.
+class FakeScreenRecording implements ScreenRecording {
+  String? savedTo;
+  bool cancelled = false;
+
+  @override
+  final DateTime startedAt = DateTime.now();
+
+  @override
+  Duration? get timeLimit => null;
+
+  @override
+  Future<void> save(String localPath) async => savedTo = localPath;
+
+  @override
+  Future<void> cancel() async => cancelled = true;
 }
 
 /// Records what the mirror sends to an iPhone.
