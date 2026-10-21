@@ -509,6 +509,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   - **Decode frames with `const InspektorFrameDecoder().bind(stream)`, never
     `socket.transform(…)`.** A `Socket` is a `Stream<Uint8List>`, and `transform` fails the
     runtime type check.
+- **MCP server (proposal, not built):** **read docs/MCP_SERVER.md before any MCP or agent
+  integration work.** Eagly would serve read-only tools to coding agents over Streamable HTTP
+  on loopback. Unlike the Inspektor socket, it *does* authenticate (bearer token plus Host and
+  Origin checks), because any browser tab can reach a localhost port. Update the doc as
+  decisions land.
 
 - **Layout inspector:** **read docs/LAYOUT_INSPECTOR.md §0 before touching it.** The Layout pane
   (`features/layout_inspector/`, Android only) captures the screen as an accessibility tree with a
