@@ -68,6 +68,10 @@ class MirrorController(super.session) extends FeatureController {
 
   IosMirrorSession? _ios;
 
+  /// An iPhone mirror still starting, so a stop or restart can end it
+  /// before it finishes rather than leave its capture running.
+  IosMirrorSession? _iosStarting;
+
   /// Bumped by every start and stop, so an iOS start that takes seconds can
   /// tell it was overtaken.
   int _iosGeneration = 0;
@@ -212,7 +216,15 @@ class MirrorController(super.session) extends FeatureController {
         service,
         liveCapture: IosScreenCapture.isAvailable,
         controlIsCommand: defaultTargetPlatform != TargetPlatform.macOS,
+        onCreated: (mirror) {
+          if (_disposed || generation != _iosGeneration) {
+            unawaited(mirror.stop());
+          } else {
+            _iosStarting = mirror;
+          }
+        },
       );
+      if (identical(_iosStarting, mirror)) _iosStarting = null;
       if (_disposed || generation != _iosGeneration) {
         await mirror.stop();
         return;
@@ -232,6 +244,7 @@ class MirrorController(super.session) extends FeatureController {
       _notify();
       unawaited(_watchIos(mirror));
     } catch (error) {
+      if (generation == _iosGeneration) _iosStarting = null;
       if (_disposed || generation != _iosGeneration) return;
       final message = error is IosMirrorException
           ? error.message
@@ -267,7 +280,10 @@ class MirrorController(super.session) extends FeatureController {
     _session = null;
     final ios = _ios;
     _ios = null;
+    final iosStarting = _iosStarting;
+    _iosStarting = null;
     _iosGeneration++;
+    await iosStarting?.stop();
     if (ios != null) {
       ios.removeListener(_notify);
       await ios.stop();

@@ -146,6 +146,49 @@ void main() {
       expect(service.iosCapture!.stopped, isTrue);
     });
 
+    test(
+      'fails with the capture\'s reason when it ends before a frame',
+      () async {
+        final starting = IosMirrorSession.start(
+          service,
+          liveCapture: true,
+          controlIsCommand: false,
+        );
+        await pumpEventQueue();
+        service.iosCapture!.end('The iPhone was disconnected.');
+
+        await expectLater(
+          starting,
+          throwsA(
+            isA<IosMirrorException>().having(
+              (e) => e.message,
+              'message',
+              'The iPhone was disconnected.',
+            ),
+          ),
+        );
+        expect(service.iosInputs, isEmpty);
+      },
+    );
+
+    test('a stop while it waits for the first frame ends the start', () async {
+      IosMirrorSession? pending;
+      final starting = IosMirrorSession.start(
+        service,
+        liveCapture: true,
+        controlIsCommand: false,
+        onCreated: (session) => pending = session,
+      );
+      await pumpEventQueue();
+
+      final failed = expectLater(starting, throwsA(isA<IosMirrorException>()));
+      await pending!.stop();
+
+      await failed;
+      expect(service.iosCapture!.stopped, isTrue);
+      expect(service.iosInputs, isEmpty);
+    });
+
     test('is view-only without the input services', () async {
       service.iosMirrorSupport = const IosMirrorSupport(screenshots: true);
       final mirror = await startLive();

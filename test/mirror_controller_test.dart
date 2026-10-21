@@ -96,6 +96,7 @@ void main() {
       await pumpEventQueue();
 
       await mirror.stop();
+      expect(service.iosCapture!.stopped, isTrue);
       service.iosCapture!.frame(const Size(1170, 2532));
       await starting;
 

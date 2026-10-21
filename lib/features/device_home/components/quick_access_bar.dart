@@ -45,6 +45,7 @@ class const QuickAccessBar({
         sublabel: 'Control the screen',
         isActive: s.isMirrorOpen,
         onTap: s.canMirror ? s.toggleMirror : null,
+        disabledReason: s.mirrorUnavailableReason,
       ),
       if (!isAndroid)
         _ShortcutSpec(
@@ -144,6 +145,9 @@ class const _ShortcutSpec({
 
   /// `null` disables the tile — the feature needs a connected device.
   required final VoidCallback? onTap,
+
+  /// Why the tile is disabled, when it is for more than a lost connection.
+  final String? disabledReason,
 });
 
 class const _ShortcutTile({
@@ -258,7 +262,8 @@ class _ShortcutTileState extends State<_ShortcutTile> {
 
     if (!enabled) {
       return Tooltip(
-        message: 'Reconnect the device to use ${spec.label}',
+        message:
+            spec.disabledReason ?? 'Reconnect the device to use ${spec.label}',
         child: Opacity(opacity: 0.45, child: tile),
       );
     }

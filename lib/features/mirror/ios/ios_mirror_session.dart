@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
+import '../../../services/app_breadcrumbs.dart';
 import '../../../services/device_session_repository.dart';
 import '../../../services/ios/ios_backend.dart';
 import '../../../services/ios/ios_mirror_service.dart';
+import '../../../utils/utils.dart';
 import '../../flutter_scrcpy/flutter_scrcpy.dart';
 import '../services/ios_screen_capture.dart';
 import 'ios_keyboard.dart';
@@ -69,26 +72,42 @@ class IosMirrorSession._(
   /// that order because starting QuickTime's route re-enumerates the phone on
   /// USB, which would cut an input connection opened before it.
   ///
-  /// Throws [IosMirrorException] when there is no picture to be had.
+  /// [onCreated] gets the session as soon as it exists, so a caller can
+  /// [stop] it before it has finished starting.
+  ///
+  /// Throws [IosMirrorException] when there is no picture to be had, or the
+  /// session was stopped while starting.
   static Future<IosMirrorSession> start(
     DeviceSessionRepository service, {
     required bool liveCapture,
     required bool controlIsCommand,
+    ValueChanged<IosMirrorSession>? onCreated,
   }) async {
     final session = IosMirrorSession._(
       service,
       await service.probeIosMirror(),
       IosKeyboardTranslator(controlIsCommand: controlIsCommand),
     );
+    onCreated?.call(session);
     try {
+      session._checkRunning();
       await session._startVideo(liveCapture: liveCapture);
-      await session._firstFrame.future.timeout(
+      // A capture that ends, or a stop, gives up on the first frame at once
+      // rather than at the timeout.
+      await Future.any<void>([
+        session._firstFrame.future,
+        session._ended.future.then<void>(
+          (reason) => throw IosMirrorException(reason ?? _stoppedReason),
+        ),
+      ]).timeout(
         firstFrameTimeout,
         onTimeout: () => throw const IosMirrorException(
           'The iPhone sent no picture. Unlock it and try again.',
         ),
       );
+      session._checkRunning();
       await session._startInput();
+      session._checkRunning();
       return session;
     } catch (_) {
       await session.stop();
@@ -129,6 +148,10 @@ class IosMirrorSession._(
     if (liveCapture) {
       try {
         final capture = await _service.startIosScreenCapture();
+        if (_stopped) {
+          await capture.stop();
+          _checkRunning();
+        }
         _capture = capture;
         _sizeSubscription = capture.sizes.listen(_onSize);
         if (capture.size case final size?) _onSize(size);
@@ -141,6 +164,7 @@ class IosMirrorSession._(
     if (!support.screenshots) {
       throw IosMirrorException(captureFailure ?? _noServicesReason);
     }
+    _checkRunning();
     _videoNotice = [
       ?captureFailure,
       'Showing screenshots instead of live video, under two a second.',
@@ -177,6 +201,12 @@ class IosMirrorSession._(
       "This iPhone's screen can't be shown here. On a Mac it comes through "
       'QuickTime\'s capture route; elsewhere it needs Developer Mode and '
       "Xcode's developer disk image mounted.";
+
+  static const String _stoppedReason = 'The mirror was stopped.';
+
+  void _checkRunning() {
+    if (_stopped) throw const IosMirrorException(_stoppedReason);
+  }
 
   void _onScreenshot(Uint8List png) {
     _frame = png;
@@ -243,7 +273,17 @@ class IosMirrorSession._(
       case IosPressKey(:final page, :final usage, :final down):
         _sendKey(input, page, usage, down: down);
       case IosPasteClipboard():
-        unawaited(pasteFromClipboard());
+        unawaited(
+          pasteFromClipboard().catchError((Object error) {
+            AppBreadcrumbs.action(
+              'Paste to the iPhone failed',
+              category: 'mirror',
+              level: SentryLevel.warning,
+              data: {'error': describeError(error)},
+            );
+            return false;
+          }),
+        );
     }
     return KeyEventResult.handled;
   }
@@ -351,13 +391,15 @@ class IosMirrorSession._(
     if (_stopped) return;
     releaseKeys();
     _stopped = true;
+    // Before the awaits below, so a start still waiting on its first frame
+    // gives up at once.
+    if (!_ended.isCompleted) _ended.complete(null);
     final input = _input;
     _input = null;
     await _sizeSubscription?.cancel();
     await _screenshotSubscription?.cancel();
     await _capture?.stop();
     await input?.close();
-    if (!_ended.isCompleted) _ended.complete(null);
   }
 }
 
