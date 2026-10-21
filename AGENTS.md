@@ -250,6 +250,13 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     fix for the common ones (downgrade, signature mismatch, minSdk, storage…) and passed
     through as `CODE: first line` otherwise. That sentence is what the snackbar shows; the raw
     output still goes to the log. Add a case there when a new code shows up as unreadable.
+  - **Conflicting installed copy:** a signature mismatch or a downgrade is not a snackbar.
+    `adbInstallConflict` spots it, the package comes from adb's detail or the APK's manifest
+    (`ApkIconExtractor.readPackageName`), and it rides `AppInstallResult.conflict` to
+    `presentAppInstallResult` (`presentation/components/install_conflict_dialog.dart`), which
+    warns that the app's data goes and offers *Uninstall and install*
+    (`forceInstallAppFromPath`). Every install entry point reports through it; drops collect
+    these in `DropHandlingResult.conflicts` and ask once each, after the summary.
 - **Apps pane names:** Android's package manager reports no app names, so the label is
   read out of the same pulled APK as the icon (`ApkIconExtractor.extractDetails`, default
   locale first) and cached across sessions by `AppIconCache` (`app_labels.json`). A label
@@ -423,8 +430,8 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     - The query syntax lives in `data/network_filter.dart`. Its suggestions and syntax help are
       built from `networkFilterKeys`, so add a key there.
     - Row menus narrow the list by adding a query term, never hidden state.
-    - Bodies render in `re_editor`, which highlights and folds in an isolate. Widget tests
-      therefore assert on `CodeEditor.controller.text`.
+    - Bodies render in `CodeView` (see the convention below), which highlights and folds in
+      an isolate. Widget tests therefore assert on `CodeEditor.controller.text`.
     - Opening an exchange must not remount the list, or it loses its scroll position and any
       open menu.
   - **The empty pane is a set-up guide** (`components/network_empty_guide.dart`), written for
@@ -472,6 +479,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   stretch in `PaneDragArea`, and show the close button only if
   `WorkspacePaneScope.showsOwnClose(context)` (a tab chip has it otherwise). Outside a
   workspace these draw nothing. See docs/WORKSPACE_LAYOUT.md.
+- Read-only text worth searching — a body, a crash report — goes in `CodeView`
+  (`presentation/components/code_view.dart`): `re_editor` with `re_highlight` grammars, line
+  numbers, folding, wrap, a ⌘F find bar and copy, under a toolbar that takes a `leading`
+  widget and extra `actions`. A short snippet shown whole uses `HighlightedCodeText` instead.
+  The editor needs a bounded height, so it doesn't suit a panel that shrinks to its text.
 - Explanations for a user who looks stuck go in a `HintNote`
   (`presentation/components/hint_note.dart`) wrapped in a `DelayedReveal`
   (`presentation/components/delayed_reveal.dart`): the note is not built at all until the

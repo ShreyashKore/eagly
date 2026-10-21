@@ -12,6 +12,7 @@ import '../../../services/ios/ios_mirror_service.dart';
 import '../../../utils/utils.dart';
 import '../../flutter_scrcpy/flutter_scrcpy.dart';
 import '../services/ios_screen_capture.dart';
+import '../services/screen_recording.dart';
 import 'ios_keyboard.dart';
 
 /// Where an iPhone mirror's picture comes from.
@@ -137,6 +138,10 @@ class IosMirrorSession._(
   String? get inputNotice => _inputNotice;
 
   bool get canPaste => hasInput && support.pasteboard;
+
+  /// Whether the picture can be recorded: live capture's frames can, a
+  /// stream of screenshots is too slow to.
+  bool get canRecord => _capture != null && !_stopped;
   bool get canRotate => hasInput && support.rotation;
 
   /// Completes when the mirror stops by itself, with the reason; with null
@@ -368,6 +373,19 @@ class IosMirrorSession._(
   Future<Uint8List?> captureScreenshot() async {
     if (support.screenshots) return _service.captureScreenshot();
     return await _capture?.snapshot() ?? _frame;
+  }
+
+  /// Starts recording the live picture on the Mac. Throws
+  /// [IosScreenCaptureException].
+  Future<ScreenRecording> startRecording() {
+    final capture = _capture;
+    if (capture == null || _stopped) {
+      throw const IosScreenCaptureException(
+        'not_running',
+        'Recording needs live video, which only macOS has.',
+      );
+    }
+    return capture.record();
   }
 
   void _loseInput() {

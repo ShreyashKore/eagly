@@ -3,8 +3,6 @@ import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/css.dart';
 import 'package:re_highlight/languages/graphql.dart';
 import 'package:re_highlight/languages/javascript.dart';
@@ -12,22 +10,17 @@ import 'package:re_highlight/languages/json.dart';
 import 'package:re_highlight/languages/xml.dart';
 import 'package:re_highlight/languages/yaml.dart';
 import 'package:re_highlight/re_highlight.dart';
-import 'package:re_highlight/styles/atom-one-dark.dart';
-import 'package:re_highlight/styles/atom-one-light.dart';
 
 import '../../../presentation/components/app_icon_button.dart';
+import '../../../presentation/components/code_view.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../../../utils/utils.dart';
 import '../data/network_transaction.dart';
 import '../data/network_transaction_store.dart';
 import '../network_controller.dart';
-import 'network_presentation.dart';
 
 /// One request or response body, fetched from its source the first time it
-/// is shown, in a read-only code view: syntax highlighting picked from the
-/// content type (or sniffed), fold markers for nested `{}` / `[]`, line
-/// numbers, and a find bar (⌘F / Ctrl+F, or the search button) with case and
-/// regex toggles. JSON and form bodies can be shown pretty-printed or raw;
+/// is shown, in a [CodeView] highlighted for the content type (or sniffed). JSON and form bodies can be shown pretty-printed or raw;
 /// images are previewed, and other binary bodies are shown as a hex dump.
 class const NetworkBodyView({
   super.key,
@@ -280,23 +273,13 @@ class const _LoadedBody({
 }
 
 class _LoadedBodyState extends State<_LoadedBody> {
-  final CodeLineEditingController _editing = CodeLineEditingController();
-  late final CodeFindController _find = CodeFindController(_editing);
-  late final CodeScrollController _scroll = CodeScrollController(
-    verticalScroller: ScrollController(),
-    horizontalScroller: ScrollController(),
-  );
-  final FocusNode _editorFocus = FocusNode(debugLabel: 'Network body');
-
   NetworkBody? _preparedFor;
   _Document? _document;
   bool _pretty = true;
-  bool _wrap = true;
 
   @override
   void initState() {
     super.initState();
-    _find.addListener(_onFindChanged);
     _prepareDocument();
   }
 
@@ -304,21 +287,6 @@ class _LoadedBodyState extends State<_LoadedBody> {
   void didUpdateWidget(_LoadedBody oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(widget.body, _preparedFor)) _prepareDocument();
-  }
-
-  @override
-  void dispose() {
-    _find.removeListener(_onFindChanged);
-    _find.dispose();
-    _editing.dispose();
-    _scroll.verticalScroller.dispose();
-    _scroll.horizontalScroller.dispose();
-    _editorFocus.dispose();
-    super.dispose();
-  }
-
-  void _onFindChanged() {
-    if (mounted) setState(() {});
   }
 
   Future<void> _prepareDocument() async {
@@ -329,44 +297,8 @@ class _LoadedBodyState extends State<_LoadedBody> {
         ? await Isolate.run(() => _prepare(input))
         : _prepare(input);
     if (!mounted || !identical(body, _preparedFor)) return;
-    setState(() {
-      _document = document;
-      // A long single-line body wraps into a wall; a pretty one reads
-      // better unwrapped, like an editor.
-      _wrap = document.pretty == null;
-      _editing.text = _shownText(document);
-    });
+    setState(() => _document = document);
   }
-
-  String _shownText(_Document document) =>
-      _pretty ? document.pretty ?? document.raw : document.raw;
-
-  void _togglePretty() {
-    final document = _document;
-    if (document == null) return;
-    setState(() {
-      _pretty = !_pretty;
-      _wrap = !_pretty;
-      _editing.text = _shownText(document);
-    });
-  }
-
-  void _toggleFind() {
-    if (_find.value == null) {
-      _find.findMode();
-    } else {
-      _find.close();
-      _editorFocus.requestFocus();
-    }
-  }
-
-  Future<void> _copyAll() => copyWithToast(
-    context,
-    _document?.language == BodyLanguage.hex
-        ? _document!.raw
-        : (NetworkBody(bytes: widget.body.bytes).text ?? ''),
-    'Copied body.',
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -379,173 +311,81 @@ class _LoadedBodyState extends State<_LoadedBody> {
         ),
       );
     }
-    final theme = Theme.of(context);
-    final tokens = context.eaglyTheme;
-    final isImage = document.language == BodyLanguage.image;
-    final size = widget.body.bytes.length;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final summary = Row(
       children: [
-        Container(
-          height: context.scaled(32),
-          padding: const EdgeInsets.only(left: 10, right: 4),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+        _Badge(document.language.label),
+        const SizedBox(width: 6),
+        Flexible(child: _sizeLine(context)),
+      ],
+    );
+
+    if (document.language == BodyLanguage.image) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            height: context.scaled(32),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
             ),
+            child: summary,
           ),
-          child: Row(
-            spacing: 2,
-            children: [
-              _Badge(document.language.label),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  [
-                    formatBytes(size),
-                    if (widget.truncated)
-                      'cut by the app\'s capture limit'
-                          '${widget.body.originalSize == null ? '' : ' (${formatBytes(widget.body.originalSize!)} in all)'}',
-                  ].join(' · '),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: widget.truncated
-                        ? tokens.warningColor
-                        : tokens.tertiaryTextColor,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              if (document.pretty != null)
-                AppIconButton(
-                  tooltip: _pretty ? 'Show as sent' : 'Pretty-print',
-                  icon: Icons.data_object,
-                  iconSize: 16,
-                  padding: 4,
-                  isActive: _pretty,
-                  onPressed: _togglePretty,
-                ),
-              if (!isImage) ...[
-                AppIconButton(
-                  tooltip: _wrap ? 'Don\'t wrap lines' : 'Wrap lines',
-                  icon: Icons.wrap_text,
-                  iconSize: 16,
-                  padding: 4,
-                  isActive: _wrap,
-                  onPressed: () => setState(() => _wrap = !_wrap),
-                ),
-                AppIconButton(
-                  tooltip: _find.value == null
-                      ? 'Find in body (${_shortcutLabel('F')})'
-                      : 'Close find (Esc)',
-                  icon: Icons.search,
-                  iconSize: 16,
-                  padding: 4,
-                  isActive: _find.value != null,
-                  onPressed: _toggleFind,
-                ),
-              ],
-              AppIconButton(
-                tooltip: 'Copy body',
-                icon: Icons.copy,
-                iconSize: 16,
-                padding: 4,
-                onPressed: isImage ? null : _copyAll,
-              ),
-            ],
+          Expanded(child: _ImagePreview(bytes: widget.body.bytes)),
+        ],
+      );
+    }
+
+    final pretty = _pretty && document.pretty != null;
+    return CodeView(
+      text: pretty ? document.pretty! : document.raw,
+      language: document.language.grammar,
+      // A long single-line body wraps into a wall; a pretty one reads
+      // better unwrapped, like an editor.
+      wordWrap: !pretty,
+      noun: 'body',
+      copyText: document.language == BodyLanguage.hex
+          ? document.raw
+          : (NetworkBody(bytes: widget.body.bytes).text ?? ''),
+      leading: summary,
+      actions: [
+        if (document.pretty != null)
+          AppIconButton(
+            tooltip: _pretty ? 'Show as sent' : 'Pretty-print',
+            icon: Icons.data_object,
+            iconSize: 16,
+            padding: 4,
+            isActive: _pretty,
+            onPressed: () => setState(() => _pretty = !_pretty),
           ),
-        ),
-        Expanded(
-          child: isImage
-              ? _ImagePreview(bytes: widget.body.bytes)
-              : _buildEditor(context, document),
-        ),
       ],
     );
   }
 
-  Widget _buildEditor(BuildContext context, _Document document) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
+  Widget _sizeLine(BuildContext context) {
     final tokens = context.eaglyTheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final fontSize = MediaQuery.textScalerOf(context).scale(12);
-    final grammar = document.language.grammar;
-    final lineNumberStyle = tokens.monoStyle.copyWith(
-      fontSize: fontSize,
-      color: tokens.tertiaryTextColor,
-    );
-
-    return CodeEditor(
-      controller: _editing,
-      findController: _find,
-      scrollController: _scroll,
-      focusNode: _editorFocus,
-      readOnly: true,
-      autofocus: false,
-      showCursorWhenReadOnly: false,
-      wordWrap: _wrap,
-      padding: const EdgeInsets.fromLTRB(4, 6, 12, 12),
-      style: CodeEditorStyle(
-        fontSize: fontSize,
-        fontFamily: tokens.monoStyle.fontFamily,
-        fontHeight: 1.45,
-        textColor: cs.onSurface,
-        backgroundColor: Colors.transparent,
-        selectionColor: cs.primary.withValues(alpha: 0.28),
-        highlightColor: tokens.searchMatchColor,
-        cursorLineColor: Colors.transparent,
-        chunkIndicatorColor: tokens.tertiaryTextColor,
-        codeTheme: grammar == null
-            ? null
-            : CodeHighlightTheme(
-                languages: {
-                  document.language.name: CodeHighlightThemeMode(mode: grammar),
-                },
-                theme: _highlightTheme(isDark, cs.onSurface),
-              ),
-      ),
-      indicatorBuilder: (context, editing, chunks, notifier) => Row(
-        children: [
-          DefaultCodeLineNumber(
-            controller: editing,
-            notifier: notifier,
-            textStyle: lineNumberStyle,
-            focusedTextStyle: lineNumberStyle.copyWith(
-              color: tokens.secondaryTextColor,
-            ),
-          ),
-          DefaultCodeChunkIndicator(
-            width: 18,
-            controller: chunks,
-            notifier: notifier,
-            painter: DefaultCodeChunkIndicatorPainter(
-              color: tokens.secondaryTextColor,
-            ),
-          ),
-        ],
-      ),
-      findBuilder: (context, controller, readOnly) =>
-          _FindBar(controller: controller, editorFocus: _editorFocus),
-      toolbarController: _BodyContextMenu(
-        onFind: () => _find.findMode(),
-        onCopyAll: _copyAll,
+    final originalSize = widget.body.originalSize;
+    return Text(
+      [
+        formatBytes(widget.body.bytes.length),
+        if (widget.truncated)
+          'cut by the app\'s capture limit'
+              '${originalSize == null ? '' : ' (${formatBytes(originalSize)} in all)'}',
+      ].join(' · '),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: widget.truncated
+            ? tokens.warningColor
+            : tokens.tertiaryTextColor,
       ),
     );
   }
 }
-
-/// The highlight.js palette for the current brightness, on the pane's own
-/// background rather than the theme's.
-Map<String, TextStyle> _highlightTheme(bool dark, Color text) {
-  final base = dark ? atomOneDarkTheme : atomOneLightTheme;
-  return {...base, 'root': TextStyle(color: text)};
-}
-
-String _shortcutLabel(String key) =>
-    defaultTargetPlatform == TargetPlatform.macOS ? '⌘$key' : 'Ctrl+$key';
 
 class const _Badge(final String label) extends StatelessWidget {
   @override
@@ -584,239 +424,6 @@ class const _ImagePreview({required final Uint8List bytes})
           ),
         ),
       ),
-    );
-  }
-}
-
-/// The find bar re_editor shows above the body: the query, case and regex
-/// toggles, the match count, previous / next and close. ↵ steps forward,
-/// ⇧↵ back, Esc closes.
-class const _FindBar({
-  required final CodeFindController controller,
-  required final FocusNode editorFocus,
-}) extends StatelessWidget implements PreferredSizeWidget {
-  @override
-  Size get preferredSize =>
-      Size(double.infinity, controller.value == null ? 0 : 40);
-
-  @override
-  Widget build(BuildContext context) {
-    final value = controller.value;
-    if (value == null) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final tokens = context.eaglyTheme;
-    final result = value.result;
-    final query = controller.findInputController.text;
-    final noMatches =
-        query.isNotEmpty &&
-        !value.searching &&
-        (result == null || result.matches.isEmpty);
-    final invalid = value.option.regex && value.option.regExp == null;
-
-    void close() {
-      controller.close();
-      editorFocus.requestFocus();
-    }
-
-    return Container(
-      height: preferredSize.height,
-      padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHigh,
-        border: Border(bottom: BorderSide(color: cs.outlineVariant)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.search, size: 16, color: cs.onSurfaceVariant),
-          const SizedBox(width: 6),
-          Expanded(
-            child: CallbackShortcuts(
-              bindings: {
-                const SingleActivator(LogicalKeyboardKey.escape): close,
-                const SingleActivator(LogicalKeyboardKey.enter):
-                    controller.nextMatch,
-                const SingleActivator(LogicalKeyboardKey.enter, shift: true):
-                    controller.previousMatch,
-              },
-              child: TextField(
-                controller: controller.findInputController,
-                focusNode: controller.findInputFocusNode,
-                style: theme.textTheme.bodySmall,
-                decoration: InputDecoration(
-                  isDense: true,
-                  hintText: 'Find in body',
-                  border: InputBorder.none,
-                  filled: noMatches || invalid,
-                  fillColor: invalid
-                      ? cs.errorContainer.withValues(alpha: 0.5)
-                      : tokens.searchNoResultsFillColor,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 8,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          _FindToggle(
-            label: 'Aa',
-            tooltip: 'Match case',
-            value: value.option.caseSensitive,
-            onPressed: controller.toggleCaseSensitive,
-          ),
-          _FindToggle(
-            label: '.*',
-            tooltip: 'Use regular expression',
-            value: value.option.regex,
-            onPressed: controller.toggleRegex,
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(
-              invalid
-                  ? 'Invalid regex'
-                  : query.isEmpty
-                  ? ''
-                  : noMatches
-                  ? 'No results'
-                  : result == null
-                  ? '…'
-                  : '${result.index + 1} / ${result.matches.length}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: invalid
-                    ? cs.error
-                    : noMatches
-                    ? tokens.searchNoResultsTextColor
-                    : cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-          AppIconButton(
-            tooltip: 'Previous match (⇧↵)',
-            icon: Icons.keyboard_arrow_up,
-            iconSize: 16,
-            padding: 4,
-            onPressed: (result?.matches.isNotEmpty ?? false)
-                ? controller.previousMatch
-                : null,
-          ),
-          AppIconButton(
-            tooltip: 'Next match (↵)',
-            icon: Icons.keyboard_arrow_down,
-            iconSize: 16,
-            padding: 4,
-            onPressed: (result?.matches.isNotEmpty ?? false)
-                ? controller.nextMatch
-                : null,
-          ),
-          AppIconButton(
-            tooltip: 'Close (Esc)',
-            icon: Icons.close,
-            iconSize: 16,
-            padding: 4,
-            onPressed: close,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class const _FindToggle({
-  required final String label,
-  required final String tooltip,
-  required final bool value,
-  required final VoidCallback onPressed,
-}) extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: '$tooltip (${value ? 'on' : 'off'})',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onPressed,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            margin: const EdgeInsets.only(left: 2),
-            width: context.scaled(26),
-            height: context.scaled(24),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: value ? cs.primaryContainer : null,
-              borderRadius: BorderRadius.circular(4),
-              border: value ? Border.all(color: cs.primary) : null,
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: value ? cs.primary : cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The body's right-click menu.
-class const _BodyContextMenu({
-  required final VoidCallback onFind,
-  required final VoidCallback onCopyAll,
-}) implements SelectionToolbarController {
-  @override
-  void hide(BuildContext context) {}
-
-  @override
-  void show({
-    required BuildContext context,
-    required CodeLineEditingController controller,
-    required TextSelectionToolbarAnchors anchors,
-    Rect? renderRect,
-    required LayerLink layerLink,
-    required ValueNotifier<bool> visibility,
-  }) {
-    final hasSelection = !controller.selection.isCollapsed;
-    showMenu<void>(
-      context: context,
-      position: menuPositionAt(anchors.primaryAnchor),
-      items: [
-        PopupMenuItem(
-          enabled: hasSelection,
-          onTap: controller.copy,
-          child: NetworkMenuRow(
-            Icons.content_copy,
-            'Copy',
-            shortcut: _shortcutLabel('C'),
-          ),
-        ),
-        PopupMenuItem(
-          onTap: controller.selectAll,
-          child: NetworkMenuRow(
-            Icons.select_all,
-            'Select all',
-            shortcut: _shortcutLabel('A'),
-          ),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          onTap: onFind,
-          child: NetworkMenuRow(
-            Icons.search,
-            'Find…',
-            shortcut: _shortcutLabel('F'),
-          ),
-        ),
-        PopupMenuItem(
-          onTap: onCopyAll,
-          child: const NetworkMenuRow(Icons.copy_all, 'Copy whole body'),
-        ),
-      ],
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:gap/gap.dart';
 
 import '../../../presentation/components/animation_utils.dart';
 import '../../../presentation/components/available_device_card.dart';
+import '../../../presentation/components/install_conflict_dialog.dart';
 import '../../../session/device_session_manager.dart';
 
 /// The device section of the landing screen: a "searching / none found"
@@ -88,7 +89,16 @@ class const HomeDeviceList({
               device: session.device,
               onSelected: () => manager.select(session.id),
               onInstallApp: session.isConnected
-                  ? () => session.installAppFromPicker()
+                  ? () async {
+                      final result = await session.installAppFromPicker();
+                      if (!context.mounted) return;
+                      await presentAppInstallResult(
+                        context,
+                        session: session,
+                        result: result,
+                        showMessage: onShowMessage,
+                      );
+                    }
                   : null,
               onShowMessage: onShowMessage,
             ),

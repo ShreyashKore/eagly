@@ -1,3 +1,5 @@
+import '../../../data/app_install_conflict.dart';
+
 enum WirelessDebugServiceType { connect, pairing, unknown }
 
 class const WirelessDebugService({
@@ -32,7 +34,13 @@ class const WirelessServiceDiscoveryResult({
   }
 }
 
-class const DeviceCommandResult({final String? message, final String? error}) {
+class const DeviceCommandResult({
+  final String? message,
+  final String? error,
+
+  /// Set on a failed install that uninstalling the device's copy would fix.
+  final AppInstallConflict? installConflict,
+}) {
   bool get isSuccess => error == null;
 
   factory DeviceCommandResult.success({required String message}) {

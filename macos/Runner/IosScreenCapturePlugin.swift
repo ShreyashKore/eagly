@@ -9,7 +9,10 @@ import FlutterMacOS
 /// `AVCaptureDevice`, and its frames are rendered into a Flutter texture.
 ///
 ///  - method `eagly/ios_screen_capture`: `start {deviceName}` -> textureId,
-///    `stop {textureId}`, `snapshot {textureId}` -> PNG of the latest frame
+///    `stop {textureId}`, `snapshot {textureId}` -> PNG of the latest frame,
+///    `startRecording {textureId}` -> path of the mp4 being written,
+///    `stopRecording {textureId}` once it is finished. Stopping a capture
+///    finishes its recording too, and keeps the file.
 ///  - event  `eagly/ios_screen_capture/events`:
 ///    `{textureId, event: "size", width, height}` whenever the picture's size
 ///    changes, the first frame included, and `{textureId, event: "ended",
@@ -59,17 +62,48 @@ public class IosScreenCapturePlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     case "start":
       start(deviceName: args?["deviceName"] as? String ?? "", result: result)
     case "stop":
-      if let textureId = textureId, let capture = captures.removeValue(forKey: textureId) {
-        capture.stop()
-        textures.unregisterTexture(textureId)
+      guard let textureId = textureId, let capture = captures.removeValue(forKey: textureId)
+      else {
+        result(nil)
+        return
       }
-      result(nil)
+      textures.unregisterTexture(textureId)
+      capture.stop { DispatchQueue.main.async { result(nil) } }
     case "snapshot":
       guard let textureId = textureId, let capture = captures[textureId] else {
         result(nil)
         return
       }
       result(capture.snapshotPng().map { FlutterStandardTypedData(bytes: $0) })
+    case "startRecording":
+      guard let textureId = textureId, let capture = captures[textureId] else {
+        result(FlutterError(code: "not_running", message: "The mirror isn't running.", details: nil))
+        return
+      }
+      do {
+        result(try capture.startRecording().path)
+      } catch {
+        result(
+          FlutterError(
+            code: "record_failed", message: error.localizedDescription, details: nil))
+      }
+    case "stopRecording":
+      // A stopped capture has finished its recording already.
+      guard let textureId = textureId, let capture = captures[textureId] else {
+        result(nil)
+        return
+      }
+      capture.stopRecording { error in
+        DispatchQueue.main.async {
+          if let error = error {
+            result(
+              FlutterError(
+                code: "record_failed", message: error.localizedDescription, details: nil))
+          } else {
+            result(nil)
+          }
+        }
+      }
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -149,6 +183,8 @@ final class IosScreenCapture: NSObject, FlutterTexture,
   private var emit: (([String: Any]) -> Void)?
   private var observers: [NSObjectProtocol] = []
   private var ended = false
+  /// Touched only on [frameQueue].
+  private var recorder: IosScreenRecorder?
 
   private init(device: AVCaptureDevice) {
     self.device = device
@@ -231,12 +267,22 @@ final class IosScreenCapture: NSObject, FlutterTexture,
     output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
     output.alwaysDiscardsLateVideoFrames = true
     output.setSampleBufferDelegate(self, queue: frameQueue)
-    guard session.canAddInput(input), session.canAddOutput(output) else {
+    // The device is muxed: its audio port carries the phone's sound. Only the
+    // video port is connected, so no audio is asked of the phone.
+    let videoPorts = input.ports.filter { $0.mediaType == .video }
+    let connection = AVCaptureConnection(inputPorts: videoPorts, output: output)
+    guard !videoPorts.isEmpty, session.canAddInput(input), session.canAddOutput(output)
+    else {
       throw IosScreenCaptureError(
         code: "failed", message: "macOS couldn't capture the iPhone's screen.")
     }
-    session.addInput(input)
-    session.addOutput(output)
+    session.addInputWithNoConnections(input)
+    session.addOutputWithNoConnections(output)
+    guard session.canAddConnection(connection) else {
+      throw IosScreenCaptureError(
+        code: "failed", message: "macOS couldn't capture the iPhone's screen.")
+    }
+    session.addConnection(connection)
   }
 
   func attach(
@@ -269,7 +315,8 @@ final class IosScreenCapture: NSObject, FlutterTexture,
     sessionQueue.async { self.session.startRunning() }
   }
 
-  func stop() {
+  /// Stops capturing; [done] runs once a recording in progress is finished.
+  func stop(done: @escaping () -> Void) {
     lock.lock()
     ended = true
     emit = nil
@@ -281,6 +328,29 @@ final class IosScreenCapture: NSObject, FlutterTexture,
       self.lock.lock()
       self.latest = nil
       self.lock.unlock()
+    }
+    stopRecording { _ in done() }
+  }
+
+  /// Starts writing the frames to an mp4 in the temporary directory and
+  /// returns where; the caller moves it once [stopRecording] is done.
+  func startRecording() throws -> URL {
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("eagly-iphone-recording-\(UUID().uuidString).mp4")
+    let recorder = try IosScreenRecorder(url: url)
+    frameQueue.sync { self.recorder = recorder }
+    return url
+  }
+
+  /// Finishes the recording in progress, if there is one.
+  func stopRecording(done: @escaping (Error?) -> Void) {
+    frameQueue.async {
+      guard let recorder = self.recorder else {
+        done(nil)
+        return
+      }
+      self.recorder = nil
+      recorder.finish(done: done)
     }
   }
 
@@ -323,6 +393,7 @@ final class IosScreenCapture: NSObject, FlutterTexture,
     guard let pixels = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
     let frameSize = CGSize(
       width: CVPixelBufferGetWidth(pixels), height: CVPixelBufferGetHeight(pixels))
+    recorder?.append(sampleBuffer, size: frameSize)
     lock.lock()
     if ended {
       lock.unlock()
@@ -346,6 +417,65 @@ final class IosScreenCapture: NSObject, FlutterTexture,
       registry?.textureFrameAvailable(id)
     }
   }
+}
+
+/// Writes captured frames to an H.264 mp4. Its size is the first frame's; a
+/// rotated frame is fitted into it, letterboxed. Used only on the capture's
+/// frame queue.
+final class IosScreenRecorder {
+  private let writer: AVAssetWriter
+  private var input: AVAssetWriterInput?
+
+  init(url: URL) throws {
+    writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+  }
+
+  func append(_ sample: CMSampleBuffer, size: CGSize) {
+    if input == nil {
+      let input = AVAssetWriterInput(
+        mediaType: .video,
+        outputSettings: [
+          AVVideoCodecKey: AVVideoCodecType.h264,
+          AVVideoWidthKey: Int(size.width),
+          AVVideoHeightKey: Int(size.height),
+          AVVideoScalingModeKey: AVVideoScalingModeResizeAspect,
+          AVVideoCompressionPropertiesKey: [
+            // About 12 Mbit/s for an iPhone 16e's 1170×2532.
+            AVVideoAverageBitRateKey: Int(size.width * size.height * 4),
+            AVVideoMaxKeyFrameIntervalDurationKey: 2,
+          ],
+        ])
+      input.expectsMediaDataInRealTime = true
+      guard writer.canAdd(input) else { return }
+      writer.add(input)
+      guard writer.startWriting() else { return }
+      writer.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sample))
+      self.input = input
+    }
+    guard writer.status == .writing, let input = input, input.isReadyForMoreMediaData else {
+      return
+    }
+    input.append(sample)
+  }
+
+  func finish(done: @escaping (Error?) -> Void) {
+    guard writer.status == .writing, let input = input else {
+      let error = writer.error
+      writer.cancelWriting()
+      done(
+        error
+          ?? IosScreenCaptureError(code: "record_failed", message: "No frames were recorded."))
+      return
+    }
+    input.markAsFinished()
+    writer.finishWriting { [writer] in
+      done(writer.status == .completed ? nil : writer.error)
+    }
+  }
+}
+
+extension IosScreenCaptureError: LocalizedError {
+  var errorDescription: String? { message }
 }
 
 /// Holds the capture's redraws back while the window or screen is changing.

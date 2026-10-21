@@ -5,6 +5,7 @@ import 'package:gap/gap.dart';
 
 import '../../../data/device.dart';
 import '../../../presentation/components/feature_view.dart';
+import '../../../presentation/components/install_conflict_dialog.dart';
 import '../../../session/device_session_controller.dart';
 import '../data/device_info.dart';
 import '../device_home_controller.dart';
@@ -21,12 +22,16 @@ class const DeviceHeroCard({
 }) extends StatelessWidget {
   Future<void> _install(BuildContext context) async {
     final result = await session.installAppFromPicker();
-    if (!context.mounted || result.cancelled) return;
-    final message = result.isSuccess
-        ? result.message ?? 'Installed ${result.fileName}.'
-        : result.error ?? 'Installation failed.';
-    FeatureView.showSnackBar(context, message);
-    if (result.isSuccess) unawaited(homeController.refreshRecentApps());
+    if (!context.mounted) return;
+    await presentAppInstallResult(
+      context,
+      session: session,
+      result: result,
+      showMessage: (message) {
+        if (context.mounted) FeatureView.showSnackBar(context, message);
+      },
+      onInstalled: () => unawaited(homeController.refreshRecentApps()),
+    );
   }
 
   @override

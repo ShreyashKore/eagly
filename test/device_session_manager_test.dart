@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:eagly/constants/app_constants.dart';
+import 'package:eagly/data/app_install_conflict.dart';
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/file_manager/data/device_file_entry.dart';
 import 'package:eagly/features/file_manager/file_manager_controller.dart';
 import 'package:eagly/features/file_manager/services/device_file_system.dart';
+import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
 import 'package:eagly/services/devices_repository.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
@@ -214,6 +216,69 @@ void main() {
       expect(result!.installed, ['sample.apk']);
       expect(result.errors, isEmpty);
       expect(result.message, contains('Installed sample.apk'));
+    });
+
+    group('over a conflicting installed copy', () {
+      const conflict = AppInstallConflict(
+        kind: AppInstallConflictKind.signature,
+        packageName: 'com.example.app',
+      );
+      late FakeSessionService service;
+      late DeviceSessionController session;
+      late File apk;
+
+      setUp(() {
+        final device = Device.android('emulator-5554', 'device');
+        service = FakeSessionService(device)
+          ..installResult = const DeviceCommandResult(
+            error: 'signed with a different key',
+            installConflict: conflict,
+          );
+        session = DeviceSessionController(device: device, service: service);
+        addTearDown(session.dispose);
+        apk = File('${tempDir.path}/sample.apk')..writeAsStringSync('apk');
+      });
+
+      test('a failed install carries the conflict and file to retry', () async {
+        final result = await session.installAppFromPath(apk.path);
+
+        expect(result.isSuccess, isFalse);
+        expect(result.conflict, same(conflict));
+        expect(result.filePath, apk.path);
+        expect(service.uninstallRequests, isEmpty);
+      });
+
+      test('a drop lists it apart from the errors', () async {
+        final result = await session.handleDroppedPaths([apk.path]);
+
+        expect(result!.errors, isEmpty);
+        expect(result.conflicts.single.conflict, same(conflict));
+      });
+
+      test('forcing it uninstalls the installed copy, then installs', () async {
+        service.installResult = DeviceCommandResult.success(message: 'ok');
+
+        final result = await session.forceInstallAppFromPath(
+          apk.path,
+          conflict,
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(service.uninstallRequests, ['com.example.app']);
+        expect(service.installRequests, [apk.path]);
+      });
+
+      test('a failed uninstall stops before installing', () async {
+        service.uninstallResult = DeviceCommandResult.failure(error: 'nope');
+
+        final result = await session.forceInstallAppFromPath(
+          apk.path,
+          conflict,
+        );
+
+        expect(result.error, contains('Could not uninstall com.example.app'));
+        expect(service.installRequests, isEmpty);
+      });
     });
 
     group('onto a file-manager folder', () {

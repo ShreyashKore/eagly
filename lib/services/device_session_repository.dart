@@ -20,6 +20,7 @@ import '../features/wireless_connection/data/wireless_debug_models.dart';
 import '../features/app_log/app_logger.dart';
 import '../features/flutter_scrcpy/flutter_scrcpy.dart';
 import '../features/mirror/services/ios_screen_capture.dart';
+import '../features/mirror/services/screen_recording.dart';
 import '../utils/tools_path.dart';
 import 'tools/adb_tool.dart';
 import 'tools/device_tool_runner.dart';
@@ -672,23 +673,26 @@ class DeviceSessionRepository({
   }
 
   /// Starts an on-device `screenrecord`. Finalize + save it via
-  /// [ScreenRecordingSession.stopAndPull].
+  /// [ScreenRecordingSession.save].
   Future<ScreenRecordingSession> startScreenRecording({
     int bitRate = 8000000,
   }) async {
     final devicePath =
         '/sdcard/eagly-rec-${DateTime.now().millisecondsSinceEpoch}.mp4';
+    // screenrecord's own cap; it stops writing (and keeps the file) there.
+    const timeLimit = Duration(minutes: 3);
     final process = await _adbTool.startScreenRecord(
       _deviceId,
       devicePath,
       bitRate: bitRate,
-      timeLimitSeconds: 180,
+      timeLimitSeconds: timeLimit.inSeconds,
     );
     return ScreenRecordingSession(
       adbTool: _adbTool,
       deviceId: _deviceId,
       devicePath: devicePath,
       process: process,
+      timeLimit: timeLimit,
     );
   }
 
@@ -893,14 +897,21 @@ class DeviceSessionRepository({
   }
 }
 
-/// A running on-device `screenrecord`. Stop it with [stopAndPull] to finalize
-/// the mp4 and copy it to the host, or [cancel] to discard it.
+/// A running on-device `screenrecord`. Stop it with [save] to finalize the
+/// mp4 and copy it to the host, or [cancel] to discard it.
 class ScreenRecordingSession({
   required final AdbTool _adbTool,
   required final String deviceId,
   required final String devicePath,
   required final Process process,
-}) {
+
+  /// How long screenrecord runs before it stops by itself.
+  @override required final Duration timeLimit,
+}) implements ScreenRecording {
+  /// When recording began (roughly: when screenrecord was launched).
+  @override
+  final DateTime startedAt = DateTime.now();
+
   Future<void> _finish() async {
     await _adbTool.signalStopScreenRecord(deviceId);
     try {
@@ -912,13 +923,15 @@ class ScreenRecordingSession({
 
   /// Finalizes the recording and pulls it to [localPath], then deletes it
   /// from the device.
-  Future<void> stopAndPull(String localPath) async {
+  @override
+  Future<void> save(String localPath) async {
     await _finish();
     await _adbTool.pullFile(deviceId, devicePath, localPath);
     await _adbTool.removeFile(deviceId, devicePath);
   }
 
   /// Stops recording and discards the on-device file without saving.
+  @override
   Future<void> cancel() async {
     await _finish();
     await _adbTool.removeFile(deviceId, devicePath);

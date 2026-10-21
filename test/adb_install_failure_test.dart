@@ -1,3 +1,4 @@
+import 'package:eagly/data/app_install_conflict.dart';
 import 'package:eagly/services/tools/adb_install_failure.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -31,6 +32,43 @@ void main() {
       'Uninstall it first, then install again. Uninstalling deletes that '
       'app\'s data, so back up anything you need first.',
     );
+  });
+
+  test('an older Android\'s "Existing package" wording still names it', () {
+    const output =
+        'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package '
+        'com.example.app signatures do not match newer version; ignoring!]';
+
+    expect(
+      describeAdbInstallFailure(output),
+      startsWith('The installed copy of com.example.app is signed'),
+    );
+    expect(adbInstallConflict(output), (
+      kind: AppInstallConflictKind.signature,
+      packageName: 'com.example.app',
+    ));
+  });
+
+  test('a signature mismatch naming no package says "this app"', () {
+    expect(
+      describeAdbInstallFailure('Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE]'),
+      startsWith('The installed copy of this app is signed'),
+    );
+  });
+
+  test('only a signature mismatch or a downgrade is a conflict', () {
+    expect(
+      adbInstallConflict(
+        'Failure [INSTALL_FAILED_VERSION_DOWNGRADE: Downgrade detected: '
+        'Update version code 21 is older than current 212]',
+      ),
+      (kind: AppInstallConflictKind.downgrade, packageName: null),
+    );
+    expect(
+      adbInstallConflict('Failure [INSTALL_FAILED_INSUFFICIENT_STORAGE]'),
+      isNull,
+    );
+    expect(adbInstallConflict('adb: error: device offline'), isNull);
   });
 
   test('a too-new minSdk names both API levels', () {

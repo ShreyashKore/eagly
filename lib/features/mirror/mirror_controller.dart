@@ -7,13 +7,13 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../data/device.dart';
 import '../../services/app_breadcrumbs.dart';
-import '../../services/device_session_repository.dart';
 import '../../services/ios/ios_mirror_service.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/utils.dart';
 import '../flutter_scrcpy/flutter_scrcpy.dart';
 import 'ios/ios_mirror_session.dart';
 import 'services/ios_screen_capture.dart';
+import 'services/screen_recording.dart';
 
 enum ScreenMirrorState { stopped, starting, running, unsupported, error }
 
@@ -63,7 +63,7 @@ class MirrorController(super.session) extends FeatureController {
   MirrorQuality mirrorQuality = MirrorQuality.normal;
 
   ScrcpyMirrorSession? _session;
-  ScreenRecordingSession? _recordingSession;
+  ScreenRecording? _recordingSession;
   bool _disposed = false;
 
   IosMirrorSession? _ios;
@@ -88,6 +88,10 @@ class MirrorController(super.session) extends FeatureController {
   /// Holds focus for the mirror surface. While it has focus, desktop key
   /// presses are forwarded to the device instead of the app.
   final FocusNode keyboardFocusNode = FocusNode(debugLabel: 'MirrorKeyboard');
+
+  /// On the surface showing the device's screen, so a saved screenshot can
+  /// fly from where the picture was taken into its snack bar.
+  final GlobalKey surfaceKey = GlobalKey(debugLabel: 'MirrorSurface');
 
   final ScrcpyKeyboardTranslator _keyboard = ScrcpyKeyboardTranslator(
     // On macOS ⌘ is the editing modifier the user reaches for, so it stands in
@@ -118,6 +122,26 @@ class MirrorController(super.session) extends FeatureController {
   bool get canStart => session.canMirror;
 
   bool get isRecording => _recordingSession != null;
+
+  /// Whether the record button does anything: a recording can always be
+  /// stopped, even after the mirror has.
+  bool get canRecord =>
+      isRecording ||
+      switch (_ios) {
+        final ios? => ios.canRecord,
+        null => _session != null,
+      };
+
+  /// When the running recording began, and how long it may run (null for no
+  /// limit); null while not recording.
+  ({DateTime startedAt, Duration? timeLimit})? get recordingClock =>
+      switch (_recordingSession) {
+        final recording? => (
+          startedAt: recording.startedAt,
+          timeLimit: recording.timeLimit,
+        ),
+        null => null,
+      };
 
   void _notify() {
     if (!_disposed) notifyListeners();
@@ -512,10 +536,15 @@ class MirrorController(super.session) extends FeatureController {
     await service.rotateDevice();
   }
 
-  /// Begins recording the mirrored device's screen on-device.
+  /// Begins recording the mirrored device's screen: on the device for
+  /// Android, on the Mac from the mirror's frames for an iPhone.
   Future<void> startRecording() async {
-    if (_session == null || _recordingSession != null) return;
-    _recordingSession = await service.startScreenRecording();
+    if (_recordingSession != null) return;
+    if (_ios case final ios?) {
+      _recordingSession = await ios.startRecording();
+    } else if (_session != null) {
+      _recordingSession = await service.startScreenRecording();
+    }
     _notify();
   }
 
@@ -524,7 +553,7 @@ class MirrorController(super.session) extends FeatureController {
     final recording = _recordingSession;
     _recordingSession = null;
     _notify();
-    await recording?.stopAndPull(localPath);
+    await recording?.save(localPath);
   }
 
   /// Stops recording and discards it without saving.

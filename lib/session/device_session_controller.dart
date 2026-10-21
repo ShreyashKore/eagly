@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import '../data/app_install_conflict.dart';
 import '../data/device.dart';
 import '../features/apps/apps_controller.dart';
 import '../features/crash_reports/crash_report_controller.dart';
@@ -28,6 +29,10 @@ class const DropHandlingResult({
   final List<String> copied = const [],
   final String? copyDirectory,
   final List<String> errors = const [],
+
+  /// Installs blocked by the device's copy of the app, left out of [errors]
+  /// so the caller can offer to replace each one.
+  final List<AppInstallResult> conflicts = const [],
 }) {
   /// A single status line summarising the drop, or `null` when nothing
   /// happened (e.g. an empty drop).
@@ -390,7 +395,21 @@ class DeviceSessionController._({
     return installAppFromPath(normalizedPaths.single);
   }
 
-  Future<AppInstallResult> installAppFromPath(String path) async {
+  Future<AppInstallResult> installAppFromPath(String path) =>
+      _installAppFromPath(path);
+
+  /// Installs [path] after uninstalling the device's copy that [conflict]
+  /// says blocks it — which deletes that app's data, so only call this once
+  /// the user has agreed to that.
+  Future<AppInstallResult> forceInstallAppFromPath(
+    String path,
+    AppInstallConflict conflict,
+  ) => _installAppFromPath(path, replacing: conflict);
+
+  Future<AppInstallResult> _installAppFromPath(
+    String path, {
+    AppInstallConflict? replacing,
+  }) async {
     final normalizedPath = path.trim();
     final fileName = extractFileName(normalizedPath);
     if (_isInstallingApp) {
@@ -432,6 +451,25 @@ class DeviceSessionController._({
 
     try {
       await AppInstallService.rememberDialogDirectoryFromPath(normalizedPath);
+      if (replacing != null) {
+        AppBreadcrumbs.action(
+          'Uninstalling ${replacing.packageName} to replace it',
+          category: 'install',
+          data: {'file': fileName, 'reason': replacing.kind.name},
+        );
+        final uninstall = await service.uninstallApp(replacing.packageName);
+        if (_disposed) return AppInstallResult.cancelled();
+        if (!uninstall.isSuccess) {
+          return AppInstallResult.failure(
+            fileName: fileName,
+            device: device,
+            error:
+                'Could not uninstall ${replacing.packageName} from '
+                '${device.displayName}, so $fileName was not installed: '
+                '${uninstall.error}',
+          );
+        }
+      }
       final result = await service.installApp(filePath: normalizedPath);
       if (_disposed) {
         return AppInstallResult.cancelled();
@@ -448,6 +486,8 @@ class DeviceSessionController._({
           device: device,
           error:
               'Failed to install $fileName on ${device.displayName}: ${result.error ?? 'Unknown error.'}',
+          filePath: normalizedPath,
+          conflict: result.installConflict,
         );
       }
 
@@ -536,6 +576,7 @@ class DeviceSessionController._({
     _isHandlingDrop = true;
     _notify();
     final installed = <String>[];
+    final conflicts = <AppInstallResult>[];
     try {
       // Installs run through the device-level guard one at a time.
       for (final path in toInstall) {
@@ -543,6 +584,8 @@ class DeviceSessionController._({
         if (_disposed) return null;
         if (result.isSuccess) {
           installed.add(result.fileName ?? extractFileName(path));
+        } else if (result.conflict != null) {
+          conflicts.add(result);
         } else if (!result.cancelled) {
           errors.add(
             result.error ?? 'Failed to install ${extractFileName(path)}.',
@@ -564,6 +607,7 @@ class DeviceSessionController._({
         copied: copyResult?.copied ?? const [],
         copyDirectory: copyResult?.directory,
         errors: errors,
+        conflicts: conflicts,
       );
     } finally {
       _isHandlingDrop = false;

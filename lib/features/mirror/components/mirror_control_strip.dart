@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
@@ -13,7 +14,8 @@ import '../services/capture_storage.dart';
 
 /// Vertical strip on the pane's right edge: session actions (screenshot,
 /// record, rotate, quality) at the top, then device hardware/navigation keys.
-/// An iPhone gets its own buttons, and no recording or clipboard sync.
+/// An iPhone gets its own buttons and no clipboard sync, and records only
+/// with live video (macOS).
 class const MirrorControlStrip({
   super.key,
   required final MirrorController controller,
@@ -90,16 +92,19 @@ class const MirrorControlStrip({
               () => _captureScreenshot(context),
               enabled: running,
             ),
-            if (!isIos)
-              actionButton(
-                recording ? Icons.stop_circle : Icons.videocam_outlined,
-                recording ? 'Stop recording' : 'Record screen',
-                () => recording
-                    ? _stopRecording(context)
-                    : _startRecording(context),
-                enabled: running,
-                color: recording ? theme.colorScheme.error : null,
-              ),
+            actionButton(
+              recording ? Icons.stop_circle : Icons.videocam_outlined,
+              recording
+                  ? 'Stop recording'
+                  : isIos && running && !controller.canRecord
+                  ? 'Recording needs live video, which only macOS has'
+                  : 'Record screen',
+              () => recording
+                  ? _stopRecording(context)
+                  : _startRecording(context),
+              enabled: controller.canRecord,
+              color: recording ? theme.colorScheme.error : null,
+            ),
             actionButton(
               Icons.screen_rotation_outlined,
               isIos
@@ -196,10 +201,12 @@ class const MirrorControlStrip({
       );
       if (path == null) return; // user cancelled the save dialog
       await File(path).writeAsBytes(bytes);
-      showSavedFileSnackBar(
+      await showSavedFileSnackBar(
         messenger,
         message: 'Screenshot saved to ${_displayPath(path)}',
         path: path,
+        preview: bytes,
+        previewOrigin: controller.surfaceKey.currentContext,
       );
     } catch (error) {
       messenger.showSnackBar(
@@ -226,6 +233,12 @@ class const MirrorControlStrip({
 
   Future<void> _stopRecording(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
+    // The screen as the recording ends, for the saved snack bar's thumbnail.
+    // Taken alongside stopping, so it never holds the recording open.
+    final poster = controller.captureScreenshot().then<Uint8List?>(
+      (bytes) => bytes,
+      onError: (_) => null,
+    );
     try {
       final path = await CaptureStorage.resolveTargetPath(
         dialogTitle: 'Save screen recording',
@@ -243,10 +256,13 @@ class const MirrorControlStrip({
         const SnackBar(content: Text('Saving recording…')),
       );
       await controller.stopRecording(path);
-      showSavedFileSnackBar(
+      await showSavedFileSnackBar(
         messenger,
         message: 'Recording saved to ${_displayPath(path)}',
         path: path,
+        preview: await poster,
+        previewOrigin: controller.surfaceKey.currentContext,
+        previewIsVideo: true,
       );
     } catch (error) {
       messenger.showSnackBar(

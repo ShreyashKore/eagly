@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/drop_zone.dart';
 import '../../presentation/components/feature_view.dart';
+import '../../presentation/components/install_conflict_dialog.dart';
 import '../../presentation/theme/app_theme.dart';
 import '../../services/app_install_service.dart';
 import '../../utils/utils.dart';
@@ -117,6 +118,15 @@ class _FileManagerFeatureViewState
     );
     if (!mounted || result == null) return;
     _showSnackBar(result.message);
+    for (final conflict in result.conflicts) {
+      if (!mounted) return;
+      await presentAppInstallResult(
+        context,
+        session: session,
+        result: conflict,
+        showMessage: _showSnackBar,
+      );
+    }
   }
 
   /// Asks whether dropped [installables] should be installed or copied into
