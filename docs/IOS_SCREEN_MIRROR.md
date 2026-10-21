@@ -27,6 +27,13 @@ and the pane says so. The QuickTime route needs neither, only camera permission.
   whether its parent is `launchd`). To try the mirror from a dev build, `open` the built app.
   The capture device's unique ID is a UUID, not the UDID, so the phone is matched **by its name**;
   two connected phones with the same name are refused as ambiguous.
+  The device is muxed, picture and sound; only its video port is connected, so Eagly never asks
+  the phone for audio. The camera permission cannot be avoided on this route: macOS gates every
+  CoreMediaIO capture device behind it, and shows its camera indicator while one is open. The
+  ways around it are speaking QuickTime's USB protocol directly (as `quicktime_video_hack` does,
+  over raw USB, fighting macOS's own driver for the phone) or CoreDevice's display stream on
+  iOS 27 (below). Until then the pane says, before a mirror starts, that macOS will ask for the
+  camera and show its indicator, and that the iPhone may show its microphone indicator.
 - **CoreDevice screenshots** (`start_ios_screenshot_stream` in `rust/src/api/ios_mirror.rs`):
   `com.apple.coredevice.screencaptureservice`, back to back. The fallback on Windows / Linux, and
   on macOS when the capture route fails (camera permission denied, say), with a note saying why.

@@ -231,12 +231,22 @@ final class IosScreenCapture: NSObject, FlutterTexture,
     output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
     output.alwaysDiscardsLateVideoFrames = true
     output.setSampleBufferDelegate(self, queue: frameQueue)
-    guard session.canAddInput(input), session.canAddOutput(output) else {
+    // The device is muxed: its audio port carries the phone's sound. Only the
+    // video port is connected, so no audio is asked of the phone.
+    let videoPorts = input.ports.filter { $0.mediaType == .video }
+    let connection = AVCaptureConnection(inputPorts: videoPorts, output: output)
+    guard !videoPorts.isEmpty, session.canAddInput(input), session.canAddOutput(output)
+    else {
       throw IosScreenCaptureError(
         code: "failed", message: "macOS couldn't capture the iPhone's screen.")
     }
-    session.addInput(input)
-    session.addOutput(output)
+    session.addInputWithNoConnections(input)
+    session.addOutputWithNoConnections(output)
+    guard session.canAddConnection(connection) else {
+      throw IosScreenCaptureError(
+        code: "failed", message: "macOS couldn't capture the iPhone's screen.")
+    }
+    session.addConnection(connection)
   }
 
   func attach(

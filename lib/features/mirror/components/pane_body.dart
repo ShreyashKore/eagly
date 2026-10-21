@@ -101,6 +101,24 @@ class const PaneBody({super.key, required final MirrorController controller})
             ),
             textAlign: TextAlign.center,
           ),
+          // The capture route is a camera to macOS, so its permission prompt
+          // and indicators would otherwise look like Eagly watching the room.
+          if (isIos &&
+              IosScreenCapture.isAvailable &&
+              controller.screenMirrorState == ScreenMirrorState.stopped)
+            const Padding(
+              padding: EdgeInsets.only(top: 16),
+              child: HintNote(
+                icon: Icons.videocam_outlined,
+                title: "macOS treats the iPhone's screen as a camera",
+                text:
+                    'The first time, macOS asks to give Eagly camera access. '
+                    'While mirroring, the Mac shows its camera indicator and '
+                    'the iPhone may show its microphone indicator. Eagly '
+                    "reads only the iPhone's screen: no camera, no "
+                    'microphone, no sound.',
+              ),
+            ),
           // Starting the capture makes the iPhone take the Mac for an audio
           // device, and the question it asks holds back every touch.
           if (isIos &&
