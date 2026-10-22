@@ -237,6 +237,11 @@ class DeviceSessionController._({
       _navigate(pane.label);
       _notify();
     }
+    _startPane(pane);
+  }
+
+  /// What opening [pane] sets going: loading its data, starting the mirror.
+  void _startPane(WorkspacePane pane) {
     switch (pane) {
       case WorkspacePane.mirror:
         if (canMirror) mirrorController.show();
@@ -254,6 +259,53 @@ class DeviceSessionController._({
       case WorkspacePane.network:
         break;
     }
+  }
+
+  /// Whether this device can host [pane] at all — what the saved layout is
+  /// cut down to. Platform and host decide it, not the connection: a pane
+  /// that waits for the device to connect is still hosted.
+  bool supportsPane(WorkspacePane pane) => switch (pane) {
+    WorkspacePane.crashReports => canReadCrashReports,
+    WorkspacePane.mirror => switch (_device) {
+      AndroidDevice() => true,
+      IosDevice() => IosMirrorSession.isAvailableOnHost,
+    },
+    WorkspacePane.logs || WorkspacePane.files || WorkspacePane.apps => true,
+    WorkspacePane.utilities ||
+    WorkspacePane.terminal ||
+    WorkspacePane.network => !isImportedWorkspace,
+  };
+
+  /// Whether the open panes can be saved as the layout every device opens
+  /// with: a real device's workspace with at least one pane open.
+  bool get canSaveLayout => !isImportedWorkspace && !workspaceLayout.isEmpty;
+
+  /// Whether the open panes already are the saved layout, as this device
+  /// would open it. False when no layout is saved.
+  bool get matchesSavedLayout {
+    final saved = workspaceLayout.memory.saved;
+    return saved != null &&
+        workspaceLayout.matchesSaved(saved, _supportedPanes);
+  }
+
+  Set<WorkspacePane> get _supportedPanes => {
+    for (final pane in WorkspacePane.values)
+      if (supportsPane(pane)) pane,
+  };
+
+  /// Opens the saved layout, if there is one, cut down to the panes this
+  /// device supports, and shows the workspace instead of Home.
+  void _openSavedLayout() {
+    final saved = workspaceLayout.memory.saved;
+    if (isImportedWorkspace || saved == null) return;
+    var opened = const <WorkspacePane>{};
+    _editLayout(
+      () => opened = workspaceLayout.applySaved(saved, _supportedPanes),
+    );
+    if (opened.isEmpty) return;
+    _homeOpen = false;
+    _navigate('Saved layout');
+    opened.forEach(_startPane);
   }
 
   void closePane(WorkspacePane pane) {
@@ -340,6 +392,7 @@ class DeviceSessionController._({
       data: {'platform': platform.name, 'deviceId': id},
     );
     logSessionManager.activateFirst();
+    _openSavedLayout();
     _notify();
   }
 

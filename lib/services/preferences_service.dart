@@ -71,6 +71,7 @@ class PreferencesService {
   static const _keyAppsViewMode = 'appsViewMode';
   static const _keyAppsIconSize = 'appsIconSize';
   static const _keyWorkspaceLayout = 'workspaceLayout';
+  static const _keySavedWorkspaceLayout = 'savedWorkspaceLayout';
 
   /// Maximum number of recently opened log files retained for quick re-open.
   static const _maxRecentLogFiles = 10;
@@ -332,6 +333,28 @@ class PreferencesService {
       _prefs.remove(_keyWorkspaceLayout);
     } else {
       _prefs.setJson(_keyWorkspaceLayout, v);
+    }
+  }
+
+  /// The layout saved for every device to open with, as
+  /// `WorkspaceLayoutMemory.encode` writes it; null when none is saved or the
+  /// stored value is not JSON.
+  static Map<String, Object?>? get savedWorkspaceLayout {
+    try {
+      return _prefs.getJson<Map<String, Object?>?>(
+        _keySavedWorkspaceLayout,
+        (json) => json is Map<String, Object?> ? json : null,
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static set savedWorkspaceLayout(Map<String, Object?>? v) {
+    if (v == null) {
+      _prefs.remove(_keySavedWorkspaceLayout);
+    } else {
+      _prefs.setJson(_keySavedWorkspaceLayout, v);
     }
   }
 }

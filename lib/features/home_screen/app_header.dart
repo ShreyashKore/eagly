@@ -12,11 +12,12 @@ import 'components/brand.dart';
 import 'components/device_tab_strip.dart';
 import 'components/github_star_button.dart';
 import 'components/header_action.dart';
+import 'components/save_layout_button.dart';
 import 'window_controls.dart';
 
 /// Top app header: logo + name, the horizontal device-tab strip (auto-created
-/// per detected device), home/load/wireless/emulator actions, and a GitHub
-/// link.
+/// per detected device), save-layout/load/wireless/emulator actions, and a
+/// GitHub link.
 class const AppHeader({
   super.key,
   required final DeviceSessionManager manager,
@@ -24,6 +25,7 @@ class const AppHeader({
   required final VoidCallback onOpenSettings,
   required final VoidCallback onShowWireless,
   required final VoidCallback onShowEmulators,
+  required final VoidCallback onSaveLayout,
 }) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -74,6 +76,10 @@ class const AppHeader({
                           ),
                         ),
                         const Gap(8),
+                        SaveLayoutButton(
+                          session: manager.selected,
+                          onSave: onSaveLayout,
+                        ),
                         HeaderAction(
                           icon: manager.isLoadingDevices
                               ? null

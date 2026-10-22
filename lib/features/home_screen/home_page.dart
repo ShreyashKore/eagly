@@ -147,6 +147,20 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _saveLayout() {
+    if (!_manager.canSaveLayout) return;
+    _manager.saveLayout();
+    _showSnackBar(
+      'Layout saved. Devices you open from now on start with these panes.',
+    );
+  }
+
+  void _clearSavedLayout() {
+    if (!_manager.hasSavedLayout) return;
+    _manager.clearSavedLayout();
+    _showSnackBar('Saved layout cleared. Devices open on Home again.');
+  }
+
   Future<void> _showWirelessDialog() async {
     await showDialog<void>(
       context: context,
@@ -298,6 +312,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ToggleAutoScrollIntent: on<ToggleAutoScrollIntent>(
         (_) => _menuController.toggleAutoScroll(),
       ),
+      SaveLayoutIntent: on<SaveLayoutIntent>((_) => _saveLayout()),
+      ClearSavedLayoutIntent: on<ClearSavedLayoutIntent>(
+        (_) => _clearSavedLayout(),
+      ),
       IncreaseFontIntent: on<IncreaseFontIntent>((_) => _changeZoomLevel(0.05)),
       DecreaseFontIntent: on<DecreaseFontIntent>(
         (_) => _changeZoomLevel(-0.05),
@@ -322,6 +340,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onOpenSettings: _openSettings,
                 onShowWireless: _showWirelessDialog,
                 onShowEmulators: _showEmulatorDialog,
+                onSaveLayout: _saveLayout,
               ),
               Expanded(
                 child: ListenableBuilder(

@@ -70,7 +70,25 @@ class AppMenuController(final DeviceSessionManager _manager)
     DeviceSessionController? session,
     LogController? log,
   ) {
-    if (session == null || log == null) return AppMenuState.empty;
+    final hasSavedLayout = _manager.hasSavedLayout;
+    if (session == null || log == null) {
+      if (!hasSavedLayout) return AppMenuState.empty;
+      // Home can still clear the saved layout.
+      return const AppMenuState(
+        hasActiveLog: false,
+        isImported: false,
+        deviceConnected: false,
+        logcatState: LogcatState.stopped,
+        hasLogs: false,
+        isIos: false,
+        selectedLogLevel: null,
+        wrapText: false,
+        autoScroll: false,
+        searchBarVisible: false,
+        canSaveLayout: false,
+        hasSavedLayout: true,
+      );
+    }
     return AppMenuState(
       hasActiveLog: true,
       isImported: log.isImported,
@@ -82,6 +100,8 @@ class AppMenuController(final DeviceSessionManager _manager)
       wrapText: log.wrapText,
       autoScroll: log.autoScroll,
       searchBarVisible: log.searchBarVisible,
+      canSaveLayout: session.canSaveLayout,
+      hasSavedLayout: hasSavedLayout,
     );
   }
 
@@ -99,6 +119,8 @@ class AppMenuController(final DeviceSessionManager _manager)
   void setLogLevel(LogLevel level) => _activeLog?.setSelectedLogLevel(level);
   void toggleWrapText() => _activeLog?.toggleWrapText();
   void toggleAutoScroll() => _activeLog?.toggleAutoScroll();
+  void saveLayout() => _manager.saveLayout();
+  void clearSavedLayout() => _manager.clearSavedLayout();
 
   @override
   void dispose() {

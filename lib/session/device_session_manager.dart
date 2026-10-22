@@ -136,6 +136,35 @@ class DeviceSessionManager({
     notifyListeners();
   }
 
+  // ── Saved layout ──────────────────────────────────────────────────────
+
+  /// Whether the selected device's open panes can be saved as the layout
+  /// every device opens with.
+  bool get canSaveLayout => selected?.canSaveLayout ?? false;
+
+  bool get hasSavedLayout => _layoutMemory.saved != null;
+
+  /// Saves the selected device's pane layout. From now on every device
+  /// opens with it, cut down to the panes it supports; devices already open
+  /// keep theirs.
+  void saveLayout() {
+    final session = selected;
+    if (session == null || !session.canSaveLayout) return;
+    AppBreadcrumbs.action(
+      'Saved the pane layout of ${session.device.displayName}',
+      category: 'workspace.layout',
+    );
+    _layoutMemory.saved = session.workspaceLayout.root;
+    notifyListeners();
+  }
+
+  /// Forgets the saved layout: devices open on Home again.
+  void clearSavedLayout() {
+    if (!hasSavedLayout) return;
+    _layoutMemory.saved = null;
+    notifyListeners();
+  }
+
   /// Whether the device's tab can be closed (only disconnected devices).
   bool canClose(String id) {
     final session = _sessions[id];

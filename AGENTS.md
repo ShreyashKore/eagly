@@ -406,8 +406,14 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `layout.panels`, which only the view listens to; pane content is never reparented, so it
   needs no `GlobalKey` to survive a move; and where a pane reopens comes from
   `WorkspaceLayoutMemory` (one remembered tree for every device, persisted as
-  `PreferencesService.workspaceLayout`). Adding a pane is a `WorkspacePane` value plus a case
-  in `_Workspace` (`device_screen_content.dart`) — the doc has the checklist.
+  `PreferencesService.workspaceLayout`). Which panes a device *opens with* is separate: the
+  user's saved layout (View → Save Layout, or the header's "Save layout" text button, hidden
+  while the open panes already match it;
+  `WorkspaceLayoutMemory.saved`, `PreferencesService.savedWorkspaceLayout`), applied on a
+  session's first `activate()` and cut down to the panes `DeviceSessionController.supportsPane`
+  allows — Crash Reports is iOS-only, Mirror needs a host that can mirror the platform. Adding a
+  pane is a `WorkspacePane` value plus a case in `_Workspace` (`device_screen_content.dart`) and
+  in `supportsPane` — the doc has the checklist.
 - **Imported logs workspace:** opening a log file with no device hosts it in a single
   synthetic `DeviceSessionController` (`isImportedWorkspace`, id `__imported-logs__`); each
   file becomes a sub-tab. It appears as a tab but is excluded from the landing-screen
