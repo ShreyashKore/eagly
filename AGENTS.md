@@ -192,6 +192,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   No save dialog unless `PreferencesService.captureAskEveryTime` is on. The confirmation
   uses `showSavedFileSnackBar`, whose Open / Show-in-folder actions go through
   `utils/file_reveal.dart` (`open -R` / `explorer /select,` / `xdg-open` on the parent).
+  While a recording runs, `RecordingGlow` rims the picture through `ScrcpyView.overlay`:
+  a faint outline and a glow outside the picture that beats, pointer-transparent, held
+  still at the time limit or with reduced motion. Stopping shows a "Saving recording…"
+  snack bar with an indeterminate bar that stays until the saved (or failed) one replaces
+  it — neither save path reports progress.
 - **Mirror input (Android):** touches, keys and clipboard all ride the scrcpy *control*
   socket (`ScrcpyControl`, opened only when `ScrcpyVideoOptions.control`). Keyboard
   forwarding is **focus-gated**: `MirrorController.keyboardFocusNode` is handed to

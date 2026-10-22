@@ -5,6 +5,7 @@ import '../../../presentation/components/hint_note.dart';
 import '../../flutter_scrcpy/flutter_scrcpy.dart';
 import '../ios/ios_mirror_session.dart';
 import '../mirror_controller.dart';
+import 'recording_glow.dart';
 
 /// A running iPhone mirror: the live capture's texture, or the latest
 /// screenshot, under a note for whatever is missing (live video, controls).
@@ -31,6 +32,7 @@ class const IosMirrorSurface({
       focusNode: input ? controller.keyboardFocusNode : null,
       onKey: controller.handleKeyEvent,
       onFocusChange: controller.handleKeyboardFocusChange,
+      overlay: recordingGlow(controller),
       child: textureId == null && frame != null
           ? Image.memory(
               frame,

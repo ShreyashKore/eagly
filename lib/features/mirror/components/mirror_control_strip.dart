@@ -252,9 +252,15 @@ class const MirrorControlStrip({
         );
         return;
       }
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Saving recording…')),
-      );
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            // Stays up until the save finishes and the next one replaces it.
+            duration: Duration(days: 1),
+            content: _SavingRecording(),
+          ),
+        );
       await controller.stopRecording(path);
       await showSavedFileSnackBar(
         messenger,
@@ -265,9 +271,9 @@ class const MirrorControlStrip({
         previewIsVideo: true,
       );
     } catch (error) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Recording failed: $error')),
-      );
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('Recording failed: $error')));
     }
   }
 
@@ -300,5 +306,29 @@ class const MirrorControlStrip({
     } catch (error) {
       messenger.showSnackBar(SnackBar(content: Text('Rotate failed: $error')));
     }
+  }
+}
+
+/// "Saving recording…" over a running bar. Neither `screenrecord`'s pull nor
+/// the iPhone's finishing write reports how far along it is, so the bar only
+/// says that it is still going.
+class const _SavingRecording() extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text('Saving recording…'),
+        const Gap(10),
+        LinearProgressIndicator(
+          minHeight: 3,
+          borderRadius: BorderRadius.circular(2),
+          color: scheme.inversePrimary,
+          backgroundColor: scheme.onInverseSurface.withValues(alpha: 0.16),
+        ),
+      ],
+    );
   }
 }
