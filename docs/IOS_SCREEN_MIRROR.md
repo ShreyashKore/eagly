@@ -98,7 +98,10 @@ async bridge calls have none.
   ⌘V / Ctrl+V puts the desktop's text on the phone's pasteboard (`pasteboardservice`) and presses
   ⌘V there. There is no phone→desktop clipboard sync.
 - **Buttons** are Consumer-page usages: Home is Menu (0x40), Lock is Power (0x30), volume is
-  0xE9 / 0xEA. The App switcher button is a double Home press.
+  0xE9 / 0xEA. The App switcher button is a double Home press. iOS has no back key, so Back is a
+  swipe in from the picture's left edge, let go while still moving: the edge pan most apps' navigation
+  goes back on. A screen without one (a sheet, a root view) ignores it. The control strip does not
+  show Back yet: in some apps the swipe slides the screen sideways instead of going back.
 - **Rotate** is Device Hub's simulated rotation (`com.apple.coredevice.devicecontrol`). Apps that
   can turn follow it; the iPhone home screen does not.
 - **On iOS 27 input needs an open display stream.** The phone drops synthetic HID events unless
