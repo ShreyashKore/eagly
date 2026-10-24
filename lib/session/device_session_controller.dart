@@ -288,6 +288,23 @@ class DeviceSessionController._({
         workspaceLayout.matchesSaved(saved, _supportedPanes);
   }
 
+  /// Whether there is a saved layout to put the open panes back to.
+  bool get canResetLayout =>
+      !isImportedWorkspace && workspaceLayout.memory.saved != null;
+
+  /// Puts the open panes back the way the saved layout has them, undoing
+  /// every move, resize, open and close since.
+  void resetLayout() {
+    if (!canResetLayout) return;
+    AppBreadcrumbs.action(
+      'Reset the pane layout of ${device.displayName}',
+      category: 'workspace.layout',
+    );
+    _openSavedLayout();
+    _ensureSelection();
+    _notify();
+  }
+
   Set<WorkspacePane> get _supportedPanes => {
     for (final pane in WorkspacePane.values)
       if (supportsPane(pane)) pane,

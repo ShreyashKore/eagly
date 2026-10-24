@@ -226,6 +226,70 @@ void main() {
     });
   });
 
+  group('resetting to the saved layout', () {
+    test('it puts back the saved panes and arrangement', () {
+      final memory = WorkspaceLayoutMemory();
+      final session = createSession(android, memory)
+        ..openLogs()
+        ..openTerminal();
+      session.workspaceLayout.moveToEdge(
+        WorkspacePane.terminal,
+        DockSide.bottom,
+      );
+      memory.saved = session.workspaceLayout.root;
+
+      session
+        ..closeTerminal()
+        ..openUtilities();
+      expect(session.matchesSavedLayout, isFalse);
+
+      session.resetLayout();
+
+      expect(describe(session.workspaceLayout.root), 'column(logs, terminal)');
+      expect(session.matchesSavedLayout, isTrue);
+      expect(session.isHomeOpen, isFalse);
+    });
+
+    test('without a saved layout there is nothing to reset to', () {
+      final session = createSession(android, WorkspaceLayoutMemory())
+        ..openLogs();
+
+      expect(session.canResetLayout, isFalse);
+      session.resetLayout();
+      expect(describe(session.workspaceLayout.root), 'logs');
+    });
+
+    testWidgets('the header button offers a reset once a layout is saved', (
+      tester,
+    ) async {
+      final memory = WorkspaceLayoutMemory();
+      final session = createSession(android, memory)..openLogs();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: Center(
+              child: SaveLayoutButton(session: session, onSave: () {}),
+            ),
+          ),
+        ),
+      );
+      final reset = find.byIcon(Icons.restart_alt_rounded);
+      expect(find.text('Save layout'), findsOneWidget);
+      expect(reset, findsNothing, reason: 'nothing saved');
+
+      memory.saved = session.workspaceLayout.root;
+      session.openTerminal();
+      await tester.pump();
+      expect(reset, findsOneWidget);
+
+      await tester.tap(reset);
+      await tester.pump();
+      expect(session.workspaceLayout.isOpen(WorkspacePane.terminal), isFalse);
+      expect(find.text('Save layout'), findsNothing, reason: 'matches again');
+    });
+  });
+
   group('storage', () {
     test('the saved layout survives a restart', () {
       final memory = WorkspaceLayoutMemory.persisted();

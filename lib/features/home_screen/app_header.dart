@@ -16,8 +16,8 @@ import 'components/save_layout_button.dart';
 import 'window_controls.dart';
 
 /// Top app header: logo + name, the horizontal device-tab strip (auto-created
-/// per detected device), save-layout/load/wireless/emulator actions, and a
-/// GitHub link.
+/// per detected device), save-layout/wireless/emulator actions, and a
+/// GitHub link. Devices are refreshed from the header's right-click menu.
 class const AppHeader({
   super.key,
   required final DeviceSessionManager manager,
@@ -80,14 +80,7 @@ class const AppHeader({
                           session: manager.selected,
                           onSave: onSaveLayout,
                         ),
-                        HeaderAction(
-                          icon: manager.isLoadingDevices
-                              ? null
-                              : Icons.refresh_rounded,
-                          tooltip: 'Load / refresh devices',
-                          busy: manager.isLoadingDevices,
-                          onPressed: () => manager.refreshDevices(),
-                        ),
+                        const Gap(4),
                         HeaderAction(
                           icon: Icons.wifi_tethering_outlined,
                           tooltip: 'Wireless ADB',
