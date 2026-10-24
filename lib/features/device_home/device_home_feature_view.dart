@@ -39,6 +39,8 @@ class _DeviceHomeFeatureViewState
   @override
   Listenable get listenable => widget.homeController;
 
+  final _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +61,7 @@ class _DeviceHomeFeatureViewState
 
   @override
   void dispose() {
+    _scrollController.dispose();
     widget.homeController.removeListener(_recordSample);
     super.dispose();
   }
@@ -118,8 +121,12 @@ class _DeviceHomeFeatureViewState
         connected && controller.isLoadingDeviceInfo && controller.stats.isEmpty;
     final showSnapshot = connected || controller.hasSnapshot;
 
+    // Desktop has no primary scroll controller to fall back on, so the
+    // scrollbar and the scroll view share this one.
     return Scrollbar(
+      controller: _scrollController,
       child: SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
         child: Center(
           child: ConstrainedBox(
