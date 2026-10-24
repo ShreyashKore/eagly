@@ -7,6 +7,43 @@ const _format = AndroidLogcatFormat();
 
 void main() {
   group('IosSyslogParser', () {
+    test('reads the thread ID after the pid, and 0 where there is none', () {
+      final parser = IosSyslogParser(now: () => DateTime(2026, 10, 25));
+      final logs = [
+        ...parser.addLine(
+          'Oct 25 14:02:11.004211 Runner(CoreFoundation)[812:1036839] <Notice>: from a thread',
+        ),
+        ...parser.addLine(
+          'Oct 25 14:02:11.004300 Runner(CoreFoundation)[812] <Notice>: from idevicesyslog',
+        ),
+        ?parser.flush(),
+      ];
+
+      expect(logs, hasLength(2));
+      expect(logs.first.pid, '812');
+      expect(logs.first.tid, '1036839');
+      expect(logs.first.processName, 'Runner(CoreFoundation)');
+      expect(logs.first.message, 'from a thread');
+      expect(logs.last.pid, '812');
+      expect(logs.last.tid, '0');
+    });
+
+    test(
+      'a continuation flushed apart from its header keeps its thread ID',
+      () {
+        final parser = IosSyslogParser(now: () => DateTime(2026, 10, 25));
+        parser.addLine(
+          'Oct 25 14:02:11.004211 Runner[812:1036839] <Error>: first line',
+        );
+        parser.flush();
+        parser.addLine('second line');
+
+        final resumed = parser.flush();
+        expect(resumed?.tid, '1036839');
+        expect(resumed?.message, 'second line');
+      },
+    );
+
     test('groups multi-line syslog entries and normalizes timestamps', () {
       final parser = IosSyslogParser(now: () => DateTime(2026, 4, 23));
       final logs = <LogEntry>[];

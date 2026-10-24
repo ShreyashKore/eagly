@@ -13,7 +13,7 @@ flutter_rust_bridge = "=2.13.0"
 # The second line is the screen mirror (api/ios_mirror.rs): the CoreDevice tunnel and the
 # Device Hub services behind it. `display_stream` also gates the crate's HID module.
 # `house_arrest` opens a debug build's data container, for Clear Data (api/ios_app_control.rs).
-idevice = { version = "=0.1.65", default-features = false, features = [
+idevice = { version = "=0.1.68", default-features = false, features = [
     "usbmuxd", "tcp", "pair", "syslog_relay", "installation_proxy", "crashreportcopymobile", "afc",
     "core_device_proxy", "tunnel_tcp_stack", "rsd", "core_device", "display_stream", "springboardservices",
     "house_arrest",

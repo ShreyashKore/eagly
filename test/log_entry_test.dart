@@ -62,19 +62,26 @@ void main() {
       expect(entry.id, customId);
     });
 
-    test('PID/TID column combines pid and tid for Android, pid-only for iOS', () {
-      final entry = LogEntry(
+    test('PID/TID column combines pid and tid, pid-only for iOS without a tid', () {
+      LogEntry entry({required String tid}) => LogEntry(
         timestamp: '2026-04-26 20:54:02.025',
         pid: '1234',
-        tid: '5678',
+        tid: tid,
         level: 'I',
         tag: 'AuthTag',
         message: 'message body',
       );
 
-      // Android shows both (TID is real); iOS shows only PID (TID is always 0).
-      expect(entry.valueForColumn(LogColumn.tid), '1234/5678');
-      expect(entry.valueForColumn(LogColumn.tid, isIos: true), '1234');
+      expect(entry(tid: '5678').valueForColumn(LogColumn.tid), '1234/5678');
+      // The Rust relay's iOS lines carry the thread; idevicesyslog's store '0'.
+      expect(
+        entry(tid: '1036839').valueForColumn(LogColumn.tid, isIos: true),
+        '1234/1036839',
+      );
+      expect(
+        entry(tid: '0').valueForColumn(LogColumn.tid, isIos: true),
+        '1234',
+      );
     });
 
     test('special state factories create non-selectable entries', () {
