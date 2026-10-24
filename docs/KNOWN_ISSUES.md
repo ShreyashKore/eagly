@@ -4,6 +4,21 @@ Bugs found and deliberately left for a later branch. Each entry gives the cause 
 suggested fix. Delete an entry in the commit that fixes it. iOS Rust backend issues are
 tracked separately, in docs/IOS_RUST_MIGRATION.md → *Open issues*.
 
+## From the idevice 0.1.68 bump (`feat/idevice-0.1.68`, 2026-10-25)
+
+### An orphaned `idevicesyslog` silences an iPhone's logs for everyone
+
+`ToolProcessRunner.terminateAllProcesses` only runs on a graceful quit, so a Debug build stopped
+from the IDE or `flutter run` leaves its `idevicesyslog` children running, reparented to
+launchd. While one holds an iPhone's `os_trace_relay`, the phone sends no log records to any
+other client: Eagly's Rust log stream, a fresh `idevicesyslog` and the `syslog_thread_ids` device
+test all connected and then got nothing. Two such orphans, five days old, were found on an
+iPhone on iOS 27.0; killing them brought its logs back at once.
+
+**Fix:** record the PIDs of long-running children in a file under the app's support
+directory and kill any still alive on the next launch, or have each child exit when the app
+does (spawn it behind a small wrapper that watches the parent PID).
+
 ## From the iPhone screen mirror (`feat/ios-screen-mirror`, 2026-10-21)
 
 ### macOS crashes in Impeller while a mirror streams and the window changes

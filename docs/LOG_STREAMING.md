@@ -122,13 +122,15 @@ Sep 26 23:11:50.009491 appleh16camerad(libEmbeddedSystemAUs.dylib)[136] <Debug>:
 ### iOS via Rust: the `os_trace_relay` service
 
 `start_ios_syslog` uses the `idevice` crate's `OsTraceRelayClient` — the same service
-`idevicesyslog` reads — and formats each structured record into the same header line the CLI
-prints (`format_os_trace_log` in `rust/src/api/ios.rs`), so the Dart side is identical to the
-CLI's: one header line per message plus bare continuation lines for the rest of it. Each string
-sent to Dart is one **complete message**, embedded newlines included:
+`idevicesyslog` reads — and formats each structured record into the header line the CLI
+prints (`format_os_trace_log` in `rust/src/api/ios.rs`), plus the emitting thread's ID after the
+pid (`[pid:tid]`, as NSLog writes it). So the Dart side is the CLI's: one header line per message
+plus bare continuation lines for the rest of it, and `IosSyslogParser` reads the thread ID where
+there is one (`'0'` for the CLI, whose PID/TID cell shows the PID alone). Each string sent to
+Dart is one **complete message**, embedded newlines included:
 
 ```
-Sep 26 23:13:41.123456 softwareupdateservicesd(MobileSoftwareUpdate)[243] <Notice>: … state:{\n    ActionText = "…";\n}
+Sep 26 23:13:41.123456 softwareupdateservicesd(MobileSoftwareUpdate)[243:1036839] <Notice>: … state:{\n    ActionText = "…";\n}
 ```
 
 Feeding that to a line parser was the bug fixed in `5de89c2`: the header regex doesn't match
@@ -308,7 +310,11 @@ Found on hardware (iOS 26.7 and 27.0) against the legacy `syslog_relay`, and clo
    backboardd(QuartzCore)"` and breaking package filtering. `os_trace_relay` returns a clean
    `filename`/`image_name` pair, formatted as `process(image)` with no hostname.
 
-`format_os_trace_log` renders each record into the exact text `idevicesyslog` would print, so
-the parser — and everything downstream — is unchanged. The switch is **not yet re-verified on
+4. **No thread IDs.** `idevicesyslog` prints none. idevice 0.1.68 decodes the record's thread
+   ID, which `format_os_trace_log` writes after the pid; `syslog_thread_ids` in
+   `rust/src/api/ios.rs` checks on a phone that each ID belongs to a single process.
+
+`format_os_trace_log` renders each record into the text `idevicesyslog` would print, plus the
+thread ID, so the parser — and everything downstream — is otherwise unchanged. The switch is **not yet re-verified on
 hardware**: re-run the device check below and compare level counts with `idevicesyslog` while it
 still ships.

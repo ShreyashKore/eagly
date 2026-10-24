@@ -4,8 +4,8 @@ The iOS terms Eagly's Rust side runs into, from the USB cable up to input inject
 its nearest Android equivalent. For how Eagly uses them, see docs/IOS_RUST_MIGRATION.md and
 docs/IOS_SCREEN_MIRROR.md.
 
-Eagly pins `idevice` 0.1.65 (`rust/Cargo.toml`). Entries marked **0.1.68** describe APIs that
-only exist in that later release.
+Eagly pins `idevice` 0.1.68 (`rust/Cargo.toml`). Entries marked **0.1.68** describe APIs that
+release added; Eagly used 0.1.65 before it.
 
 ## How the pieces fit
 

@@ -8,8 +8,9 @@ import 'ios.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply`, `claim_screenshot_stream`, `close`, `close`, `connect`, `forget_screenshot_stream`, `is_capture_busy`, `open`, `request`, `run_input`, `send`, `stream_screenshots`, `streams_display`, `take_screenshot`, `to_digitizer`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `InputClients`, `InputCommand`, `InputGate`
+// These functions are ignored because they are not marked as `pub`: `after`, `apply`, `claim_screenshot_stream`, `close`, `close`, `connect`, `forget_screenshot_stream`, `is_capture_busy`, `lift`, `open`, `press`, `request`, `run_input`, `send`, `stream_screenshots`, `streams_display`, `take_screenshot`, `to_digitizer`, `wobbled`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Held`, `InputClients`, `InputCommand`, `InputGate`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `eq`, `fmt`
 
 /// Reads which mirror services `udid` offers.
 Future<IosMirrorSupport> probeIosMirror({required String udid}) =>
@@ -79,6 +80,18 @@ bool sendIosTouch({
   phase: phase,
   x: x,
   y: y,
+);
+
+/// One frame of a multi-finger touch, such as a pinch: every finger on the
+/// glass, and once more with `touching` false for each one that lifts. False
+/// once the session has ended. A frame the touchscreen can't take (over five
+/// fingers, or an id repeated or past 4) is dropped.
+bool sendIosTouches({
+  required String sessionId,
+  required List<IosTouchContact> contacts,
+}) => RustLib.instance.api.crateApiIosMirrorSendIosTouches(
+  sessionId: sessionId,
+  contacts: contacts,
 );
 
 /// A key on the HID Keyboard/Keypad page (0x07) going down or up, modifiers
@@ -191,5 +204,38 @@ class IosMirrorSupport {
 
 /// Which way [`rotate_ios_device`] turns the phone, by 90°.
 enum IosRotation { left, right }
+
+/// One finger of a multi-finger touch, for [`send_ios_touches`].
+class IosTouchContact {
+  /// Tells the fingers apart from frame to frame: 0 to 4.
+  final int id;
+
+  /// False in the one frame that lifts this finger.
+  final bool touching;
+
+  /// Fractions of the panel's portrait width and height.
+  final double x;
+  final double y;
+
+  const IosTouchContact({
+    required this.id,
+    required this.touching,
+    required this.x,
+    required this.y,
+  });
+
+  @override
+  int get hashCode => id.hashCode ^ touching.hashCode ^ x.hashCode ^ y.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is IosTouchContact &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          touching == other.touching &&
+          x == other.x &&
+          y == other.y;
+}
 
 enum IosTouchPhase { down, move, up }

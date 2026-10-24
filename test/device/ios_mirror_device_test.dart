@@ -1,11 +1,12 @@
 /// Checks, against a real iPhone, the CoreDevice half of the screen mirror:
-/// what the phone offers, screenshots, and touch and buttons through
+/// what the phone offers, screenshots, and touch, pinch and buttons through
 /// `api/ios_mirror.rs`. Opt-in, so skipped in CI. The QuickTime picture lives
 /// in the macOS runner and is only exercised by running the app.
 ///
 /// Needs Developer Mode, Xcode 27's developer disk image mounted (open Xcode
 /// with the phone connected once), and the phone unlocked on a home-screen
-/// page. The test pages the home screen and puts it back where it was.
+/// page. The test pages the home screen and puts it back where it was, and
+/// opens Maps to pinch it, then goes Home.
 ///
 /// ```bash
 /// cd rust && cargo build --release && cd ..
@@ -22,6 +23,7 @@ import 'dart:ui' as ui;
 import 'package:eagly/features/mirror/ios/ios_mirror_session.dart';
 import 'package:eagly/services/ios/ios_mirror_service.dart';
 import 'package:eagly/services/ios/rust_ios_mirror_service.dart';
+import 'package:eagly/src/rust/api/ios_app_control.dart';
 import 'package:eagly/src/rust/frb_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -29,6 +31,10 @@ final _udid = Platform.environment['EAGLY_TEST_IOS_UDID'];
 final _artifacts = Platform.environment['EAGLY_TEST_ARTIFACTS'];
 
 const _step = Duration(milliseconds: 16);
+
+/// The bridge loads once per process, for whichever test runs first.
+Future<void>? _bridge;
+Future<void> _initBridge() => _bridge ??= RustLib.init();
 
 /// Mean per-pixel brightness difference, 0–255, over the screen between the
 /// status bar and the dock, sampled on a 40×80 grid.
@@ -87,13 +93,30 @@ Future<void> _drag(
   await Future<void>.delayed(const Duration(milliseconds: 900));
 }
 
+/// Two fingers about the middle of the screen, [from] to [to] apart
+/// (fractions of its width), held a moment at the end and lifted.
+Future<void> _pinch(IosInputSession input, double from, double to) async {
+  List<IosTouchContact> fingers(double apart, {bool touching = true}) => [
+    IosTouchContact(0, 0.5 - apart / 2, 0.5, touching: touching),
+    IosTouchContact(1, 0.5 + apart / 2, 0.5, touching: touching),
+  ];
+  expect(input.multiTouch(fingers(from)), isTrue);
+  for (var i = 1; i <= 12; i++) {
+    await Future<void>.delayed(_step);
+    input.multiTouch(fingers(from + (to - from) * i / 12));
+  }
+  await Future<void>.delayed(const Duration(milliseconds: 300));
+  input.multiTouch(fingers(to, touching: false));
+  await Future<void>.delayed(const Duration(milliseconds: 1500));
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test(
     'iOS: CoreDevice screenshots, touch and buttons reach the phone',
     () async {
-      await RustLib.init();
+      await _initBridge();
       final service = RustIosMirrorService();
       final udid = _udid!;
 
@@ -173,6 +196,56 @@ void main() {
         await input.close();
       }
       expect(input.touch(IosTouchPhase.down, 0.5, 0.5), isFalse);
+    },
+    skip: _udid == null
+        ? 'Set EAGLY_TEST_IOS_UDID to run against an iPhone'
+        : false,
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test(
+    'iOS: a two-finger pinch zooms Maps',
+    () async {
+      await _initBridge();
+      final service = RustIosMirrorService();
+      final udid = _udid!;
+
+      // A launch while a Home press is still animating, as at the end of the
+      // test before, leaves Maps behind the home screen.
+      await Future<void>.delayed(const Duration(seconds: 2));
+      await launchIosApp(udid: udid, bundleId: 'com.apple.Maps');
+      await Future<void>.delayed(const Duration(seconds: 4));
+      final input = await service.startInput(udid);
+      try {
+        final opened = await _shot(service, 'maps');
+        await Future<void>.delayed(const Duration(seconds: 1));
+        final still = await _shot(service, 'maps-still');
+        // What the map changes by on its own, such as the location dot.
+        final noise = await _difference(opened, still);
+
+        await _pinch(input, 0.15, 0.6);
+        final zoomed = await _shot(service, 'maps-zoomed');
+        final change = await _difference(still, zoomed);
+        // ignore: avoid_print
+        print(
+          'pinch out: ${change.toStringAsFixed(1)} against noise '
+          '${noise.toStringAsFixed(1)}',
+        );
+        expect(
+          change,
+          greaterThan(noise * 3 + 6),
+          reason: 'the map did not zoom',
+        );
+
+        await _pinch(input, 0.6, 0.15);
+        await _shot(service, 'maps-unzoomed');
+
+        expect(input.button(0x0C, 0x40, down: true), isTrue);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(input.button(0x0C, 0x40, down: false), isTrue);
+      } finally {
+        await input.close();
+      }
     },
     skip: _udid == null
         ? 'Set EAGLY_TEST_IOS_UDID to run against an iPhone'

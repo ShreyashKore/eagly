@@ -48,9 +48,9 @@ pub async fn launch_ios_app(udid: String, bundle_id: String) -> Result<(), IosEr
 /// Android's force-stop ends all of a package's processes. Returns how many it
 /// killed: none when the app wasn't running.
 ///
-/// The bundle's path comes from installation_proxy: the app service's own
-/// `listapps` is refused on iOS 27 by idevice 0.1.65, which leaves out its
-/// `requireContainerAccess` key.
+/// The bundle's path comes from installation_proxy, which answers on every
+/// iOS version. The app service's own `listapps` was refused on iOS 27 until
+/// idevice 0.1.68 added its `requireContainerAccess` key.
 pub async fn stop_ios_app(udid: String, bundle_id: String) -> Result<u32, IosError> {
     let bundle = format!(
         "{}/",

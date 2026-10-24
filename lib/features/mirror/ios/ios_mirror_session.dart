@@ -261,6 +261,22 @@ class IosMirrorSession._(
     if (!input.touch(phase, x, y)) _loseInput();
   }
 
+  /// One frame of a pinch on the picture: each finger at fractions of its
+  /// width and height.
+  void multiTouch(List<ScrcpyTouchContact> contacts) {
+    final input = _input;
+    if (input == null) return;
+    final frame = [
+      for (final contact in contacts)
+        if (toPanel(contact.nx, contact.ny, _orientation) case (
+          final x,
+          final y,
+        ))
+          IosTouchContact(contact.id, x, y, touching: contact.touching),
+    ];
+    if (!input.multiTouch(frame)) _loseInput();
+  }
+
   /// Forwards a desktop key event; see [IosKeyboardTranslator].
   KeyEventResult handleKeyEvent(KeyEvent event) {
     final input = _input;

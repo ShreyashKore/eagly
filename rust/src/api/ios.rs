@@ -379,10 +379,11 @@ pub async fn start_ios_syslog(
 }
 
 /// Renders one `os_trace_relay` record into the text line [`IosSyslogParser`]
-/// parses, byte-for-byte what `idevicesyslog` prints:
+/// parses: what `idevicesyslog` prints, plus the emitting thread's ID after
+/// the pid, as NSLog writes it:
 ///
 /// ```text
-/// <Mon> <DD> <HH:MM:SS>.<microseconds> <process>(<image>)[<pid>] <Level>: <message>
+/// <Mon> <DD> <HH:MM:SS>.<microseconds> <process>(<image>)[<pid>:<tid>] <Level>: <message>
 /// ```
 ///
 /// `<process>` is the basename of the emitting process's main executable and
@@ -398,7 +399,7 @@ fn format_os_trace_log(log: &OsTraceLog) -> String {
     let local = Local.from_utc_datetime(&log.timestamp);
     // It also passes microseconds where nanoseconds belong, so the sub-second
     // field holds the raw microsecond count: read it back as microseconds.
-    // Pinned to idevice =0.1.65; recheck both quirks when bumping it.
+    // Both quirks are still there in idevice =0.1.68; recheck them when bumping it.
     let micros = log.timestamp.and_utc().timestamp_subsec_nanos();
 
     let process = basename(&log.filename);
@@ -418,15 +419,16 @@ fn format_os_trace_log(log: &OsTraceLog) -> String {
     };
 
     format!(
-        "{}.{micros:06} {label}[{}] <{level}>: {}",
+        "{}.{micros:06} {label}[{}:{}] <{level}>: {}",
         local.format("%b %e %H:%M:%S"),
         log.pid,
+        log.thread_id,
         log.message,
     )
 }
 
 /// Whether `OsTraceRelayReceiver::next` failed on one record's contents rather
-/// than on the connection. In idevice 0.1.65 every decode failure is an
+/// than on the connection. In idevice 0.1.68 every decode failure is an
 /// `UnexpectedResponse` raised after the packet has been read in full — except
 /// a missing `0x02` lead byte, which means the stream is out of frame and
 /// every later read would be garbage. I/O errors, EOF included, are never
@@ -913,7 +915,7 @@ mod tests {
     use super::*;
     use chrono::DateTime;
 
-    /// A record as idevice 0.1.65 builds it: `from_timestamp(seconds,
+    /// A record as idevice 0.1.68 builds it: `from_timestamp(seconds,
     /// microseconds).naive_local()` — UTC, with micros in the nanos field.
     fn record(seconds: i64, microseconds: u32, message: &str) -> OsTraceLog {
         OsTraceLog {
@@ -926,6 +928,12 @@ mod tests {
             filename: "/usr/libexec/backboardd".into(),
             message: message.into(),
             label: None,
+            procid: 42,
+            thread_id: 1_036_839,
+            image_offset: 0,
+            image_uuid: Default::default(),
+            process_image_uuid: Default::default(),
+            mach_timestamp: 0,
         }
     }
 
@@ -939,8 +947,65 @@ mod tests {
 
         assert_eq!(
             format_os_trace_log(&record(seconds, 1_234, "boom")),
-            format!("{expected_clock}.001234 backboardd(QuartzCore)[42] <Error>: boom"),
+            format!("{expected_clock}.001234 backboardd(QuartzCore)[42:1036839] <Error>: boom"),
         );
+    }
+
+    /// Whether `thread_id` really is the emitting thread: Darwin thread IDs are
+    /// unique system-wide, so one never turns up under two processes, while a
+    /// thread logs more than once. Reads 3,000 records. Needs a phone:
+    /// `EAGLY_TEST_IOS_UDID=<udid> cargo test --release syslog_thread_ids -- --ignored --nocapture`
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn syslog_thread_ids() {
+        let udid = std::env::var("EAGLY_TEST_IOS_UDID").expect("EAGLY_TEST_IOS_UDID");
+        let Ok(provider) = provider_for(&udid).await else {
+            panic!("no device")
+        };
+        let Ok(client) = OsTraceRelayClient::connect(&provider).await else {
+            panic!("no os_trace_relay")
+        };
+        let Ok(mut receiver) = client.start_trace(None).await else {
+            panic!("no trace")
+        };
+
+        let mut owners = HashMap::<u64, u32>::new();
+        let mut records_per_thread = HashMap::<u64, usize>::new();
+        for read in 0..3_000 {
+            let next =
+                tokio::time::timeout(std::time::Duration::from_secs(20), receiver.next()).await;
+            let Ok(next) = next else {
+                panic!("no record in 20 s after {read}")
+            };
+            let log = match next {
+                Ok(log) => log,
+                Err(error) if is_skippable_record_error(&error) => continue,
+                Err(error) => panic!("relay failed: {error:?}"),
+            };
+            if read < 5 {
+                println!("{}", format_os_trace_log(&log));
+            }
+            assert_ne!(log.thread_id, 0, "no thread ID: {log:?}");
+            assert_ne!(log.thread_id, log.pid as u64, "thread ID is the pid");
+            let owner = *owners.entry(log.thread_id).or_insert(log.pid);
+            assert_eq!(
+                owner, log.pid,
+                "thread {} logged from pid {owner} and pid {}",
+                log.thread_id, log.pid,
+            );
+            *records_per_thread.entry(log.thread_id).or_default() += 1;
+        }
+
+        let repeated = records_per_thread.values().filter(|&&n| n > 1).count();
+        println!(
+            "{} threads in {} processes, {repeated} of them logged more than once",
+            owners.len(),
+            owners
+                .values()
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+        );
+        assert!(repeated > 0, "no thread logged twice");
     }
 
     #[test]

@@ -31,6 +31,7 @@ class const IosMirrorSurface({
           ? 9 / 19.5
           : size.width / size.height,
       onTouch: input ? controller.handleTouch : null,
+      onMultiTouch: input ? controller.handleMultiTouch : null,
       focusNode: input ? controller.keyboardFocusNode : null,
       onKey: controller.handleKeyEvent,
       onFocusChange: controller.handleKeyboardFocusChange,

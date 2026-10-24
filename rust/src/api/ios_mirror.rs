@@ -18,11 +18,11 @@ use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
 use idevice::core_device::{
-    build_screen_audio_offer, build_screen_video_offer, build_start_audio_parameters,
-    build_start_video_parameters, ButtonState, CallInfoBlob, CoreDeviceError, DisplayServiceClient,
-    ImageFormat, IndigoHidClient, OrientationServiceClient, PasteboardServiceClient,
-    RotationDirection, ScreenCaptureServiceClient, UniversalHidServiceClient,
-    TOUCHSCREEN_STATE_CONTACT, TOUCHSCREEN_STATE_RELEASE,
+    build_multitouch_report, build_screen_audio_offer, build_screen_video_offer,
+    build_start_audio_parameters, build_start_video_parameters, ButtonState, CallInfoBlob,
+    CoreDeviceError, DisplayServiceClient, ImageFormat, IndigoHidClient, OrientationServiceClient,
+    PasteboardServiceClient, RotationDirection, ScreenCaptureServiceClient, TouchscreenContact,
+    UniversalHidServiceClient, TOUCHSCREEN_STATE_CONTACT, TOUCHSCREEN_STATE_RELEASE,
 };
 use idevice::services::springboardservices::{InterfaceOrientation, SpringBoardServicesClient};
 use idevice::{IdeviceError, IdeviceService};
@@ -68,6 +68,17 @@ pub enum IosTouchPhase {
     Down,
     Move,
     Up,
+}
+
+/// One finger of a multi-finger touch, for [`send_ios_touches`].
+pub struct IosTouchContact {
+    /// Tells the fingers apart from frame to frame: 0 to 4.
+    pub id: u8,
+    /// False in the one frame that lifts this finger.
+    pub touching: bool,
+    /// Fractions of the panel's portrait width and height.
+    pub x: f64,
+    pub y: f64,
 }
 
 /// Which way [`rotate_ios_device`] turns the phone, by 90°.
@@ -355,6 +366,7 @@ enum InputCommand {
         x: u16,
         y: u16,
     },
+    Touches(Vec<TouchscreenContact>),
     Key {
         usage: u16,
         down: bool,
@@ -424,6 +436,27 @@ pub fn send_ios_touch(session_id: String, phase: IosTouchPhase, x: f64, y: f64) 
             y: to_digitizer(y),
         },
     )
+}
+
+/// One frame of a multi-finger touch, such as a pinch: every finger on the
+/// glass, and once more with `touching` false for each one that lifts. False
+/// once the session has ended. A frame the touchscreen can't take (over five
+/// fingers, or an id repeated or past 4) is dropped.
+#[flutter_rust_bridge::frb(sync)]
+pub fn send_ios_touches(session_id: String, contacts: Vec<IosTouchContact>) -> bool {
+    let contacts: Vec<_> = contacts
+        .into_iter()
+        .map(|contact| TouchscreenContact {
+            identity: contact.id,
+            touching: contact.touching,
+            x: to_digitizer(contact.x),
+            y: to_digitizer(contact.y),
+        })
+        .collect();
+    if build_multitouch_report(&contacts, None).is_err() {
+        return true;
+    }
+    send(&session_id, InputCommand::Touches(contacts))
 }
 
 /// A key on the HID Keyboard/Keypad page (0x07) going down or up, modifiers
@@ -612,8 +645,75 @@ impl InputGate {
     }
 }
 
-/// Owns one session's connections and applies its commands in order. A
-/// finger held still is re-sent with a wobble every [`STILL_INTERVAL`].
+/// The fingers on the glass, which the worker re-sends while they rest.
+#[derive(Debug, Clone, PartialEq)]
+enum Held {
+    /// A [`send_ios_touch`] finger.
+    One(u16, u16),
+    /// The fingers of a [`send_ios_touches`] gesture still touching.
+    Many(Vec<TouchscreenContact>),
+}
+
+impl Held {
+    /// What a multi-finger frame leaves on the glass: the fingers it doesn't
+    /// lift. Each lifted one is in the frame once, and in none after it.
+    fn after(frame: &[TouchscreenContact]) -> Option<Held> {
+        let touching: Vec<_> = frame.iter().filter(|c| c.touching).copied().collect();
+        (!touching.is_empty()).then_some(Held::Many(touching))
+    }
+
+    /// The fingers moved by [`STILL_WOBBLE`] along x, for every other resend.
+    fn wobbled(&self) -> Held {
+        match self {
+            Held::One(x, y) => Held::One(x.saturating_add(STILL_WOBBLE), *y),
+            Held::Many(contacts) => Held::Many(
+                contacts
+                    .iter()
+                    .map(|c| TouchscreenContact {
+                        x: c.x.saturating_add(STILL_WOBBLE),
+                        ..*c
+                    })
+                    .collect(),
+            ),
+        }
+    }
+
+    /// Sends the fingers touching where they are.
+    async fn press(&self, touch: &mut UniversalHidServiceClient<Rw>) -> Result<(), IdeviceError> {
+        match self {
+            Held::One(x, y) => {
+                touch
+                    .send_touchscreen(TOUCHSCREEN_STATE_CONTACT, *x, *y, None)
+                    .await
+            }
+            Held::Many(contacts) => touch.send_multitouch(contacts, None).await,
+        }
+    }
+
+    /// Lifts every finger where it is.
+    async fn lift(&self, touch: &mut UniversalHidServiceClient<Rw>) -> Result<(), IdeviceError> {
+        match self {
+            Held::One(x, y) => {
+                touch
+                    .send_touchscreen(TOUCHSCREEN_STATE_RELEASE, *x, *y, None)
+                    .await
+            }
+            Held::Many(contacts) => {
+                let lifted: Vec<_> = contacts
+                    .iter()
+                    .map(|c| TouchscreenContact {
+                        touching: false,
+                        ..*c
+                    })
+                    .collect();
+                touch.send_multitouch(&lifted, None).await
+            }
+        }
+    }
+}
+
+/// Owns one session's connections and applies its commands in order.
+/// Fingers held still are re-sent with a wobble every [`STILL_INTERVAL`].
 ///
 /// A failed send reconnects once and drops the command that failed: the
 /// usual cause is the phone re-enumerating on USB, which it does when a
@@ -625,7 +725,7 @@ async fn run_input(
     mut clients: InputClients,
     mut commands: mpsc::UnboundedReceiver<InputCommand>,
 ) {
-    let mut held: Option<(u16, u16)> = None;
+    let mut held: Option<Held> = None;
     let mut wobbled = false;
     let mut still = tokio::time::interval(STILL_INTERVAL);
     still.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -644,21 +744,18 @@ async fn run_input(
                 }
             }
             _ = still.tick(), if held.is_some() => {
-                let Some((x, y)) = held else { continue };
+                let Some(fingers) = &held else { continue };
                 wobbled = !wobbled;
-                let x = if wobbled { x.saturating_add(STILL_WOBBLE) } else { x };
-                if clients.touch.send_touchscreen(TOUCHSCREEN_STATE_CONTACT, x, y, None).await.is_err() {
+                let fingers = if wobbled { fingers.wobbled() } else { fingers.clone() };
+                if fingers.press(&mut clients.touch).await.is_err() {
                     held = None;
                 }
             }
         }
     }
 
-    if let Some((x, y)) = held {
-        let _ = clients
-            .touch
-            .send_touchscreen(TOUCHSCREEN_STATE_RELEASE, x, y, None)
-            .await;
+    if let Some(fingers) = held {
+        let _ = fingers.lift(&mut clients.touch).await;
     }
     tokio::time::sleep(CLOSE_DRAIN).await;
     clients.close().await;
@@ -671,7 +768,7 @@ async fn run_input(
 async fn apply(
     clients: &mut InputClients,
     command: InputCommand,
-    held: &mut Option<(u16, u16)>,
+    held: &mut Option<Held>,
 ) -> Result<(), IdeviceError> {
     let state = |down: bool| {
         if down {
@@ -692,12 +789,20 @@ async fn apply(
                 .send_touchscreen(TOUCHSCREEN_STATE_RELEASE, x, y, None)
                 .await
         }
+        // Dart never overlaps a pinch with a one-finger touch, but a finger
+        // nothing lifts would stay down on the phone, so switching from one
+        // to the other lifts the fingers before.
         InputCommand::Touch { x, y, .. } => {
-            *held = Some((x, y));
-            clients
-                .touch
-                .send_touchscreen(TOUCHSCREEN_STATE_CONTACT, x, y, None)
-                .await
+            if let Some(fingers @ Held::Many(_)) = held.replace(Held::One(x, y)) {
+                fingers.lift(&mut clients.touch).await?;
+            }
+            Held::One(x, y).press(&mut clients.touch).await
+        }
+        InputCommand::Touches(contacts) => {
+            if let Some(finger @ Held::One(..)) = std::mem::replace(held, Held::after(&contacts)) {
+                finger.lift(&mut clients.touch).await?;
+            }
+            clients.touch.send_multitouch(&contacts, None).await
         }
         InputCommand::Key { usage, down } => {
             clients
@@ -749,6 +854,66 @@ mod tests {
         assert_eq!(to_digitizer(0.0), 0);
         assert_eq!(to_digitizer(0.5), 32768);
         assert_eq!(to_digitizer(1.0), 65535);
+    }
+
+    fn contact(identity: u8, touching: bool, x: u16) -> TouchscreenContact {
+        TouchscreenContact {
+            identity,
+            touching,
+            x,
+            y: 1000,
+        }
+    }
+
+    #[test]
+    fn a_frame_leaves_the_fingers_it_does_not_lift() {
+        assert_eq!(
+            Held::after(&[contact(0, true, 10), contact(1, true, 20)]),
+            Some(Held::Many(vec![contact(0, true, 10), contact(1, true, 20)])),
+        );
+        assert_eq!(
+            Held::after(&[contact(0, false, 10), contact(1, true, 20)]),
+            Some(Held::Many(vec![contact(1, true, 20)])),
+        );
+        assert_eq!(
+            Held::after(&[contact(0, false, 10), contact(1, false, 20)]),
+            None
+        );
+    }
+
+    #[test]
+    fn every_held_finger_wobbles() {
+        assert_eq!(
+            Held::One(10, 1000).wobbled(),
+            Held::One(10 + STILL_WOBBLE, 1000)
+        );
+        assert_eq!(
+            Held::Many(vec![contact(0, true, 10), contact(1, true, u16::MAX)]).wobbled(),
+            Held::Many(vec![
+                contact(0, true, 10 + STILL_WOBBLE),
+                contact(1, true, u16::MAX)
+            ]),
+        );
+    }
+
+    #[test]
+    fn frames_the_touchscreen_refuses_are_not_sent() {
+        // No session by that name: a frame that gets as far as sending
+        // reports the session gone.
+        let frame = |ids: &[u8]| {
+            ids.iter()
+                .map(|&id| IosTouchContact {
+                    id,
+                    touching: true,
+                    x: 0.5,
+                    y: 0.5,
+                })
+                .collect::<Vec<_>>()
+        };
+        assert!(!send_ios_touches("none".into(), frame(&[0, 1])));
+        assert!(send_ios_touches("none".into(), frame(&[0, 0])));
+        assert!(send_ios_touches("none".into(), frame(&[5])));
+        assert!(send_ios_touches("none".into(), frame(&[0, 1, 2, 3, 4, 0])));
     }
 
     #[test]

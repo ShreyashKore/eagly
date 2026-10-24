@@ -599,6 +599,9 @@ class FakeScreenRecording implements ScreenRecording {
 /// Records what the mirror sends to an iPhone.
 class FakeIosInputSession implements IosInputSession {
   final List<(IosTouchPhase, double, double)> touches = [];
+
+  /// Multi-finger frames, each finger as (id, x, y, touching).
+  final List<List<(int, double, double, bool)>> frames = [];
   final List<(int, bool)> keys = [];
   final List<(int, int, bool)> buttons = [];
   final List<String> pasteboard = [];
@@ -611,6 +614,14 @@ class FakeIosInputSession implements IosInputSession {
   @override
   bool touch(IosTouchPhase phase, double x, double y) {
     if (open) touches.add((phase, x, y));
+    return open;
+  }
+
+  @override
+  bool multiTouch(List<IosTouchContact> contacts) {
+    if (open) {
+      frames.add([for (final c in contacts) (c.id, c.x, c.y, c.touching)]);
+    }
     return open;
   }
 

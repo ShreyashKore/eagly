@@ -114,9 +114,9 @@ extension LogEntryExt on LogEntry {
     // iOS: packageName holds the compact process name ("Runner", "runningboardd").
     // Android: packageName is the resolved package name, or PID as fallback.
     LogColumn.pid => packageName ?? processName ?? pid,
-    // iOS has no thread ID in syslog output (stored as '0'); show PID instead.
-    // Android: combined "PID/TID" so both are visible in one cell.
-    LogColumn.tid => isIos ? pid : '$pid/$tid',
+    // Combined "PID/TID" so both are visible in one cell. iOS lines from
+    // idevicesyslog carry no thread ID (stored as '0'): the PID alone.
+    LogColumn.tid => isIos && tid == '0' ? pid : '$pid/$tid',
     LogColumn.level => isSpecialEntry ? typeLabel : level,
     LogColumn.tag => tag,
     LogColumn.message => message,

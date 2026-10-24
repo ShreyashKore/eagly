@@ -7,6 +7,9 @@ import 'log_line_parser.dart';
 
 /// Parses `idevicesyslog` output into [LogEntry] objects.
 ///
+/// The Rust relay writes the same lines with the emitting thread's ID after
+/// the pid, `process[pid:tid]` as NSLog does; `idevicesyslog` has none.
+///
 /// iOS syslog entries can span multiple lines: a header line carries the
 /// timestamp, process, pid and level, and any following non-header lines are
 /// continuations of the same message, so an entry is only known to be complete
@@ -23,7 +26,7 @@ class IosSyslogParser({DateTime Function()? now}) implements LogLineParser {
   );
 
   static final RegExp _headerPattern = RegExp(
-    r'^([A-Z][a-z]{2}\s+\d{1,2}\s+\d\d:\d\d:\d\d(?:\.\d+)?)\s+(.+?)\[(\d+)\]\s+<([^>]+)>:\s?(.*)$',
+    r'^([A-Z][a-z]{2}\s+\d{1,2}\s+\d\d:\d\d:\d\d(?:\.\d+)?)\s+(.+?)\[(\d+)(?::(\d+))?\]\s+<([^>]+)>:\s?(.*)$',
   );
 
   static const Map<String, int> _monthNumbers = {
@@ -217,6 +220,7 @@ class _IosSyslogEntryBuilder {
     required this.timestamp,
     required this.processLabel,
     required this.pid,
+    required this.tid,
     required this.level,
     required String message,
   }) : _message = StringBuffer(message),
@@ -228,6 +232,7 @@ class _IosSyslogEntryBuilder {
     : timestamp = flushed.timestamp,
       processLabel = flushed.processLabel,
       pid = flushed.pid,
+      tid = flushed.tid,
       level = flushed.level,
       _message = StringBuffer(),
       isResumed = true;
@@ -235,6 +240,7 @@ class _IosSyslogEntryBuilder {
   final String timestamp;
   final String processLabel;
   final String pid;
+  final String tid;
   final String level;
   final StringBuffer _message;
   final bool isResumed;
@@ -261,8 +267,10 @@ class _IosSyslogEntryBuilder {
       timestamp: normalizedTimestamp,
       processLabel: match.group(2)!.trim(),
       pid: match.group(3)!,
-      level: _mapLevel(match.group(4)!),
-      message: match.group(5) ?? '',
+      // idevicesyslog prints no thread ID: '0' marks it missing.
+      tid: match.group(4) ?? '0',
+      level: _mapLevel(match.group(5)!),
+      message: match.group(6) ?? '',
     );
   }
 
@@ -290,13 +298,12 @@ class _IosSyslogEntryBuilder {
     //   "Runner (R14)(CoreFoundation)" → process: "Runner",        category: "CoreFoundation"
     //   "runningboardd(RunningBoard)"  → process: "runningboardd", category: "RunningBoard"
     //   "AssetCacheLocatorService"     → process: "AssetCacheLoc…", category: falls back to full label
-    // TID is not present in idevicesyslog output; we store '0' as a sentinel.
     final processName = _compactProcessName(processLabel);
     final tag = _extractCategory(processLabel) ?? processLabel;
     return LogEntry(
       timestamp: timestamp,
       pid: pid,
-      tid: '0',
+      tid: tid,
       level: level,
       tag: tag,
       message: _message.toString(),

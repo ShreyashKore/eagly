@@ -140,6 +140,20 @@ class _RustIosInputSession(final String _sessionId) implements IosInputSession {
   );
 
   @override
+  bool multiTouch(List<IosTouchContact> contacts) => rust.sendIosTouches(
+    sessionId: _sessionId,
+    contacts: [
+      for (final contact in contacts)
+        rust.IosTouchContact(
+          id: contact.id,
+          touching: contact.touching,
+          x: contact.x,
+          y: contact.y,
+        ),
+    ],
+  );
+
+  @override
   bool key(int usage, {required bool down}) =>
       rust.sendIosKey(sessionId: _sessionId, usage: usage, down: down);
 

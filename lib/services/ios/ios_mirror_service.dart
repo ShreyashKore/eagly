@@ -42,6 +42,17 @@ enum IosInterfaceOrientation {
 
 enum IosTouchPhase { down, move, up }
 
+/// One finger of a multi-finger touch; see [IosInputSession.multiTouch].
+class const IosTouchContact(
+  /// Tells the fingers apart from frame to frame: 0 to 4.
+  final int id,
+  final double x,
+  final double y, {
+
+  /// False in the one frame that lifts this finger.
+  final bool touching = true,
+});
+
 /// Which way to turn the phone, by 90°.
 enum IosRotation { left, right }
 
@@ -59,6 +70,11 @@ abstract interface class IosInputSession {
   /// portrait frame, whichever way the picture faces.
   bool touch(IosTouchPhase phase, double x, double y);
 
+  /// One frame of a multi-finger touch, such as a pinch: every finger on the
+  /// glass, and once more with `touching: false` for each one that lifts.
+  /// Positions are taken as in [touch].
+  bool multiTouch(List<IosTouchContact> contacts);
+
   /// [usage] is on the HID Keyboard/Keypad page (0x07), modifiers included.
   bool key(int usage, {required bool down});
 
@@ -70,7 +86,7 @@ abstract interface class IosInputSession {
 
   Future<void> rotate(IosRotation rotation);
 
-  /// Lifts a finger still down and closes the connection.
+  /// Lifts any finger still down and closes the connection.
   Future<void> close();
 }
 
