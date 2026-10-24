@@ -8,6 +8,7 @@ import '../../apps/apps_feature_view.dart';
 import '../../crash_reports/crash_report_feature_view.dart';
 import '../../device_home/device_home_feature_view.dart';
 import '../../file_manager/file_manager_feature_view.dart';
+import '../../layout_inspector/layout_inspector_feature_view.dart';
 import '../../logs/log_feature_view.dart';
 import '../../mirror/mirror_feature_view.dart';
 import '../../network/network_feature_view.dart';
@@ -111,6 +112,10 @@ class const _Workspace({
         WorkspacePane.network => NetworkFeatureView(
           controller: session.networkController,
           onClose: session.closeNetwork,
+        ),
+        WorkspacePane.layoutInspector => LayoutInspectorFeatureView(
+          controller: session.layoutInspectorController,
+          onClose: session.closeLayoutInspector,
         ),
       },
     );

@@ -9,6 +9,7 @@ import '../features/apps/apps_controller.dart';
 import '../features/crash_reports/crash_report_controller.dart';
 import '../features/device_home/device_home_controller.dart';
 import '../features/file_manager/file_manager_controller.dart';
+import '../features/layout_inspector/layout_inspector_controller.dart';
 import '../features/logs/log_session_manager.dart';
 import '../features/mirror/ios/ios_mirror_session.dart';
 import '../features/mirror/mirror_controller.dart';
@@ -107,6 +108,7 @@ class DeviceSessionController._({
   UtilitiesController? _utilitiesController;
   TerminalSessionManager? _terminalSessionManager;
   NetworkController? _networkController;
+  LayoutInspectorController? _layoutInspectorController;
 
   bool _homeOpen = true;
   bool _activated = false;
@@ -127,6 +129,7 @@ class DeviceSessionController._({
   bool get isUtilitiesOpen => isPaneOpen(WorkspacePane.utilities);
   bool get isTerminalOpen => isPaneOpen(WorkspacePane.terminal);
   bool get isNetworkOpen => isPaneOpen(WorkspacePane.network);
+  bool get isLayoutInspectorOpen => isPaneOpen(WorkspacePane.layoutInspector);
   bool get isLogsOpen => isPaneOpen(WorkspacePane.logs);
   bool get isHomeOpen => _homeOpen;
   bool get isActivated => _activated;
@@ -177,6 +180,10 @@ class DeviceSessionController._({
   /// send, so the device-less imported-logs workspace has none.
   bool get canInspectNetwork => !isImportedWorkspace;
 
+  /// Whether the Layout pane is offered: it reads an Android device's UI
+  /// (docs/LAYOUT_INSPECTOR.md); iOS has no route that needs no install.
+  bool get canInspectLayout => !isImportedWorkspace && _device is AndroidDevice;
+
   LogSessionManager get logSessionManager =>
       _logSessionManager ??= isImportedWorkspace
       ? LogSessionManager.importsOnly(session: this)
@@ -204,6 +211,9 @@ class DeviceSessionController._({
 
   NetworkController get networkController =>
       _networkController ??= NetworkController(this);
+
+  LayoutInspectorController get layoutInspectorController =>
+      _layoutInspectorController ??= LayoutInspectorController(this);
 
   void openHome() {
     if (_homeOpen) return;
@@ -258,6 +268,10 @@ class DeviceSessionController._({
       case WorkspacePane.terminal:
       case WorkspacePane.network:
         break;
+      case WorkspacePane.layoutInspector:
+        if (canInspectLayout) {
+          unawaited(layoutInspectorController.ensureCaptured());
+        }
     }
   }
 
@@ -274,6 +288,7 @@ class DeviceSessionController._({
     WorkspacePane.utilities ||
     WorkspacePane.terminal ||
     WorkspacePane.network => !isImportedWorkspace,
+    WorkspacePane.layoutInspector => canInspectLayout,
   };
 
   /// Whether the open panes can be saved as the layout every device opens
@@ -372,6 +387,10 @@ class DeviceSessionController._({
   void openNetwork() => openPane(WorkspacePane.network);
   void closeNetwork() => closePane(WorkspacePane.network);
   void toggleNetwork() => togglePane(WorkspacePane.network);
+
+  void openLayoutInspector() => openPane(WorkspacePane.layoutInspector);
+  void closeLayoutInspector() => closePane(WorkspacePane.layoutInspector);
+  void toggleLayoutInspector() => togglePane(WorkspacePane.layoutInspector);
 
   void _editLayout(VoidCallback edit) {
     _editingLayout = true;
@@ -711,6 +730,7 @@ class DeviceSessionController._({
     _utilitiesController?.dispose();
     _terminalSessionManager?.dispose();
     _networkController?.dispose();
+    _layoutInspectorController?.dispose();
     workspaceLayout
       ..removeListener(_handleWorkspaceChanged)
       ..dispose();

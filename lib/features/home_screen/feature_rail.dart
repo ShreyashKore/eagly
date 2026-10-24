@@ -182,6 +182,16 @@ class const FeatureRail({
                                         : 'Inspect HTTP traffic',
                                     onTap: session.toggleNetwork,
                                   ),
+                                if (session.canInspectLayout)
+                                  RailButton(
+                                    icon: Icons.account_tree_outlined,
+                                    label: 'Layout',
+                                    isActive: session.isLayoutInspectorOpen,
+                                    tooltip: session.isLayoutInspectorOpen
+                                        ? 'Hide layout inspector'
+                                        : 'Inspect what is on screen',
+                                    onTap: session.toggleLayoutInspector,
+                                  ),
                                 RailButton(
                                   icon: Icons.system_update_outlined,
                                   label: session.isInstallingApp
