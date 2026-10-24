@@ -9,7 +9,7 @@ import FlutterMacOS
 /// `AVCaptureDevice`, and its frames are rendered into a Flutter texture.
 ///
 ///  - method `eagly/ios_screen_capture`: `start {deviceName}` -> textureId,
-///    `stop {textureId}`, `snapshot {textureId}` -> PNG of the latest frame,
+///    `stop {textureId}`, `stopAll`, `snapshot {textureId}` -> PNG of the latest frame,
 ///    `startRecording {textureId}` -> path of the mp4 being written,
 ///    `stopRecording {textureId}` once it is finished. Stopping a capture
 ///    finishes its recording too, and keeps the file.
@@ -69,6 +69,17 @@ public class IosScreenCapturePlugin: NSObject, FlutterPlugin, FlutterStreamHandl
       }
       textures.unregisterTexture(textureId)
       capture.stop { DispatchQueue.main.async { result(nil) } }
+    case "stopAll":
+      // A hot restart forgets the Dart side's handles but not these, and a
+      // capture left running keeps streaming and holds the phone.
+      let group = DispatchGroup()
+      for (id, capture) in captures {
+        textures.unregisterTexture(id)
+        group.enter()
+        capture.stop { group.leave() }
+      }
+      captures = [:]
+      group.notify(queue: .main) { result(nil) }
     case "snapshot":
       guard let textureId = textureId, let capture = captures[textureId] else {
         result(nil)
@@ -325,6 +336,12 @@ final class IosScreenCapture: NSObject, FlutterTexture,
     observers = []
     sessionQueue.async {
       self.session.stopRunning()
+      // Letting go of the device here, rather than whenever the session is
+      // freed, releases the phone at once.
+      self.session.beginConfiguration()
+      self.session.inputs.forEach(self.session.removeInput)
+      self.session.outputs.forEach(self.session.removeOutput)
+      self.session.commitConfiguration()
       self.lock.lock()
       self.latest = nil
       self.lock.unlock()

@@ -30,6 +30,14 @@ class const IosScreenCapture() {
 
   static bool get isAvailable => debugIsAvailable ?? Platform.isMacOS;
 
+  /// Stops every capture the native side still runs. Called at startup: a
+  /// hot restart forgets the handles here but leaves their captures running,
+  /// holding the phone.
+  static Future<void> stopAll() async {
+    if (!isAvailable) return;
+    await _method.invokeMethod<void>('stopAll');
+  }
+
   /// Starts capturing the phone macOS lists as [deviceName] — its own name,
   /// which is all that tells two phones apart. Asks for camera access the
   /// first time. The first frame takes a few seconds; [IosScreenCaptureHandle.sizes]

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:eagly/constants/app_constants.dart';
+import 'package:eagly/features/mirror/services/ios_screen_capture.dart';
 import 'package:eagly/services/eagly_info_service.dart';
 import 'package:eagly/services/ios/ios_backend.dart';
 import 'package:eagly/services/preferences_service.dart';
@@ -17,6 +19,8 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   await initIosBackend();
+  // Captures a hot restart left running; a no-op on a fresh launch.
+  unawaited(IosScreenCapture.stopAll());
   await PreferencesService.init();
   await EaglyInfoService.init();
   final recordMode = RecordMode.isRequested(args);

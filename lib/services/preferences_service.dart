@@ -65,6 +65,7 @@ class PreferencesService {
   static const _keyRecentLogFiles = 'recentLogFiles';
   static const _keyTipsEnabled = 'tipsEnabled';
   static const _keyTipRotationIndex = 'tipRotationIndex';
+  static const _keySkipIosCaptureNotice = 'skipIosCaptureNotice';
   static const _keyCaptureDirectory = 'captureDirectory';
   static const _keyCaptureAskEveryTime = 'captureAskEveryTime';
   static const _keyAndroidSdkPath = 'androidSdkPath';
@@ -135,6 +136,14 @@ class PreferencesService {
   /// launch so a different tip surfaces each time the app is opened.
   static int get tipRotationIndex => _prefs.getInt(_keyTipRotationIndex) ?? 0;
   static set tipRotationIndex(int v) => _prefs.setInt(_keyTipRotationIndex, v);
+
+  // --- iPhone mirror ---
+  /// Whether the user asked not to see, before each iPhone mirror on macOS,
+  /// why it needs camera access.
+  static bool get skipIosCaptureNotice =>
+      _prefs.getBool(_keySkipIosCaptureNotice) ?? false;
+  static set skipIosCaptureNotice(bool v) =>
+      _prefs.setBool(_keySkipIosCaptureNotice, v);
 
   // --- Recent log files (most-recent first, capped, for one-click re-open) ---
   /// Listenable so the home screen rebuilds when the list changes.
