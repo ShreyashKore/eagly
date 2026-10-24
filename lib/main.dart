@@ -33,22 +33,32 @@ void main(List<String> args) async {
     runApp(const MyApp());
     return;
   }
-  await SentryFlutter.init((options) {
-    options.dsn = 'https://ae4a6b39a9a2ca819748de8112255cb6@o4511675750416384.ingest.us.sentry.io/4511675759984640';
-    // No IP addresses or request headers: stacks and breadcrumbs are enough to
-    // debug, and users never agreed to send more. See
-    // https://docs.sentry.io/platforms/dart/guides/flutter/data-management/data-collected/
-    options.sendDefaultPii = false;
-    // Errors and app hangs only. Tracing, profiling, logs and session replay
-    // each draw on a separate, capped quota.
-    options.tracesSampleRate = 0;
-    options.enableLogs = false;
-    options.replay.sessionSampleRate = 0;
-    options.replay.onErrorSampleRate = 0;
-    // Filter non-critical or noisy Flutter errors (e.g. RenderFlex overflow)
-    // to preserve Sentry dashboard hygiene and event quota.
-    options.beforeSend = SentryEventFilter.beforeSend;
-  }, appRunner: () => runApp(SentryWidget(child: const MyApp())));
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = 'https://ae4a6b39a9a2ca819748de8112255cb6@o4511675750416384.ingest.us.sentry.io/4511675759984640';
+      // No IP addresses or request headers: stacks and breadcrumbs are enough
+      // to debug, and users never agreed to send more. See
+      // https://docs.sentry.io/platforms/dart/guides/flutter/data-management/data-collected/
+      options.sendDefaultPii = false;
+      // Errors and app hangs only. Tracing, profiling, logs and session replay
+      // each draw on a separate, capped quota.
+      options.tracesSampleRate = 0;
+      options.enableLogs = false;
+      options.replay.sessionSampleRate = 0;
+      options.replay.onErrorSampleRate = 0;
+      // Filter non-critical or noisy Flutter errors (e.g. RenderFlex overflow)
+      // to preserve Sentry dashboard hygiene and event quota.
+      options.beforeSend = SentryEventFilter.beforeSend;
+    },
+    appRunner: () async {
+      // With sendDefaultPii off nothing else names the user, so Windows and
+      // Linux events would count no users at all.
+      await Sentry.configureScope(
+        (scope) => scope.setUser(SentryUser(id: PreferencesService.installId)),
+      );
+      runApp(SentryWidget(child: const MyApp()));
+    },
+  );
 }
 
 /// Removes the native title bar on desktop so the in-app [AppHeader] can act as

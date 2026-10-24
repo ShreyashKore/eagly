@@ -78,6 +78,15 @@ out to be the selection bug (C3), which also hits release builds.
 - Done with the gating change: `sendDefaultPii` is off, so events no longer carry user IP
   addresses (Sentry stops showing a city per user), and the web-only
   `upload_source_maps` is off in `pubspec.yaml`.
+- Users are now counted by an install ID: a random 128-bit ID made on first launch and
+  kept in preferences (`PreferencesService.installId`), set as the Sentry user. Before,
+  Windows and Linux users were counted by IP and macOS ones by a native device ID, and with
+  IPs off Windows and Linux would have counted none. Every install gets a new ID with the
+  release that ships this, so user counts restart there. Reinstalling or clearing
+  preferences also makes a new one.
+- Baseline before the change (errors only, so a floor, not a total): about 28 distinct
+  users sent a production error in the 90 days to 2026-10-25 (macOS 14, Windows 13,
+  Linux 1), mostly from China and India. Sentry has no session data for these releases.
 - Not changed: app hangs still report at Sentry's 2 s default and count toward the
   errors quota (FLUTTER-5V alone sent about 4,200 in 45 days). If that quota runs short,
   raise `options.appHangTimeoutInterval` or sample hangs in `beforeSend`.

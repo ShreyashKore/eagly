@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -61,6 +62,7 @@ class PreferencesService {
   static const _keyRememberHiddenColumns = 'rememberHiddenColumns';
   static const _keyLogLinesLimit = 'logLinesLimit';
   static const _keyThemeMode = 'themeMode';
+  static const _keyInstallId = 'installId';
   static const _keyLastFileDialogDirectory = 'lastFileDialogDirectory';
   static const _keyLogFontSize = 'logFontSize';
   static const _keyRecentLogFiles = 'recentLogFiles';
@@ -111,6 +113,20 @@ class PreferencesService {
 
   static ThemeMode get themeMode =>
       _themeModeFromName(_prefs.getString(_keyThemeMode)) ?? ThemeMode.dark;
+
+  /// A random ID made on first launch and kept for this install. It names
+  /// nothing about the user or the machine; Sentry counts users by it.
+  static String get installId {
+    final existing = _prefs.getString(_keyInstallId);
+    if (existing != null) return existing;
+    final random = Random.secure();
+    final id = [
+      for (var i = 0; i < 16; i++)
+        random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ].join();
+    _prefs.setString(_keyInstallId, id);
+    return id;
+  }
 
   static String? get lastFileDialogDirectory =>
       _prefs.getString(_keyLastFileDialogDirectory);
