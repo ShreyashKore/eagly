@@ -269,6 +269,19 @@ class _LogViewerState extends State<LogViewer> {
 
     final sc = widget.scrollController;
 
+    // Called from didUpdateWidget, before the new logs are laid out, so the
+    // list's extents can still hold the old count; revealing an index past it
+    // throws a RangeError (FLUTTER-12). Let the layout catch up first.
+    if (!_listController.isAttached || index >= _listController.numberOfItems) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted ||
+          !sc.hasClients ||
+          !_listController.isAttached ||
+          index >= _listController.numberOfItems) {
+        return;
+      }
+    }
+
     // // 1. Fast path: row already on screen — no jump needed.
     // await WidgetsBinding.instance.endOfFrame;
     // if (!mounted) return;

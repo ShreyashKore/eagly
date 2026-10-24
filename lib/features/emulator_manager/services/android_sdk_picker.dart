@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
@@ -39,7 +41,11 @@ class const AndroidSdkPicker._() {
   static Future<String?> _chooseWithFilePicker({String? initialDirectory}) {
     return FilePicker.platform.getDirectoryPath(
       dialogTitle: 'Choose your Android SDK folder',
-      initialDirectory: initialDirectory,
+      // The Windows picker throws on a folder that doesn't exist.
+      initialDirectory:
+          initialDirectory != null && Directory(initialDirectory).existsSync()
+          ? initialDirectory
+          : null,
     );
   }
 
