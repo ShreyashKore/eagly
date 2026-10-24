@@ -478,36 +478,57 @@ fn forget_syslog_session(session_id: &str) {
         .remove(session_id);
 }
 
-/// One user-installed app.
+/// One installed app.
 pub struct IosAppInfo {
     pub bundle_id: String,
     /// `CFBundleDisplayName`, falling back to `CFBundleName`.
     pub name: Option<String>,
     /// `CFBundleShortVersionString`.
     pub version: Option<String>,
+    /// `CFBundleVersion`: the build number.
+    pub build: Option<String>,
+    /// `CFBundleExecutable`: the process name the app's log lines carry, which
+    /// is rarely its bundle identifier.
+    pub executable: Option<String>,
+    /// Apple's own, preinstalled (`ApplicationType` `System`).
+    pub is_system: bool,
+    /// Signed with the `get-task-allow` entitlement: a debug build, from
+    /// Xcode or `flutter run`. Only these let house_arrest into their data.
+    pub is_debuggable: bool,
 }
 
-/// Lists user-installed apps, in the order installation_proxy returns them.
+/// Lists installed apps, in the order installation_proxy returns them.
 ///
-/// Only user apps, matching what `ideviceinstaller` reports — so everything
-/// returned is uninstallable. Ordering and capping are presentation concerns
-/// and are applied above, identically for both backends.
+/// Only user apps unless `include_system`, matching what `ideviceinstaller`
+/// reports by default. System apps leave out the ~200 tagged `hidden`: UI
+/// services such as `SafariViewService`, which have no home-screen icon.
+/// Ordering and capping are presentation concerns and are applied above,
+/// identically for both backends.
 ///
 /// Uses `Browse`, as `ideviceinstaller` does, rather than the client's
 /// `get_apps` (`Lookup`): that returns a `HashMap`, whose iteration order is
 /// randomized per process, and the device-home card takes the first few.
-pub async fn list_ios_apps(udid: String) -> Result<Vec<IosAppInfo>, IosError> {
+pub async fn list_ios_apps(
+    udid: String,
+    include_system: bool,
+) -> Result<Vec<IosAppInfo>, IosError> {
     let mut client = installation_proxy(&udid).await?;
 
-    const ATTRIBUTES: [&str; 4] = [
+    const ATTRIBUTES: [&str; 9] = [
         "CFBundleIdentifier",
         "CFBundleDisplayName",
         "CFBundleName",
         "CFBundleShortVersionString",
+        "CFBundleVersion",
+        "CFBundleExecutable",
+        "ApplicationType",
+        "SBAppTags",
+        "Entitlements",
     ];
     let mut options = plist::Dictionary::new();
     // "User" is the filter `ideviceinstaller` applies by default.
-    options.insert("ApplicationType".into(), "User".into());
+    let application_type = if include_system { "Any" } else { "User" };
+    options.insert("ApplicationType".into(), application_type.into());
     options.insert(
         "ReturnAttributes".into(),
         Value::Array(ATTRIBUTES.iter().map(|&key| key.into()).collect()),
@@ -516,15 +537,36 @@ pub async fn list_ios_apps(udid: String) -> Result<Vec<IosAppInfo>, IosError> {
 
     Ok(apps
         .iter()
+        .filter(|value| !is_hidden_app(value))
         .filter_map(|value| {
             Some(IosAppInfo {
                 bundle_id: string_value(value, "CFBundleIdentifier")?,
                 name: string_value(value, "CFBundleDisplayName")
                     .or_else(|| string_value(value, "CFBundleName")),
                 version: string_value(value, "CFBundleShortVersionString"),
+                build: string_value(value, "CFBundleVersion"),
+                executable: string_value(value, "CFBundleExecutable"),
+                is_system: string_value(value, "ApplicationType").as_deref() == Some("System"),
+                is_debuggable: value
+                    .as_dictionary()
+                    .and_then(|app| app.get("Entitlements"))
+                    .and_then(Value::as_dictionary)
+                    .and_then(|entitlements| entitlements.get("get-task-allow"))
+                    .and_then(Value::as_boolean)
+                    .unwrap_or(false),
             })
         })
         .collect())
+}
+
+/// Whether SpringBoard keeps the app off the home screen (`SBAppTags`
+/// contains `hidden`).
+fn is_hidden_app(values: &Value) -> bool {
+    values
+        .as_dictionary()
+        .and_then(|dictionary| dictionary.get("SBAppTags"))
+        .and_then(Value::as_array)
+        .is_some_and(|tags| tags.iter().any(|tag| tag.as_string() == Some("hidden")))
 }
 
 /// Installs a `.ipa` from a **host** path.
@@ -563,6 +605,18 @@ pub async fn fetch_ios_app_icon(udid: String, bundle_id: String) -> Result<Vec<u
     let provider = provider_for(&udid).await?;
     let mut springboard = SpringBoardServicesClient::connect(&provider).await?;
     Ok(springboard.get_icon_pngdata(bundle_id).await?)
+}
+
+/// Where the app's bundle lives on the phone (installation_proxy's `Path`),
+/// e.g. `/private/var/containers/Bundle/Application/<uuid>/Notes.app`.
+pub(crate) async fn ios_app_bundle_path(udid: &str, bundle_id: &str) -> Result<String, IosError> {
+    let mut client = installation_proxy(udid).await?;
+    let apps = client
+        .get_apps(Some("Any"), Some(vec![bundle_id.to_string()]))
+        .await?;
+    apps.get(bundle_id)
+        .and_then(|app| string_value(app, "Path"))
+        .ok_or_else(|| IosError::Other(format!("{bundle_id} is not installed")))
 }
 
 async fn installation_proxy(udid: &str) -> Result<InstallationProxyClient, IosError> {
@@ -907,6 +961,64 @@ mod tests {
         ));
     }
 
+    /// What the Apps pane lists, with the fields it relies on. Needs a phone:
+    /// `EAGLY_TEST_IOS_UDID=<udid> cargo test --release app_list -- --ignored --nocapture`
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn app_list() {
+        let udid = std::env::var("EAGLY_TEST_IOS_UDID").expect("EAGLY_TEST_IOS_UDID");
+        let started = std::time::Instant::now();
+        let Ok(apps) = list_ios_apps(udid.clone(), false).await else {
+            panic!("no app list")
+        };
+        println!(
+            "{} apps in {} ms",
+            apps.len(),
+            started.elapsed().as_millis()
+        );
+        assert!(!apps.is_empty(), "no user apps");
+        // View Logs filters by the executable: an app without one can't be found.
+        let unnamed: Vec<_> = apps
+            .iter()
+            .filter(|app| app.executable.is_none())
+            .map(|app| &app.bundle_id)
+            .collect();
+        assert!(unnamed.is_empty(), "no executable: {unnamed:?}");
+        let unbuilt: Vec<_> = apps
+            .iter()
+            .filter(|app| app.build.is_none())
+            .map(|app| &app.bundle_id)
+            .collect();
+        assert!(unbuilt.is_empty(), "no build number: {unbuilt:?}");
+        println!(
+            "{} debug build(s)",
+            apps.iter().filter(|app| app.is_debuggable).count()
+        );
+        assert!(
+            apps.iter().all(|app| !app.is_system),
+            "a system app among user apps"
+        );
+
+        let started = std::time::Instant::now();
+        let Ok(all) = list_ios_apps(udid.clone(), true).await else {
+            panic!("no app list with system apps")
+        };
+        let system: Vec<_> = all.iter().filter(|app| app.is_system).collect();
+        println!(
+            "with system apps: {} ({} system) in {} ms: {}",
+            all.len(),
+            system.len(),
+            started.elapsed().as_millis(),
+            system
+                .iter()
+                .map(|app| app.name.as_deref().unwrap_or(&app.bundle_id))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        assert_eq!(all.len() - system.len(), apps.len(), "user apps differ");
+        assert!(!system.is_empty(), "no system apps");
+    }
+
     /// Every user app's icon, each on its own connection as the Apps pane asks
     /// for them, then all of them again four at a time, as the pane fetches.
     /// Set `EAGLY_TEST_ICON_DIR` to keep the PNGs. Needs a phone:
@@ -915,7 +1027,7 @@ mod tests {
     #[ignore]
     async fn app_icons() {
         let udid = std::env::var("EAGLY_TEST_IOS_UDID").expect("EAGLY_TEST_IOS_UDID");
-        let Ok(apps) = list_ios_apps(udid.clone()).await else {
+        let Ok(apps) = list_ios_apps(udid.clone(), false).await else {
             panic!("no app list")
         };
         assert!(!apps.is_empty(), "no user apps to fetch icons for");

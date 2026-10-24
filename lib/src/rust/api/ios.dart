@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `afc_client`, `basename`, `claim_syslog_session`, `connect_usbmuxd`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_syslog_session`, `format_os_trace_log`, `installation_proxy`, `is_crash_report`, `is_network`, `is_skippable_record_error`, `join_afc_path`, `open_session`, `provider_for`, `read_afc_file`, `status`, `string_value`, `upload_recursive`
+// These functions are ignored because they are not marked as `pub`: `afc_client`, `basename`, `claim_syslog_session`, `connect_usbmuxd`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_syslog_session`, `format_os_trace_log`, `installation_proxy`, `ios_app_bundle_path`, `is_crash_report`, `is_hidden_app`, `is_network`, `is_skippable_record_error`, `join_afc_path`, `open_session`, `provider_for`, `read_afc_file`, `status`, `string_value`, `upload_recursive`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
 /// Lists every device usbmuxd knows about.
@@ -66,17 +66,24 @@ Stream<String> startIosSyslog({
 Future<void> stopIosSyslog({required String sessionId}) =>
     RustLib.instance.api.crateApiIosStopIosSyslog(sessionId: sessionId);
 
-/// Lists user-installed apps, in the order installation_proxy returns them.
+/// Lists installed apps, in the order installation_proxy returns them.
 ///
-/// Only user apps, matching what `ideviceinstaller` reports — so everything
-/// returned is uninstallable. Ordering and capping are presentation concerns
-/// and are applied above, identically for both backends.
+/// Only user apps unless `include_system`, matching what `ideviceinstaller`
+/// reports by default. System apps leave out the ~200 tagged `hidden`: UI
+/// services such as `SafariViewService`, which have no home-screen icon.
+/// Ordering and capping are presentation concerns and are applied above,
+/// identically for both backends.
 ///
 /// Uses `Browse`, as `ideviceinstaller` does, rather than the client's
 /// `get_apps` (`Lookup`): that returns a `HashMap`, whose iteration order is
 /// randomized per process, and the device-home card takes the first few.
-Future<List<IosAppInfo>> listIosApps({required String udid}) =>
-    RustLib.instance.api.crateApiIosListIosApps(udid: udid);
+Future<List<IosAppInfo>> listIosApps({
+  required String udid,
+  required bool includeSystem,
+}) => RustLib.instance.api.crateApiIosListIosApps(
+  udid: udid,
+  includeSystem: includeSystem,
+);
 
 /// Installs a `.ipa` from a **host** path.
 ///
@@ -186,7 +193,7 @@ Future<void> uploadIosPath({
   devicePath: devicePath,
 );
 
-/// One user-installed app.
+/// One installed app.
 class IosAppInfo {
   final String bundleId;
 
@@ -196,10 +203,39 @@ class IosAppInfo {
   /// `CFBundleShortVersionString`.
   final String? version;
 
-  const IosAppInfo({required this.bundleId, this.name, this.version});
+  /// `CFBundleVersion`: the build number.
+  final String? build;
+
+  /// `CFBundleExecutable`: the process name the app's log lines carry, which
+  /// is rarely its bundle identifier.
+  final String? executable;
+
+  /// Apple's own, preinstalled (`ApplicationType` `System`).
+  final bool isSystem;
+
+  /// Signed with the `get-task-allow` entitlement: a debug build, from
+  /// Xcode or `flutter run`. Only these let house_arrest into their data.
+  final bool isDebuggable;
+
+  const IosAppInfo({
+    required this.bundleId,
+    this.name,
+    this.version,
+    this.build,
+    this.executable,
+    required this.isSystem,
+    required this.isDebuggable,
+  });
 
   @override
-  int get hashCode => bundleId.hashCode ^ name.hashCode ^ version.hashCode;
+  int get hashCode =>
+      bundleId.hashCode ^
+      name.hashCode ^
+      version.hashCode ^
+      build.hashCode ^
+      executable.hashCode ^
+      isSystem.hashCode ^
+      isDebuggable.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -208,7 +244,11 @@ class IosAppInfo {
           runtimeType == other.runtimeType &&
           bundleId == other.bundleId &&
           name == other.name &&
-          version == other.version;
+          version == other.version &&
+          build == other.build &&
+          executable == other.executable &&
+          isSystem == other.isSystem &&
+          isDebuggable == other.isDebuggable;
 }
 
 /// The lockdownd domains the device-home screen reads.

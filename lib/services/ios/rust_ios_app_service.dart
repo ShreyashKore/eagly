@@ -4,6 +4,7 @@ import '../../features/app_log/app_logger.dart';
 import '../../features/apps/data/app_info.dart';
 import '../../features/wireless_connection/data/wireless_debug_models.dart';
 import '../../src/rust/api/ios.dart' as rust;
+import '../../src/rust/api/ios_app_control.dart' as rust;
 import 'ios_app_service.dart';
 
 /// [IosAppService] backed by the `idevice` crate's installation_proxy client.
@@ -14,15 +15,25 @@ class RustIosAppService implements IosAppService {
   final AppLogger _logger = AppLogger(source: 'RustIosAppService');
 
   @override
-  Future<List<AppInfo>> listApps(String deviceId) async {
+  Future<List<AppInfo>> listApps(
+    String deviceId, {
+    bool includeSystemApps = false,
+  }) async {
     try {
-      final apps = await rust.listIosApps(udid: deviceId);
+      final apps = await rust.listIosApps(
+        udid: deviceId,
+        includeSystem: includeSystemApps,
+      );
       return [
         for (final app in apps)
           AppInfo(
             packageName: app.bundleId,
             appName: app.name,
             versionName: app.version,
+            versionCode: app.build,
+            processName: app.executable,
+            isSystemApp: app.isSystem,
+            isDebuggable: app.isDebuggable,
           ),
       ];
     } catch (error) {
@@ -30,6 +41,9 @@ class RustIosAppService implements IosAppService {
       return const [];
     }
   }
+
+  @override
+  bool get listsSystemApps => true;
 
   @override
   Future<DeviceCommandResult> installApp({
@@ -64,6 +78,79 @@ class RustIosAppService implements IosAppService {
       );
     }
   }
+
+  @override
+  Future<bool> canControlApps(String deviceId) async {
+    try {
+      return await rust.probeIosAppControl(udid: deviceId);
+    } catch (error) {
+      _logger.error(
+        'Failed to probe iOS app control',
+        detail: error.toString(),
+      );
+      return false;
+    }
+  }
+
+  @override
+  Future<DeviceCommandResult> launchApp({
+    required String deviceId,
+    required String bundleId,
+  }) async {
+    try {
+      await rust.launchIosApp(udid: deviceId, bundleId: bundleId);
+      return DeviceCommandResult.success(message: 'Opened $bundleId.');
+    } catch (error) {
+      _logger.error('Failed to open $bundleId', detail: error.toString());
+      return DeviceCommandResult.failure(
+        error: 'Failed to open $bundleId: $error',
+      );
+    }
+  }
+
+  @override
+  Future<DeviceCommandResult> forceStopApp({
+    required String deviceId,
+    required String bundleId,
+  }) async {
+    try {
+      final killed = await rust.stopIosApp(udid: deviceId, bundleId: bundleId);
+      return DeviceCommandResult.success(
+        message: killed == 0
+            ? "$bundleId wasn't running."
+            : 'Force-stopped $bundleId.',
+      );
+    } catch (error) {
+      _logger.error('Failed to stop $bundleId', detail: error.toString());
+      return DeviceCommandResult.failure(
+        error: 'Failed to stop $bundleId: $error',
+      );
+    }
+  }
+
+  @override
+  Future<DeviceCommandResult> clearAppData({
+    required String deviceId,
+    required String bundleId,
+  }) async {
+    try {
+      await rust.clearIosAppData(udid: deviceId, bundleId: bundleId);
+      return DeviceCommandResult.success(
+        message: 'Cleared data for $bundleId.',
+      );
+    } catch (error) {
+      _logger.error(
+        'Failed to clear data for $bundleId',
+        detail: error.toString(),
+      );
+      return DeviceCommandResult.failure(
+        error: 'Failed to clear data for $bundleId: $error',
+      );
+    }
+  }
+
+  @override
+  bool get clearsAppData => true;
 
   /// Asks SpringBoard. Failures propagate: the caller logs them and retries.
   @override

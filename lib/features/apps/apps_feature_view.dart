@@ -2,6 +2,7 @@ import 'package:eagly/presentation/components/feature_view.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../data/device.dart';
 import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/overflow_toolbar.dart';
 import 'apps_controller.dart';
@@ -76,11 +77,19 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
 
   Future<void> _handleClearData(AppInfo app) async {
     if (_blockSystemApp(app)) return;
+    if (!controller.canClearDataOf(app)) {
+      _showSnackBar(
+        "${app.displayName} isn't a debug build — iOS keeps its data sealed.",
+      );
+      return;
+    }
     final confirmed = await _confirmDestructive(
       title: 'Clear data for ${app.displayName}?',
-      message:
-          "This permanently deletes the app's data and cache on the device. "
-          'It will restart as if freshly installed.',
+      message: controller.device is IosDevice
+          ? "This permanently deletes the app's documents, caches and "
+                'settings on the device. Its keychain items stay.'
+          : "This permanently deletes the app's data and cache on the "
+                'device. It will restart as if freshly installed.',
       confirmLabel: 'Clear Data',
     );
     if (!confirmed) return;

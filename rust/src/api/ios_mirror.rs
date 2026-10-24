@@ -24,19 +24,15 @@ use idevice::core_device::{
     RotationDirection, ScreenCaptureServiceClient, UniversalHidServiceClient,
     TOUCHSCREEN_STATE_CONTACT, TOUCHSCREEN_STATE_RELEASE,
 };
-use idevice::core_device_proxy::CoreDeviceProxy;
-use idevice::rsd::RsdHandshake;
 use idevice::services::springboardservices::{InterfaceOrientation, SpringBoardServicesClient};
-use idevice::tcp::handle::AdapterHandle;
-use idevice::{IdeviceError, IdeviceService, ReadWrite, RsdService};
+use idevice::{IdeviceError, IdeviceService};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 use tokio_util::sync::CancellationToken;
 
 use super::ios::{provider_for, IosError};
 use crate::frb_generated::StreamSink;
-
-type Rw = Box<dyn ReadWrite>;
+use crate::tunnel::{connect, io_error, Rw, Tunnel};
 
 /// What a phone offers the mirror, read from its Remote Service Discovery
 /// listing. All false when the developer disk image is not mounted.
@@ -119,51 +115,9 @@ const GENERAL_PASTEBOARD: &str = "general";
 
 // ── Connecting ──────────────────────────────────────────────────────────
 
-/// Connects the RSD service `$client` over `$tunnel`.
-///
-/// A macro rather than a generic method: through a type parameter rustc cannot
-/// see that the connect future is `Send`, and a spawned caller then fails with
-/// "implementation of `RsdService` is not general enough" (the `'static` on the
-/// client's `Box<dyn ReadWrite>` is lost). Boxing the future as
-/// `dyn Future + Send` at the concrete type settles it there.
-macro_rules! connect {
-    ($tunnel:expr, $client:ty) => {{
-        let tunnel: &mut Tunnel = $tunnel;
-        let connecting: std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<$client, IdeviceError>> + Send + '_>,
-        > = Box::pin(<$client as RsdService>::connect_rsd(
-            &mut tunnel.adapter,
-            &mut tunnel.handshake,
-        ));
-        connecting.await
-    }};
-}
-
-/// A CoreDevice tunnel to one phone, with its service listing.
-struct Tunnel {
-    adapter: AdapterHandle,
-    handshake: RsdHandshake,
-}
-
+// The tunnel itself is shared with app control (`tunnel.rs`); only the
+// mirror asks whether it can stream the screen.
 impl Tunnel {
-    /// usbmux → lockdown `CoreDeviceProxy` → userspace TCP → RSD handshake.
-    /// About 75 ms over USB.
-    async fn open(udid: &str) -> Result<Tunnel, IosError> {
-        let provider = provider_for(udid).await?;
-        let proxy = CoreDeviceProxy::connect(&provider).await?;
-        let rsd_port = proxy.tunnel_info().server_rsd_port;
-        let mut adapter = proxy.create_software_tunnel()?.to_async_handle();
-        let stream = adapter.connect(rsd_port).await.map_err(io_error)?;
-        let handshake = RsdHandshake::new(stream).await?;
-        Ok(Tunnel { adapter, handshake })
-    }
-
-    fn offers<T: RsdService>(&self) -> bool {
-        self.handshake
-            .services
-            .contains_key(T::rsd_service_name().as_ref())
-    }
-
     /// Whether `displayservice` exists and says it can stream. On iOS 26 it
     /// exists but reports `supportedFeatures: 0`, and starting a stream fails
     /// with "Remote control requires iOS 27.0 or later on this device."
@@ -186,14 +140,6 @@ impl Tunnel {
             })
             .is_some_and(|features| features != 0)
     }
-
-    async fn close(mut self) {
-        let _ = self.adapter.close().await;
-    }
-}
-
-fn io_error(error: std::io::Error) -> IosError {
-    IosError::Other(error.to_string())
 }
 
 /// Reads which mirror services `udid` offers.

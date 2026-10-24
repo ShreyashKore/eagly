@@ -243,7 +243,8 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   - **iOS 27 drops HID events unless a `displayservice` stream is open**, so `start_ios_input`
     opens one and drains it. iOS 26.6 takes them without.
   - Spawned futures that connect an RSD service go through the `connect!` macro. A generic helper
-    fails to compile ("implementation of `RsdService` is not general enough").
+    fails to compile ("implementation of `RsdService` is not general enough"). The macro and the
+    `Tunnel` live in `rust/src/tunnel.rs`, shared with app control (`api/ios_app_control.rs`).
 - **App install & drag-and-drop:** `DeviceSessionController.handleDroppedPaths()` routes
   dropped paths — installable bundles (`.apk` on Android / `.ipa` on iOS, classified by
   `AppInstallService.inferSupportedPlatform`) go to `installAppFromPath()`; everything else
@@ -283,7 +284,22 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   must never trigger one. iOS icons come from SpringBoard (`fetch_ios_app_icon`, a plain
   lockdown service: no tunnel or disk image) through the same lazy queue and cache, with
   no label, since the installer reports names; the CLI backend has no icon call, so its
-  tiles keep their initials. Grid/list mode and icon size are
+  tiles keep their initials. iOS log lines carry the executable's name, not the bundle id,
+  so *View Logs* filters by `AppInfo.logProcessName` (`CFBundleExecutable` on iOS; the
+  CLI backend doesn't read it and falls back to the bundle id, which matches nothing).
+  The *System apps* toggle works on iOS too (Rust backend): installation_proxy's `Any`
+  lists ~250 system apps, but most are UI services tagged `hidden` in `SBAppTags`; only
+  the ~50 with a home-screen icon are kept. *Open* and *Force Stop* work on an iPhone through
+  CoreDevice's app service (`api/ios_app_control.rs`), so like the mirror's input they need
+  Developer Mode and Xcode's developer disk image; `AppsController` asks on every refresh
+  (`canControlApps`) and offers them only while the phone says yes. Force Stop kills every
+  process running out of the app's bundle, extensions included, found through
+  installation_proxy's `Path`: the app service's own `listapps` is refused on iOS 27 by
+  idevice 0.1.65. *Clear Data* works on an iPhone only for a debug build (`AppInfo.isDebuggable`,
+  signed `get-task-allow`): house_arrest opens no other app's container, so the menu item is
+  disabled with a reason for the rest. It stops the app if it can, then empties `Documents`,
+  `Library` and `tmp`, keeping the folders iOS makes at install; keychain items survive.
+  *App Info* stays Android only. Grid/list mode and icon size are
   global preferences, and the controller — not the view — owns the search text, so a
   reopened pane re-seeds its field from it.
 - **Utilities feature:** a declarative catalog (`features/utilities/data/utility_catalog.dart`)

@@ -290,6 +290,16 @@ class FakeSessionService(Device device) extends DeviceSessionRepository {
     return uninstallResult;
   }
 
+  /// What [canControlApps] answers; Android never asks.
+  bool appControl = false;
+  int appControlProbes = 0;
+
+  @override
+  Future<bool> canControlApps() async {
+    appControlProbes++;
+    return appControl;
+  }
+
   @override
   Future<DeviceCommandResult> launchApp(String packageName) async {
     launchRequests.add(packageName);

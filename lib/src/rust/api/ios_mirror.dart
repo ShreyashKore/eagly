@@ -8,8 +8,8 @@ import 'ios.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply`, `claim_screenshot_stream`, `close`, `close`, `close`, `connect`, `forget_screenshot_stream`, `io_error`, `is_capture_busy`, `offers`, `open`, `open`, `request`, `run_input`, `send`, `stream_screenshots`, `streams_display`, `take_screenshot`, `to_digitizer`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `InputClients`, `InputCommand`, `InputGate`, `Tunnel`
+// These functions are ignored because they are not marked as `pub`: `apply`, `claim_screenshot_stream`, `close`, `close`, `connect`, `forget_screenshot_stream`, `is_capture_busy`, `open`, `request`, `run_input`, `send`, `stream_screenshots`, `streams_display`, `take_screenshot`, `to_digitizer`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `InputClients`, `InputCommand`, `InputGate`
 
 /// Reads which mirror services `udid` offers.
 Future<IosMirrorSupport> probeIosMirror({required String udid}) =>

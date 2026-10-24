@@ -8,10 +8,12 @@ class const AppInfo({
   required final String packageName,
   final String? appName,
   final String? versionName,
+
+  /// Android's `versionCode`, iOS's build number (`CFBundleVersion`).
   final String? versionCode,
 
-  /// True for apps preinstalled by the OS/OEM. Android only — always false
-  /// for iOS, whose installer only ever lists user-installed apps.
+  /// True for apps preinstalled by the OS/OEM: Android's system packages,
+  /// Apple's own apps on iOS.
   final bool isSystemApp = false,
 
   /// False when a system app has been disabled (Android only, via
@@ -25,8 +27,21 @@ class const AppInfo({
   final String? apkPath,
   final DateTime? installTime,
   final DateTime? updateTime,
+
+  /// Signed with `get-task-allow`: an iOS debug build, from Xcode or
+  /// `flutter run`. iOS lets Eagly into no other app's data, so only these
+  /// can have it cleared. Not read on Android, where every app can.
+  final bool isDebuggable = false,
+
+  /// The process name the app's log lines carry, when it isn't
+  /// [packageName]: an iOS app logs under its executable (`Spotify`), not its
+  /// bundle identifier. Android processes are named after their package.
+  final String? processName,
 }) {
   String get displayName => appName ?? packageName;
+
+  /// What "View Logs" filters the package column by.
+  String get logProcessName => processName ?? packageName;
 
   /// Most recent install or update — what "recently installed" orders by,
   /// since reinstalling a build (`adb install -r`) only moves the update
@@ -49,5 +64,7 @@ class const AppInfo({
     apkPath: apkPath,
     installTime: installTime,
     updateTime: updateTime,
+    processName: processName,
+    isDebuggable: isDebuggable,
   );
 }

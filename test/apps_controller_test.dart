@@ -142,14 +142,68 @@ void main() {
     },
   );
 
-  test('canLaunchApps and canManageAppState are false on iOS', () {
+  test('on iOS, Open, Force Stop and System apps wait for a refresh', () {
     final controller = createController(
       withDevice: Device.ios('00008110-001234567890801E', 'device'),
     );
+    service.appControl = true;
 
+    // Not before the phone has been asked, at the first refresh.
     expect(controller.canLaunchApps, isFalse);
-    expect(controller.canManageAppState, isFalse);
-    expect(controller.canShowSystemApps, isFalse);
+    expect(controller.canForceStopApps, isFalse);
+    expect(controller.canOpenAppInfo, isFalse);
+    // The Rust backend lists Apple's own apps too.
+    expect(controller.canShowSystemApps, isTrue);
+  });
+
+  test('on iOS, Open and Force Stop follow the app service', () async {
+    final controller = createController(
+      withDevice: Device.ios('00008110-001234567890801E', 'device'),
+    );
+    service.appControl = true;
+
+    await controller.refresh();
+    await pumpEventQueue();
+
+    expect(service.appControlProbes, 1);
+    expect(controller.canLaunchApps, isTrue);
+    expect(controller.canForceStopApps, isTrue);
+
+    // The disk image goes with a restart of the phone.
+    service.appControl = false;
+    await controller.refresh();
+    await pumpEventQueue();
+
+    expect(service.appControlProbes, 2);
+    expect(controller.canLaunchApps, isFalse);
+  });
+
+  test('on iOS, only a debug build can have its data cleared', () {
+    final controller = createController(
+      withDevice: Device.ios('00008110-001234567890801E', 'device'),
+    );
+    const debug = AppInfo(packageName: 'com.example.dev', isDebuggable: true);
+    const release = AppInfo(packageName: 'com.example.store');
+
+    expect(controller.canClearAppData, isTrue);
+    expect(controller.canClearDataOf(debug), isTrue);
+    expect(controller.canClearDataOf(release), isFalse);
+  });
+
+  test('Android never asks for the app service', () async {
+    final controller = createController();
+
+    await controller.refresh();
+
+    expect(service.appControlProbes, 0);
+    expect(controller.canLaunchApps, isTrue);
+    expect(controller.canForceStopApps, isTrue);
+    expect(controller.canClearAppData, isTrue);
+    expect(
+      controller.canClearDataOf(const AppInfo(packageName: 'a.b')),
+      isTrue,
+    );
+    expect(controller.canOpenAppInfo, isTrue);
   });
 
   test(
@@ -368,6 +422,23 @@ void main() {
     expect(session!.logSessionManager.tabs.length, tabsBefore + 1);
     final tab = session!.logSessionManager.tabs.last;
     expect(tab.filter.conditions.single.value, 'com.example.a');
+  });
+
+  test('viewLogs filters an iOS app by its process, not its bundle', () {
+    final controller = createController(
+      withDevice: Device.ios('00008110-001234567890801E', 'device'),
+    );
+    // iOS log lines carry the executable's name; the bundle id is in none.
+    const app = AppInfo(
+      packageName: 'com.example.notes',
+      appName: 'Notes',
+      processName: 'NotesApp',
+    );
+
+    controller.viewLogs(app);
+
+    final tab = session!.logSessionManager.tabs.last;
+    expect(tab.filter.conditions.single.value, 'NotesApp');
   });
 
   test(
