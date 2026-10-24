@@ -99,8 +99,10 @@ async bridge calls have none.
   scales by 3% nor turns by 0.05 rad is a two-finger scroll and stays ignored. Every frame names
   every finger still down, and lifts each once with `touching: false`; resting fingers wobble
   like a single one. Only the iPhone surface passes `onMultiTouch`, so the Android mirror keeps
-  one finger. Verified on hardware by the device test's Maps pinch; the trackpad mapping only in
-  widget tests (`test/scrcpy_view_pinch_test.dart`).
+  one finger. Verified on hardware by the device test's Maps pinch, and by hand on iOS 27.0:
+  the Option markers, Option-drag pinch and rotation, a trackpad pinch and rotation (turning the
+  right way), and the Android mirror left at one finger. The gesture logic is covered by
+  `test/scrcpy_view_pinch_test.dart`.
 - **Keys** go over as HID usages, which Flutter's `PhysicalKeyboardKey.usbHidUsage` already is —
   modifiers too, as keys of their own — and the phone types through **its own hardware-keyboard
   layout**, unlike Android, where printable keys travel as text in the host's layout
