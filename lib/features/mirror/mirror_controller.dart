@@ -519,7 +519,17 @@ class MirrorController(super.session) extends FeatureController {
     _clipboardSub = control.onDeviceClipboardChanged.listen((text) {
       if (!clipboardSyncEnabled || text.isEmpty) return;
       if (text == _lastPushedClipboard) return; // our own push, echoed back
-      unawaited(Clipboard.setData(ClipboardData(text: text)));
+      // Windows refuses the clipboard while another app holds it open.
+      unawaited(
+        Clipboard.setData(ClipboardData(text: text)).catchError((Object error) {
+          AppBreadcrumbs.action(
+            'Copying the device clipboard failed',
+            category: 'mirror',
+            level: SentryLevel.warning,
+            data: {'error': describeError(error)},
+          );
+        }),
+      );
     });
   }
 
@@ -542,7 +552,19 @@ class MirrorController(super.session) extends FeatureController {
     if (_ios case final ios?) return ios.pasteFromClipboard();
     final control = _session?.control;
     if (control == null) return false;
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final ClipboardData? data;
+    try {
+      data = await Clipboard.getData(Clipboard.kTextPlain);
+    } on PlatformException catch (error) {
+      // Windows refuses the clipboard while another app holds it open.
+      AppBreadcrumbs.action(
+        'Reading the desktop clipboard failed',
+        category: 'mirror',
+        level: SentryLevel.warning,
+        data: {'error': describeError(error)},
+      );
+      return false;
+    }
     final text = data?.text;
     if (text == null || text.isEmpty) return false;
     if (!identical(_session?.control, control)) return false;

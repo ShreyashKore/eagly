@@ -121,8 +121,10 @@ flutter:
 
 
 
+# Read by `dart run sentry_dart_plugin`, which the release workflow runs after
+# packaging. Source maps are for web builds, which Eagly doesn't ship.
 sentry:
   upload_debug_symbols: true
-  upload_source_maps: true
+  upload_source_maps: false
   project: flutter
   org: gyanoba

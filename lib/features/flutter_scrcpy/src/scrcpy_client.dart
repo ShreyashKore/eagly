@@ -71,6 +71,10 @@ class ScrcpyControl(final Socket _socket) {
       onError: (_) {},
       cancelOnError: false,
     );
+    // A write to a socket the device has reset fails on `done`, not on the
+    // stream above, and unobserved it reaches the zone as an unhandled
+    // "Connection reset by peer" (FLUTTER-M).
+    unawaited(_socket.done.catchError((Object _) {}));
   }
 
   late final StreamSubscription<Uint8List> _subscription;

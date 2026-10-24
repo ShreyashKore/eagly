@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
@@ -89,7 +91,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _chooseCaptureDirectory() async {
     final chosen = await FilePicker.platform.getDirectoryPath(
       dialogTitle: 'Choose a folder for screenshots and recordings',
-      initialDirectory: _captureDirectory,
+      // The Windows picker throws on a folder that has since been deleted.
+      initialDirectory: Directory(_captureDirectory).existsSync()
+          ? _captureDirectory
+          : null,
     );
     if (chosen == null || chosen.trim().isEmpty) return;
     await PreferencesService.setCaptureDirectory(chosen);
