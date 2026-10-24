@@ -215,6 +215,20 @@ class const AppPlatformMenuBar({super.key, required final Widget child})
           PlatformMenuItemGroup(
             members: [
               _item(
+                'Save Layout',
+                const SaveLayoutIntent(),
+                enabled: s.canSaveLayout,
+              ),
+              _item(
+                'Clear Saved Layout',
+                const ClearSavedLayoutIntent(),
+                enabled: s.hasSavedLayout,
+              ),
+            ],
+          ),
+          PlatformMenuItemGroup(
+            members: [
+              _item(
                 'Zoom In',
                 const IncreaseFontIntent(),
                 shortcut: kIncreaseFontShortcut,

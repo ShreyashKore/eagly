@@ -18,6 +18,8 @@ class const AppMenuState({
   required final bool wrapText,
   required final bool autoScroll,
   required final bool searchBarVisible,
+  required final bool canSaveLayout,
+  required final bool hasSavedLayout,
 }) {
   /// State when no device is selected (Home screen / no active log tab).
   static const empty = AppMenuState(
@@ -31,6 +33,8 @@ class const AppMenuState({
     wrapText: false,
     autoScroll: false,
     searchBarVisible: false,
+    canSaveLayout: false,
+    hasSavedLayout: false,
   );
 
   bool get isRunning => logcatState != LogcatState.stopped;
@@ -61,7 +65,9 @@ class const AppMenuState({
           other.selectedLogLevel == selectedLogLevel &&
           other.wrapText == wrapText &&
           other.autoScroll == autoScroll &&
-          other.searchBarVisible == searchBarVisible;
+          other.searchBarVisible == searchBarVisible &&
+          other.canSaveLayout == canSaveLayout &&
+          other.hasSavedLayout == hasSavedLayout;
 
   @override
   int get hashCode => Object.hash(
@@ -75,5 +81,7 @@ class const AppMenuState({
     wrapText,
     autoScroll,
     searchBarVisible,
+    canSaveLayout,
+    hasSavedLayout,
   );
 }

@@ -8,8 +8,8 @@ import 'ios.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply`, `claim_screenshot_stream`, `close`, `close`, `close`, `connect`, `forget_screenshot_stream`, `io_error`, `offers`, `open`, `open`, `request`, `run_input`, `send`, `streams_display`, `to_digitizer`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `InputClients`, `InputCommand`, `InputGate`, `Tunnel`
+// These functions are ignored because they are not marked as `pub`: `apply`, `claim_screenshot_stream`, `close`, `close`, `connect`, `forget_screenshot_stream`, `is_capture_busy`, `open`, `request`, `run_input`, `send`, `stream_screenshots`, `streams_display`, `take_screenshot`, `to_digitizer`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `InputClients`, `InputCommand`, `InputGate`
 
 /// Reads which mirror services `udid` offers.
 Future<IosMirrorSupport> probeIosMirror({required String udid}) =>
@@ -26,11 +26,12 @@ Future<IosInterfaceOrientation> readIosInterfaceOrientation({
 Future<Uint8List> captureIosScreenshot({required String udid}) =>
     RustLib.instance.api.crateApiIosMirrorCaptureIosScreenshot(udid: udid);
 
-/// Streams PNG screenshots back to back until [`stop_ios_screenshot_stream`]
-/// is called with the same `session_id`, the phone goes away, or Dart drops
-/// the stream: the mirror's picture where QuickTime's capture route is not
-/// available. A 1170×2532 PNG takes about 575 ms, so this is under two frames
-/// a second. `jpeg` is refused on iOS 26.6.
+/// Streams PNG screenshots until [`stop_ios_screenshot_stream`] is called
+/// with the same `session_id`, the phone goes away, or Dart drops the stream:
+/// the mirror's picture where QuickTime's capture route is not available. A
+/// 1170×2532 PNG takes about 550 ms and `jpeg` is refused on iOS 26.6, so
+/// [`SCREENSHOTS_IN_FLIGHT`] are asked for at once, for two or three frames a
+/// second.
 Stream<Uint8List> startIosScreenshotStream({
   required String udid,
   required String sessionId,

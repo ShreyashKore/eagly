@@ -4,6 +4,7 @@ import '../../../presentation/components/centered_state_message.dart';
 import '../crash_report_controller.dart';
 import 'crash_report_detail.dart';
 import 'crash_report_list.dart';
+import 'crash_report_search_field.dart';
 
 class const Body({super.key, required final CrashReportController controller})
     extends StatelessWidget {
@@ -44,7 +45,27 @@ class const Body({super.key, required final CrashReportController controller})
             description: 'This device has no crash reports to show.',
           );
         }
-        return CrashReportList(controller: controller);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            CrashReportSearchField(controller: controller),
+            Expanded(child: _buildList()),
+          ],
+        );
     }
+  }
+
+  Widget _buildList() {
+    if (controller.filteredReports.isNotEmpty) {
+      return CrashReportList(controller: controller);
+    }
+    if (controller.isSearchingContent) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return const CenteredStateMessage(
+      icon: Icons.search_off,
+      title: 'No matching crash reports',
+      description: 'No report names or contents match. Try a different search.',
+    );
   }
 }

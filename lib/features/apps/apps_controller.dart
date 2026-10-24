@@ -103,6 +103,10 @@ class AppsController(super.session, {AppIconCache? iconCache})
   bool _loadedOnce = false;
   bool _reloadRequested = false;
 
+  /// Whether the phone offered CoreDevice's app service at the last
+  /// [refresh]. Android needs no asking.
+  bool _iosAppControl = false;
+
   bool get isLoading => loadState == AppLoadState.loading;
   bool get isBusy => _busy;
   String get searchText => _searchText;
@@ -114,17 +118,30 @@ class AppsController(super.session, {AppIconCache? iconCache})
   /// header. Session-only, unlike [viewMode] and [iconSize].
   bool get recentExpanded => _recentExpanded;
 
-  /// Android exposes system apps via `pm list packages`; iOS's installer
-  /// only ever lists user apps, so the toggle is meaningless there.
-  bool get canShowSystemApps => device is AndroidDevice;
+  /// Android lists system apps via `pm list packages`, iOS via
+  /// installation_proxy (Rust backend only).
+  bool get canShowSystemApps => service.canListSystemApps;
 
-  /// Whether [launch] works for this device (no bundled iOS tool can launch
-  /// an arbitrary app without a mounted developer disk image).
-  bool get canLaunchApps => device is AndroidDevice;
+  /// Whether [launch] works for this device: always on Android; on an
+  /// iPhone while it offers CoreDevice's app service, which takes Developer
+  /// Mode and Xcode's developer disk image (asked again on every [refresh]).
+  bool get canLaunchApps => device is AndroidDevice || _iosAppControl;
 
-  /// Whether force-stop / clear-data / "App info" are available — Android
-  /// OS features with no iOS equivalent exposed by libimobiledevice.
-  bool get canManageAppState => device is AndroidDevice;
+  /// Whether [forceStop] works, which takes the same as [canLaunchApps].
+  bool get canForceStopApps => canLaunchApps;
+
+  /// Whether [clearData] is offered: on Android, and on iOS for the debug
+  /// builds [canClearDataOf] picks out.
+  bool get canClearAppData => service.canClearAppData;
+
+  /// Whether [clearData] can reach [app]'s data: iOS opens only a debug
+  /// build's container.
+  bool canClearDataOf(AppInfo app) =>
+      device is AndroidDevice || app.isDebuggable;
+
+  /// Whether [openAppInfo] works: Android only, as iOS can't be asked to open
+  /// an app's page in Settings.
+  bool get canOpenAppInfo => device is AndroidDevice;
 
   List<AppInfo> get apps => _apps;
 
@@ -183,6 +200,7 @@ class AppsController(super.session, {AppIconCache? iconCache})
     if (!_loadedOnce && device is AndroidDevice) {
       unawaited(_iconStore.loadLabels().then((_) => _onLabelsLoaded()));
     }
+    if (device is IosDevice) unawaited(_probeIosAppControl());
     _loadedOnce = true;
     loadState = AppLoadState.loading;
     error = null;
@@ -205,6 +223,16 @@ class AppsController(super.session, {AppIconCache? iconCache})
         unawaited(refresh());
       }
     }
+  }
+
+  /// Opens a tunnel to ask whether Open and Force Stop work, alongside the
+  /// app list: the developer disk image may have been mounted (or the phone
+  /// restarted) since the last refresh.
+  Future<void> _probeIosAppControl() async {
+    final available = await service.canControlApps();
+    if (_disposed || available == _iosAppControl) return;
+    _iosAppControl = available;
+    _notify();
   }
 
   /// Names Android apps from the label cache and re-sorts by that name. iOS
@@ -333,12 +361,12 @@ class AppsController(super.session, {AppIconCache? iconCache})
     }
   }
 
-  /// Opens a fresh live log tab pre-filtered to this app's package name and
+  /// Opens a fresh live log tab pre-filtered to this app's process and
   /// switches to the Logs pane.
   void viewLogs(AppInfo app) {
     session.logSessionManager.addLiveTab();
     final tab = session.logSessionManager.tabs.last;
-    tab.applyPackageFilter(app.packageName);
+    tab.applyPackageFilter(app.logProcessName);
     session.openLogs();
   }
 
@@ -451,9 +479,10 @@ class AppsController(super.session, {AppIconCache? iconCache})
         unawaited(_iconStore.store(package, bytes));
         _notify();
       } else if (details != null) {
-        // The pull worked but the APK has no raster icon to extract (a
-        // vector-only adaptive icon, say). Pulling it again won't change
-        // that, and each try copies the whole APK over adb.
+        // The device answered but there's no icon to show: the APK has no
+        // raster icon to extract (a vector-only adaptive icon, say), or the
+        // iOS backend can't read icons. Asking again won't change that, and
+        // on Android each try copies the whole APK over adb.
         _settleIcon(package, signature);
         if (label != null) _notify();
       } else {

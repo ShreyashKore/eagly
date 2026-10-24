@@ -19,24 +19,20 @@ use std::time::Duration;
 
 use idevice::core_device::{
     build_screen_audio_offer, build_screen_video_offer, build_start_audio_parameters,
-    build_start_video_parameters, ButtonState, CallInfoBlob, DisplayServiceClient, ImageFormat,
-    IndigoHidClient, OrientationServiceClient, PasteboardServiceClient, RotationDirection,
-    ScreenCaptureServiceClient, UniversalHidServiceClient, TOUCHSCREEN_STATE_CONTACT,
-    TOUCHSCREEN_STATE_RELEASE,
+    build_start_video_parameters, ButtonState, CallInfoBlob, CoreDeviceError, DisplayServiceClient,
+    ImageFormat, IndigoHidClient, OrientationServiceClient, PasteboardServiceClient,
+    RotationDirection, ScreenCaptureServiceClient, UniversalHidServiceClient,
+    TOUCHSCREEN_STATE_CONTACT, TOUCHSCREEN_STATE_RELEASE,
 };
-use idevice::core_device_proxy::CoreDeviceProxy;
-use idevice::rsd::RsdHandshake;
 use idevice::services::springboardservices::{InterfaceOrientation, SpringBoardServicesClient};
-use idevice::tcp::handle::AdapterHandle;
-use idevice::{IdeviceError, IdeviceService, ReadWrite, RsdService};
+use idevice::{IdeviceError, IdeviceService};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 use tokio_util::sync::CancellationToken;
 
 use super::ios::{provider_for, IosError};
 use crate::frb_generated::StreamSink;
-
-type Rw = Box<dyn ReadWrite>;
+use crate::tunnel::{connect, io_error, Rw, Tunnel};
 
 /// What a phone offers the mirror, read from its Remote Service Discovery
 /// listing. All false when the developer disk image is not mounted.
@@ -119,51 +115,9 @@ const GENERAL_PASTEBOARD: &str = "general";
 
 // ── Connecting ──────────────────────────────────────────────────────────
 
-/// Connects the RSD service `$client` over `$tunnel`.
-///
-/// A macro rather than a generic method: through a type parameter rustc cannot
-/// see that the connect future is `Send`, and a spawned caller then fails with
-/// "implementation of `RsdService` is not general enough" (the `'static` on the
-/// client's `Box<dyn ReadWrite>` is lost). Boxing the future as
-/// `dyn Future + Send` at the concrete type settles it there.
-macro_rules! connect {
-    ($tunnel:expr, $client:ty) => {{
-        let tunnel: &mut Tunnel = $tunnel;
-        let connecting: std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<$client, IdeviceError>> + Send + '_>,
-        > = Box::pin(<$client as RsdService>::connect_rsd(
-            &mut tunnel.adapter,
-            &mut tunnel.handshake,
-        ));
-        connecting.await
-    }};
-}
-
-/// A CoreDevice tunnel to one phone, with its service listing.
-struct Tunnel {
-    adapter: AdapterHandle,
-    handshake: RsdHandshake,
-}
-
+// The tunnel itself is shared with app control (`tunnel.rs`); only the
+// mirror asks whether it can stream the screen.
 impl Tunnel {
-    /// usbmux → lockdown `CoreDeviceProxy` → userspace TCP → RSD handshake.
-    /// About 75 ms over USB.
-    async fn open(udid: &str) -> Result<Tunnel, IosError> {
-        let provider = provider_for(udid).await?;
-        let proxy = CoreDeviceProxy::connect(&provider).await?;
-        let rsd_port = proxy.tunnel_info().server_rsd_port;
-        let mut adapter = proxy.create_software_tunnel()?.to_async_handle();
-        let stream = adapter.connect(rsd_port).await.map_err(io_error)?;
-        let handshake = RsdHandshake::new(stream).await?;
-        Ok(Tunnel { adapter, handshake })
-    }
-
-    fn offers<T: RsdService>(&self) -> bool {
-        self.handshake
-            .services
-            .contains_key(T::rsd_service_name().as_ref())
-    }
-
     /// Whether `displayservice` exists and says it can stream. On iOS 26 it
     /// exists but reports `supportedFeatures: 0`, and starting a stream fails
     /// with "Remote control requires iOS 27.0 or later on this device."
@@ -186,14 +140,6 @@ impl Tunnel {
             })
             .is_some_and(|features| features != 0)
     }
-
-    async fn close(mut self) {
-        let _ = self.adapter.close().await;
-    }
-}
-
-fn io_error(error: std::io::Error) -> IosError {
-    IosError::Other(error.to_string())
 }
 
 /// Reads which mirror services `udid` offers.
@@ -228,11 +174,46 @@ pub async fn read_ios_interface_orientation(
 
 // ── Screenshots ─────────────────────────────────────────────────────────
 
+/// Screenshots asked for at once, each on its own connection. The phone takes
+/// one at a time but sends one while it takes the next: on an iPhone 16e
+/// (iOS 26.6) two in flight gave 2.5–2.8 frames a second against 1.7, each
+/// frame about 200 ms older; three gave 2.9–3.3, and four once left a request
+/// hanging for a minute (`tests::screenshot_throughput`).
+const SCREENSHOTS_IN_FLIGHT: usize = 2;
+
+/// How long to wait before asking again when the phone is busy taking another
+/// screenshot ([`is_capture_busy`]).
+const CAPTURE_BUSY_RETRY: Duration = Duration::from_millis(10);
+
+/// Whether the phone refused a screenshot because it is taking another:
+/// "A screenshot capture is already in progress", CoreDevice error 25003.
+/// The crate hands the device's error over only as its debug text.
+fn is_capture_busy(error: &IdeviceError) -> bool {
+    matches!(
+        error,
+        IdeviceError::CoreDevice(CoreDeviceError::DeviceError(detail))
+            if detail.contains("\"code\": Integer(25003)")
+    )
+}
+
+/// One screenshot from `capture`, asked for again while the phone is busy
+/// with another, a mirror's stream say.
+async fn take_screenshot(
+    capture: &mut ScreenCaptureServiceClient<Rw>,
+) -> Result<Vec<u8>, IdeviceError> {
+    loop {
+        match capture.take_screenshot(None, ImageFormat::Png).await {
+            Err(error) if is_capture_busy(&error) => tokio::time::sleep(CAPTURE_BUSY_RETRY).await,
+            shot => return shot,
+        }
+    }
+}
+
 /// One full-resolution PNG of the screen, with the real status bar.
 pub async fn capture_ios_screenshot(udid: String) -> Result<Vec<u8>, IosError> {
     let mut tunnel = Tunnel::open(&udid).await?;
     let mut capture = connect!(&mut tunnel, ScreenCaptureServiceClient<Rw>)?;
-    let png = capture.take_screenshot(None, ImageFormat::Png).await;
+    let png = take_screenshot(&mut capture).await;
     tunnel.close().await;
     Ok(png?)
 }
@@ -242,11 +223,12 @@ pub async fn capture_ios_screenshot(udid: String) -> Result<Vec<u8>, IosError> {
 static SCREENSHOT_STREAMS: LazyLock<Mutex<HashMap<String, CancellationToken>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// Streams PNG screenshots back to back until [`stop_ios_screenshot_stream`]
-/// is called with the same `session_id`, the phone goes away, or Dart drops
-/// the stream: the mirror's picture where QuickTime's capture route is not
-/// available. A 1170×2532 PNG takes about 575 ms, so this is under two frames
-/// a second. `jpeg` is refused on iOS 26.6.
+/// Streams PNG screenshots until [`stop_ios_screenshot_stream`] is called
+/// with the same `session_id`, the phone goes away, or Dart drops the stream:
+/// the mirror's picture where QuickTime's capture route is not available. A
+/// 1170×2532 PNG takes about 550 ms and `jpeg` is refused on iOS 26.6, so
+/// [`SCREENSHOTS_IN_FLIGHT`] are asked for at once, for two or three frames a
+/// second.
 pub async fn start_ios_screenshot_stream(
     sink: StreamSink<Vec<u8>>,
     udid: String,
@@ -257,11 +239,14 @@ pub async fn start_ios_screenshot_stream(
     let token = claim_screenshot_stream(&session_id);
     let connected = async {
         let mut tunnel = Tunnel::open(&udid).await?;
-        let capture = connect!(&mut tunnel, ScreenCaptureServiceClient<Rw>)?;
-        Ok::<_, IosError>((tunnel, capture))
+        let mut captures = Vec::with_capacity(SCREENSHOTS_IN_FLIGHT);
+        for _ in 0..SCREENSHOTS_IN_FLIGHT {
+            captures.push(connect!(&mut tunnel, ScreenCaptureServiceClient<Rw>)?);
+        }
+        Ok::<_, IosError>((tunnel, captures))
     }
     .await;
-    let (tunnel, mut capture) = match connected {
+    let (tunnel, captures) = match connected {
         Ok(connected) => connected,
         Err(error) => {
             forget_screenshot_stream(&session_id);
@@ -275,23 +260,63 @@ pub async fn start_ios_screenshot_stream(
     }
 
     tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                // A cancelled branch drops the in-flight capture; safe only
-                // because the client is never used again after the break.
-                biased;
-                _ = token.cancelled() => break,
-                shot = capture.take_screenshot(None, ImageFormat::Png) => match shot {
-                    // `add` fails once Dart has dropped the stream.
-                    Ok(png) => if sink.add(png).is_err() { break },
-                    Err(_) => break,
-                },
-            }
-        }
+        // `add` fails once Dart has dropped the stream.
+        stream_screenshots(captures, token, |png| sink.add(png).is_ok()).await;
         tunnel.close().await;
         forget_screenshot_stream(&session_id);
     });
     Ok(())
+}
+
+/// Takes screenshots with every one of `captures` at once, handing each to
+/// `deliver` newest last, until `token` is cancelled, `deliver` returns false
+/// or every capture has failed (the phone has gone). Cancels `token` on the
+/// way out, so the captures stop however it ends.
+async fn stream_screenshots(
+    captures: Vec<ScreenCaptureServiceClient<Rw>>,
+    token: CancellationToken,
+    mut deliver: impl FnMut(Vec<u8>) -> bool,
+) {
+    let (sent, mut arriving) = mpsc::channel(captures.len().max(1));
+    for mut capture in captures {
+        let sent = sent.clone();
+        let token = token.clone();
+        tokio::spawn(async move {
+            loop {
+                let asked = tokio::time::Instant::now();
+                tokio::select! {
+                    // A cancelled branch drops the in-flight capture; safe
+                    // only because the client is never used again after the
+                    // break.
+                    biased;
+                    _ = token.cancelled() => break,
+                    shot = take_screenshot(&mut capture) => match shot {
+                        Ok(png) => if sent.send((asked, png)).await.is_err() { break },
+                        Err(_) => break,
+                    },
+                }
+            }
+        });
+    }
+    drop(sent);
+    // Screenshots can arrive out of order; one asked for before the one last
+    // delivered is older than it, and dropped.
+    let mut delivered = None;
+    loop {
+        tokio::select! {
+            biased;
+            _ = token.cancelled() => break,
+            shot = arriving.recv() => match shot {
+                Some((asked, _)) if delivered.is_some_and(|last| asked < last) => {}
+                Some((asked, png)) => {
+                    delivered = Some(asked);
+                    if !deliver(png) { break }
+                }
+                None => break,
+            },
+        }
+    }
+    token.cancel();
 }
 
 /// Stops the stream started under `session_id`. Idempotent; like
@@ -730,5 +755,53 @@ mod tests {
     fn fractions_outside_the_screen_are_clamped() {
         assert_eq!(to_digitizer(-0.2), 0);
         assert_eq!(to_digitizer(1.7), 65535);
+    }
+
+    /// Frames a second from [`stream_screenshots`] with 1–3 screenshots in
+    /// flight, each on its own connection over one tunnel. Needs a phone:
+    /// `EAGLY_TEST_IOS_UDID=<udid> cargo test --release screenshot_stream -- --ignored --nocapture`
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn screenshot_stream_throughput() {
+        let udid = std::env::var("EAGLY_TEST_IOS_UDID").expect("EAGLY_TEST_IOS_UDID");
+        let Ok(mut tunnel) = Tunnel::open(&udid).await else {
+            panic!("no tunnel")
+        };
+        for in_flight in [1, SCREENSHOTS_IN_FLIGHT, 3] {
+            let mut captures = Vec::new();
+            for _ in 0..in_flight {
+                let Ok(capture) = connect!(&mut tunnel, ScreenCaptureServiceClient<Rw>) else {
+                    panic!("no screencaptureservice")
+                };
+                captures.push(capture);
+            }
+            let token = CancellationToken::new();
+            let stop = token.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(15)).await;
+                stop.cancel();
+            });
+            let started = std::time::Instant::now();
+            let mut frames = 0;
+            let mut widest_gap = Duration::ZERO;
+            let mut last = started;
+            stream_screenshots(captures, token, |png| {
+                assert!(png.starts_with(b"\x89PNG"));
+                frames += 1;
+                widest_gap = widest_gap.max(last.elapsed());
+                last = std::time::Instant::now();
+                true
+            })
+            .await;
+            let elapsed = started.elapsed().as_secs_f64();
+            println!(
+                "{in_flight} in flight: {frames} frames in {elapsed:.1} s = {:.2} fps, \
+                 widest gap {} ms",
+                frames as f64 / elapsed,
+                widest_gap.as_millis(),
+            );
+            assert!(frames > 0);
+        }
+        tunnel.close().await;
     }
 }

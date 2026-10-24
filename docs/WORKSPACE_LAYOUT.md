@@ -32,6 +32,14 @@ never used an IDE**, then IDE-style freedom for people who have.
   command palette) lines the open panes up side by side in rail order and forgets every
   remembered placement.
 - **Placement is remembered** — per pane, shared by every device, and across restarts.
+- **Save layout.** *View → Save Layout* (macOS menu bar) or the quiet *Save layout* text button
+  in the header, beside Refresh, saves the open panes as they are arranged. The button hides
+  while the open panes already are the saved layout (as this device would open it) and comes
+  back once a pane is opened, closed, moved or resized — switching tabs doesn't count. Every device whose
+  tab opens afterwards — after a restart too — starts in the workspace with that layout instead
+  of on Home, minus the panes it can't host (Crash Reports on Android; Mirror for an iPhone on a
+  host that can't mirror one). Devices already open keep their panes. *View → Clear Saved
+  Layout* goes back to opening on Home.
 
 ## The pieces
 
@@ -45,6 +53,8 @@ never used an IDE**, then IDE-style freedom for people who have.
 | What a pane header gets from the workspace (`PaneGrip`, `PaneDragArea`) | `lib/presentation/components/workspace_pane_scope.dart` |
 | Which widget each pane is | `_Workspace` in `lib/features/home_screen/components/device_screen_content.dart` |
 | Remembered placement on disk | `PreferencesService.workspaceLayout` (key `workspaceLayout`) |
+| The saved layout: storage, applying it on a device's first open, which panes a device hosts | `WorkspaceLayoutMemory.saved`, `PreferencesService.savedWorkspaceLayout` (key `savedWorkspaceLayout`); `WorkspaceLayout.applySaved`; `DeviceSessionController.supportsPane` / `_openSavedLayout`; `DeviceSessionManager.saveLayout` / `clearSavedLayout` |
+| The header's Save layout button | `lib/features/home_screen/components/save_layout_button.dart` |
 
 ### Why fl_panel
 
@@ -129,6 +139,27 @@ makes placement survive rearranging the others in between (see the tests). Each 
 keeps its own copy after first use, so two devices open at once can't reshuffle each other;
 the shared memory (and preferences) take whichever was written last.
 
+### The saved layout
+
+Remembered placement answers *where* a pane goes when it opens; the saved layout answers
+*which* panes a device opens with. They are stored apart and never write to each other: the
+arrangement changes after every settled edit, the saved layout only when the user saves or
+clears it.
+
+On a session's first `activate()` the saved tree is cut down with the same
+`WorkspaceArrangement.project` to the panes `supportsPane` allows, and set as the live tree.
+Each opened pane then gets the side effects `openPane` gives it (`_startPane`: load Files,
+Apps, Crash Reports; start the mirror if it can). `supportsPane` asks about the platform and
+host, not the connection, so a disconnected device still lays out a pane that waits for it.
+If nothing is left after cutting, the device opens on Home as before. The imported-logs
+workspace never uses it.
+
+Whether the open panes already are the saved layout (`matchesSavedLayout`, which hides the
+header button) compares the live tree with the saved one cut down the same way, through
+`WorkspaceArrangement.sameShape`: axes, shares to three places, and each area's tabs in order —
+not node ids, and not which tab is in front. The button listens to `layout.panels` as well as
+the session, since moves and divider drags never reach the session.
+
 ## Adding a pane
 
 1. Add a value to `WorkspacePane` (label, preferred width, minimum width). Its `name` is its
@@ -138,7 +169,8 @@ the shared memory (and preferences) take whichever was written last.
 3. Give it an icon in `WorkspacePaneIcon` (`workspace_view.dart`) — used on tab chips and the
    drag label — matching its rail icon.
 4. Side effects of opening it (load data, start a stream) go in the `switch` in
-   `DeviceSessionController.openPane`. Add `open…`/`close…`/`toggle…` wrappers if callers
+   `DeviceSessionController._startPane`, and whether a device can host it at all in
+   `supportsPane` (the saved layout is cut down to those). Add `open…`/`close…`/`toggle…` wrappers if callers
    want them, and a rail button / command-palette entry like the others.
 5. Its header must be a title bar: use `FeatureViewHeader` (done), or put `const PaneGrip()`
    first in a custom toolbar, wrap an empty stretch in `PaneDragArea`, and hide its close
@@ -157,6 +189,7 @@ the shared memory (and preferences) take whichever was written last.
 | 6 | An unreadable stored layout never stops a pane opening. | `workspace_layout_test` "an unreadable stored placement is ignored" |
 | 7 | The session hears about open/close only, once per change; closing the last pane from a tab falls back to Home; a hidden tab's rail click reveals it. | `workspace_layout_test` "listeners hear…", "DeviceSessionController panes" group |
 | 8 | Every pane header (shared header, Logs toolbar, Files toolbar) has the grip and defers to the tab chip; real panes drag by their title. | `workspace_view_test` "pane headers" group |
+| 9 | A device opens with the saved layout, minus panes it can't host; with none saved, or only unsupported panes, it opens on Home; it survives a restart and an unreadable value; devices already open are untouched. The header button hides while the open panes match it, and returns after an open, close, move or resize, not a tab switch. | `saved_layout_test` "opening a device", "matching the saved layout", "storage" groups |
 
 ## Gotchas
 
@@ -178,5 +211,5 @@ the shared memory (and preferences) take whichever was written last.
   natural trigger).
 - **Floating / detached windows** (fl_panel's file format reserves the slot; multi-window
   needs a second engine).
-- **Opening the workspace with last session's panes** — only placement is remembered; which
-  panes are open is not.
+- **Reopening last session's panes automatically.** Which panes a device opens with comes
+  only from a layout the user saved explicitly (see *The saved layout*).

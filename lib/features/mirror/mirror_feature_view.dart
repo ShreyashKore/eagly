@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../data/device.dart';
 import '../../presentation/components/feature_view.dart';
 import '../../presentation/components/overflow_toolbar.dart';
+import 'components/ios_capture_notice_dialog.dart';
 import 'components/mirror_control_strip.dart';
 import 'components/pane_body.dart';
 import 'components/quality_button.dart';
@@ -27,6 +28,45 @@ class _MirrorFeatureViewState extends FeatureViewState<MirrorFeatureView> {
 
   @override
   Listenable get listenable => controller;
+
+  /// Whether the capture notice is on screen, so it is shown only once.
+  bool _showingNotice = false;
+
+  @override
+  void initState() {
+    super.initState();
+    controller.addListener(_showNoticeWhenAsked);
+    // A start from opening the pane can ask before this view exists.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showNoticeWhenAsked());
+  }
+
+  @override
+  void didUpdateWidget(MirrorFeatureView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (identical(oldWidget.controller, controller)) return;
+    oldWidget.controller.removeListener(_showNoticeWhenAsked);
+    controller.addListener(_showNoticeWhenAsked);
+  }
+
+  @override
+  void dispose() {
+    controller.removeListener(_showNoticeWhenAsked);
+    super.dispose();
+  }
+
+  Future<void> _showNoticeWhenAsked() async {
+    if (!mounted || _showingNotice || !controller.isCaptureNoticePending) {
+      return;
+    }
+    final asking = controller;
+    _showingNotice = true;
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => const IosCaptureNoticeDialog(),
+    );
+    _showingNotice = false;
+    asking.answerCaptureNotice(proceed: proceed ?? false);
+  }
 
   @override
   Widget buildContent(BuildContext context) {

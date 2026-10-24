@@ -36,11 +36,27 @@ class _TerminalInputBarState extends State<TerminalInputBar> {
 
   TerminalController get controller => widget.controller;
 
+  late bool _findWasOpen = controller.find.isOpen;
+
+  @override
+  void initState() {
+    super.initState();
+    controller.find.addListener(_onFindChanged);
+  }
+
   @override
   void dispose() {
+    controller.find.removeListener(_onFindChanged);
     _input.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  // Closing find hands the keyboard back to the prompt.
+  void _onFindChanged() {
+    final isOpen = controller.find.isOpen;
+    if (_findWasOpen && !isOpen) _focusNode.requestFocus();
+    _findWasOpen = isOpen;
   }
 
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {

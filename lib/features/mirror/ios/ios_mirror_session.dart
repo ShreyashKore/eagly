@@ -20,12 +20,12 @@ enum IosMirrorVideo {
   /// QuickTime's capture route on macOS: about 50 fps at full resolution.
   liveCapture,
 
-  /// CoreDevice screenshots back to back: under two a second.
+  /// CoreDevice screenshots, two or three a second.
   screenshots,
 }
 
 /// The phone's hardware buttons, as the control strip offers them.
-enum IosButton { home, appSwitcher, lock, volumeUp, volumeDown }
+enum IosButton { back, home, appSwitcher, lock, volumeUp, volumeDown }
 
 /// A running iPhone mirror: the picture, and touch, keyboard and buttons on
 /// top of it. See docs/IOS_SCREEN_MIRROR.md.
@@ -129,7 +129,8 @@ class IosMirrorSession._(
   /// The picture's size in pixels. Set once the first frame is in.
   Size? get size => _size;
 
-  /// Why the picture is screenshots rather than live video, when it is.
+  /// Why the picture is screenshots on a host that has live video (camera
+  /// access refused on a Mac, say). The pane explains screenshots itself.
   String? get videoNotice => _videoNotice;
 
   bool get hasInput => _input != null;
@@ -170,10 +171,7 @@ class IosMirrorSession._(
       throw IosMirrorException(captureFailure ?? _noServicesReason);
     }
     _checkRunning();
-    _videoNotice = [
-      ?captureFailure,
-      'Showing screenshots instead of live video, under two a second.',
-    ].join(' ');
+    _videoNotice = captureFailure;
     _screenshotSubscription = _service.iosScreenshots().listen(
       _onScreenshot,
       onError: (Object error) => _end('$error'),
@@ -326,6 +324,12 @@ class IosMirrorSession._(
     }
 
     switch (button) {
+      // iOS has no back key; most apps go back on a swipe in from the left
+      // edge (the navigation controller's edge pan), so Back is that swipe.
+      // Not on the control strip: in some apps the swipe slides the screen
+      // sideways instead of going back.
+      case IosButton.back:
+        await _swipeFromLeftEdge();
       case IosButton.home:
         await press(IosHid.home);
       // A double press of Home, as on phones that have the button.
@@ -340,6 +344,19 @@ class IosMirrorSession._(
       case IosButton.volumeDown:
         await press(IosHid.volumeDown);
     }
+  }
+
+  /// A finger from the picture's left edge to past its middle, let go while
+  /// still moving so the back gesture commits rather than settling.
+  Future<void> _swipeFromLeftEdge() async {
+    const y = 0.5, from = 0.01, to = 0.6, steps = 8;
+    touch(ScrcpyTouchAction.down, from, y);
+    for (var i = 1; i <= steps; i++) {
+      await Future<void>.delayed(buttonHold ~/ steps);
+      if (_input == null) return;
+      touch(ScrcpyTouchAction.move, from + (to - from) * i / steps, y);
+    }
+    touch(ScrcpyTouchAction.up, to, y);
   }
 
   /// Puts the desktop clipboard's text on the phone's pasteboard and presses

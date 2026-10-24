@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/apps/data/apps_view_options.dart';
+import '../features/file_manager/data/file_view_options.dart';
 import '../features/logs/data/models/log_column.dart';
 import '../features/logs/data/models/log_level.dart';
 import '../features/logs/data/models/log_tab_settings.dart';
@@ -65,12 +66,21 @@ class PreferencesService {
   static const _keyRecentLogFiles = 'recentLogFiles';
   static const _keyTipsEnabled = 'tipsEnabled';
   static const _keyTipRotationIndex = 'tipRotationIndex';
+  static const _keySkipIosCaptureNotice = 'skipIosCaptureNotice';
+  static const _keySkipIosSupportPrompt = 'skipIosSupportPrompt';
   static const _keyCaptureDirectory = 'captureDirectory';
   static const _keyCaptureAskEveryTime = 'captureAskEveryTime';
   static const _keyAndroidSdkPath = 'androidSdkPath';
   static const _keyAppsViewMode = 'appsViewMode';
   static const _keyAppsIconSize = 'appsIconSize';
+  static const _keyFilesViewMode = 'filesViewMode';
+  static const _keyFilesSortField = 'filesSortField';
+  static const _keyFilesSortAscending = 'filesSortAscending';
+  static const _keyFilesGrouping = 'filesGrouping';
+  static const _keyFilesFoldersFirst = 'filesFoldersFirst';
+  static const _keyFilesShowHidden = 'filesShowHidden';
   static const _keyWorkspaceLayout = 'workspaceLayout';
+  static const _keySavedWorkspaceLayout = 'savedWorkspaceLayout';
 
   /// Maximum number of recently opened log files retained for quick re-open.
   static const _maxRecentLogFiles = 10;
@@ -134,6 +144,22 @@ class PreferencesService {
   /// launch so a different tip surfaces each time the app is opened.
   static int get tipRotationIndex => _prefs.getInt(_keyTipRotationIndex) ?? 0;
   static set tipRotationIndex(int v) => _prefs.setInt(_keyTipRotationIndex, v);
+
+  // --- iPhone mirror ---
+  /// Whether the user asked not to see, before each iPhone mirror on macOS,
+  /// why it needs camera access.
+  static bool get skipIosCaptureNotice =>
+      _prefs.getBool(_keySkipIosCaptureNotice) ?? false;
+  static set skipIosCaptureNotice(bool v) =>
+      _prefs.setBool(_keySkipIosCaptureNotice, v);
+
+  // --- iOS on Windows ---
+  /// Whether the user asked not to be prompted to install Apple Devices when
+  /// an iPhone Eagly can't reach is plugged in. The home screen still says so.
+  static bool get skipIosSupportPrompt =>
+      _prefs.getBool(_keySkipIosSupportPrompt) ?? false;
+  static set skipIosSupportPrompt(bool v) =>
+      _prefs.setBool(_keySkipIosSupportPrompt, v);
 
   // --- Recent log files (most-recent first, capped, for one-click re-open) ---
   /// Listenable so the home screen rebuilds when the list changes.
@@ -311,6 +337,39 @@ class PreferencesService {
   static set appsIconSize(AppIconSize v) =>
       _prefs.setString(_keyAppsIconSize, v.name);
 
+  // --- Files pane layout (shared by every device's Files pane) ---
+
+  static FileManagerViewMode get filesViewMode =>
+      FileManagerViewMode.fromStored(_prefs.getString(_keyFilesViewMode));
+  static set filesViewMode(FileManagerViewMode v) =>
+      _prefs.setString(_keyFilesViewMode, v.name);
+
+  static FileSortField get filesSortField =>
+      FileSortField.fromStored(_prefs.getString(_keyFilesSortField));
+  static set filesSortField(FileSortField v) =>
+      _prefs.setString(_keyFilesSortField, v.name);
+
+  static bool get filesSortAscending =>
+      _prefs.getBool(_keyFilesSortAscending) ?? filesSortField.defaultAscending;
+  static set filesSortAscending(bool v) =>
+      _prefs.setBool(_keyFilesSortAscending, v);
+
+  static FileGrouping get filesGrouping =>
+      FileGrouping.fromStored(_prefs.getString(_keyFilesGrouping));
+  static set filesGrouping(FileGrouping v) =>
+      _prefs.setString(_keyFilesGrouping, v.name);
+
+  static bool get filesFoldersFirst =>
+      _prefs.getBool(_keyFilesFoldersFirst) ?? true;
+  static set filesFoldersFirst(bool v) =>
+      _prefs.setBool(_keyFilesFoldersFirst, v);
+
+  /// Dotfiles are listed by default: Eagly is a developer tool, and app
+  /// state on a device often lives in them.
+  static bool get filesShowHidden =>
+      _prefs.getBool(_keyFilesShowHidden) ?? true;
+  static set filesShowHidden(bool v) => _prefs.setBool(_keyFilesShowHidden, v);
+
   // --- Device workspace layout (shared by every device's workspace) ---
 
   /// Where each feature pane was last placed, as the JSON
@@ -332,6 +391,28 @@ class PreferencesService {
       _prefs.remove(_keyWorkspaceLayout);
     } else {
       _prefs.setJson(_keyWorkspaceLayout, v);
+    }
+  }
+
+  /// The layout saved for every device to open with, as
+  /// `WorkspaceLayoutMemory.encode` writes it; null when none is saved or the
+  /// stored value is not JSON.
+  static Map<String, Object?>? get savedWorkspaceLayout {
+    try {
+      return _prefs.getJson<Map<String, Object?>?>(
+        _keySavedWorkspaceLayout,
+        (json) => json is Map<String, Object?> ? json : null,
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static set savedWorkspaceLayout(Map<String, Object?>? v) {
+    if (v == null) {
+      _prefs.remove(_keySavedWorkspaceLayout);
+    } else {
+      _prefs.setJson(_keySavedWorkspaceLayout, v);
     }
   }
 }

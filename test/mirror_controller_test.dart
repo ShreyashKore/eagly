@@ -55,12 +55,61 @@ void main() {
   });
 
   group('iPhone', () {
-    setUp(() => IosScreenCapture.debugIsAvailable = true);
-    tearDown(() => IosScreenCapture.debugIsAvailable = null);
+    setUp(() {
+      IosScreenCapture.debugIsAvailable = true;
+      PreferencesService.skipIosCaptureNotice = true;
+    });
+    tearDown(() {
+      IosScreenCapture.debugIsAvailable = null;
+      PreferencesService.skipIosCaptureNotice = false;
+    });
 
     MirrorController createIosMirror() => createMirror(
       withDevice: Device.ios('00008110-001234567890801E', 'device'),
     );
+
+    group('capture notice', () {
+      setUp(() => PreferencesService.skipIosCaptureNotice = false);
+
+      test('a start waits for the notice, then goes ahead', () async {
+        final mirror = createIosMirror();
+
+        final starting = mirror.start();
+        await pumpEventQueue();
+        expect(mirror.isCaptureNoticePending, isTrue);
+        expect(mirror.screenMirrorState, ScreenMirrorState.stopped);
+        expect(service.iosCaptureStarts, 0);
+
+        mirror.answerCaptureNotice(proceed: true);
+        await pumpEventQueue();
+        expect(mirror.isCaptureNoticePending, isFalse);
+        service.iosCapture!.frame(const Size(1170, 2532));
+        await starting;
+
+        expect(mirror.screenMirrorState, ScreenMirrorState.running);
+      });
+
+      test('cancelling the notice starts nothing', () async {
+        final mirror = createIosMirror();
+
+        final starting = mirror.start();
+        await pumpEventQueue();
+        mirror.answerCaptureNotice(proceed: false);
+        await starting;
+
+        expect(mirror.screenMirrorState, ScreenMirrorState.stopped);
+        expect(service.iosCaptureStarts, 0);
+      });
+
+      test('an Android mirror asks nothing', () async {
+        final mirror = createMirror();
+
+        await mirror.start();
+
+        expect(mirror.isCaptureNoticePending, isFalse);
+        expect(mirror.screenMirrorState, ScreenMirrorState.running);
+      });
+    });
 
     test('the mirror runs once the first frame is in', () async {
       final mirror = createIosMirror();

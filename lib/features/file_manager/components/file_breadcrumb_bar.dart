@@ -5,10 +5,14 @@ import '../services/device_file_system.dart';
 import '../../../presentation/theme/app_theme.dart';
 
 /// Clickable path breadcrumb (`/ › sdcard › DCIM`). The leading crumb is the
-/// file system root; each subsequent crumb jumps to that ancestor directory.
+/// file system root; each subsequent crumb jumps to that ancestor directory,
+/// with a hover highlight and the pointing hand to say so. [trailing] (the
+/// filter and view options) sits at the bar's right end; the crumbs scroll
+/// in the space left, keeping the current folder in view.
 class const FileBreadcrumbBar({
   super.key,
   required final FileManagerController controller,
+  final List<Widget> trailing = const [],
 }) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -56,10 +60,28 @@ class const FileBreadcrumbBar({
           bottom: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        reverse: true,
-        child: Row(children: crumbs),
+      // The crumbs' hover ink paints on this, above the bar's colour.
+      child: Material(
+        type: MaterialType.transparency,
+        child: Row(
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                // At least as wide as the space, so short paths start at the
+                // left; longer ones scroll, ending at the current folder.
+                builder: (context, constraints) => SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  reverse: true,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: Row(children: crumbs),
+                  ),
+                ),
+              ),
+            ),
+            ...trailing,
+          ],
+        ),
       ),
     );
   }
@@ -76,11 +98,11 @@ class const FileBreadcrumbBar({
         ? theme.colorScheme.onSurface
         : theme.colorScheme.primary;
 
+    final enabled = !isCurrent && !controller.isBusy;
     return InkWell(
       borderRadius: BorderRadius.circular(6),
-      onTap: isCurrent || controller.isBusy
-          ? null
-          : () => controller.navigateToBreadcrumb(path),
+      mouseCursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+      onTap: enabled ? () => controller.navigateToBreadcrumb(path) : null,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         child: Row(

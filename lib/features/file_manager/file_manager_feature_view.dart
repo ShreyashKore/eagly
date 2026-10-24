@@ -1,24 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/drop_zone.dart';
 import '../../presentation/components/feature_view.dart';
 import '../../presentation/components/install_conflict_dialog.dart';
+import '../../presentation/components/min_width_box.dart';
 import '../../presentation/theme/app_theme.dart';
 import '../../services/app_install_service.dart';
 import '../../utils/utils.dart';
 import 'components/file_breadcrumb_bar.dart';
 import 'components/file_context_menu.dart';
+import 'components/file_entry_visuals.dart';
+import 'components/file_filter_field.dart';
 import 'components/file_grid_view.dart';
 import 'components/file_list_view.dart';
 import 'components/file_manager_toolbar.dart';
+import 'components/file_view_menu.dart';
 import 'data/device_file_entry.dart';
+import 'data/file_view_options.dart';
 import 'file_manager_controller.dart';
 
 /// File-manager feature pane. Composes the toolbar, breadcrumb, the active
 /// list/grid view (with empty/error/loading states), a busy overlay for
 /// transfers, and a status bar. Owns the dialogs and snackbars for the file
-/// actions. Files dropped onto the pane are copied into the folder it shows —
+/// actions, and the focus of the filter and the listing (⌘F / Ctrl+F jumps
+/// to the filter). Files dropped onto the pane are copied into the folder it shows —
 /// an app for this device first asks whether to install it instead. [onClose]
 /// hides the pane (handled by the device screen).
 class const FileManagerFeatureView({
@@ -38,6 +45,24 @@ class _FileManagerFeatureViewState
 
   @override
   Listenable get listenable => controller;
+
+  final FocusNode _filterFocus = FocusNode(debugLabel: 'files filter');
+  final FocusNode _listFocus = FocusNode(debugLabel: 'files listing');
+
+  @override
+  void dispose() {
+    _filterFocus.dispose();
+    _listFocus.dispose();
+    super.dispose();
+  }
+
+  void _focusFilter() {
+    _filterFocus.requestFocus();
+    // Select what's there, so typing replaces the old filter.
+    final field = _filterFocus.context
+        ?.findAncestorStateOfType<EditableTextState>();
+    field?.selectAll(SelectionChangedCause.keyboard);
+  }
 
   void _showSnackBar(String? message) {
     if (message == null) return;
@@ -244,13 +269,21 @@ class _FileManagerFeatureViewState
 
   @override
   Widget buildContent(BuildContext context) {
-    return DropZone(
-      onDrop: _handleDrop,
-      builder: (context, isHovered) => Stack(
-        children: [
-          Positioned.fill(child: _buildPane()),
-          if (isHovered) Positioned.fill(child: _buildDropHighlight(context)),
-        ],
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyF, meta: true):
+            _focusFilter,
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+            _focusFilter,
+      },
+      child: DropZone(
+        onDrop: _handleDrop,
+        builder: (context, isHovered) => Stack(
+          children: [
+            Positioned.fill(child: _buildPane()),
+            if (isHovered) Positioned.fill(child: _buildDropHighlight(context)),
+          ],
+        ),
       ),
     );
   }
@@ -269,7 +302,24 @@ class _FileManagerFeatureViewState
             onDeleteSelected: _handleDelete,
             onClose: widget.onClose,
           ),
-          FileBreadcrumbBar(controller: controller),
+          LayoutBuilder(
+            builder: (context, constraints) => MinWidthBox(
+              minWidth: 200,
+              child: FileBreadcrumbBar(
+                controller: controller,
+                trailing: [
+                  const SizedBox(width: 8),
+                  FileFilterField(
+                    controller: controller,
+                    focusNode: _filterFocus,
+                    listFocusNode: _listFocus,
+                    width: (constraints.maxWidth * 0.35).clamp(90, 220),
+                  ),
+                  FileViewMenuButton(controller: controller),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
       body: Stack(
@@ -310,8 +360,34 @@ class _FileManagerFeatureViewState
             description: 'There are no files or folders here.',
           );
         }
+        if (controller.visibleCount == 0) return _buildNothingShown();
         return _buildViewer();
     }
+  }
+
+  /// Everything here is filtered out or hidden: say which, with the way back.
+  Widget _buildNothingShown() {
+    if (controller.isFiltered) {
+      return CenteredStateMessage(
+        icon: Icons.search_off,
+        title: 'No matches',
+        description:
+            'Nothing in this folder matches "${controller.filterText.trim()}".',
+        footer: OutlinedButton(
+          onPressed: () => controller.setFilterText(''),
+          child: const Text('Clear filter'),
+        ),
+      );
+    }
+    return CenteredStateMessage(
+      icon: Icons.visibility_off_outlined,
+      title: 'Only hidden files',
+      description: 'This folder has only hidden files.',
+      footer: OutlinedButton(
+        onPressed: () => controller.setShowHidden(true),
+        child: const Text('Show hidden files'),
+      ),
+    );
   }
 
   Widget _buildViewer() {
@@ -319,10 +395,12 @@ class _FileManagerFeatureViewState
       FileManagerViewMode.list => FileListView(
         controller: controller,
         actions: _actions,
+        focusNode: _listFocus,
       ),
       FileManagerViewMode.grid => FileGridView(
         controller: controller,
         actions: _actions,
+        focusNode: _listFocus,
       ),
     };
 
@@ -411,6 +489,24 @@ class _FileManagerFeatureViewState
     );
   }
 
+  /// "12 folders · 30 files", or "5 of 42 items" while filtered, noting
+  /// any hidden files left out.
+  String _countsLabel() {
+    final hidden = controller.hiddenCount;
+    final parts = [
+      if (controller.isFiltered)
+        '${controller.visibleCount} of ${controller.entryCount - hidden} items'
+      else
+        '${_plural(controller.directoryCount, 'folder')} · '
+            '${_plural(controller.fileCount, 'file')}',
+      if (hidden > 0) '$hidden hidden',
+    ];
+    return parts.join(' · ');
+  }
+
+  static String _plural(int count, String noun) =>
+      '$count $noun${count == 1 ? '' : 's'}';
+
   Widget _buildStatusBar(BuildContext context) {
     final theme = Theme.of(context);
     final selected = controller.selectedEntry;
@@ -420,15 +516,14 @@ class _FileManagerFeatureViewState
     return FeatureStatusBar(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       children: [
-        Text(
-          '${controller.directoryCount} folders · ${controller.fileCount} files',
-          style: style,
-        ),
+        Text(_countsLabel(), style: style),
         const Spacer(),
         if (selected != null)
           Flexible(
             child: Text(
-              selected.name,
+              selected.isFile
+                  ? '${selected.name} · ${FileEntryVisuals.formatSize(selected)}'
+                  : selected.name,
               overflow: TextOverflow.ellipsis,
               style: style,
             ),

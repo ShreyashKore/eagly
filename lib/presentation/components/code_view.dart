@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:re_editor/re_editor.dart';
@@ -9,6 +8,7 @@ import 'package:re_highlight/styles/atom-one-light.dart';
 import '../theme/app_theme.dart';
 import 'app_icon_button.dart';
 import 'feature_view.dart';
+import 'find_bar.dart';
 
 /// Read-only text in a code view: syntax highlighting from [language], fold
 /// markers for nested `{}` / `[]`, line numbers, and a find bar (⌘F / Ctrl+F,
@@ -39,6 +39,9 @@ class const CodeView({
 
   /// Names what is shown, as in "Find in body" and "Copy body".
   final String noun = 'text',
+
+  /// When non-empty, the find bar opens already searching for it.
+  final String? initialFind,
 }) extends StatefulWidget {
   @override
   State<CodeView> createState() => _CodeViewState();
@@ -54,10 +57,22 @@ class _CodeViewState extends State<CodeView> {
   final FocusNode _editorFocus = FocusNode(debugLabel: 'Code view');
   late bool _wrap = widget.wordWrap;
 
+  // re_editor paints every match in one colour, and marks the current one
+  // only by selecting it — under that colour. So matches are painted
+  // translucent, and while the selection *is* the current match it takes the
+  // current-match colour, which then shows through as the stronger of the two.
+  bool _selectionIsMatch = false;
+
   @override
   void initState() {
     super.initState();
     _editing.text = widget.text;
+    final initialFind = widget.initialFind;
+    if (initialFind != null && initialFind.isNotEmpty) {
+      _find.findInputController.text = initialFind;
+      _find.findMode();
+    }
+    _editing.addListener(_onEditingChanged);
     _find.addListener(_onFindChanged);
   }
 
@@ -74,6 +89,7 @@ class _CodeViewState extends State<CodeView> {
   void dispose() {
     _find.removeListener(_onFindChanged);
     _find.dispose();
+    _editing.removeListener(_onEditingChanged);
     _editing.dispose();
     _scroll.verticalScroller.dispose();
     _scroll.horizontalScroller.dispose();
@@ -83,6 +99,14 @@ class _CodeViewState extends State<CodeView> {
 
   void _onFindChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _onEditingChanged() {
+    final current = _find.currentMatchSelection;
+    final isMatch = current != null && _editing.selection == current;
+    if (isMatch != _selectionIsMatch && mounted) {
+      setState(() => _selectionIsMatch = isMatch);
+    }
   }
 
   void _toggleFind() {
@@ -131,7 +155,7 @@ class _CodeViewState extends State<CodeView> {
               ),
               AppIconButton(
                 tooltip: _find.value == null
-                    ? 'Find in ${widget.noun} (${_shortcutLabel('F')})'
+                    ? 'Find in ${widget.noun} (${shortcutLabel('F')})'
                     : 'Close find (Esc)',
                 icon: Icons.search,
                 iconSize: 16,
@@ -182,8 +206,14 @@ class _CodeViewState extends State<CodeView> {
         fontHeight: 1.45,
         textColor: cs.onSurface,
         backgroundColor: Colors.transparent,
-        selectionColor: cs.primary.withValues(alpha: 0.28),
-        highlightColor: tokens.searchMatchColor,
+        selectionColor: _selectionIsMatch
+            ? tokens.searchCurrentMatchColor.withValues(
+                alpha: isDark ? 0.7 : 0.9,
+              )
+            : cs.primary.withValues(alpha: 0.28),
+        highlightColor: tokens.searchMatchColor.withValues(
+          alpha: isDark ? 0.3 : 0.5,
+        ),
         cursorLineColor: Colors.transparent,
         chunkIndicatorColor: tokens.tertiaryTextColor,
         codeTheme: language == null
@@ -234,12 +264,8 @@ Map<String, TextStyle> codeHighlightTheme(bool dark, Color text) {
   return {...base, 'root': TextStyle(color: text)};
 }
 
-String _shortcutLabel(String key) =>
-    defaultTargetPlatform == TargetPlatform.macOS ? '⌘$key' : 'Ctrl+$key';
-
-/// The find bar re_editor shows above the text: the query, case and regex
-/// toggles, the match count, previous / next and close. ↵ steps forward,
-/// ⇧↵ back, Esc closes.
+/// [FindBar] fed from re_editor's find controller, sized the way its
+/// `findBuilder` asks.
 class const _FindBar({
   required final CodeFindController controller,
   required final FocusNode editorFocus,
@@ -247,169 +273,31 @@ class const _FindBar({
 }) extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize =>
-      Size(double.infinity, controller.value == null ? 0 : 40);
+      Size(double.infinity, controller.value == null ? 0 : FindBar.height);
 
   @override
   Widget build(BuildContext context) {
     final value = controller.value;
     if (value == null) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final tokens = context.eaglyTheme;
     final result = value.result;
-    final query = controller.findInputController.text;
-    final noMatches =
-        query.isNotEmpty &&
-        !value.searching &&
-        (result == null || result.matches.isEmpty);
-    final invalid = value.option.regex && value.option.regExp == null;
 
-    void close() {
-      controller.close();
-      editorFocus.requestFocus();
-    }
-
-    return Container(
-      height: preferredSize.height,
-      padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHigh,
-        border: Border(bottom: BorderSide(color: cs.outlineVariant)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.search, size: 16, color: cs.onSurfaceVariant),
-          const SizedBox(width: 6),
-          Expanded(
-            child: CallbackShortcuts(
-              bindings: {
-                const SingleActivator(LogicalKeyboardKey.escape): close,
-                const SingleActivator(LogicalKeyboardKey.enter):
-                    controller.nextMatch,
-                const SingleActivator(LogicalKeyboardKey.enter, shift: true):
-                    controller.previousMatch,
-              },
-              child: TextField(
-                controller: controller.findInputController,
-                focusNode: controller.findInputFocusNode,
-                style: theme.textTheme.bodySmall,
-                decoration: InputDecoration(
-                  isDense: true,
-                  hintText: hint,
-                  border: InputBorder.none,
-                  filled: noMatches || invalid,
-                  fillColor: invalid
-                      ? cs.errorContainer.withValues(alpha: 0.5)
-                      : tokens.searchNoResultsFillColor,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 8,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          _FindToggle(
-            label: 'Aa',
-            tooltip: 'Match case',
-            value: value.option.caseSensitive,
-            onPressed: controller.toggleCaseSensitive,
-          ),
-          _FindToggle(
-            label: '.*',
-            tooltip: 'Use regular expression',
-            value: value.option.regex,
-            onPressed: controller.toggleRegex,
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(
-              invalid
-                  ? 'Invalid regex'
-                  : query.isEmpty
-                  ? ''
-                  : noMatches
-                  ? 'No results'
-                  : result == null
-                  ? '…'
-                  : '${result.index + 1} / ${result.matches.length}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: invalid
-                    ? cs.error
-                    : noMatches
-                    ? tokens.searchNoResultsTextColor
-                    : cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-          AppIconButton(
-            tooltip: 'Previous match (⇧↵)',
-            icon: Icons.keyboard_arrow_up,
-            iconSize: 16,
-            padding: 4,
-            onPressed: (result?.matches.isNotEmpty ?? false)
-                ? controller.previousMatch
-                : null,
-          ),
-          AppIconButton(
-            tooltip: 'Next match (↵)',
-            icon: Icons.keyboard_arrow_down,
-            iconSize: 16,
-            padding: 4,
-            onPressed: (result?.matches.isNotEmpty ?? false)
-                ? controller.nextMatch
-                : null,
-          ),
-          AppIconButton(
-            tooltip: 'Close (Esc)',
-            icon: Icons.close,
-            iconSize: 16,
-            padding: 4,
-            onPressed: close,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class const _FindToggle({
-  required final String label,
-  required final String tooltip,
-  required final bool value,
-  required final VoidCallback onPressed,
-}) extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: '$tooltip (${value ? 'on' : 'off'})',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onPressed,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            margin: const EdgeInsets.only(left: 2),
-            width: context.scaled(26),
-            height: context.scaled(24),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: value ? cs.primaryContainer : null,
-              borderRadius: BorderRadius.circular(4),
-              border: value ? Border.all(color: cs.primary) : null,
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: value ? cs.primary : cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ),
-      ),
+    return FindBar(
+      query: controller.findInputController,
+      focusNode: controller.findInputFocusNode,
+      hint: hint,
+      caseSensitive: value.option.caseSensitive,
+      regex: value.option.regex,
+      onToggleCaseSensitive: controller.toggleCaseSensitive,
+      onToggleRegex: controller.toggleRegex,
+      matchCount: result?.matches.length ?? (value.searching ? null : 0),
+      currentIndex: result?.index ?? 0,
+      invalid: value.option.regex && value.option.regExp == null,
+      onPrevious: controller.previousMatch,
+      onNext: controller.nextMatch,
+      onClose: () {
+        controller.close();
+        editorFocus.requestFocus();
+      },
     );
   }
 }
@@ -444,7 +332,7 @@ class const _CodeContextMenu({
           child: _MenuRow(
             Icons.content_copy,
             'Copy',
-            shortcut: _shortcutLabel('C'),
+            shortcut: shortcutLabel('C'),
           ),
         ),
         PopupMenuItem(
@@ -452,13 +340,13 @@ class const _CodeContextMenu({
           child: _MenuRow(
             Icons.select_all,
             'Select all',
-            shortcut: _shortcutLabel('A'),
+            shortcut: shortcutLabel('A'),
           ),
         ),
         const PopupMenuDivider(),
         PopupMenuItem(
           onTap: onFind,
-          child: _MenuRow(Icons.search, 'Find…', shortcut: _shortcutLabel('F')),
+          child: _MenuRow(Icons.search, 'Find…', shortcut: shortcutLabel('F')),
         ),
         PopupMenuItem(
           onTap: onCopyAll,

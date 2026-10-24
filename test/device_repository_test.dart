@@ -6,20 +6,24 @@ import 'package:eagly/data/device.dart';
 import 'package:eagly/services/devices_repository.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/data/ios_device_info.dart';
+import 'package:eagly/services/ios/apple_usb_probe.dart';
 import 'package:eagly/services/ios/ios_device_domains.dart';
 import 'package:eagly/services/ios/ios_device_service.dart';
 
 void main() {
   late _FakeAdbTool adbTool;
   late _FakeIosDeviceService iosDevicesService;
+  late _FakeAppleUsbProbe appleUsbProbe;
   late DevicesRepository repository;
 
   setUp(() {
     adbTool = _FakeAdbTool();
     iosDevicesService = _FakeIosDeviceService();
+    appleUsbProbe = _FakeAppleUsbProbe();
     repository = DevicesRepository.forTesting(
       adbTool: adbTool,
       iosDeviceService: iosDevicesService,
+      appleUsbProbe: appleUsbProbe,
     );
   });
 
@@ -216,6 +220,64 @@ void main() {
       expect(repository.iosSupportUnavailable, isFalse);
     },
   );
+
+  group('unreachableIosDevices', () {
+    const iPhone = AppleUsbDevice(
+      serial: '00008030001A2C3E0E38802E',
+      kind: AppleUsbDeviceKind.iPhone,
+    );
+
+    test('asks USB only while usbmuxd is unreachable', () async {
+      appleUsbProbe.devices = const [iPhone];
+
+      await repository.refreshDevices(force: true);
+      expect(appleUsbProbe.calls, 0);
+      expect(repository.unreachableIosDevices, isEmpty);
+
+      iosDevicesService.usbmuxdUnavailableValue = true;
+      await repository.refreshDevices(force: true);
+      expect(appleUsbProbe.calls, 1);
+      expect(repository.unreachableIosDevices, [iPhone]);
+
+      // Apple Devices installed: the phone is listed by usbmuxd now.
+      iosDevicesService.usbmuxdUnavailableValue = false;
+      await repository.refreshDevices(force: true);
+      expect(appleUsbProbe.calls, 1);
+      expect(repository.unreachableIosDevices, isEmpty);
+    });
+
+    test('notifies when a phone is plugged in or out', () async {
+      iosDevicesService.usbmuxdUnavailableValue = true;
+      await repository.refreshDevices(force: true);
+      var notifications = 0;
+      repository.addListener(() => notifications++);
+
+      appleUsbProbe.devices = const [iPhone];
+      await repository.refreshDevices(force: true);
+      expect(notifications, 1);
+      expect(repository.unreachableIosDevices, [iPhone]);
+
+      // Nothing changed, nothing to rebuild.
+      await repository.refreshDevices(force: true);
+      expect(notifications, 1);
+
+      appleUsbProbe.devices = const [];
+      await repository.refreshDevices(force: true);
+      expect(notifications, 2);
+      expect(repository.unreachableIosDevices, isEmpty);
+    });
+  });
+}
+
+class _FakeAppleUsbProbe implements AppleUsbProbe {
+  List<AppleUsbDevice> devices = const [];
+  int calls = 0;
+
+  @override
+  List<AppleUsbDevice> listConnected() {
+    calls++;
+    return List.of(devices);
+  }
 }
 
 class _FakeAdbTool() extends AdbTool {

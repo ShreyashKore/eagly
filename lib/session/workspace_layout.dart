@@ -135,6 +135,32 @@ class WorkspaceLayout({WorkspaceLayoutMemory? memory}) extends ChangeNotifier {
     _replaceRoot(LayoutTree.removeTab(root, pane.id));
   }
 
+  /// Whether the open panes stand as [saved] has them once cut down to the
+  /// panes in [available] — what [applySaved] would lay out.
+  bool matchesSaved(LayoutNode saved, Set<WorkspacePane> available) {
+    final kept = WorkspaceArrangement.project(saved, {
+      for (final pane in available) pane.id,
+    });
+    return WorkspaceArrangement.sameShape(LayoutTree.normalise(kept), root);
+  }
+
+  /// Replaces whatever is open with [saved] cut down to the panes in
+  /// [available] — how a device opens with the saved layout, leaving out
+  /// the panes it cannot host. Returns the panes now open; leaves the
+  /// workspace alone and returns nothing when none of [saved]'s panes is
+  /// available.
+  Set<WorkspacePane> applySaved(
+    LayoutNode saved,
+    Set<WorkspacePane> available,
+  ) {
+    final kept = WorkspaceArrangement.project(saved, {
+      for (final pane in available) pane.id,
+    });
+    if (kept == null) return const {};
+    _replaceRoot(kept);
+    return _open;
+  }
+
   /// A drag in progress holds the tree its drop was computed on; dropping
   /// that after a pane came or went would undo the change, so it ends here.
   void _replaceRoot(LayoutNode? root) {
@@ -321,6 +347,11 @@ class WorkspaceLayoutMemory() {
   /// The remembered arrangement; null when nothing is remembered.
   LayoutNode? arrangement;
 
+  /// The layout the user saved for every device to open with (View → Save
+  /// Layout); null when none is saved. Unlike [arrangement] it changes only
+  /// when the user saves or clears it.
+  LayoutNode? saved;
+
   /// [arrangement] as JSON for storage; null for none.
   static Map<String, Object?>? encode(LayoutNode? arrangement) =>
       arrangement == null
@@ -358,6 +389,27 @@ class WorkspaceLayoutMemory() {
 
 class _PersistedWorkspaceLayoutMemory extends WorkspaceLayoutMemory {
   bool _loaded = false;
+  bool _savedLoaded = false;
+
+  @override
+  LayoutNode? get saved {
+    if (!_savedLoaded) {
+      _savedLoaded = true;
+      super.saved = WorkspaceLayoutMemory.decode(
+        PreferencesService.savedWorkspaceLayout,
+      );
+    }
+    return super.saved;
+  }
+
+  @override
+  set saved(LayoutNode? value) {
+    _savedLoaded = true;
+    super.saved = value;
+    PreferencesService.savedWorkspaceLayout = WorkspaceLayoutMemory.encode(
+      value,
+    );
+  }
 
   @override
   LayoutNode? get arrangement {
@@ -463,6 +515,36 @@ abstract final class WorkspaceArrangement {
       result = placeAsIn(arrangement, result, tab) ?? result;
     }
     return result;
+  }
+
+  /// Whether [a] and [b] lay the same panes out the same way: the same
+  /// splits on the same axes at the same shares, and the same tabs in each
+  /// area, in order. Node ids and which tab is in front are not compared —
+  /// switching tabs doesn't change a layout.
+  static bool sameShape(LayoutNode? a, LayoutNode? b) => _shape(a) == _shape(b);
+
+  static String _shape(LayoutNode? node) => switch (node) {
+    null => '-',
+    SplitNode(:final axis, :final children, :final sizes) =>
+      '${axis.name}[${_shares(sizes)}]'
+          '(${children.map(_shape).join(',')})',
+    LeafNode(:final tabs) => '{${tabs.map((tab) => tab.id).join(',')}}',
+  };
+
+  /// Flex weights as shares of their total, to three places, so a tree that
+  /// went through a projection compares equal to one laid out directly.
+  static String _shares(List<PanelExtent> sizes) {
+    final total = sizes.fold<double>(
+      0,
+      (sum, size) => size is FlexExtent ? sum + size.weight : sum,
+    );
+    return [
+      for (final size in sizes)
+        switch (size) {
+          FlexExtent(:final weight) => (weight / total).toStringAsFixed(3),
+          FixedExtent(:final pixels) => '${pixels.toStringAsFixed(0)}px',
+        },
+    ].join(',');
   }
 
   /// [tree] without every tab not in [keep], normalised; null when nothing

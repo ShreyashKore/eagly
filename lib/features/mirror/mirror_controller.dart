@@ -8,6 +8,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import '../../data/device.dart';
 import '../../services/app_breadcrumbs.dart';
 import '../../services/ios/ios_mirror_service.dart';
+import '../../services/preferences_service.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/utils.dart';
 import '../flutter_scrcpy/flutter_scrcpy.dart';
@@ -76,6 +77,10 @@ class MirrorController(super.session) extends FeatureController {
   /// tell it was overtaken.
   int _iosGeneration = 0;
 
+  /// Waiting for the user to read why an iPhone mirror on macOS needs camera
+  /// access; the mirror pane asks.
+  Completer<bool>? _captureNotice;
+
   /// Whether device→desktop clipboard changes are mirrored automatically.
   bool clipboardSyncEnabled = true;
   StreamSubscription<String>? _clipboardSub;
@@ -120,6 +125,33 @@ class MirrorController(super.session) extends FeatureController {
       screenMirrorState == ScreenMirrorState.starting;
 
   bool get canStart => session.canMirror;
+
+  /// Whether a start is waiting on [answerCaptureNotice].
+  bool get isCaptureNoticePending => _captureNotice != null;
+
+  /// Answers the notice a start is waiting on: [proceed] starts the mirror,
+  /// otherwise nothing changes.
+  void answerCaptureNotice({required bool proceed}) {
+    final notice = _captureNotice;
+    if (notice == null) return;
+    _captureNotice = null;
+    notice.complete(proceed);
+    _notify();
+  }
+
+  /// Whether the mirror may go ahead. QuickTime's capture route is a camera
+  /// to macOS, so the user hears why before it starts, unless they asked
+  /// not to.
+  Future<bool> _confirmCapture() {
+    if (device is! IosDevice ||
+        !IosScreenCapture.isAvailable ||
+        PreferencesService.skipIosCaptureNotice) {
+      return Future.value(true);
+    }
+    final notice = _captureNotice ??= Completer();
+    _notify();
+    return notice.future;
+  }
 
   bool get isRecording => _recordingSession != null;
 
@@ -168,6 +200,7 @@ class MirrorController(super.session) extends FeatureController {
       _notify();
       return;
     }
+    if (!await _confirmCapture() || _disposed) return;
 
     await stop(notify: false);
     if (_disposed) return;
@@ -574,6 +607,8 @@ class MirrorController(super.session) extends FeatureController {
   @override
   void dispose() {
     _disposed = true;
+    _captureNotice?.complete(false);
+    _captureNotice = null;
     keyboardFocusNode.dispose();
     unawaited(stop(notify: false));
     super.dispose();

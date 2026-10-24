@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
+
+import '../../utils/utils.dart';
 
 final class CrashReportUtils._() {
   static String formatTimestamp(DateTime timestamp) {
@@ -21,5 +24,23 @@ final class CrashReportUtils._() {
     } on FormatException {
       return null;
     }
+  }
+
+  /// The files among [paths] whose text contains [query], which is already
+  /// lowercased; the match ignores case. Unreadable files don't match.
+  static Future<Set<String>> pathsContaining(
+    List<String> paths,
+    String query,
+  ) async {
+    final matches = <String>{};
+    for (final path in paths) {
+      try {
+        final text = await readTextLenient(File(path));
+        if (text.toLowerCase().contains(query)) matches.add(path);
+      } on FileSystemException {
+        continue;
+      }
+    }
+    return matches;
   }
 }

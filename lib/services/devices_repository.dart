@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -11,6 +12,7 @@ import 'app_breadcrumbs.dart';
 import '../utils/android_device_mapping.dart';
 import '../utils/apple_device_mapping.dart';
 import 'tools/adb_tool.dart';
+import 'ios/apple_usb_probe.dart';
 import 'ios/ios_device_service.dart';
 
 /// Looks up an Android device's marketing name from its `ro.product.brand`,
@@ -25,6 +27,10 @@ class DevicesRepository._({
   AdbTool? adbTool,
   IosDeviceService? iosDeviceService,
   final AndroidMarketingNameLookup? _androidMarketingName,
+
+  /// Looks for iOS devices on USB while usbmuxd is unreachable. Null where
+  /// there is no such probe (everywhere but Windows).
+  final AppleUsbProbe? _appleUsbProbe,
 
   /// Fires when the marketing-name list arrives after devices were already
   /// described without it.
@@ -43,18 +49,21 @@ class DevicesRepository._({
     IosDeviceService? iosDeviceService,
     AndroidMarketingNameLookup? androidMarketingName,
     Listenable? androidMarketingNamesChanged,
+    AppleUsbProbe? appleUsbProbe,
   }) {
     return DevicesRepository._(
       adbTool: adbTool,
       iosDeviceService: iosDeviceService,
       androidMarketingName: androidMarketingName,
       androidMarketingNamesChanged: androidMarketingNamesChanged,
+      appleUsbProbe: appleUsbProbe,
     );
   }
 
   static final DevicesRepository instance = DevicesRepository._(
     androidMarketingName: AndroidMarketingNames.instance.lookup,
     androidMarketingNamesChanged: AndroidMarketingNames.instance,
+    appleUsbProbe: Platform.isWindows ? WindowsAppleUsbProbe() : null,
   );
 
   static const Duration _minimumRefreshInterval = Duration(seconds: 2);
@@ -75,6 +84,7 @@ class DevicesRepository._({
 
   List<Device> _devices = const [];
   bool _iosSupportUnavailable = false;
+  List<AppleUsbDevice> _unreachableIosDevices = const [];
   bool _isLoading = false;
   bool _hasAttemptedLoad = false;
   bool _started = false;
@@ -97,6 +107,11 @@ class DevicesRepository._({
   /// Mobile Device Support is not installed on Windows). The UI surfaces a hint
   /// to install it. Stays false while iOS detection works, even with no devices.
   bool get iosSupportUnavailable => _iosSupportUnavailable;
+
+  /// iPhones, iPads and iPods plugged in over USB that Eagly can't reach
+  /// because usbmuxd is: the ones File Explorer shows on a Windows PC without
+  /// Apple's software. Empty while [iosSupportUnavailable] is false.
+  List<AppleUsbDevice> get unreachableIosDevices => _unreachableIosDevices;
   bool get isLoading => _isLoading;
   bool get hasAttemptedLoad => _hasAttemptedLoad;
 
@@ -213,6 +228,9 @@ class DevicesRepository._({
     );
     final iosDeviceIds = await _iosDeviceService.listDeviceIds();
     final iosSupportUnavailable = _iosDeviceService.usbmuxdUnavailable;
+    final unreachableIosDevices = iosSupportUnavailable
+        ? _appleUsbProbe?.listConnected() ?? const <AppleUsbDevice>[]
+        : const <AppleUsbDevice>[];
     final iosDevices = await Future.wait(iosDeviceIds.map(_resolveIosDevice));
     final nextDevices = _mergeDevices([...deduplicatedAndroid, ...iosDevices]);
 
@@ -236,7 +254,9 @@ class DevicesRepository._({
 
     _lastRefreshAt = DateTime.now();
     final devicesChanged = !listEquals(_devices, nextDevices);
-    final iosSupportChanged = _iosSupportUnavailable != iosSupportUnavailable;
+    final iosSupportChanged =
+        _iosSupportUnavailable != iosSupportUnavailable ||
+        !listEquals(_unreachableIosDevices, unreachableIosDevices);
     if (!devicesChanged && !iosSupportChanged) {
       return;
     }
@@ -247,6 +267,7 @@ class DevicesRepository._({
 
     _devices = nextDevices;
     _iosSupportUnavailable = iosSupportUnavailable;
+    _unreachableIosDevices = unreachableIosDevices;
     _notify();
   }
 

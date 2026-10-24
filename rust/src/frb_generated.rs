@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -570210100;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -2064110059;
 
 // Section: executor
 
@@ -76,6 +76,47 @@ fn wire__crate__api__ios_mirror__capture_ios_screenshot_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::ios_mirror::capture_ios_screenshot(api_udid).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__ios_app_control__clear_ios_app_data_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "clear_ios_app_data",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_udid = <String>::sse_decode(&mut deserializer);
+            let api_bundle_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::ios::IosError>(
+                    (move || async move {
+                        let output_ok = crate::api::ios_app_control::clear_ios_app_data(
+                            api_udid,
+                            api_bundle_id,
+                        )
+                        .await?;
                         std::result::Result::Ok(output_ok)
                     })()
                     .await,
@@ -239,6 +280,44 @@ fn wire__crate__api__ios__download_ios_path_impl(
         },
     )
 }
+fn wire__crate__api__ios__fetch_ios_app_icon_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "fetch_ios_app_icon",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_udid = <String>::sse_decode(&mut deserializer);
+            let api_bundle_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::ios::IosError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::ios::fetch_ios_app_icon(api_udid, api_bundle_id).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__simple__greet_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -341,6 +420,45 @@ fn wire__crate__api__ios__install_ios_app_impl(
         },
     )
 }
+fn wire__crate__api__ios_app_control__launch_ios_app_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "launch_ios_app",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_udid = <String>::sse_decode(&mut deserializer);
+            let api_bundle_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::ios::IosError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::ios_app_control::launch_ios_app(api_udid, api_bundle_id)
+                                .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__ios__list_ios_apps_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -364,11 +482,13 @@ fn wire__crate__api__ios__list_ios_apps_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_udid = <String>::sse_decode(&mut deserializer);
+            let api_include_system = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::ios::IosError>(
                     (move || async move {
-                        let output_ok = crate::api::ios::list_ios_apps(api_udid).await?;
+                        let output_ok =
+                            crate::api::ios::list_ios_apps(api_udid, api_include_system).await?;
                         std::result::Result::Ok(output_ok)
                     })()
                     .await,
@@ -441,6 +561,43 @@ fn wire__crate__api__ios__list_ios_files_impl(
                 transform_result_sse::<_, crate::api::ios::IosError>(
                     (move || async move {
                         let output_ok = crate::api::ios::list_ios_files(api_udid, api_path).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__ios_app_control__probe_ios_app_control_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "probe_ios_app_control",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_udid = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::ios::IosError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::ios_app_control::probe_ios_app_control(api_udid).await?;
                         std::result::Result::Ok(output_ok)
                     })()
                     .await,
@@ -1036,6 +1193,45 @@ fn wire__crate__api__ios__start_ios_syslog_impl(
         },
     )
 }
+fn wire__crate__api__ios_app_control__stop_ios_app_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "stop_ios_app",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_udid = <String>::sse_decode(&mut deserializer);
+            let api_bundle_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::ios::IosError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::ios_app_control::stop_ios_app(api_udid, api_bundle_id)
+                                .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__ios_mirror__stop_ios_input_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1347,10 +1543,18 @@ impl SseDecode for crate::api::ios::IosAppInfo {
         let mut var_bundleId = <String>::sse_decode(deserializer);
         let mut var_name = <Option<String>>::sse_decode(deserializer);
         let mut var_version = <Option<String>>::sse_decode(deserializer);
+        let mut var_build = <Option<String>>::sse_decode(deserializer);
+        let mut var_executable = <Option<String>>::sse_decode(deserializer);
+        let mut var_isSystem = <bool>::sse_decode(deserializer);
+        let mut var_isDebuggable = <bool>::sse_decode(deserializer);
         return crate::api::ios::IosAppInfo {
             bundle_id: var_bundleId,
             name: var_name,
             version: var_version,
+            build: var_build,
+            executable: var_executable,
+            is_system: var_isSystem,
+            is_debuggable: var_isDebuggable,
         };
     }
 }
@@ -1642,6 +1846,13 @@ impl SseDecode for u16 {
     }
 }
 
+impl SseDecode for u32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u32::<NativeEndian>().unwrap()
+    }
+}
+
 impl SseDecode for u64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1676,71 +1887,93 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        2 => wire__crate__api__ios__create_ios_directory_impl(port, ptr, rust_vec_len, data_len),
-        3 => wire__crate__api__ios__delete_ios_path_impl(port, ptr, rust_vec_len, data_len),
-        4 => wire__crate__api__ios__describe_ios_device_impl(port, ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__ios__download_ios_path_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__ios__install_ios_app_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__ios__list_ios_apps_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__ios__list_ios_devices_impl(port, ptr, rust_vec_len, data_len),
-        11 => wire__crate__api__ios__list_ios_files_impl(port, ptr, rust_vec_len, data_len),
-        12 => {
+        2 => wire__crate__api__ios_app_control__clear_ios_app_data_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        3 => wire__crate__api__ios__create_ios_directory_impl(port, ptr, rust_vec_len, data_len),
+        4 => wire__crate__api__ios__delete_ios_path_impl(port, ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__ios__describe_ios_device_impl(port, ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__ios__download_ios_path_impl(port, ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__ios__fetch_ios_app_icon_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__ios__install_ios_app_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__ios_app_control__launch_ios_app_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        12 => wire__crate__api__ios__list_ios_apps_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__ios__list_ios_devices_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__ios__list_ios_files_impl(port, ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__ios_app_control__probe_ios_app_control_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        16 => {
             wire__crate__api__ios_mirror__probe_ios_mirror_impl(port, ptr, rust_vec_len, data_len)
         }
-        13 => {
+        17 => {
             wire__crate__api__ios_network__probe_ios_ports_impl(port, ptr, rust_vec_len, data_len)
         }
-        14 => wire__crate__api__ios__pull_ios_crash_reports_impl(port, ptr, rust_vec_len, data_len),
-        15 => {
+        18 => wire__crate__api__ios__pull_ios_crash_reports_impl(port, ptr, rust_vec_len, data_len),
+        19 => {
             wire__crate__api__ios__read_ios_device_domains_impl(port, ptr, rust_vec_len, data_len)
         }
-        16 => wire__crate__api__ios_mirror__read_ios_interface_orientation_impl(
+        20 => wire__crate__api__ios_mirror__read_ios_interface_orientation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        17 => wire__crate__api__ios__rename_ios_path_impl(port, ptr, rust_vec_len, data_len),
-        18 => {
+        21 => wire__crate__api__ios__rename_ios_path_impl(port, ptr, rust_vec_len, data_len),
+        22 => {
             wire__crate__api__ios_mirror__rotate_ios_device_impl(port, ptr, rust_vec_len, data_len)
         }
-        22 => wire__crate__api__ios_mirror__set_ios_pasteboard_text_impl(
+        26 => wire__crate__api__ios_mirror__set_ios_pasteboard_text_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        23 => wire__crate__api__ios_mirror__start_ios_input_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__ios_network__start_ios_port_forward_impl(
+        27 => wire__crate__api__ios_mirror__start_ios_input_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__ios_network__start_ios_port_forward_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__ios_mirror__start_ios_screenshot_stream_impl(
+        29 => wire__crate__api__ios_mirror__start_ios_screenshot_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__ios__start_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__ios_mirror__stop_ios_input_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__ios_network__stop_ios_port_forward_impl(
+        30 => wire__crate__api__ios__start_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
+        31 => {
+            wire__crate__api__ios_app_control__stop_ios_app_impl(port, ptr, rust_vec_len, data_len)
+        }
+        32 => wire__crate__api__ios_mirror__stop_ios_input_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__ios_network__stop_ios_port_forward_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => wire__crate__api__ios_mirror__stop_ios_screenshot_stream_impl(
+        34 => wire__crate__api__ios_mirror__stop_ios_screenshot_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__ios__stop_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__ios__uninstall_ios_app_impl(port, ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__ios__upload_ios_path_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__ios__stop_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__ios__uninstall_ios_app_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__ios__upload_ios_path_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1753,10 +1986,10 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        6 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__ios_mirror__send_ios_button_impl(ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__ios_mirror__send_ios_key_impl(ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__ios_mirror__send_ios_touch_impl(ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__ios_mirror__send_ios_button_impl(ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__ios_mirror__send_ios_key_impl(ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__ios_mirror__send_ios_touch_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1770,6 +2003,10 @@ impl flutter_rust_bridge::IntoDart for crate::api::ios::IosAppInfo {
             self.bundle_id.into_into_dart().into_dart(),
             self.name.into_into_dart().into_dart(),
             self.version.into_into_dart().into_dart(),
+            self.build.into_into_dart().into_dart(),
+            self.executable.into_into_dart().into_dart(),
+            self.is_system.into_into_dart().into_dart(),
+            self.is_debuggable.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -2067,6 +2304,10 @@ impl SseEncode for crate::api::ios::IosAppInfo {
         <String>::sse_encode(self.bundle_id, serializer);
         <Option<String>>::sse_encode(self.name, serializer);
         <Option<String>>::sse_encode(self.version, serializer);
+        <Option<String>>::sse_encode(self.build, serializer);
+        <Option<String>>::sse_encode(self.executable, serializer);
+        <bool>::sse_encode(self.is_system, serializer);
+        <bool>::sse_encode(self.is_debuggable, serializer);
     }
 }
 
@@ -2312,6 +2553,13 @@ impl SseEncode for u16 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_u16::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for u32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u32::<NativeEndian>(self).unwrap();
     }
 }
 

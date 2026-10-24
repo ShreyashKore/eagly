@@ -33,9 +33,14 @@ const _systemAppBlockedReason =
     'Not available for system apps — wiping or removing a preinstalled '
     'package can leave the device unusable.';
 
+/// Why Clear Data is off for an iOS app that isn't a debug build.
+const _releaseBuildBlockedReason =
+    'Only for debug builds (from Xcode or flutter run) — iOS keeps every '
+    "other app's data sealed.";
+
 /// Right-click menu for a single [app], with options gated by what the
-/// platform actually supports (see [AppsController.canLaunchApps] /
-/// [AppsController.canManageAppState]). [position] is the global pointer
+/// device actually supports (see [AppsController.canLaunchApps] and the
+/// other `can…` getters). [position] is the global pointer
 /// location.
 ///
 /// **System apps** keep the reversible entries (open, force stop — a system
@@ -54,6 +59,11 @@ Future<void> showAppContextMenu(
 }) async {
   final theme = Theme.of(context);
   final isSystem = app.isSystemApp;
+  final clearDataBlockedReason = isSystem
+      ? _systemAppBlockedReason
+      : controller.canClearDataOf(app)
+      ? null
+      : _releaseBuildBlockedReason;
   final hasUtilities = hasAppUtilities(controller.session);
 
   final result = await showMenu<_AppAction>(
@@ -65,26 +75,27 @@ Future<void> showAppContextMenu(
           value: _AppAction.open,
           child: _MenuRow(Icons.open_in_new, 'Open'),
         ),
-      if (controller.canManageAppState) ...[
+      if (controller.canForceStopApps)
         const PopupMenuItem(
           value: _AppAction.forceStop,
           child: _MenuRow(Icons.stop_circle_outlined, 'Force Stop'),
         ),
+      if (controller.canClearAppData)
         PopupMenuItem(
           value: _AppAction.clearData,
-          enabled: !isSystem,
+          enabled: clearDataBlockedReason == null,
           child: _MenuRow(
             Icons.delete_sweep_outlined,
             'Clear Data…',
-            blocked: isSystem,
-            blockedReason: _systemAppBlockedReason,
+            blocked: clearDataBlockedReason != null,
+            blockedReason: clearDataBlockedReason,
           ),
         ),
+      if (controller.canOpenAppInfo)
         const PopupMenuItem(
           value: _AppAction.appInfo,
           child: _MenuRow(Icons.info_outline, 'App Info'),
         ),
-      ],
       const PopupMenuItem(
         value: _AppAction.viewLogs,
         child: _MenuRow(Icons.article_outlined, 'View Logs'),

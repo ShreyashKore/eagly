@@ -7,13 +7,15 @@ import 'package:gap/gap.dart';
 import '../../../data/device.dart';
 import '../../../presentation/components/app_icon_button.dart';
 import '../../../presentation/components/saved_file_snack_bar.dart';
+import '../../../presentation/theme/app_theme.dart';
 import '../../flutter_scrcpy/flutter_scrcpy.dart';
 import '../ios/ios_mirror_session.dart';
 import '../mirror_controller.dart';
 import '../services/capture_storage.dart';
 
 /// Vertical strip on the pane's right edge: session actions (screenshot,
-/// record, rotate, quality) at the top, then device hardware/navigation keys.
+/// record, rotate, quality) at the top, then the device's navigation and
+/// hardware buttons grouped on their own outlined surface.
 /// An iPhone gets its own buttons and no clipboard sync, and records only
 /// with live video (macOS).
 class const MirrorControlStrip({
@@ -71,6 +73,19 @@ class const MirrorControlStrip({
       indent: 10,
       endIndent: 10,
       color: theme.colorScheme.outlineVariant,
+    );
+
+    // The device's own buttons — navigation, then the hardware side buttons —
+    // set apart on one outlined surface so they read as the phone's controls
+    // rather than mirror actions.
+    Widget deviceButtons(List<Widget> buttons) => Container(
+      padding: EdgeInsets.all(context.scaled(3)),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(context.scaled(11)),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: buttons),
     );
 
     return Container(
@@ -150,33 +165,48 @@ class const MirrorControlStrip({
                     ? Icons.sync
                     : Icons.sync_disabled,
               ),
-            const Gap(8),
-            divider(),
-            const Gap(8),
-            if (isIos) ...[
-              iosButton(Icons.circle_outlined, 'Home', IosButton.home),
-              iosButton(
-                Icons.crop_square,
-                'App switcher',
-                IosButton.appSwitcher,
+            const Gap(12),
+            deviceButtons([
+              if (isIos) ...[
+                iosButton(Icons.circle_outlined, 'Home', IosButton.home),
+                iosButton(
+                  Icons.crop_square,
+                  'App switcher',
+                  IosButton.appSwitcher,
+                ),
+              ] else ...[
+                keyButton(Icons.arrow_back, 'Back', ScrcpyKey.back),
+                keyButton(Icons.circle_outlined, 'Home', ScrcpyKey.home),
+                keyButton(Icons.crop_square, 'Overview', ScrcpyKey.appSwitch),
+              ],
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: context.scaled(4)),
+                child: Divider(
+                  height: 1,
+                  thickness: 1,
+                  indent: 4,
+                  endIndent: 4,
+                  color: theme.colorScheme.outlineVariant,
+                ),
               ),
-            ] else ...[
-              keyButton(Icons.arrow_back, 'Back', ScrcpyKey.back),
-              keyButton(Icons.circle_outlined, 'Home', ScrcpyKey.home),
-              keyButton(Icons.crop_square, 'Overview', ScrcpyKey.appSwitch),
-            ],
-            const Gap(8),
-            divider(),
-            const Gap(8),
-            if (isIos) ...[
-              iosButton(Icons.volume_up, 'Volume up', IosButton.volumeUp),
-              iosButton(Icons.volume_down, 'Volume down', IosButton.volumeDown),
-              iosButton(Icons.lock_outline, 'Lock', IosButton.lock),
-            ] else ...[
-              keyButton(Icons.volume_up, 'Volume up', ScrcpyKey.volumeUp),
-              keyButton(Icons.volume_down, 'Volume down', ScrcpyKey.volumeDown),
-              keyButton(Icons.power_settings_new, 'Power', ScrcpyKey.power),
-            ],
+              if (isIos) ...[
+                iosButton(Icons.volume_up, 'Volume up', IosButton.volumeUp),
+                iosButton(
+                  Icons.volume_down,
+                  'Volume down',
+                  IosButton.volumeDown,
+                ),
+                iosButton(Icons.lock_outline, 'Lock', IosButton.lock),
+              ] else ...[
+                keyButton(Icons.volume_up, 'Volume up', ScrcpyKey.volumeUp),
+                keyButton(
+                  Icons.volume_down,
+                  'Volume down',
+                  ScrcpyKey.volumeDown,
+                ),
+                keyButton(Icons.power_settings_new, 'Power', ScrcpyKey.power),
+              ],
+            ]),
             const Gap(8),
           ],
         ),
@@ -252,9 +282,15 @@ class const MirrorControlStrip({
         );
         return;
       }
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Saving recording…')),
-      );
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            // Stays up until the save finishes and the next one replaces it.
+            duration: Duration(days: 1),
+            content: _SavingRecording(),
+          ),
+        );
       await controller.stopRecording(path);
       await showSavedFileSnackBar(
         messenger,
@@ -265,9 +301,9 @@ class const MirrorControlStrip({
         previewIsVideo: true,
       );
     } catch (error) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Recording failed: $error')),
-      );
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('Recording failed: $error')));
     }
   }
 
@@ -300,5 +336,29 @@ class const MirrorControlStrip({
     } catch (error) {
       messenger.showSnackBar(SnackBar(content: Text('Rotate failed: $error')));
     }
+  }
+}
+
+/// "Saving recording…" over a running bar. Neither `screenrecord`'s pull nor
+/// the iPhone's finishing write reports how far along it is, so the bar only
+/// says that it is still going.
+class const _SavingRecording() extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text('Saving recording…'),
+        const Gap(10),
+        LinearProgressIndicator(
+          minHeight: 3,
+          borderRadius: BorderRadius.circular(2),
+          color: scheme.inversePrimary,
+          backgroundColor: scheme.onInverseSurface.withValues(alpha: 0.16),
+        ),
+      ],
+    );
   }
 }

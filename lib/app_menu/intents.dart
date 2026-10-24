@@ -54,3 +54,7 @@ class const ToggleAutoScrollIntent() extends Intent;
 class const IncreaseFontIntent() extends Intent;
 
 class const DecreaseFontIntent() extends Intent;
+
+class const SaveLayoutIntent() extends Intent;
+
+class const ClearSavedLayoutIntent() extends Intent;

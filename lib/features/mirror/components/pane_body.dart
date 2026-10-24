@@ -6,6 +6,7 @@ import '../../../presentation/components/delayed_reveal.dart';
 import '../../../presentation/components/hint_note.dart';
 import '../../flutter_scrcpy/flutter_scrcpy.dart';
 import '../mirror_controller.dart';
+import 'recording_glow.dart';
 import '../services/ios_screen_capture.dart';
 import 'ios_mirror_surface.dart';
 
@@ -36,6 +37,7 @@ class const PaneBody({super.key, required final MirrorController controller})
         focusNode: controller.keyboardFocusNode,
         onKey: controller.handleKeyEvent,
         onFocusChange: controller.handleKeyboardFocusChange,
+        overlay: recordingGlow(controller),
       );
     }
 
@@ -102,7 +104,7 @@ class const PaneBody({super.key, required final MirrorController controller})
             textAlign: TextAlign.center,
           ),
           // The capture route is a camera to macOS, so its permission prompt
-          // and indicators would otherwise look like Eagly watching the room.
+          // would otherwise look like Eagly watching the room.
           if (isIos &&
               IosScreenCapture.isAvailable &&
               controller.screenMirrorState == ScreenMirrorState.stopped)
@@ -113,8 +115,8 @@ class const PaneBody({super.key, required final MirrorController controller})
                 title: "macOS treats the iPhone's screen as a camera",
                 text:
                     'The first time, macOS asks to give Eagly camera access. '
-                    'While mirroring, the Mac shows its camera indicator and '
-                    'the iPhone may show its microphone indicator. Eagly '
+                    'While mirroring, the iPhone may show its microphone '
+                    'indicator. Eagly '
                     "reads only the iPhone's screen: no camera, no "
                     'microphone, no sound.',
               ),

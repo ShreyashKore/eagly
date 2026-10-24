@@ -32,6 +32,11 @@ class const ScrcpyView({
   /// stop the platform beeping at an unhandled key).
   final KeyEventResult Function(KeyEvent event)? onKey,
   final ValueChanged<bool>? onFocusChange,
+
+  /// Laid over the picture at its size and let free to paint past its
+  /// edges, such as a recording indicator around it. It gets no pointer
+  /// events.
+  final Widget? overlay,
 }) extends StatelessWidget {
   this : assert(textureId != null || child != null);
 
@@ -95,7 +100,16 @@ class const ScrcpyView({
       alignment: Alignment.center,
       child: AspectRatio(
         aspectRatio: aspectRatio > 0 ? aspectRatio : 9 / 16,
-        child: surface,
+        child: overlay == null
+            ? surface
+            : Stack(
+                fit: StackFit.expand,
+                clipBehavior: Clip.none,
+                children: [
+                  surface,
+                  IgnorePointer(child: overlay),
+                ],
+              ),
       ),
     );
   }

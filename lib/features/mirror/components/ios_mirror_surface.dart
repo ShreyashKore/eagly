@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:gap/gap.dart';
 
 import '../../../presentation/components/hint_note.dart';
 import '../../flutter_scrcpy/flutter_scrcpy.dart';
 import '../ios/ios_mirror_session.dart';
 import '../mirror_controller.dart';
+import '../services/ios_screen_capture.dart';
+import 'ios_screenshot_mode_note.dart';
+import 'recording_glow.dart';
 
 /// A running iPhone mirror: the live capture's texture, or the latest
-/// screenshot, under a note for whatever is missing (live video, controls).
+/// screenshot, under notes for whatever is missing (live video, controls).
 class const IosMirrorSurface({
   super.key,
   required final MirrorController controller,
@@ -18,6 +20,7 @@ class const IosMirrorSurface({
     final size = mirror.size;
     final textureId = mirror.textureId;
     final frame = mirror.frame;
+    final screenshots = mirror.video == IosMirrorVideo.screenshots;
     final notices = [?mirror.videoNotice, ?mirror.inputNotice];
     final input = mirror.hasInput;
 
@@ -31,6 +34,7 @@ class const IosMirrorSurface({
       focusNode: input ? controller.keyboardFocusNode : null,
       onKey: controller.handleKeyEvent,
       onFocusChange: controller.handleKeyboardFocusChange,
+      overlay: recordingGlow(controller),
       child: textureId == null && frame != null
           ? Image.memory(
               frame,
@@ -40,7 +44,7 @@ class const IosMirrorSurface({
             )
           : null,
     );
-    if (notices.isEmpty) return view;
+    if (notices.isEmpty && !screenshots) return view;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -48,11 +52,16 @@ class const IosMirrorSurface({
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           child: Column(
+            spacing: 8,
             children: [
-              for (final (index, notice) in notices.indexed) ...[
-                if (index > 0) const Gap(8),
+              if (screenshots)
+                // Where there is a live route, the notice below says why it
+                // failed; iOS 27 is the way only where there is none.
+                IosScreenshotModeNote(
+                  suggestIos27: !IosScreenCapture.isAvailable,
+                ),
+              for (final notice in notices)
                 HintNote(text: notice, icon: Icons.info_outline),
-              ],
             ],
           ),
         ),

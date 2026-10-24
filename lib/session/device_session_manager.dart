@@ -8,6 +8,7 @@ import '../data/device.dart';
 import '../features/logs/services/log_file_service.dart';
 import '../services/app_breadcrumbs.dart';
 import '../services/devices_repository.dart';
+import '../services/ios/apple_usb_probe.dart';
 import '../services/device_session_repository.dart';
 import 'device_session_controller.dart';
 import 'workspace_layout.dart';
@@ -64,6 +65,8 @@ class DeviceSessionManager({
   bool get isLoadingDevices => _repository.isLoading;
   bool get hasAttemptedDeviceLoad => _repository.hasAttemptedLoad;
   bool get iosSupportUnavailable => _repository.iosSupportUnavailable;
+  List<AppleUsbDevice> get unreachableIosDevices =>
+      _repository.unreachableIosDevices;
   List<Device> get devices => _repository.devices;
 
   void _sync() {
@@ -133,6 +136,35 @@ class DeviceSessionManager({
       category: 'navigation.device_tab',
     );
     _selectedId = null;
+    notifyListeners();
+  }
+
+  // ── Saved layout ──────────────────────────────────────────────────────
+
+  /// Whether the selected device's open panes can be saved as the layout
+  /// every device opens with.
+  bool get canSaveLayout => selected?.canSaveLayout ?? false;
+
+  bool get hasSavedLayout => _layoutMemory.saved != null;
+
+  /// Saves the selected device's pane layout. From now on every device
+  /// opens with it, cut down to the panes it supports; devices already open
+  /// keep theirs.
+  void saveLayout() {
+    final session = selected;
+    if (session == null || !session.canSaveLayout) return;
+    AppBreadcrumbs.action(
+      'Saved the pane layout of ${session.device.displayName}',
+      category: 'workspace.layout',
+    );
+    _layoutMemory.saved = session.workspaceLayout.root;
+    notifyListeners();
+  }
+
+  /// Forgets the saved layout: devices open on Home again.
+  void clearSavedLayout() {
+    if (!hasSavedLayout) return;
+    _layoutMemory.saved = null;
     notifyListeners();
   }
 

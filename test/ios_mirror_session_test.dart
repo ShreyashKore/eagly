@@ -243,6 +243,21 @@ void main() {
       await mirror.stop();
     });
 
+    test('Back is a swipe in from the left edge', () async {
+      final mirror = await startLive();
+
+      await mirror.pressButton(IosButton.back);
+
+      final touches = service.lastIosInput!.touches;
+      expect(touches.first, (IosTouchPhase.down, 0.01, 0.5));
+      expect(touches.last.$1, IosTouchPhase.up);
+      expect(touches.last.$2, closeTo(0.6, 1e-9));
+      final xs = [for (final (_, x, _) in touches) x];
+      expect(xs, orderedEquals([...xs]..sort()));
+      expect(touches.every((touch) => touch.$3 == 0.5), isTrue);
+      await mirror.stop();
+    });
+
     test('paste puts the desktop text on the phone and presses ⌘V', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.platform, (call) async {

@@ -10,6 +10,7 @@ import 'data/terminal_command.dart';
 import 'data/terminal_line.dart';
 import 'data/terminal_process.dart';
 import 'data/terminal_tools.dart';
+import 'terminal_find.dart';
 
 /// One terminal tab: a scrollback, a command history, the device its commands
 /// go to, and at most one running process.
@@ -66,6 +67,9 @@ class TerminalController(
   bool _disposed = false;
 
   List<TerminalLine> get lines => List.unmodifiable(_lines);
+
+  /// Find in this tab's scrollback; kept per tab like the scrollback itself.
+  late final TerminalFind find = TerminalFind(() => _lines);
   List<String> get history => List.unmodifiable(_history);
 
   /// True while a command is running (or starting); the input line then
@@ -552,7 +556,9 @@ class TerminalController(
   }
 
   void _notify() {
-    if (!_disposed) notifyListeners();
+    if (_disposed) return;
+    find.refresh();
+    notifyListeners();
   }
 
   @override
@@ -573,6 +579,7 @@ class TerminalController(
     final running = _running;
     _running = null;
     if (running != null) unawaited(running.kill());
+    find.dispose();
     super.dispose();
   }
 }

@@ -11,7 +11,7 @@ class const CrashReportList({
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final reports = controller.reports;
+    final reports = controller.filteredReports;
 
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 4),

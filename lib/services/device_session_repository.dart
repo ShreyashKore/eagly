@@ -422,17 +422,27 @@ class DeviceSessionRepository({
 
   // ── Apps feature (device-wide app management) ───────────────────────────
 
-  /// Full app inventory for the Apps feature. [includeSystemApps] is
-  /// Android-only (iOS's installer never exposes system apps to begin with).
+  /// Full app inventory for the Apps feature. [includeSystemApps] adds the
+  /// preinstalled apps, where [canListSystemApps].
   Future<List<AppInfo>> listApps({bool includeSystemApps = false}) {
     return switch (device) {
       AndroidDevice() => _adbTool.listApps(
         _deviceId,
         includeSystemApps: includeSystemApps,
       ),
-      IosDevice() => _iosAppService.listApps(_deviceId).then(sortIosApps),
+      IosDevice() =>
+        _iosAppService
+            .listApps(_deviceId, includeSystemApps: includeSystemApps)
+            .then(sortIosApps),
     };
   }
+
+  /// Whether [listApps] can include system apps: always on Android, and on
+  /// iOS unless the CLI backend is in use.
+  bool get canListSystemApps => switch (device) {
+    AndroidDevice() => true,
+    IosDevice() => _iosAppService.listsSystemApps,
+  };
 
   Future<DeviceCommandResult> uninstallApp(String packageName) {
     return switch (device) {
@@ -444,38 +454,55 @@ class DeviceSessionRepository({
     };
   }
 
-  /// Launches [packageName]'s launcher activity. Android only — throws
-  /// [UnsupportedError] for iOS (no bundled tool can launch an arbitrary
-  /// app without a mounted developer disk image).
+  /// Whether [launchApp] and [forceStopApp] work: always on Android; on iOS
+  /// only while the phone offers CoreDevice's app service (Developer Mode and
+  /// Xcode's developer disk image), which opening a tunnel finds out.
+  Future<bool> canControlApps() => switch (device) {
+    AndroidDevice() => Future.value(true),
+    IosDevice() => _iosAppService.canControlApps(_deviceId),
+  };
+
+  /// Opens [packageName]: its launcher activity on Android.
   Future<DeviceCommandResult> launchApp(String packageName) {
-    if (device is! AndroidDevice) {
-      throw UnsupportedError(
-        'Opening apps is currently supported for Android devices only.',
-      );
-    }
-    return _adbTool.launchApp(_deviceId, packageName);
+    return switch (device) {
+      AndroidDevice() => _adbTool.launchApp(_deviceId, packageName),
+      IosDevice() => _iosAppService.launchApp(
+        deviceId: _deviceId,
+        bundleId: packageName,
+      ),
+    };
   }
 
-  /// Force-stops [packageName]. Android only.
+  /// Force-stops [packageName], extensions and services included.
   Future<DeviceCommandResult> forceStopApp(String packageName) {
-    if (device is! AndroidDevice) {
-      throw UnsupportedError(
-        'Force-stopping apps is currently supported for Android devices only.',
-      );
-    }
-    return _adbTool.forceStopApp(_deviceId, packageName);
+    return switch (device) {
+      AndroidDevice() => _adbTool.forceStopApp(_deviceId, packageName),
+      IosDevice() => _iosAppService.forceStopApp(
+        deviceId: _deviceId,
+        bundleId: packageName,
+      ),
+    };
   }
 
-  /// Wipes [packageName]'s data and cache. Android only, irreversible — the
-  /// caller must confirm with the user first.
+  /// Wipes [packageName]'s data and cache. Irreversible — the caller must
+  /// confirm with the user first. On iOS only a debug build can be cleared
+  /// ([AppInfo.isDebuggable]).
   Future<DeviceCommandResult> clearAppData(String packageName) {
-    if (device is! AndroidDevice) {
-      throw UnsupportedError(
-        'Clearing app data is currently supported for Android devices only.',
-      );
-    }
-    return _adbTool.clearAppData(_deviceId, packageName);
+    return switch (device) {
+      AndroidDevice() => _adbTool.clearAppData(_deviceId, packageName),
+      IosDevice() => _iosAppService.clearAppData(
+        deviceId: _deviceId,
+        bundleId: packageName,
+      ),
+    };
   }
+
+  /// Whether [clearAppData] exists for this device: always on Android, and
+  /// on iOS unless the CLI backend is in use.
+  bool get canClearAppData => switch (device) {
+    AndroidDevice() => true,
+    IosDevice() => _iosAppService.clearsAppData,
+  };
 
   /// Opens the OS "App info" settings screen for [packageName]. Android only.
   Future<void> openAppInfoSettings(String packageName) {
@@ -487,16 +514,43 @@ class DeviceSessionRepository({
     return _adbTool.openAppInfoSettings(_deviceId, packageName);
   }
 
-  /// Best-effort launcher icon and user-visible label for [packageName]:
-  /// pulls its APK to a scratch temp directory, extracts both via
-  /// [ApkIconExtractor], then deletes the pulled APK. Returns null on iOS (no
-  /// extraction available, and its installer already reports names) or when
-  /// the pull fails; either half is null when it can't be resolved — never
-  /// throws.
+  /// Best-effort launcher icon and user-visible label for [packageName].
+  /// Returns null when the device couldn't be read (worth asking again);
+  /// either half is null when it can't be resolved — never throws.
+  ///
+  /// Android pulls the APK to a scratch temp directory, extracts both via
+  /// [ApkIconExtractor], then deletes the pulled APK. iOS asks SpringBoard for
+  /// the icon alone: its installer already reports names.
   Future<({Uint8List? icon, String? label})?> fetchAppDetails(
     String packageName,
+  ) {
+    return switch (device) {
+      AndroidDevice() => _fetchAndroidAppDetails(packageName),
+      IosDevice() => _fetchIosAppDetails(packageName),
+    };
+  }
+
+  Future<({Uint8List? icon, String? label})?> _fetchIosAppDetails(
+    String bundleId,
   ) async {
-    if (device is! AndroidDevice) return null;
+    try {
+      final icon = await _iosAppService.fetchAppIcon(
+        deviceId: _deviceId,
+        bundleId: bundleId,
+      );
+      return (icon: icon, label: null);
+    } catch (error) {
+      _sessionLogger.error(
+        'Failed to fetch the icon for $bundleId',
+        detail: error.toString(),
+      );
+      return null;
+    }
+  }
+
+  Future<({Uint8List? icon, String? label})?> _fetchAndroidAppDetails(
+    String packageName,
+  ) async {
     File? localApk;
     try {
       final apkPath = await _adbTool.getApkPath(_deviceId, packageName);

@@ -97,7 +97,9 @@ implementations live behind an interface in `services/ios/`; Rust is the default
 `Rust*` implementation may import `lib/src/rust/**`, which is generated and never edited by hand.
 **The libimobiledevice CLIs and friends will be removed in a future version**, so new iOS work
 goes on the Rust side first; keep the CLI path correct while it ships, but don't extend it.
-See **docs/IOS_RUST_MIGRATION.md** before touching either side.
+See **docs/IOS_RUST_MIGRATION.md** before touching either side. New to the iOS device stack
+(usbmuxd, lockdownd, RSD, CoreDevice, AFC, Indigo, …)? docs/IOS_GLOSSARY.md explains each term
+with its Android equivalent.
 
 **Connectivity flow (important):** `DevicesRepository` produces `Device`s with a
 `DeviceConnectionState`. `DeviceSessionManager._sync` pushes updates via
@@ -139,6 +141,16 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   stream EOF (no cheap liveness probe).
 - **Device statuses:** Android is connected only when `adb` status == `device` (offline/
   unauthorized ⇒ disconnected). iOS presence in `idevice_id -l` ⇒ connected.
+- **iOS on Windows without Apple's software:** usbmuxd ships with Apple Mobile Device
+  Support (the Apple Devices app or iTunes), not with Eagly, yet File Explorer shows an
+  iPhone without it. While usbmuxd is unreachable, `WindowsAppleUsbProbe`
+  (`services/ios/apple_usb_probe.dart`) reads the present USB devices from cfgmgr32 —
+  `USB\VID_05AC&PID_12xx\<serial>`, usbmuxd's product-id range — into
+  `DevicesRepository.unreachableIosDevices`. The home screen's `IosSupportNotice` then
+  names the device, and `HomeScreen` asks to install Apple Devices once per device per run
+  (`IosSupportPromptDialog`; "Don't ask again" sets `PreferencesService.skipIosSupportPrompt`).
+  The probe only runs while usbmuxd is down, so machines with Apple's software never pay
+  for it.
 - **Device labels:** anything that *shows* an id goes through `shownId` / `Device.presentId`,
   never raw `id`; tools and copy buttons keep the real `id`. Under `--record-mode`
   (`RecordMode.anonymizeDevices`) `presentId` returns a stable stand-in and `Device.shortNames`
@@ -192,6 +204,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   No save dialog unless `PreferencesService.captureAskEveryTime` is on. The confirmation
   uses `showSavedFileSnackBar`, whose Open / Show-in-folder actions go through
   `utils/file_reveal.dart` (`open -R` / `explorer /select,` / `xdg-open` on the parent).
+  While a recording runs, `RecordingGlow` rims the picture through `ScrcpyView.overlay`:
+  a faint outline and a glow outside the picture that beats, pointer-transparent, held
+  still at the time limit or with reduced motion. Stopping shows a "Saving recording…"
+  snack bar with an indeterminate bar that stays until the saved (or failed) one replaces
+  it — neither save path reports progress.
 - **Mirror input (Android):** touches, keys and clipboard all ride the scrcpy *control*
   socket (`ScrcpyControl`, opened only when `ScrcpyVideoOptions.control`). Keyboard
   forwarding is **focus-gated**: `MirrorController.keyboardFocusNode` is handed to
@@ -228,7 +245,8 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   - **iOS 27 drops HID events unless a `displayservice` stream is open**, so `start_ios_input`
     opens one and drains it. iOS 26.6 takes them without.
   - Spawned futures that connect an RSD service go through the `connect!` macro. A generic helper
-    fails to compile ("implementation of `RsdService` is not general enough").
+    fails to compile ("implementation of `RsdService` is not general enough"). The macro and the
+    `Tunnel` live in `rust/src/tunnel.rs`, shared with app control (`api/ios_app_control.rs`).
 - **App install & drag-and-drop:** `DeviceSessionController.handleDroppedPaths()` routes
   dropped paths — installable bundles (`.apk` on Android / `.ipa` on iOS, classified by
   `AppInstallService.inferSupportedPlatform`) go to `installAppFromPath()`; everything else
@@ -265,7 +283,25 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   suggestions (Android only) draw the same cached icons through `PackageIcon`
   (`presentation/components/package_icon.dart`), which only ever *reads* the cache: a
   fetch pulls the whole APK over the adb connection logcat is streaming on, so a log view
-  must never trigger one. Grid/list mode and icon size are
+  must never trigger one. iOS icons come from SpringBoard (`fetch_ios_app_icon`, a plain
+  lockdown service: no tunnel or disk image) through the same lazy queue and cache, with
+  no label, since the installer reports names; the CLI backend has no icon call, so its
+  tiles keep their initials. iOS log lines carry the executable's name, not the bundle id,
+  so *View Logs* filters by `AppInfo.logProcessName` (`CFBundleExecutable` on iOS; the
+  CLI backend doesn't read it and falls back to the bundle id, which matches nothing).
+  The *System apps* toggle works on iOS too (Rust backend): installation_proxy's `Any`
+  lists ~250 system apps, but most are UI services tagged `hidden` in `SBAppTags`; only
+  the ~50 with a home-screen icon are kept. *Open* and *Force Stop* work on an iPhone through
+  CoreDevice's app service (`api/ios_app_control.rs`), so like the mirror's input they need
+  Developer Mode and Xcode's developer disk image; `AppsController` asks on every refresh
+  (`canControlApps`) and offers them only while the phone says yes. Force Stop kills every
+  process running out of the app's bundle, extensions included, found through
+  installation_proxy's `Path`: the app service's own `listapps` is refused on iOS 27 by
+  idevice 0.1.65. *Clear Data* works on an iPhone only for a debug build (`AppInfo.isDebuggable`,
+  signed `get-task-allow`): house_arrest opens no other app's container, so the menu item is
+  disabled with a reason for the rest. It stops the app if it can, then empties `Documents`,
+  `Library` and `tmp`, keeping the folders iOS makes at install; keychain items survive.
+  *App Info* stays Android only. Grid/list mode and icon size are
   global preferences, and the controller — not the view — owns the search text, so a
   reopened pane re-seeds its field from it.
 - **Utilities feature:** a declarative catalog (`features/utilities/data/utility_catalog.dart`)
@@ -308,6 +344,12 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `DeviceSessionRepository.startTerminalProcess()`, which owns startup/merging/teardown
   only — no timeout (`adb logcat` may stream forever), stdin is writable, and cancellation
   is the caller's job. Adding a dispatchable binary = one entry in `terminalTools`.
+  Find (⌘F, the toolbar's search button) is per tab (`TerminalController.find`, a
+  `TerminalFind`) and draws the shared `FindBar` that `CodeView` uses too. It is not a
+  `CodeView`: that re-sets and re-highlights its whole text on every change and has no
+  per-line colours. Matches are collected again on each flush, and the current one is held
+  by its line, so streaming output doesn't move it; the scrollback is a `SuperListView` so
+  a match's line can be scrolled to by index.
 - **Wireless ADB:** one dialog (`features/wireless_connection/`) with two panes — **Pair a
   device** (QR card pinned on top, discovered devices scrolling under it) and **Manual
   entry**. The whole pane is driven by *one* background mDNS scan
@@ -395,8 +437,14 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `layout.panels`, which only the view listens to; pane content is never reparented, so it
   needs no `GlobalKey` to survive a move; and where a pane reopens comes from
   `WorkspaceLayoutMemory` (one remembered tree for every device, persisted as
-  `PreferencesService.workspaceLayout`). Adding a pane is a `WorkspacePane` value plus a case
-  in `_Workspace` (`device_screen_content.dart`) — the doc has the checklist.
+  `PreferencesService.workspaceLayout`). Which panes a device *opens with* is separate: the
+  user's saved layout (View → Save Layout, or the header's "Save layout" text button, hidden
+  while the open panes already match it;
+  `WorkspaceLayoutMemory.saved`, `PreferencesService.savedWorkspaceLayout`), applied on a
+  session's first `activate()` and cut down to the panes `DeviceSessionController.supportsPane`
+  allows — Crash Reports is iOS-only, Mirror needs a host that can mirror the platform. Adding a
+  pane is a `WorkspacePane` value plus a case in `_Workspace` (`device_screen_content.dart`) and
+  in `supportsPane` — the doc has the checklist.
 - **Imported logs workspace:** opening a log file with no device hosts it in a single
   synthetic `DeviceSessionController` (`isImportedWorkspace`, id `__imported-logs__`); each
   file becomes a sub-tab. It appears as a tab but is excluded from the landing-screen

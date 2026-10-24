@@ -11,6 +11,7 @@ import '../../app_menu/intents.dart';
 import '../../command_palette/command_palette_dialog.dart';
 import '../../command_palette/command_palette_items.dart';
 import '../../presentation/components/install_conflict_dialog.dart';
+import '../../presentation/components/ios_support_notice.dart';
 import '../../services/eagly_info_service.dart';
 import '../../services/preferences_service.dart';
 import '../../services/tools/tool_process_runner.dart';
@@ -41,6 +42,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _memoryRefreshTimer;
   AppLifecycleListener? _lifecycleListener;
 
+  /// Serials of the unreachable iOS devices already prompted about this run.
+  final Set<String> _iosSupportPrompted = {};
+  bool _iosSupportPromptOpen = false;
+
   bool get _supportsDesktopMenuBar => Platform.isMacOS;
 
   LogController? get _activeLog =>
@@ -59,6 +64,26 @@ class _HomeScreenState extends State<HomeScreen> {
     // [ToolProcessRunner.terminateAllProcesses].
     _lifecycleListener = AppLifecycleListener(
       onExitRequested: _terminateToolProcesses,
+    );
+    _manager.addListener(_promptForIosSupport);
+  }
+
+  /// Asks to install Apple Devices when an iPhone Eagly can't reach is
+  /// plugged in: once per device per run, and never once declined for good.
+  void _promptForIosSupport() {
+    if (_iosSupportPromptOpen || PreferencesService.skipIosSupportPrompt) {
+      return;
+    }
+    final devices = _manager.unreachableIosDevices;
+    final serials = {for (final device in devices) device.serial};
+    if (_iosSupportPrompted.containsAll(serials)) return;
+    _iosSupportPrompted.addAll(serials);
+    _iosSupportPromptOpen = true;
+    unawaited(
+      showIosSupportPrompt(
+        context,
+        devices,
+      ).whenComplete(() => _iosSupportPromptOpen = false),
     );
   }
 
@@ -83,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _manager.removeListener(_promptForIosSupport);
     _memoryRefreshTimer?.cancel();
     _lifecycleListener?.dispose();
     _appMemoryBytes.dispose();
@@ -145,6 +171,20 @@ class _HomeScreenState extends State<HomeScreen> {
       // press feels blocked by it.
       duration: const Duration(milliseconds: 900),
     );
+  }
+
+  void _saveLayout() {
+    if (!_manager.canSaveLayout) return;
+    _manager.saveLayout();
+    _showSnackBar(
+      'Layout saved. Devices you open from now on start with these panes.',
+    );
+  }
+
+  void _clearSavedLayout() {
+    if (!_manager.hasSavedLayout) return;
+    _manager.clearSavedLayout();
+    _showSnackBar('Saved layout cleared. Devices open on Home again.');
   }
 
   Future<void> _showWirelessDialog() async {
@@ -298,6 +338,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ToggleAutoScrollIntent: on<ToggleAutoScrollIntent>(
         (_) => _menuController.toggleAutoScroll(),
       ),
+      SaveLayoutIntent: on<SaveLayoutIntent>((_) => _saveLayout()),
+      ClearSavedLayoutIntent: on<ClearSavedLayoutIntent>(
+        (_) => _clearSavedLayout(),
+      ),
       IncreaseFontIntent: on<IncreaseFontIntent>((_) => _changeZoomLevel(0.05)),
       DecreaseFontIntent: on<DecreaseFontIntent>(
         (_) => _changeZoomLevel(-0.05),
@@ -322,6 +366,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onOpenSettings: _openSettings,
                 onShowWireless: _showWirelessDialog,
                 onShowEmulators: _showEmulatorDialog,
+                onSaveLayout: _saveLayout,
               ),
               Expanded(
                 child: ListenableBuilder(
