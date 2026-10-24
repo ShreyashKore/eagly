@@ -66,6 +66,7 @@ class PreferencesService {
   static const _keyTipsEnabled = 'tipsEnabled';
   static const _keyTipRotationIndex = 'tipRotationIndex';
   static const _keySkipIosCaptureNotice = 'skipIosCaptureNotice';
+  static const _keySkipIosSupportPrompt = 'skipIosSupportPrompt';
   static const _keyCaptureDirectory = 'captureDirectory';
   static const _keyCaptureAskEveryTime = 'captureAskEveryTime';
   static const _keyAndroidSdkPath = 'androidSdkPath';
@@ -144,6 +145,14 @@ class PreferencesService {
       _prefs.getBool(_keySkipIosCaptureNotice) ?? false;
   static set skipIosCaptureNotice(bool v) =>
       _prefs.setBool(_keySkipIosCaptureNotice, v);
+
+  // --- iOS on Windows ---
+  /// Whether the user asked not to be prompted to install Apple Devices when
+  /// an iPhone Eagly can't reach is plugged in. The home screen still says so.
+  static bool get skipIosSupportPrompt =>
+      _prefs.getBool(_keySkipIosSupportPrompt) ?? false;
+  static set skipIosSupportPrompt(bool v) =>
+      _prefs.setBool(_keySkipIosSupportPrompt, v);
 
   // --- Recent log files (most-recent first, capped, for one-click re-open) ---
   /// Listenable so the home screen rebuilds when the list changes.

@@ -108,7 +108,9 @@ class const HomeView({
                         onShowMessage: onShowMessage,
                       ),
                       if (Platform.isWindows && manager.iosSupportUnavailable)
-                        const IosSupportNotice(),
+                        IosSupportNotice(
+                          devices: manager.unreachableIosDevices,
+                        ),
                     ],
                   ),
                   const Gap(16),

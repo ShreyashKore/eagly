@@ -58,6 +58,7 @@ dependencies:
   fl_panel: ^1.1.0
   re_editor: ^0.10.0
   re_highlight: ^0.0.3
+  ffi: ^2.2.0
 
 dev_dependencies:
   sentry_dart_plugin: ^3.4.0

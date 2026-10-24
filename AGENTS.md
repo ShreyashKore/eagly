@@ -139,6 +139,16 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   stream EOF (no cheap liveness probe).
 - **Device statuses:** Android is connected only when `adb` status == `device` (offline/
   unauthorized ⇒ disconnected). iOS presence in `idevice_id -l` ⇒ connected.
+- **iOS on Windows without Apple's software:** usbmuxd ships with Apple Mobile Device
+  Support (the Apple Devices app or iTunes), not with Eagly, yet File Explorer shows an
+  iPhone without it. While usbmuxd is unreachable, `WindowsAppleUsbProbe`
+  (`services/ios/apple_usb_probe.dart`) reads the present USB devices from cfgmgr32 —
+  `USB\VID_05AC&PID_12xx\<serial>`, usbmuxd's product-id range — into
+  `DevicesRepository.unreachableIosDevices`. The home screen's `IosSupportNotice` then
+  names the device, and `HomeScreen` asks to install Apple Devices once per device per run
+  (`IosSupportPromptDialog`; "Don't ask again" sets `PreferencesService.skipIosSupportPrompt`).
+  The probe only runs while usbmuxd is down, so machines with Apple's software never pay
+  for it.
 - **Device labels:** anything that *shows* an id goes through `shownId` / `Device.presentId`,
   never raw `id`; tools and copy buttons keep the real `id`. Under `--record-mode`
   (`RecordMode.anonymizeDevices`) `presentId` returns a stable stand-in and `Device.shortNames`

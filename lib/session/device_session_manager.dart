@@ -8,6 +8,7 @@ import '../data/device.dart';
 import '../features/logs/services/log_file_service.dart';
 import '../services/app_breadcrumbs.dart';
 import '../services/devices_repository.dart';
+import '../services/ios/apple_usb_probe.dart';
 import '../services/device_session_repository.dart';
 import 'device_session_controller.dart';
 import 'workspace_layout.dart';
@@ -64,6 +65,8 @@ class DeviceSessionManager({
   bool get isLoadingDevices => _repository.isLoading;
   bool get hasAttemptedDeviceLoad => _repository.hasAttemptedLoad;
   bool get iosSupportUnavailable => _repository.iosSupportUnavailable;
+  List<AppleUsbDevice> get unreachableIosDevices =>
+      _repository.unreachableIosDevices;
   List<Device> get devices => _repository.devices;
 
   void _sync() {
