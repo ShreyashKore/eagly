@@ -10,6 +10,7 @@ use idevice::services::crashreportcopymobile::CrashReportCopyMobileClient;
 use idevice::services::installation_proxy::InstallationProxyClient;
 use idevice::services::lockdown::LockdownClient;
 use idevice::services::os_trace_relay::{LogLevel, OsTraceLog, OsTraceRelayClient};
+use idevice::services::springboardservices::SpringBoardServicesClient;
 use idevice::usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdConnection, UsbmuxdDevice};
 use idevice::{IdeviceError, IdeviceService};
 use plist::Value;
@@ -550,6 +551,20 @@ pub async fn uninstall_ios_app(udid: String, bundle_id: String) -> Result<(), Io
     Ok(())
 }
 
+/// The app's home-screen icon as PNG bytes, from SpringBoard: 192×192 on an
+/// iPhone 16, already masked to the rounded icon shape.
+///
+/// A plain lockdown service, so unlike the mirror's CoreDevice services it
+/// needs no tunnel or developer disk image. A connection per icon costs about
+/// 80 ms, cheap enough for the Apps pane, which fetches a few at a time as
+/// tiles are built. A bundle ID that isn't installed still gets an icon (a
+/// placeholder), so ask only about listed apps.
+pub async fn fetch_ios_app_icon(udid: String, bundle_id: String) -> Result<Vec<u8>, IosError> {
+    let provider = provider_for(&udid).await?;
+    let mut springboard = SpringBoardServicesClient::connect(&provider).await?;
+    Ok(springboard.get_icon_pngdata(bundle_id).await?)
+}
+
 async fn installation_proxy(udid: &str) -> Result<InstallationProxyClient, IosError> {
     let provider = provider_for(udid).await?;
     Ok(InstallationProxyClient::connect(&provider).await?)
@@ -890,5 +905,67 @@ mod tests {
         assert!(!is_skippable_record_error(
             &IdeviceError::NoEstablishedConnection
         ));
+    }
+
+    /// Every user app's icon, each on its own connection as the Apps pane asks
+    /// for them, then all of them again four at a time, as the pane fetches.
+    /// Set `EAGLY_TEST_ICON_DIR` to keep the PNGs. Needs a phone:
+    /// `EAGLY_TEST_IOS_UDID=<udid> cargo test --release app_icons -- --ignored --nocapture`
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn app_icons() {
+        let udid = std::env::var("EAGLY_TEST_IOS_UDID").expect("EAGLY_TEST_IOS_UDID");
+        let Ok(apps) = list_ios_apps(udid.clone()).await else {
+            panic!("no app list")
+        };
+        assert!(!apps.is_empty(), "no user apps to fetch icons for");
+
+        let mut took = Vec::new();
+        for app in &apps {
+            let asked = std::time::Instant::now();
+            let Ok(png) = fetch_ios_app_icon(udid.clone(), app.bundle_id.clone()).await else {
+                panic!("no icon for {}", app.bundle_id)
+            };
+            took.push(asked.elapsed().as_millis());
+            assert!(
+                png.starts_with(b"\x89PNG\r\n\x1a\n"),
+                "{} is not a PNG",
+                app.bundle_id
+            );
+            // IHDR is always the first chunk: width, then height, after its type.
+            let width = u32::from_be_bytes(png[16..20].try_into().unwrap());
+            let height = u32::from_be_bytes(png[20..24].try_into().unwrap());
+            println!("{}: {width}×{height}, {} bytes", app.bundle_id, png.len());
+            if let Ok(dir) = std::env::var("EAGLY_TEST_ICON_DIR") {
+                std::fs::write(format!("{dir}/{}.png", app.bundle_id), &png).unwrap();
+            }
+        }
+        took.sort();
+        println!(
+            "{} icons, each {} ms median ({}–{} ms)",
+            took.len(),
+            took[took.len() / 2],
+            took[0],
+            took[took.len() - 1],
+        );
+
+        let started = std::time::Instant::now();
+        for batch in apps.chunks(4) {
+            let fetches: Vec<_> = batch
+                .iter()
+                .map(|app| tokio::spawn(fetch_ios_app_icon(udid.clone(), app.bundle_id.clone())))
+                .collect();
+            for fetch in fetches {
+                assert!(
+                    fetch.await.unwrap().is_ok(),
+                    "an icon failed four at a time"
+                );
+            }
+        }
+        println!(
+            "all {} again, four at a time: {:.1} s",
+            apps.len(),
+            started.elapsed().as_secs_f64(),
+        );
     }
 }

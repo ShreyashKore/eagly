@@ -105,6 +105,22 @@ Future<void> uninstallIosApp({
   bundleId: bundleId,
 );
 
+/// The app's home-screen icon as PNG bytes, from SpringBoard: 192×192 on an
+/// iPhone 16, already masked to the rounded icon shape.
+///
+/// A plain lockdown service, so unlike the mirror's CoreDevice services it
+/// needs no tunnel or developer disk image. A connection per icon costs about
+/// 80 ms, cheap enough for the Apps pane, which fetches a few at a time as
+/// tiles are built. A bundle ID that isn't installed still gets an icon (a
+/// placeholder), so ask only about listed apps.
+Future<Uint8List> fetchIosAppIcon({
+  required String udid,
+  required String bundleId,
+}) => RustLib.instance.api.crateApiIosFetchIosAppIcon(
+  udid: udid,
+  bundleId: bundleId,
+);
+
 /// Copies crash reports off the device into `output_dir`, returning the paths
 /// written.
 ///

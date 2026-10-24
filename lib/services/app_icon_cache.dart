@@ -5,18 +5,19 @@ import 'dart:typed_data';
 
 import 'package:path_provider/path_provider.dart';
 
-/// Persistent, device-independent cache of extracted Android launcher icons.
+/// Persistent, device-independent cache of app icons: Android launcher icons
+/// extracted from pulled APKs, and iOS home-screen icons from SpringBoard.
 ///
 /// Icons are stored as one file per package name under the application-support
 /// directory, so the cache survives Eagly restarts and is shared across every
 /// device session: a package icon pulled from one device is reused for the same
 /// package on another, until a fresh fetch replaces it.
 ///
-/// It also keeps each package's user-visible label (read from the same APK as
-/// the icon), so a package that was ever fetched shows its real name — and
-/// sorts by it — from the first frame of the next session. Labels are tiny and
-/// all needed at once, so they live in a single JSON file rather than one file
-/// per package.
+/// It also keeps each Android package's user-visible label (read from the
+/// same APK as the icon), so a package that was ever fetched shows its real
+/// name — and sorts by it — from the first frame of the next session. Labels
+/// are tiny and all needed at once, so they live in a single JSON file rather
+/// than one file per package.
 ///
 /// Purely cosmetic — every operation is best-effort and never throws, so a
 /// missing directory or a corrupt file can't disturb the Apps feature itself.

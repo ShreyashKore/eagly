@@ -451,9 +451,10 @@ class AppsController(super.session, {AppIconCache? iconCache})
         unawaited(_iconStore.store(package, bytes));
         _notify();
       } else if (details != null) {
-        // The pull worked but the APK has no raster icon to extract (a
-        // vector-only adaptive icon, say). Pulling it again won't change
-        // that, and each try copies the whole APK over adb.
+        // The device answered but there's no icon to show: the APK has no
+        // raster icon to extract (a vector-only adaptive icon, say), or the
+        // iOS backend can't read icons. Asking again won't change that, and
+        // on Android each try copies the whole APK over adb.
         _settleIcon(package, signature);
         if (label != null) _notify();
       } else {

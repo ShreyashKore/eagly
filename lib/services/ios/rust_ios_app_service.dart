@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../../features/app_log/app_logger.dart';
 import '../../features/apps/data/app_info.dart';
 import '../../features/wireless_connection/data/wireless_debug_models.dart';
@@ -62,4 +64,11 @@ class RustIosAppService implements IosAppService {
       );
     }
   }
+
+  /// Asks SpringBoard. Failures propagate: the caller logs them and retries.
+  @override
+  Future<Uint8List?> fetchAppIcon({
+    required String deviceId,
+    required String bundleId,
+  }) => rust.fetchIosAppIcon(udid: deviceId, bundleId: bundleId);
 }

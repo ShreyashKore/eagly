@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../../features/apps/data/app_info.dart';
 import '../../features/device_home/data/installed_app_info.dart';
 import '../../features/wireless_connection/data/wireless_debug_models.dart';
@@ -21,6 +23,14 @@ abstract interface class IosAppService {
   });
 
   Future<DeviceCommandResult> uninstallApp({
+    required String deviceId,
+    required String bundleId,
+  });
+
+  /// [bundleId]'s home-screen icon as PNG bytes, or null when this backend
+  /// can't read icons at all. Throws when the read fails, so the caller can
+  /// tell a missing icon from one worth asking for again.
+  Future<Uint8List?> fetchAppIcon({
     required String deviceId,
     required String bundleId,
   });

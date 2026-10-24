@@ -487,16 +487,43 @@ class DeviceSessionRepository({
     return _adbTool.openAppInfoSettings(_deviceId, packageName);
   }
 
-  /// Best-effort launcher icon and user-visible label for [packageName]:
-  /// pulls its APK to a scratch temp directory, extracts both via
-  /// [ApkIconExtractor], then deletes the pulled APK. Returns null on iOS (no
-  /// extraction available, and its installer already reports names) or when
-  /// the pull fails; either half is null when it can't be resolved — never
-  /// throws.
+  /// Best-effort launcher icon and user-visible label for [packageName].
+  /// Returns null when the device couldn't be read (worth asking again);
+  /// either half is null when it can't be resolved — never throws.
+  ///
+  /// Android pulls the APK to a scratch temp directory, extracts both via
+  /// [ApkIconExtractor], then deletes the pulled APK. iOS asks SpringBoard for
+  /// the icon alone: its installer already reports names.
   Future<({Uint8List? icon, String? label})?> fetchAppDetails(
     String packageName,
+  ) {
+    return switch (device) {
+      AndroidDevice() => _fetchAndroidAppDetails(packageName),
+      IosDevice() => _fetchIosAppDetails(packageName),
+    };
+  }
+
+  Future<({Uint8List? icon, String? label})?> _fetchIosAppDetails(
+    String bundleId,
   ) async {
-    if (device is! AndroidDevice) return null;
+    try {
+      final icon = await _iosAppService.fetchAppIcon(
+        deviceId: _deviceId,
+        bundleId: bundleId,
+      );
+      return (icon: icon, label: null);
+    } catch (error) {
+      _sessionLogger.error(
+        'Failed to fetch the icon for $bundleId',
+        detail: error.toString(),
+      );
+      return null;
+    }
+  }
+
+  Future<({Uint8List? icon, String? label})?> _fetchAndroidAppDetails(
+    String packageName,
+  ) async {
     File? localApk;
     try {
       final apkPath = await _adbTool.getApkPath(_deviceId, packageName);

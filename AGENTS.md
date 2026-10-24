@@ -280,7 +280,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   suggestions (Android only) draw the same cached icons through `PackageIcon`
   (`presentation/components/package_icon.dart`), which only ever *reads* the cache: a
   fetch pulls the whole APK over the adb connection logcat is streaming on, so a log view
-  must never trigger one. Grid/list mode and icon size are
+  must never trigger one. iOS icons come from SpringBoard (`fetch_ios_app_icon`, a plain
+  lockdown service: no tunnel or disk image) through the same lazy queue and cache, with
+  no label, since the installer reports names; the CLI backend has no icon call, so its
+  tiles keep their initials. Grid/list mode and icon size are
   global preferences, and the controller — not the view — owns the search text, so a
   reopened pane re-seeds its field from it.
 - **Utilities feature:** a declarative catalog (`features/utilities/data/utility_catalog.dart`)

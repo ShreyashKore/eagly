@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-import '../../../data/device.dart';
 import '../apps_controller.dart';
 import '../data/app_info.dart';
 
@@ -96,12 +95,7 @@ class _AppIconViewState extends State<AppIconView> {
   @override
   void initState() {
     super.initState();
-    // Icon extraction only exists for Android; skip the (guaranteed-null)
-    // fetch on iOS so every tile doesn't churn through the icon queue for
-    // nothing.
-    if (widget.controller.device is AndroidDevice) {
-      widget.controller.ensureIconLoaded(widget.app);
-    }
+    widget.controller.ensureIconLoaded(widget.app);
   }
 
   @override
@@ -109,8 +103,7 @@ class _AppIconViewState extends State<AppIconView> {
     super.didUpdateWidget(oldWidget);
     // A refresh replaces the app list with new instances; hand the new one to
     // the controller so an updated/reinstalled app re-enters the fetch queue.
-    if (widget.controller.device is AndroidDevice &&
-        !identical(widget.app, oldWidget.app)) {
+    if (!identical(widget.app, oldWidget.app)) {
       widget.controller.ensureIconLoaded(widget.app);
     }
   }
