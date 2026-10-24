@@ -6,6 +6,11 @@ class AppConstants {
   static const repoName = 'eagly';
   static const repoUrl = 'https://github.com/$repoOwner/$repoName';
 
+  /// The README's section on the iPhone mirror's screenshot mode: why, what
+  /// to expect, and iOS 27.
+  static const iosScreenshotMirrorUrl =
+      '$repoUrl#iphone-mirroring-screenshot-mode';
+
   /// Identifier + label for the synthetic device-less "Imported Logs" workspace
   /// session that hosts log files opened without a connected device.
   static const importedWorkspaceId = '__imported-logs__';

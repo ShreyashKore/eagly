@@ -276,6 +276,32 @@ not bundle it); if it isn't found automatically, point Eagly at it under
 3. When prompted on the device, tap **Trust This Computer** and enter your passcode.
 4. Launch Eagly — your device should appear automatically.
 
+### iPhone mirroring: screenshot mode
+
+On a Mac, the Mirror pane shows an iPhone's screen as live video, about 50 frames a second,
+through the same route QuickTime Player uses. **On Windows and Linux there is no such route**,
+so Eagly shows a stream of screenshots instead (and so does a Mac where camera access was
+refused — macOS treats the iPhone's screen as a camera). The pane says when this mode is on.
+
+What to expect in screenshot mode:
+
+- **Two or three pictures a second, each up to a second old.** Taps and typing reach the
+  iPhone straight away; the picture catches up a moment later. There is no recording.
+- **The picture can't be made lighter.** The iPhone sends every screenshot as a
+  full-resolution PNG (about 7 MB) and offers no lower quality or size.
+- **Other transfers with the iPhone are slower while it runs.** The screenshots use about
+  15 MB/s, roughly half of what a USB 2 connection carries (every iPhone with Lightning, and
+  USB-C iPhones other than the Pro models, connect at USB 2 speed). Copying files or installing
+  apps during a mirror takes longer; logs are unaffected. Stop the mirror to free it up.
+- **Older computers may skip frames.** Each picture is decoded on the computer, which takes
+  noticeable CPU on a laptop a few years old.
+- **The iPhone works harder** and may get warm during a long session.
+
+**iOS 27 is the way to live video on Windows and Linux.** iPhones on iOS 27 can stream their
+screen as live video (what Xcode 27's Device Hub shows), and an upcoming version of Eagly will
+use it. Until then Eagly shows screenshots on iOS 27 too. On iOS 26 and earlier, screenshots are
+the only option outside a Mac.
+
 ### Filtering logs
 
 Click the filter field (or press **⌘L** / **Ctrl+L**) and pick a field from the

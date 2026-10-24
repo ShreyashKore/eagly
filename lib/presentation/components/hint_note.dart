@@ -14,6 +14,9 @@ class const HintNote({
   /// Optional emphasized first line.
   final String? title,
   final IconData icon = Icons.lightbulb_outline,
+
+  /// Optional control under the text, such as a link to read more.
+  final Widget? action,
 }) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -52,6 +55,7 @@ class const HintNote({
                     color: eagly.inlineNoticeForeground,
                   ),
                 ),
+                ?action,
               ],
             ),
           ),

@@ -7,7 +7,7 @@ places, and what works depends on the host and the phone.
 | | Picture | Input |
 | --- | --- | --- |
 | macOS | QuickTime's capture route: about 50 fps at the phone's full resolution | CoreDevice HID: live touch, keyboard, hardware buttons |
-| Windows / Linux | CoreDevice screenshots, under two a second | CoreDevice HID |
+| Windows / Linux | CoreDevice screenshots, two or three a second | CoreDevice HID |
 
 Input needs **Developer Mode** and **Xcode 27's developer disk image** mounted on the phone
 (opening Xcode with the phone connected mounts it; it stays mounted until the phone restarts).
@@ -47,8 +47,17 @@ and the pane says so. The QuickTime route needs neither, only camera permission.
   `IosScreenCapture.stopAll` so a restart ends them. Only a dev build hits this: one left running
   also holds the phone, and another app's mirror then never gets its first frame.
 - **CoreDevice screenshots** (`start_ios_screenshot_stream` in `rust/src/api/ios_mirror.rs`):
-  `com.apple.coredevice.screencaptureservice`, back to back. The fallback on Windows / Linux, and
-  on macOS when the capture route fails (camera permission denied, say), with a note saying why.
+  `com.apple.coredevice.screencaptureservice`. The fallback on Windows / Linux, and on macOS when
+  the capture route fails (camera permission denied, say), with a note saying why. The phone
+  sends only full-resolution PNGs: CoreDevice's `CaptureScreenshotInput` has just
+  `displayUniqueID` and `requestedFormat`, and `ScreenshotImageFormat` has just `png`, so there
+  is no quality or size to lower. It takes one screenshot at a time — a second request is refused
+  with error 25003, "A screenshot capture is already in progress", and asked again 10 ms later —
+  but sends one while it takes the next, so two are kept in flight, each on its own connection
+  (`SCREENSHOTS_IN_FLIGHT`), and one that arrives older than the last shown is dropped. The pane
+  warns while it is on (`IosScreenshotModeNote`): the frame rate, slower transfers, CPU, and on
+  Windows / Linux that iOS 27 is the way to live video, linking to the README's "iPhone
+  mirroring: screenshot mode" section for users.
 - **CoreDevice's display stream** (`com.apple.coredevice.displayservice`, HEVC over RTP) is what
   Xcode 27's Device Hub shows. It needs **iOS 27** — on iOS 26.6 the phone refuses with "Remote
   control requires iOS 27.0 or later on this device." and reports `supportedFeatures: 0` — and
@@ -119,7 +128,10 @@ iPhone 16e (iPhone17,5), iOS 26.6, macOS 26, 2026-10-21:
 
 - The CoreDevice tunnel comes up in about **75 ms**.
 - A CoreDevice screenshot takes about **575 ms** and is a 1170×2532 PNG of about 6.8 MB:
-  **about 1.7 frames a second**. `jpeg` is refused.
+  **about 1.7 frames a second** one at a time. `jpeg` is refused. Two in flight gave
+  **2.5–2.8 fps**, each frame about 200 ms older, and cut the longest wait between frames from
+  1233 to 724 ms; three gave 2.9–3.3 fps, and four once left a request hanging for a minute
+  (`screenshot_stream_throughput` in `ios_mirror.rs`, an ignored device test).
 - The QuickTime route: the first frame **5.5 s** after starting; then **about 50 fps** at the full
   1170×2532, still or moving (frames every 16.7 ms, the 95th percentile gap 35–45 ms).
 - **Touch to picture**: from the first move report to a changed frame arriving on the Mac,

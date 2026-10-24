@@ -20,7 +20,7 @@ enum IosMirrorVideo {
   /// QuickTime's capture route on macOS: about 50 fps at full resolution.
   liveCapture,
 
-  /// CoreDevice screenshots back to back: under two a second.
+  /// CoreDevice screenshots, two or three a second.
   screenshots,
 }
 
@@ -129,7 +129,8 @@ class IosMirrorSession._(
   /// The picture's size in pixels. Set once the first frame is in.
   Size? get size => _size;
 
-  /// Why the picture is screenshots rather than live video, when it is.
+  /// Why the picture is screenshots on a host that has live video (camera
+  /// access refused on a Mac, say). The pane explains screenshots itself.
   String? get videoNotice => _videoNotice;
 
   bool get hasInput => _input != null;
@@ -170,10 +171,7 @@ class IosMirrorSession._(
       throw IosMirrorException(captureFailure ?? _noServicesReason);
     }
     _checkRunning();
-    _videoNotice = [
-      ?captureFailure,
-      'Showing screenshots instead of live video, under two a second.',
-    ].join(' ');
+    _videoNotice = captureFailure;
     _screenshotSubscription = _service.iosScreenshots().listen(
       _onScreenshot,
       onError: (Object error) => _end('$error'),

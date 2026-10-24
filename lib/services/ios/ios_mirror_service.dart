@@ -86,7 +86,7 @@ abstract interface class IosMirrorService {
 
   Future<Uint8List> captureScreenshot(String deviceId);
 
-  /// PNG screenshots back to back, under two a second, until the
+  /// PNG screenshots, two or three a second, until the
   /// subscription is cancelled.
   Stream<Uint8List> screenshots(String deviceId);
 
