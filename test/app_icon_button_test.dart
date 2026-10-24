@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:eagly/presentation/components/app_icon_button.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -91,6 +92,37 @@ void main() {
     expect(focus.hasFocus, isFalse);
     await tester.tap(find.byType(AppIconButton));
   });
+
+  for (final (state, button) in [
+    ('disabled', const AppIconButton(icon: Icons.close, tooltip: 'Close')),
+    (
+      'busy',
+      AppIconButton(
+        icon: Icons.close,
+        tooltip: 'Close',
+        busy: true,
+        onPressed: () {},
+      ),
+    ),
+  ]) {
+    testWidgets('a $state button still shows its tooltip on hover', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_host(button));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Close'), findsNothing);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.byType(AppIconButton)));
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text('Close'), findsOneWidget);
+      // Unmount so the spinner's ticker doesn't outlive the test body.
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
 
   testWidgets('busy swaps the icon for a spinner and ignores taps', (
     tester,
