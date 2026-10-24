@@ -231,6 +231,29 @@ void main() {
       await mirror.stop();
     });
 
+    test('a pinch maps every finger onto the panel', () async {
+      service.iosOrientation = IosInterfaceOrientation.landscapeRight;
+      final mirror = await startLive();
+
+      service.iosCapture!.frame(const Size(2532, 1170));
+      await pumpEventQueue();
+      mirror.multiTouch(const [
+        ScrcpyTouchContact(0, 0, 0),
+        ScrcpyTouchContact(1, 1, 1),
+      ]);
+      mirror.multiTouch(const [
+        ScrcpyTouchContact(0, 0, 0, touching: false),
+        ScrcpyTouchContact(1, 1, 1, touching: false),
+      ]);
+
+      expect(service.lastIosInput!.frames, [
+        [(0, 1.0, 0.0, true), (1, 0.0, 1.0, true)],
+        [(0, 1.0, 0.0, false), (1, 0.0, 1.0, false)],
+      ]);
+      expect(service.lastIosInput!.touches, isEmpty);
+      await mirror.stop();
+    });
+
     test('Home is a press of the Consumer Menu button', () async {
       final mirror = await startLive();
 

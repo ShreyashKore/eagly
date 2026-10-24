@@ -90,6 +90,17 @@ async bridge calls have none.
   home screen a page, whether the still reports repeated one position or moved by one unit (of
   65535). A ±1-pixel wobble every 16 ms, like a real finger's, settles it; so does a decelerating
   release. The worker does the wobble whenever a finger is down and no move arrived for 16 ms.
+- **Pinch and rotate take two fingers** (`send_ios_touches`, idevice 0.1.68's multi-contact
+  touchscreen report, up to five fingers). `ScrcpyView` makes them from an **Option-drag**
+  (Alt-drag on Windows / Linux), the pointer's finger plus its mirror image through the screen's
+  centre as in the iOS Simulator, with both marked while Option is held; or from a **trackpad
+  pinch or rotation**, two fingers 0.3 of the screen's width apart around the pointer, which
+  spread with the pinch's scale and turn with its rotation. A trackpad gesture that neither
+  scales by 3% nor turns by 0.05 rad is a two-finger scroll and stays ignored. Every frame names
+  every finger still down, and lifts each once with `touching: false`; resting fingers wobble
+  like a single one. Only the iPhone surface passes `onMultiTouch`, so the Android mirror keeps
+  one finger. Verified on hardware by the device test's Maps pinch; the trackpad mapping only in
+  widget tests (`test/scrcpy_view_pinch_test.dart`).
 - **Keys** go over as HID usages, which Flutter's `PhysicalKeyboardKey.usbHidUsage` already is —
   modifiers too, as keys of their own — and the phone types through **its own hardware-keyboard
   layout**, unlike Android, where printable keys travel as text in the host's layout
@@ -182,11 +193,15 @@ workarounds.
 
 ## Tests
 
-- `test/ios_keyboard_test.dart`, `test/ios_mirror_session_test.dart` and the iPhone group in
-  `test/mirror_controller_test.dart` run against fakes.
+- `test/ios_keyboard_test.dart`, `test/ios_mirror_session_test.dart`,
+  `test/scrcpy_view_pinch_test.dart` and the iPhone group in `test/mirror_controller_test.dart`
+  run against fakes.
 - `test/device/ios_mirror_device_test.dart` drives a real phone through the Rust half: support,
   screenshots, the screenshot stream, a settled drag that must not fling, a flick there and back,
-  and Home. It needs the phone unlocked on a home-screen page:
+  Home, and a pinch out and back in Maps (past its first-run screens). It needs the phone
+  unlocked on a home-screen page, and best no Eagly mirroring the same phone. While one was
+  (its QuickTime capture showed as a 9:41 status bar), a settled drag flung the home screen in
+  four runs of seven; once the phone was reconnected, in none of twelve:
 
   ```bash
   cd rust && cargo build --release && cd ..

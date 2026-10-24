@@ -27,4 +27,4 @@ export 'src/scrcpy_keyboard.dart'
         ScrcpyModifiers,
         ScrcpyPasteClipboard,
         androidKeycodeFor;
-export 'src/scrcpy_view.dart' show ScrcpyView;
+export 'src/scrcpy_view.dart' show ScrcpyView, ScrcpyTouchContact;

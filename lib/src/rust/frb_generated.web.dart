@@ -87,6 +87,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IosRotation dco_decode_ios_rotation(dynamic raw);
 
   @protected
+  IosTouchContact dco_decode_ios_touch_contact(dynamic raw);
+
+  @protected
   IosTouchPhase dco_decode_ios_touch_phase(dynamic raw);
 
   @protected
@@ -100,6 +103,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<IosFileEntry> dco_decode_list_ios_file_entry(dynamic raw);
+
+  @protected
+  List<IosTouchContact> dco_decode_list_ios_touch_contact(dynamic raw);
 
   @protected
   List<int> dco_decode_list_prim_u_16_loose(dynamic raw);
@@ -203,6 +209,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IosRotation sse_decode_ios_rotation(SseDeserializer deserializer);
 
   @protected
+  IosTouchContact sse_decode_ios_touch_contact(SseDeserializer deserializer);
+
+  @protected
   IosTouchPhase sse_decode_ios_touch_phase(SseDeserializer deserializer);
 
   @protected
@@ -218,6 +227,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<IosFileEntry> sse_decode_list_ios_file_entry(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<IosTouchContact> sse_decode_list_ios_touch_contact(
     SseDeserializer deserializer,
   );
 
@@ -349,6 +363,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_ios_rotation(IosRotation self, SseSerializer serializer);
 
   @protected
+  void sse_encode_ios_touch_contact(
+    IosTouchContact self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_ios_touch_phase(IosTouchPhase self, SseSerializer serializer);
 
   @protected
@@ -369,6 +389,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_ios_file_entry(
     List<IosFileEntry> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_ios_touch_contact(
+    List<IosTouchContact> self,
     SseSerializer serializer,
   );
 

@@ -276,6 +276,18 @@ not bundle it); if it isn't found automatically, point Eagly at it under
 3. When prompted on the device, tap **Trust This Computer** and enter your passcode.
 4. Launch Eagly — your device should appear automatically.
 
+### iPhone mirroring: pinch and rotate
+
+The Mirror pane takes clicks and drags as one finger. For two, as in the iOS Simulator:
+
+- **Hold Option** (Alt on Windows and Linux) over the iPhone's screen. Two circles show where
+  two fingers would touch: under the pointer, and opposite it across the screen's centre.
+  Drag towards the centre to pinch in, away to zoom, around it to rotate.
+- **On a trackpad, pinch or rotate** over the screen. The fingers touch around the pointer.
+
+This needs the same as the rest of iPhone control: Developer Mode on, and Xcode's developer
+disk image mounted.
+
 ### iPhone mirroring: screenshot mode
 
 On a Mac, the Mirror pane shows an iPhone's screen as live video, about 50 frames a second,

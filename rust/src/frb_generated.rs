@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -2064110059;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1014809453;
 
 // Section: executor
 
@@ -983,6 +983,41 @@ fn wire__crate__api__ios_mirror__send_ios_touch_impl(
         },
     )
 }
+fn wire__crate__api__ios_mirror__send_ios_touches_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "send_ios_touches",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_session_id = <String>::sse_decode(&mut deserializer);
+            let api_contacts =
+                <Vec<crate::api::ios_mirror::IosTouchContact>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::ios_mirror::send_ios_touches(
+                    api_session_id,
+                    api_contacts,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__ios_mirror__set_ios_pasteboard_text_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1711,6 +1746,22 @@ impl SseDecode for crate::api::ios_mirror::IosRotation {
     }
 }
 
+impl SseDecode for crate::api::ios_mirror::IosTouchContact {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <u8>::sse_decode(deserializer);
+        let mut var_touching = <bool>::sse_decode(deserializer);
+        let mut var_x = <f64>::sse_decode(deserializer);
+        let mut var_y = <f64>::sse_decode(deserializer);
+        return crate::api::ios_mirror::IosTouchContact {
+            id: var_id,
+            touching: var_touching,
+            x: var_x,
+            y: var_y,
+        };
+    }
+}
+
 impl SseDecode for crate::api::ios_mirror::IosTouchPhase {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1767,6 +1818,20 @@ impl SseDecode for Vec<crate::api::ios::IosFileEntry> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::ios::IosFileEntry>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::ios_mirror::IosTouchContact> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::ios_mirror::IosTouchContact>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -1935,45 +2000,45 @@ fn pde_ffi_dispatcher_primary_impl(
         22 => {
             wire__crate__api__ios_mirror__rotate_ios_device_impl(port, ptr, rust_vec_len, data_len)
         }
-        26 => wire__crate__api__ios_mirror__set_ios_pasteboard_text_impl(
+        27 => wire__crate__api__ios_mirror__set_ios_pasteboard_text_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => wire__crate__api__ios_mirror__start_ios_input_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__ios_network__start_ios_port_forward_impl(
+        28 => wire__crate__api__ios_mirror__start_ios_input_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__ios_network__start_ios_port_forward_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => wire__crate__api__ios_mirror__start_ios_screenshot_stream_impl(
+        30 => wire__crate__api__ios_mirror__start_ios_screenshot_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__ios__start_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
-        31 => {
+        31 => wire__crate__api__ios__start_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
+        32 => {
             wire__crate__api__ios_app_control__stop_ios_app_impl(port, ptr, rust_vec_len, data_len)
         }
-        32 => wire__crate__api__ios_mirror__stop_ios_input_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__ios_network__stop_ios_port_forward_impl(
+        33 => wire__crate__api__ios_mirror__stop_ios_input_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__ios_network__stop_ios_port_forward_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        34 => wire__crate__api__ios_mirror__stop_ios_screenshot_stream_impl(
+        35 => wire__crate__api__ios_mirror__stop_ios_screenshot_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        35 => wire__crate__api__ios__stop_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__ios__uninstall_ios_app_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__ios__upload_ios_path_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__ios__stop_ios_syslog_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__ios__uninstall_ios_app_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__ios__upload_ios_path_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1990,6 +2055,7 @@ fn pde_ffi_dispatcher_sync_impl(
         23 => wire__crate__api__ios_mirror__send_ios_button_impl(ptr, rust_vec_len, data_len),
         24 => wire__crate__api__ios_mirror__send_ios_key_impl(ptr, rust_vec_len, data_len),
         25 => wire__crate__api__ios_mirror__send_ios_touch_impl(ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__ios_mirror__send_ios_touches_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2209,6 +2275,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::ios_mirror::IosRotation>
     for crate::api::ios_mirror::IosRotation
 {
     fn into_into_dart(self) -> crate::api::ios_mirror::IosRotation {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::ios_mirror::IosTouchContact {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.touching.into_into_dart().into_dart(),
+            self.x.into_into_dart().into_dart(),
+            self.y.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::ios_mirror::IosTouchContact
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::ios_mirror::IosTouchContact>
+    for crate::api::ios_mirror::IosTouchContact
+{
+    fn into_into_dart(self) -> crate::api::ios_mirror::IosTouchContact {
         self
     }
 }
@@ -2434,6 +2523,16 @@ impl SseEncode for crate::api::ios_mirror::IosRotation {
     }
 }
 
+impl SseEncode for crate::api::ios_mirror::IosTouchContact {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u8>::sse_encode(self.id, serializer);
+        <bool>::sse_encode(self.touching, serializer);
+        <f64>::sse_encode(self.x, serializer);
+        <f64>::sse_encode(self.y, serializer);
+    }
+}
+
 impl SseEncode for crate::api::ios_mirror::IosTouchPhase {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2487,6 +2586,16 @@ impl SseEncode for Vec<crate::api::ios::IosFileEntry> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::ios::IosFileEntry>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::ios_mirror::IosTouchContact> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::ios_mirror::IosTouchContact>::sse_encode(item, serializer);
         }
     }
 }

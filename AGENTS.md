@@ -240,6 +240,9 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   - **A still finger has to wobble.** The input worker re-sends a held touch with a ±1-pixel
     wobble every 16 ms. Without it, a drag that stops and then lets go flings the page.
   - **Send calls stay synchronous** (`#[frb(sync)]`), so touches reach the worker in order.
+  - **Pinch is two fingers in one frame** (`send_ios_touches`): an Option-drag or a trackpad
+    pinch in `ScrcpyView`, which only calls `onMultiTouch` where the iPhone surface passes it.
+    A frame names every finger still down and lifts each one once.
   - **A session is handed out 300 ms after it connects.** The phone creates its virtual
     touchscreen per session and drops or bunches up events sent before it opens.
   - **iOS 27 drops HID events unless a `displayservice` stream is open**, so `start_ios_input`

@@ -436,6 +436,12 @@ class MirrorController(super.session) extends FeatureController {
     );
   }
 
+  /// One frame of a two-finger gesture on the picture. Only an iPhone mirror
+  /// takes them; scrcpy's surface doesn't offer the gesture.
+  void handleMultiTouch(List<ScrcpyTouchContact> contacts) {
+    _ios?.multiTouch(contacts);
+  }
+
   /// Injects a hardware / navigation key into the mirrored device. No-op when
   /// the control channel is unavailable.
   void handleKey(ScrcpyKey key) {
