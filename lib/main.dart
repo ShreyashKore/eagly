@@ -35,9 +35,10 @@ void main(List<String> args) async {
   }
   await SentryFlutter.init((options) {
     options.dsn = 'https://ae4a6b39a9a2ca819748de8112255cb6@o4511675750416384.ingest.us.sentry.io/4511675759984640';
-    // Adds request headers and IP for users, for more info visit:
+    // No IP addresses or request headers: stacks and breadcrumbs are enough to
+    // debug, and users never agreed to send more. See
     // https://docs.sentry.io/platforms/dart/guides/flutter/data-management/data-collected/
-    options.sendDefaultPii = true;
+    options.sendDefaultPii = false;
     // Errors and app hangs only. Tracing, profiling, logs and session replay
     // each draw on a separate, capped quota.
     options.tracesSampleRate = 0;

@@ -169,6 +169,23 @@ jobs:
             --targets="$TARGETS" \
             --artifact-name='eagly-{{build_name}}-{{platform}}{{#is_installer}}-setup{{/is_installer}}{{#ext}}.{{ext}}{{/ext}}'
 
+      # Sends the native and Dart debug files under build/ (dSYMs, PDBs, ELF) to
+      # Sentry, so release crash and app-hang stacks resolve to functions
+      # instead of <redacted>. Org and project come from the `sentry:` block in
+      # pubspec.yaml. Skipped without the SENTRY_AUTH_TOKEN secret, and never
+      # fails the release: missing symbols only cost readable stacks.
+      - name: Upload debug symbols to Sentry
+        shell: bash
+        continue-on-error: true
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::warning::SENTRY_AUTH_TOKEN is not set; skipping the debug symbol upload."
+            exit 0
+          fi
+          dart run sentry_dart_plugin
+
       # Guards the promise the .deb makes in its libc6 dependency: nothing in
       # the package may reference a glibc/libstdc++ symbol newer than Ubuntu
       # 22.04 ships. Runs before the upload so a raised floor fails the release

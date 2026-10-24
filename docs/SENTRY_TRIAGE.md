@@ -33,11 +33,13 @@ From the latest event (1.6.0+53, macOS 26.6, Mac14,7):
 
 ### H1: next steps
 
-1. **Get symbols.** `sentry_dart_plugin` is configured (`upload_debug_symbols: true`), but
-   the hang's Dart AOT frames come through as `<redacted>`. Check that the macOS release
-   build uploads `App.framework`'s dSYM and the `FlutterMacOS` dSYM (run
-   `dart run sentry_dart_plugin` after `flutter build macos --release` and confirm in
-   *Settings → Debug Files*). Without this, H1 can't be pinned to code.
+1. **Get symbols.** The cause: nothing ever ran `sentry_dart_plugin`, so Sentry has no
+   dSYMs or PDBs for any release, and the hang's Dart AOT frames come through as
+   `<redacted>`. The release workflow now runs it after packaging (*Upload debug symbols to
+   Sentry*). **Left to do:** add a `SENTRY_AUTH_TOKEN` repository secret (an org auth token
+   with `project:releases` / `project:write`); until then the step warns and skips. After
+   the next tagged release, confirm the files in Sentry under *Settings → Debug Files*, then
+   reopen the newest FLUTTER-5V event. Releases up to 1.6.1 stay unsymbolised.
 2. ~~**Stop debug builds reporting.**~~ Done: `lib/main.dart` now starts Sentry only in
    release builds, and tracing, profiling, logs and replay are off. That removes H2 and
    most of the layout noise below.
@@ -73,6 +75,16 @@ for code health.
 | **L4** `debugNeedsLayout` / follower layer | [FLUTTER-6M](https://gyanoba.sentry.io/issues/FLUTTER-6M), [-6Q](https://gyanoba.sentry.io/issues/FLUTTER-6Q), [-6R](https://gyanoba.sentry.io/issues/FLUTTER-6R), [-6K](https://gyanoba.sentry.io/issues/FLUTTER-6K) | 32 | Overlay/`CompositedTransformFollower` during layout. Last seen 27 days ago; may already be gone. |
 
 ## Housekeeping
+
+- Done with the gating change: `sendDefaultPii` is off, so events no longer carry user IP
+  addresses (Sentry stops showing a city per user), and the web-only
+  `upload_source_maps` is off in `pubspec.yaml`.
+- Not changed: app hangs still report at Sentry's 2 s default and count toward the
+  errors quota (FLUTTER-5V alone sent about 4,200 in 45 days). If that quota runs short,
+  raise `options.appHangTimeoutInterval` or sample hangs in `beforeSend`.
+- Not changed: expected iOS states (C8) still arrive as unhandled errors. Fix them where
+  they're thrown rather than filter them in `SentryEventFilter`, so real failures of the
+  same type still report.
 
 - After gating debug builds, **merge** each group's issues in Sentry (select → *Merge*) so
   the next triage starts from the real count.
