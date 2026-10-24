@@ -68,6 +68,8 @@ class _CrashReportDetailState extends State<CrashReportDetail> {
       // A raw `.ips` body is one very long line.
       wordWrap: !showPretty,
       noun: 'report',
+      // Opened from a filtered list, show where the search matched.
+      initialFind: widget.controller.searchText.trim(),
       copyText: body,
       leading: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),

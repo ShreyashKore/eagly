@@ -39,6 +39,9 @@ class const CodeView({
 
   /// Names what is shown, as in "Find in body" and "Copy body".
   final String noun = 'text',
+
+  /// When non-empty, the find bar opens already searching for it.
+  final String? initialFind,
 }) extends StatefulWidget {
   @override
   State<CodeView> createState() => _CodeViewState();
@@ -64,6 +67,11 @@ class _CodeViewState extends State<CodeView> {
   void initState() {
     super.initState();
     _editing.text = widget.text;
+    final initialFind = widget.initialFind;
+    if (initialFind != null && initialFind.isNotEmpty) {
+      _find.findInputController.text = initialFind;
+      _find.findMode();
+    }
     _editing.addListener(_onEditingChanged);
     _find.addListener(_onFindChanged);
   }

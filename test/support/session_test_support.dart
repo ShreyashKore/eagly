@@ -23,6 +23,7 @@ import 'package:eagly/services/device_session_repository.dart';
 import 'package:eagly/services/tools/adb_tool.dart';
 import 'package:eagly/data/ios_device_info.dart';
 import 'package:eagly/services/ios/ios_device_domains.dart';
+import 'package:eagly/services/ios/ios_crash_report_service.dart';
 import 'package:eagly/services/ios/ios_device_service.dart';
 import 'package:eagly/services/ios/ios_mirror_service.dart';
 import 'package:eagly/services/tools/idevice_info_tool.dart';
@@ -143,6 +144,13 @@ class FakeSessionService(Device device) extends DeviceSessionRepository {
     await installGate?.future;
     return installResult;
   }
+
+  /// What [pullCrashReports] hands back; refuses when unset.
+  CrashReportPullResult? crashReports;
+
+  @override
+  Future<CrashReportPullResult> pullCrashReports() async =>
+      crashReports ?? (throw CrashReportException('No reports in this test.'));
 
   /// What [findInspektorEndpoints] reports: no apps unless a test says so.
   List<InspektorEndpoint> inspektorEndpoints = const [];

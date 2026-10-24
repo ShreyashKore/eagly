@@ -51,6 +51,27 @@ void main() {
       expect(find.text('Find in report'), findsNothing);
     });
 
+    testWidgets('opens find already searching for initialFind', (tester) async {
+      await tester.pumpWidget(
+        host(
+          const CodeView(
+            text: 'one two\ntwo three',
+            noun: 'report',
+            initialFind: 'two',
+          ),
+        ),
+      );
+      for (var i = 0; i < 5 && find.text('1 / 2').evaluate().isEmpty; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)),
+        );
+        await tester.pump();
+      }
+
+      expect(find.text('Find in report'), findsOneWidget);
+      expect(find.text('1 / 2'), findsOneWidget);
+    });
+
     testWidgets('the current match is selected in its own colour', (
       tester,
     ) async {
