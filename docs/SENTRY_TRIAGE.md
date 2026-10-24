@@ -36,9 +36,8 @@ From the latest event (1.6.0+53, macOS 26.6, Mac14,7):
 1. **Get symbols.** The cause: nothing ever ran `sentry_dart_plugin`, so Sentry has no
    dSYMs or PDBs for any release, and the hang's Dart AOT frames come through as
    `<redacted>`. The release workflow now runs it after packaging (*Upload debug symbols to
-   Sentry*). **Left to do:** add a `SENTRY_AUTH_TOKEN` repository secret (an org auth token
-   with `project:releases` / `project:write`); until then the step warns and skips. After
-   the next tagged release, confirm the files in Sentry under *Settings → Debug Files*, then
+   Sentry*). The `SENTRY_AUTH_TOKEN` repository secret was added on
+   2026-10-25. **Left to do:** after the next tagged release, confirm the files in Sentry under *Settings → Debug Files*, then
    reopen the newest FLUTTER-5V event. Releases up to 1.6.1 stay unsymbolised.
 2. ~~**Stop debug builds reporting.**~~ Done: `lib/main.dart` now starts Sentry only in
    release builds, and tracing, profiling, logs and replay are off. That removes H2 and
