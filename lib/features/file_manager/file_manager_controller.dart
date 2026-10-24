@@ -5,9 +5,11 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../data/device.dart';
 import '../../services/app_breadcrumbs.dart';
+import '../../services/preferences_service.dart';
 import '../../session/feature_controller.dart';
 import '../../utils/utils.dart';
 import 'data/device_file_entry.dart';
+import 'data/file_view_options.dart';
 import 'services/device_file_system.dart';
 import 'services/file_transfer_picker.dart';
 
@@ -20,15 +22,12 @@ class const FileDropCopyResult({
   final List<String> errors = const [],
 });
 
-enum FileManagerViewMode { list, grid }
-
 enum FileLoadState { idle, loading, ready, error }
 
-enum FileSortField { name, size, modified, type }
-
 /// Per-device file-manager feature. Owns the navigation state (current path +
-/// back history), the current directory listing, view/sort preferences, and
-/// the busy state for transfers. The browsable file system itself is supplied
+/// back history), the current directory listing, how it is shown (filter,
+/// sort, grouping, hidden files — all applied here, on the listing both
+/// platforms produce), and the busy state for transfers. The browsable file system itself is supplied
 /// by [DeviceFileSystem], chosen from the device platform — so this controller
 /// is platform-agnostic.
 ///
@@ -38,6 +37,10 @@ class FileManagerController(super.session) extends FeatureController {
   /// Replaces [DeviceFileSystem.forDevice] so tests can copy without a device.
   @visibleForTesting
   static DeviceFileSystem Function(Device device)? fileSystemFactory;
+
+  /// Today, for the date-modified groups; fixed by tests.
+  @visibleForTesting
+  static DateTime Function() clock = DateTime.now;
 
   late final DeviceFileSystem fileSystem =
       fileSystemFactory?.call(device) ?? DeviceFileSystem.forDevice(device);
@@ -50,9 +53,24 @@ class FileManagerController(super.session) extends FeatureController {
   late String currentPath = fileSystem.initialPath;
   final List<String> _backStack = [];
 
-  FileManagerViewMode viewMode = FileManagerViewMode.list;
-  FileSortField sortField = FileSortField.name;
-  bool sortAscending = true;
+  // View preferences are shared by every device's pane and remembered;
+  // the filter and collapsed groups are this pane's alone.
+  FileManagerViewMode viewMode = PreferencesService.filesViewMode;
+  FileSortField sortField = PreferencesService.filesSortField;
+  bool sortAscending = PreferencesService.filesSortAscending;
+  FileGrouping grouping = PreferencesService.filesGrouping;
+  bool foldersFirst = PreferencesService.filesFoldersFirst;
+  bool showHidden = PreferencesService.filesShowHidden;
+
+  /// Narrows the listing to names containing it (case-insensitive), or
+  /// matching it as a glob when it has `*` or `?`. Cleared on leaving the
+  /// folder, as Finder and Explorer do.
+  String filterText = '';
+  final Set<String> _collapsedGroups = {};
+
+  // Derived from the listing and the options above; dropped on every change.
+  List<DeviceFileEntry>? _visible;
+  List<FileGroup>? _groups;
 
   bool _busy = false;
   String? busyLabel;
@@ -72,17 +90,35 @@ class FileManagerController(super.session) extends FeatureController {
   bool get supportsRename => fileSystem.supportsRename;
   String get storageLabel => fileSystem.storageLabel;
 
-  /// The current directory's entries, directories-first then by the active
-  /// sort field/order.
-  List<DeviceFileEntry> get entries {
-    final sorted = [..._entries];
-    sorted.sort(_compareEntries);
-    return sorted;
-  }
+  /// The entries shown — hidden files and the filter applied — in display
+  /// order: sorted, then (when grouped) group by group.
+  List<DeviceFileEntry> get entries =>
+      _visible ??= [for (final group in groups) ...group.entries];
 
+  /// [entries] split into [grouping]'s sections; a single unlabelled group
+  /// when ungrouped.
+  List<FileGroup> get groups =>
+      _groups ??= groupFileEntries(_sortedVisible(), grouping, now: clock());
+
+  bool isGroupCollapsed(FileGroup group) =>
+      _collapsedGroups.contains(group.key);
+
+  /// The entries a keyboard can reach: [entries] minus collapsed groups.
+  List<DeviceFileEntry> get reachableEntries => [
+    for (final group in groups)
+      if (!isGroupCollapsed(group)) ...group.entries,
+  ];
+
+  /// Everything listed in the folder, before hiding or filtering.
   int get entryCount => _entries.length;
+  int get visibleCount => entries.length;
   int get directoryCount => _entries.where((e) => e.isDirectory).length;
   int get fileCount => _entries.where((e) => e.isFile).length;
+
+  /// Dotfiles left out while [showHidden] is off.
+  int get hiddenCount =>
+      showHidden ? 0 : _entries.where((e) => _isHidden(e)).length;
+  bool get isFiltered => filterText.trim().isNotEmpty;
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -124,6 +160,12 @@ class FileManagerController(super.session) extends FeatureController {
     await navigateTo(posixParent(currentPath));
   }
 
+  /// Opens the selected entry: a folder is entered, a file left selected.
+  Future<void> openSelected() async {
+    final entry = selectedEntry;
+    if (entry != null && entry.isNavigable) await open(entry);
+  }
+
   Future<void> navigateBack() async {
     if (_backStack.isEmpty) return;
     final previous = _backStack.removeLast();
@@ -141,7 +183,9 @@ class FileManagerController(super.session) extends FeatureController {
     await navigateTo(path);
   }
 
-  Future<void> _load(String path) async {
+  /// Lists [path]. [select] names the entry to select once it is listed
+  /// (one just created or renamed).
+  Future<void> _load(String path, {String? select}) async {
     if (_disposed) return;
     if (!isConnected) {
       loadState = FileLoadState.error;
@@ -151,6 +195,11 @@ class FileManagerController(super.session) extends FeatureController {
     }
 
     final token = ++_loadToken;
+    // Coming back out of a folder selects it, so the place you were stays
+    // marked; a refresh keeps the selection.
+    final previousPath = currentPath;
+    final keep = select ?? (path == previousPath ? selectedEntry?.path : null);
+    if (path != previousPath) filterText = '';
     currentPath = path;
     selectedEntry = null;
     loadState = FileLoadState.loading;
@@ -162,6 +211,11 @@ class FileManagerController(super.session) extends FeatureController {
       if (_disposed || token != _loadToken) return;
       _entries = listed;
       loadState = FileLoadState.ready;
+      selectedEntry = listed.where((entry) {
+        if (keep != null) return entry.path == keep;
+        return previousPath == entry.path ||
+            previousPath.startsWith('${entry.path}/');
+      }).firstOrNull;
       _notify();
     } on DeviceFileException catch (err) {
       if (_disposed || token != _loadToken) return;
@@ -186,9 +240,31 @@ class FileManagerController(super.session) extends FeatureController {
     _notify();
   }
 
+  /// Moves the selection [delta] places through [reachableEntries] (a grid
+  /// passes its column count to move a row), stopping at either end. With
+  /// nothing selected it starts from the first entry, or the last going back.
+  void moveSelection(int delta) {
+    final reachable = reachableEntries;
+    if (reachable.isEmpty) return;
+    final current = selectedEntry == null
+        ? -1
+        : reachable.indexWhere((e) => e.path == selectedEntry!.path);
+    final next = current < 0
+        ? (delta > 0 ? 0 : reachable.length - 1)
+        : (current + delta).clamp(0, reachable.length - 1);
+    selectEntry(reachable[next]);
+  }
+
+  void setFilterText(String value) {
+    if (filterText == value) return;
+    filterText = value;
+    _notify();
+  }
+
   void setViewMode(FileManagerViewMode mode) {
     if (viewMode == mode) return;
     viewMode = mode;
+    PreferencesService.filesViewMode = mode;
     _notify();
   }
 
@@ -200,13 +276,50 @@ class FileManagerController(super.session) extends FeatureController {
     );
   }
 
-  /// Sets the sort field; selecting the active field flips the direction.
-  void setSort(FileSortField field) {
-    if (sortField == field) {
-      sortAscending = !sortAscending;
-    } else {
-      sortField = field;
-      sortAscending = true;
+  /// Sorts by [field] in [ascending] order, or — left out — flips the order
+  /// of the active field and starts a new one in its natural direction (a
+  /// column header click).
+  void setSort(FileSortField field, {bool? ascending}) {
+    sortAscending =
+        ascending ??
+        (sortField == field ? !sortAscending : field.defaultAscending);
+    sortField = field;
+    PreferencesService.filesSortField = field;
+    PreferencesService.filesSortAscending = sortAscending;
+    _notify();
+  }
+
+  void setGrouping(FileGrouping value) {
+    if (grouping == value) return;
+    grouping = value;
+    PreferencesService.filesGrouping = value;
+    _notify();
+  }
+
+  void setFoldersFirst(bool value) {
+    if (foldersFirst == value) return;
+    foldersFirst = value;
+    PreferencesService.filesFoldersFirst = value;
+    _notify();
+  }
+
+  void setShowHidden(bool value) {
+    if (showHidden == value) return;
+    showHidden = value;
+    PreferencesService.filesShowHidden = value;
+    if (!value && selectedEntry != null && _isHidden(selectedEntry!)) {
+      selectedEntry = null;
+    }
+    _notify();
+  }
+
+  void toggleGroupCollapsed(FileGroup group) {
+    if (!_collapsedGroups.remove(group.key)) {
+      _collapsedGroups.add(group.key);
+      // A selection folded out of sight would be acted on unseen.
+      if (group.entries.any((e) => e.path == selectedEntry?.path)) {
+        selectedEntry = null;
+      }
     }
     _notify();
   }
@@ -335,7 +448,7 @@ class FileManagerController(super.session) extends FeatureController {
           parentPath: currentPath,
           name: trimmed,
         );
-        await _load(currentPath);
+        await _load(currentPath, select: posixJoin(currentPath, trimmed));
         return 'Created folder "$trimmed".';
       },
     );
@@ -354,7 +467,7 @@ class FileManagerController(super.session) extends FeatureController {
       label: 'Renaming ${entry.name}…',
       action: () async {
         await fileSystem.rename(entry: entry, newName: trimmed);
-        await _load(currentPath);
+        await _load(currentPath, select: posixJoin(currentPath, trimmed));
         return 'Renamed to "$trimmed".';
       },
     );
@@ -422,27 +535,58 @@ class FileManagerController(super.session) extends FeatureController {
     return false;
   }
 
+  List<DeviceFileEntry> _sortedVisible() {
+    final matches = _filterMatcher();
+    return [
+      for (final entry in _entries)
+        if ((showHidden || !_isHidden(entry)) && matches(entry.name)) entry,
+    ]..sort(_compareEntries);
+  }
+
+  static bool _isHidden(DeviceFileEntry entry) => entry.name.startsWith('.');
+
+  /// Substring match, or a whole-name glob when the filter has `*` or `?`
+  /// (`*.png`, `IMG_00??.jpg`). Case-insensitive either way.
+  bool Function(String name) _filterMatcher() {
+    final query = filterText.trim().toLowerCase();
+    if (query.isEmpty) return (_) => true;
+    if (!query.contains('*') && !query.contains('?')) {
+      return (name) => name.toLowerCase().contains(query);
+    }
+    final glob = query
+        .split('')
+        .map(
+          (char) => switch (char) {
+            '*' => '.*',
+            '?' => '.',
+            _ => RegExp.escape(char),
+          },
+        );
+    final pattern = RegExp('^${glob.join()}\$', caseSensitive: false);
+    return pattern.hasMatch;
+  }
+
   int _compareEntries(DeviceFileEntry a, DeviceFileEntry b) {
     // Folder-like entries (directories and symlinks, which navigate like
-    // folders) always sort before files regardless of the active field.
-    if (a.isNavigable != b.isNavigable) return a.isNavigable ? -1 : 1;
+    // folders) lead regardless of the sort field, unless turned off.
+    if (foldersFirst && a.isNavigable != b.isNavigable) {
+      return a.isNavigable ? -1 : 1;
+    }
 
-    final direction = sortAscending ? 1 : -1;
     final result = switch (sortField) {
-      FileSortField.name => a.name.toLowerCase().compareTo(
-        b.name.toLowerCase(),
-      ),
+      FileSortField.name => 0,
+      FileSortField.kind => FileKind.of(
+        a,
+      ).index.compareTo(FileKind.of(b).index),
       FileSortField.size => (a.sizeBytes ?? 0).compareTo(b.sizeBytes ?? 0),
       FileSortField.modified => (a.modified ?? DateTime(0)).compareTo(
         b.modified ?? DateTime(0),
       ),
-      FileSortField.type => a.typeLabel.compareTo(b.typeLabel),
     };
-    // Fall back to name for a stable order when the primary key ties.
-    if (result == 0 && sortField != FileSortField.name) {
-      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-    }
-    return result * direction;
+    // Ties — and the whole of a Name sort — fall to the name, which follows
+    // the chosen direction too.
+    final ordered = result != 0 ? result : compareFileNames(a.name, b.name);
+    return sortAscending ? ordered : -ordered;
   }
 
   @override
@@ -452,6 +596,8 @@ class FileManagerController(super.session) extends FeatureController {
   }
 
   void _notify() {
+    _visible = null;
+    _groups = null;
     if (!_disposed) notifyListeners();
   }
 

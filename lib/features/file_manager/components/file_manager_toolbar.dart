@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../presentation/components/app_icon_button.dart';
 import '../../../presentation/components/overflow_toolbar.dart';
 import '../../../presentation/components/workspace_pane_scope.dart';
+import '../data/file_view_options.dart';
 import '../file_manager_controller.dart';
 import '../../../presentation/theme/app_theme.dart';
 

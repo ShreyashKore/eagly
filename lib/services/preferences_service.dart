@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/apps/data/apps_view_options.dart';
+import '../features/file_manager/data/file_view_options.dart';
 import '../features/logs/data/models/log_column.dart';
 import '../features/logs/data/models/log_level.dart';
 import '../features/logs/data/models/log_tab_settings.dart';
@@ -72,6 +73,12 @@ class PreferencesService {
   static const _keyAndroidSdkPath = 'androidSdkPath';
   static const _keyAppsViewMode = 'appsViewMode';
   static const _keyAppsIconSize = 'appsIconSize';
+  static const _keyFilesViewMode = 'filesViewMode';
+  static const _keyFilesSortField = 'filesSortField';
+  static const _keyFilesSortAscending = 'filesSortAscending';
+  static const _keyFilesGrouping = 'filesGrouping';
+  static const _keyFilesFoldersFirst = 'filesFoldersFirst';
+  static const _keyFilesShowHidden = 'filesShowHidden';
   static const _keyWorkspaceLayout = 'workspaceLayout';
   static const _keySavedWorkspaceLayout = 'savedWorkspaceLayout';
 
@@ -329,6 +336,39 @@ class PreferencesService {
       AppIconSize.fromStored(_prefs.getString(_keyAppsIconSize));
   static set appsIconSize(AppIconSize v) =>
       _prefs.setString(_keyAppsIconSize, v.name);
+
+  // --- Files pane layout (shared by every device's Files pane) ---
+
+  static FileManagerViewMode get filesViewMode =>
+      FileManagerViewMode.fromStored(_prefs.getString(_keyFilesViewMode));
+  static set filesViewMode(FileManagerViewMode v) =>
+      _prefs.setString(_keyFilesViewMode, v.name);
+
+  static FileSortField get filesSortField =>
+      FileSortField.fromStored(_prefs.getString(_keyFilesSortField));
+  static set filesSortField(FileSortField v) =>
+      _prefs.setString(_keyFilesSortField, v.name);
+
+  static bool get filesSortAscending =>
+      _prefs.getBool(_keyFilesSortAscending) ?? filesSortField.defaultAscending;
+  static set filesSortAscending(bool v) =>
+      _prefs.setBool(_keyFilesSortAscending, v);
+
+  static FileGrouping get filesGrouping =>
+      FileGrouping.fromStored(_prefs.getString(_keyFilesGrouping));
+  static set filesGrouping(FileGrouping v) =>
+      _prefs.setString(_keyFilesGrouping, v.name);
+
+  static bool get filesFoldersFirst =>
+      _prefs.getBool(_keyFilesFoldersFirst) ?? true;
+  static set filesFoldersFirst(bool v) =>
+      _prefs.setBool(_keyFilesFoldersFirst, v);
+
+  /// Dotfiles are listed by default: Eagly is a developer tool, and app
+  /// state on a device often lives in them.
+  static bool get filesShowHidden =>
+      _prefs.getBool(_keyFilesShowHidden) ?? true;
+  static set filesShowHidden(bool v) => _prefs.setBool(_keyFilesShowHidden, v);
 
   // --- Device workspace layout (shared by every device's workspace) ---
 

@@ -1,65 +1,32 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/components/search_highlight.dart';
+import '../../../utils/text_search_pattern.dart';
 import '../../../utils/utils.dart';
 import '../data/device_file_entry.dart';
+import '../data/file_view_options.dart';
 
 /// Icon, colour and text formatting helpers shared by the list and grid views
 /// so an entry renders identically in both.
 class const FileEntryVisuals._() {
   static IconData iconFor(DeviceFileEntry entry) {
-    if (entry.isDirectory) return Icons.folder_rounded;
     if (entry.isSymlink) return Icons.link_rounded;
     if (entry.type == DeviceFileType.other) {
       return Icons.dataset_linked_outlined;
     }
-
-    return switch (_extension(entry.name)) {
-      'png' ||
-      'jpg' ||
-      'jpeg' ||
-      'gif' ||
-      'webp' ||
-      'bmp' ||
-      'heic' ||
-      'svg' => Icons.image_outlined,
-      'mp4' ||
-      'mov' ||
-      'mkv' ||
-      'avi' ||
-      'webm' ||
-      'm4v' => Icons.movie_outlined,
-      'mp3' ||
-      'wav' ||
-      'aac' ||
-      'flac' ||
-      'ogg' ||
-      'm4a' => Icons.audiotrack_outlined,
-      'zip' ||
-      'rar' ||
-      '7z' ||
-      'tar' ||
-      'gz' ||
-      'xz' ||
-      'bz2' => Icons.folder_zip_outlined,
-      'pdf' => Icons.picture_as_pdf_outlined,
-      'apk' || 'ipa' || 'aab' => Icons.android_outlined,
-      'json' ||
-      'xml' ||
-      'yaml' ||
-      'yml' ||
-      'html' ||
-      'js' ||
-      'dart' ||
-      'kt' ||
-      'java' ||
-      'swift' ||
-      'c' ||
-      'cpp' ||
-      'py' ||
-      'sh' => Icons.code_outlined,
-      'txt' || 'log' || 'md' || 'csv' => Icons.description_outlined,
-      'db' || 'sqlite' || 'sql' => Icons.storage_outlined,
-      _ => Icons.insert_drive_file_outlined,
+    return switch (FileKind.of(entry)) {
+      FileKind.folder => Icons.folder_rounded,
+      FileKind.image => Icons.image_outlined,
+      FileKind.video => Icons.movie_outlined,
+      FileKind.audio => Icons.audiotrack_outlined,
+      FileKind.archive => Icons.folder_zip_outlined,
+      FileKind.document when fileExtension(entry.name) == 'pdf' =>
+        Icons.picture_as_pdf_outlined,
+      FileKind.document => Icons.description_outlined,
+      FileKind.package => Icons.android_outlined,
+      FileKind.code => Icons.code_outlined,
+      FileKind.database => Icons.storage_outlined,
+      FileKind.other => Icons.insert_drive_file_outlined,
     };
   }
 
@@ -81,12 +48,6 @@ class const FileEntryVisuals._() {
     String two(int value) => value.toString().padLeft(2, '0');
     return '${local.year}-${two(local.month)}-${two(local.day)} '
         '${two(local.hour)}:${two(local.minute)}';
-  }
-
-  static String _extension(String name) {
-    final dot = name.lastIndexOf('.');
-    if (dot <= 0 || dot == name.length - 1) return '';
-    return name.substring(dot + 1).toLowerCase();
   }
 }
 
@@ -135,6 +96,43 @@ class const FileEntryIcon({
       FileEntryVisuals.iconFor(entry),
       size: size,
       color: FileEntryVisuals.colorFor(entry, scheme),
+    );
+  }
+}
+
+/// An entry's name with the part matching a plain-text [filter] highlighted,
+/// so it is clear why a row survived the filter. A glob filter matches the
+/// whole name and highlights nothing.
+class const FileNameText({
+  super.key,
+  required final String name,
+  required final String filter,
+  final TextStyle? style,
+  final int maxLines = 1,
+  final TextAlign textAlign = TextAlign.start,
+}) extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final base = style ?? DefaultTextStyle.of(context).style;
+    final query = filter.trim().toLowerCase();
+    final start = query.isEmpty || query.contains('*') || query.contains('?')
+        ? -1
+        : name.toLowerCase().indexOf(query);
+    return Text.rich(
+      TextSpan(
+        children: buildSearchHighlightSpans(
+          context: context,
+          text: name,
+          style: base,
+          matches: [
+            if (start >= 0)
+              TextSearchMatch(start: start, end: start + query.length),
+          ],
+        ),
+      ),
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      textAlign: textAlign,
     );
   }
 }
