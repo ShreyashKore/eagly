@@ -97,7 +97,9 @@ implementations live behind an interface in `services/ios/`; Rust is the default
 `Rust*` implementation may import `lib/src/rust/**`, which is generated and never edited by hand.
 **The libimobiledevice CLIs and friends will be removed in a future version**, so new iOS work
 goes on the Rust side first; keep the CLI path correct while it ships, but don't extend it.
-See **docs/IOS_RUST_MIGRATION.md** before touching either side.
+See **docs/IOS_RUST_MIGRATION.md** before touching either side. New to the iOS device stack
+(usbmuxd, lockdownd, RSD, CoreDevice, AFC, Indigo, …)? docs/IOS_GLOSSARY.md explains each term
+with its Android equivalent.
 
 **Connectivity flow (important):** `DevicesRepository` produces `Device`s with a
 `DeviceConnectionState`. `DeviceSessionManager._sync` pushes updates via
