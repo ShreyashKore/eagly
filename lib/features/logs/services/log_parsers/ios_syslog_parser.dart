@@ -4,6 +4,7 @@ import '../../../../data/device.dart';
 import '../../data/models/log_entry.dart';
 import '../../data/models/log_level.dart';
 import 'log_line_parser.dart';
+import '../../../../utils/timestamp_utils.dart';
 
 /// Parses `idevicesyslog` output into [LogEntry] objects.
 ///
@@ -135,14 +136,7 @@ class IosSyslogParser({DateTime Function()? now}) implements LogLineParser {
         microseconds % 1000,
       );
 
-      final year = timestamp.year.toString().padLeft(4, '0');
-      final monthText = timestamp.month.toString().padLeft(2, '0');
-      final dayText = timestamp.day.toString().padLeft(2, '0');
-      final hourText = timestamp.hour.toString().padLeft(2, '0');
-      final minuteText = timestamp.minute.toString().padLeft(2, '0');
-      final secondText = timestamp.second.toString().padLeft(2, '0');
-      final millisecondText = timestamp.millisecond.toString().padLeft(3, '0');
-      return '$year-$monthText-$dayText $hourText:$minuteText:$secondText.$millisecondText';
+      return formatDateTime(timestamp);
     } catch (_) {
       return null;
     }

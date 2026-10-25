@@ -11,6 +11,7 @@ import 'components/terminal_tab_strip.dart';
 import 'terminal_controller.dart';
 import 'terminal_find.dart';
 import 'terminal_session_manager.dart';
+import '../../presentation/components/snack_bars.dart';
 
 /// The Terminal pane: a tab strip, the selected tab's scrollback, and the
 /// prompt.
@@ -38,8 +39,7 @@ class _TerminalFeatureViewState extends FeatureViewState<TerminalFeatureView> {
   Future<void> _copyScrollback(TerminalController controller) async {
     final text = controller.scrollbackText;
     if (text.isEmpty) return;
-    await Clipboard.setData(ClipboardData(text: text));
-    showSnackBar('Copied the terminal output.');
+    await copyWithToast(context, text, 'Copied the terminal output.');
   }
 
   @override

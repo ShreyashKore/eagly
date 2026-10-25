@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../../../data/device.dart';
-import '../../../presentation/components/feature_view.dart';
 import '../../../presentation/components/install_conflict_dialog.dart';
 import '../../../session/device_session_controller.dart';
 import '../data/device_info.dart';
 import '../device_home_controller.dart';
 import 'home_primitives.dart';
 import '../../../presentation/theme/app_theme.dart';
+import '../../../presentation/components/snack_bars.dart';
 
 /// Top-of-screen identity banner: who the device is, whether it is ready to
 /// work with, and the one action most sessions start with (install a build).
@@ -28,7 +28,7 @@ class const DeviceHeroCard({
       session: session,
       result: result,
       showMessage: (message) {
-        if (context.mounted) FeatureView.showSnackBar(context, message);
+        if (context.mounted) showMessageSnackBar(context, message);
       },
       onInstalled: () => unawaited(homeController.refreshRecentApps()),
     );

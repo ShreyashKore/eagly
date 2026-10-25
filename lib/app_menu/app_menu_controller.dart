@@ -72,22 +72,7 @@ class AppMenuController(final DeviceSessionManager _manager)
   ) {
     final hasSavedLayout = _manager.hasSavedLayout;
     if (session == null || log == null) {
-      if (!hasSavedLayout) return AppMenuState.empty;
-      // Home can still clear the saved layout.
-      return const AppMenuState(
-        hasActiveLog: false,
-        isImported: false,
-        deviceConnected: false,
-        logcatState: LogcatState.stopped,
-        hasLogs: false,
-        isIos: false,
-        selectedLogLevel: null,
-        wrapText: false,
-        autoScroll: false,
-        searchBarVisible: false,
-        canSaveLayout: false,
-        hasSavedLayout: true,
-      );
+      return AppMenuState.idle(hasSavedLayout: hasSavedLayout);
     }
     return AppMenuState(
       hasActiveLog: true,

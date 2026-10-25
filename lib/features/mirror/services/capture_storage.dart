@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 
 import '../../../services/preferences_service.dart';
+import '../../../utils/file_dialog_directory.dart';
+import '../../../utils/timestamp_utils.dart';
 
 /// Where screenshots and screen recordings are written.
 ///
@@ -23,9 +25,8 @@ class const CaptureStorage._() {
   /// when there is no pictures folder, and to the system temp dir when the
   /// home directory cannot be determined at all.
   static String defaultDirectory() {
-    final home =
-        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-    if (home == null || home.isEmpty) {
+    final home = userHomeDirectory();
+    if (home == null) {
       return _join(Directory.systemTemp.path, _defaultFolderName);
     }
     final pictures = _join(home, 'Pictures');
@@ -52,11 +53,7 @@ class const CaptureStorage._() {
     String extension, {
     DateTime? now,
   }) {
-    final n = now ?? DateTime.now();
-    String two(int v) => v.toString().padLeft(2, '0');
-    final stamp =
-        '${n.year}${two(n.month)}${two(n.day)}-'
-        '${two(n.hour)}${two(n.minute)}${two(n.second)}';
+    final stamp = fileNameTimestamp(now ?? DateTime.now());
     return '$prefix-$stamp.$extension';
   }
 

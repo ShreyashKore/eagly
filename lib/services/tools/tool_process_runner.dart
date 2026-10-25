@@ -6,6 +6,8 @@ import '../../features/logs/data/models/log_entry.dart';
 import '../../features/app_log/app_logger.dart';
 import '../../utils/tools_path.dart';
 import '../../utils/log_entry_utils.dart';
+import '../../features/logs/services/log_parsers/log_line_parser.dart';
+import '../../utils/utils.dart';
 
 class const ToolCommandResult({
   required final int exitCode,
@@ -237,6 +239,73 @@ abstract class ToolProcessRunner({
         await process.exitCode.timeout(const Duration(seconds: 1));
       } catch (_) {}
     }
+  }
+
+  /// Starts this tool with [arguments] and streams its stdout through
+  /// [parser] until the tool exits or the session is stopped. A tool that
+  /// fails to start, or exits having printed nothing but stderr, leaves one
+  /// error entry tagged [tag]. [subject] — the device or process being
+  /// followed — names the stream in the app log and on that entry.
+  ToolStreamSession<LogEntry> streamLogLines(
+    List<String> arguments, {
+    required LogLineParser parser,
+    required String tag,
+    required String subject,
+  }) {
+    Process? process;
+    var stopRequested = false;
+    var stopFuture = Future<void>.value();
+    late final StreamController<LogEntry> controller;
+
+    Future<void> stop() {
+      if (stopRequested) {
+        return stopFuture;
+      }
+      stopRequested = true;
+      stopFuture = stopProcess(process);
+      return stopFuture;
+    }
+
+    void addError(String message) => controller.add(
+      buildToolErrorEntry(message, tag: tag, processName: subject),
+    );
+
+    controller = StreamController<LogEntry>(
+      onListen: () async {
+        logInfo('Starting $tag for $subject');
+        try {
+          process = await startProcess(arguments);
+          final stderrFuture = stderrText(process!);
+          var emittedLogs = false;
+
+          await for (final entry in parseLogLines(
+            stdoutLines(process!),
+            parser,
+          )) {
+            emittedLogs = true;
+            controller.add(entry);
+          }
+
+          final stderrOutput = (await stderrFuture).trim();
+          if (!emittedLogs && stderrOutput.isNotEmpty) {
+            addError(stderrOutput);
+          }
+        } on ProcessException catch (error) {
+          logError('Failed to start $tag for $subject', error);
+          addError('Failed to start $tag: ${describeError(error)}');
+        } catch (error) {
+          logError('Unexpected error while streaming $tag for $subject', error);
+          addError('$tag error: ${describeError(error)}');
+        } finally {
+          logInfo('$tag stream ended for $subject');
+          await stop();
+          await controller.close();
+        }
+      },
+      onCancel: stop,
+    );
+
+    return ToolStreamSession(stream: controller.stream, onStop: stop);
   }
 
   String describeCommandFailure(String fallback, ToolCommandResult result) {

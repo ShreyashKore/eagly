@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
-import '../../presentation/components/app_icon_button.dart';
 import '../../presentation/components/centered_state_message.dart';
 import '../../presentation/components/feature_view.dart';
 import '../../presentation/theme/app_theme.dart';
@@ -10,6 +9,7 @@ import 'components/utility_tile.dart';
 import 'data/utility_command.dart';
 import 'utilities_controller.dart';
 import 'utility_runner.dart';
+import '../../presentation/components/pane_search_field.dart';
 
 /// Utilities pane: the device-command catalog as a searchable, grouped list.
 ///
@@ -78,10 +78,12 @@ class _UtilitiesFeatureViewState
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SearchField(
-            controller: _searchController,
-            onChanged: controller.setSearchText,
-            onClear: controller.searchText.isEmpty ? null : _clearSearch,
+          PaneSearchBar(
+            child: PaneSearchField(
+              controller: _searchController,
+              onChanged: controller.setSearchText,
+              hint: 'Search utilities…',
+            ),
           ),
           if (controller.hasAnyUtility) const _Legend(),
           if (!controller.isConnected) const _DisconnectedNotice(),
@@ -290,51 +292,6 @@ class const _GroupHeader({
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class const _SearchField({
-  required final TextEditingController controller,
-  required final ValueChanged<String> onChanged,
-  required final VoidCallback? onClear,
-}) extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        border: Border(
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-      ),
-      child: SizedBox(
-        height: context.scaled(34),
-        child: TextField(
-          controller: controller,
-          onChanged: onChanged,
-          style: theme.textTheme.bodySmall,
-          decoration: InputDecoration(
-            isDense: true,
-            hintText: 'Search utilities…',
-            prefixIcon: const Icon(Icons.search, size: 18),
-            suffixIcon: onClear == null
-                ? null
-                : AppIconButton(
-                    tooltip: 'Clear search',
-                    iconSize: 15,
-                    padding: 4,
-                    onPressed: onClear,
-                    icon: Icons.close,
-                  ),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-          ),
-        ),
       ),
     );
   }

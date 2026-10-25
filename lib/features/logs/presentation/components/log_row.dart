@@ -87,41 +87,10 @@ class const LogRow({
   }) {
     final children = <InlineSpan>[];
     final pattern = TextSearchPattern.fromConfig(search);
-
-    if (!pattern.isActive || highlightColor == null || !pattern.isValid) {
-      children.add(TextSpan(text: text, style: style));
-      if (appendCellSeparator) {
-        children.add(_cellSeparatorSpan());
-      }
-      if (appendRowTerminator) {
-        children.add(_rowTerminatorSpan());
-      }
-
-      return Text.rich(
-        TextSpan(style: style, children: children),
-        style: style,
-        overflow: overflow,
-        softWrap: softWrap,
-      );
-    }
-
-    final matches = pattern.allMatches(text);
-    if (matches.isEmpty) {
-      children.add(TextSpan(text: text, style: style));
-      if (appendCellSeparator) {
-        children.add(_cellSeparatorSpan());
-      }
-      if (appendRowTerminator) {
-        children.add(_rowTerminatorSpan());
-      }
-
-      return Text.rich(
-        TextSpan(style: style, children: children),
-        style: style,
-        overflow: overflow,
-        softWrap: softWrap,
-      );
-    }
+    final matches =
+        !pattern.isActive || highlightColor == null || !pattern.isValid
+        ? const <TextSearchMatch>[]
+        : pattern.allMatches(text);
 
     var start = 0;
     for (final match in matches) {
@@ -141,7 +110,8 @@ class const LogRow({
       );
       start = match.end;
     }
-    if (start < text.length) {
+    // An unmatched text is still one span, even when empty.
+    if (start < text.length || matches.isEmpty) {
       children.add(TextSpan(text: text.substring(start), style: style));
     }
     if (appendCellSeparator) {

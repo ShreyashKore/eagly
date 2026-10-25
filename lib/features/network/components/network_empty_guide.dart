@@ -10,12 +10,12 @@ import 'package:re_highlight/re_highlight.dart';
 import '../../../data/device.dart';
 import '../../../presentation/components/app_icon_button.dart';
 import '../../../presentation/components/code_view.dart';
-import '../../../presentation/components/feature_view.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../../../utils/url_launcher.dart';
 import '../data/network_transaction.dart';
 import '../network_controller.dart';
 import '../services/network_source.dart';
+import '../../../presentation/components/snack_bars.dart';
 
 /// Where the empty pane sends people for what it has no room for.
 abstract final class NetworkGuideLinks {
@@ -662,7 +662,7 @@ class const _Snippet({
                     color: muted,
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: code));
-                      FeatureView.showSnackBar(context, 'Copied to clipboard.');
+                      showMessageSnackBar(context, 'Copied to clipboard.');
                     },
                   ),
                 ],

@@ -10,6 +10,7 @@ import '../data/network_transaction_store.dart';
 import '../network_controller.dart';
 import 'network_presentation.dart';
 import 'network_row_menu.dart';
+import '../../../utils/timestamp_utils.dart';
 
 export 'network_presentation.dart' show formatElapsed, statusColor, statusLabel;
 
@@ -606,7 +607,7 @@ class const _TimeCell({
     final timings = transaction.timings;
     return Tooltip(
       message: [
-        if (started != null) 'Started ${formatClockTime(started)}',
+        if (started != null) 'Started ${formatTimeOfDay(started)}',
         if (timings?.wait case final wait?)
           'Waiting for the server: ${formatElapsed(wait)}',
         if (timings?.receive case final receive?)

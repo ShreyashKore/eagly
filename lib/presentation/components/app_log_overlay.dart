@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'app_icon_button.dart';
 import '../../features/app_log/app_logger.dart';
 import '../theme/app_theme.dart';
+import '../../utils/timestamp_utils.dart';
 
 Future<void> showAppLogDialog(
   BuildContext context, {
@@ -350,7 +351,7 @@ class const _LogEntryRow({
           const SizedBox(width: 5),
           // Timestamp
           Text(
-            _formatTime(entry.timestamp),
+            formatTimeOfDay(entry.timestamp, precision: TimePrecision.second),
             style: theme.textTheme.labelSmall?.copyWith(
               fontSize: 9,
               color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
@@ -426,11 +427,4 @@ class const _LogEntryRow({
     AppLogLevel.warning => (colorScheme.tertiary, Icons.warning_amber_outlined),
     AppLogLevel.error => (colorScheme.error, Icons.error_outline),
   };
-
-  static String _formatTime(DateTime dt) {
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    final s = dt.second.toString().padLeft(2, '0');
-    return '$h:$m:$s';
-  }
 }

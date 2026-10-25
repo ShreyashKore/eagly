@@ -20,6 +20,8 @@ import 'components/file_view_menu.dart';
 import 'data/device_file_entry.dart';
 import 'data/file_view_options.dart';
 import 'file_manager_controller.dart';
+import '../../presentation/components/busy_overlay.dart';
+import '../../presentation/components/confirm_dialog.dart';
 
 /// File-manager feature pane. Composes the toolbar, breadcrumb, the active
 /// list/grid view (with empty/error/loading states), a busy overlay for
@@ -64,11 +66,6 @@ class _FileManagerFeatureViewState
     field?.selectAll(SelectionChangedCause.keyboard);
   }
 
-  void _showSnackBar(String? message) {
-    if (message == null) return;
-    showSnackBar(message);
-  }
-
   late final FileManagerActions _actions = FileManagerActions(
     onDownload: _handleDownload,
     onRename: _handleRename,
@@ -78,13 +75,13 @@ class _FileManagerFeatureViewState
   );
 
   Future<void> _handleUpload() async {
-    _showSnackBar(await controller.uploadFiles());
+    showSnackBar(await controller.uploadFiles());
   }
 
   Future<void> _handleDownload([DeviceFileEntry? entry]) async {
     final target = entry ?? controller.selectedEntry;
     if (target == null) return;
-    _showSnackBar(await controller.downloadEntry(target));
+    showSnackBar(await controller.downloadEntry(target));
   }
 
   Future<void> _handleNewFolder() async {
@@ -95,7 +92,7 @@ class _FileManagerFeatureViewState
       confirmLabel: 'Create',
     );
     if (name == null) return;
-    _showSnackBar(await controller.createDirectory(name));
+    showSnackBar(await controller.createDirectory(name));
   }
 
   Future<void> _handleRename(DeviceFileEntry entry) async {
@@ -106,7 +103,7 @@ class _FileManagerFeatureViewState
       confirmLabel: 'Rename',
     );
     if (name == null || name == entry.name) return;
-    _showSnackBar(await controller.renameEntry(entry, name));
+    showSnackBar(await controller.renameEntry(entry, name));
   }
 
   Future<void> _handleDelete([DeviceFileEntry? entry]) async {
@@ -114,7 +111,7 @@ class _FileManagerFeatureViewState
     if (target == null) return;
     final confirmed = await _confirmDelete(target);
     if (!confirmed) return;
-    _showSnackBar(await controller.deleteEntry(target));
+    showSnackBar(await controller.deleteEntry(target));
   }
 
   Future<void> _handleDrop(List<String> paths) async {
@@ -142,14 +139,14 @@ class _FileManagerFeatureViewState
       installApps: installApps,
     );
     if (!mounted || result == null) return;
-    _showSnackBar(result.message);
+    showSnackBar(result.message);
     for (final conflict in result.conflicts) {
       if (!mounted) return;
       await presentAppInstallResult(
         context,
         session: session,
         result: conflict,
-        showMessage: _showSnackBar,
+        showMessage: showSnackBar,
       );
     }
   }
@@ -239,33 +236,15 @@ class _FileManagerFeatureViewState
     return (name == null || name.isEmpty) ? null : name;
   }
 
-  Future<bool> _confirmDelete(DeviceFileEntry entry) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete ${entry.name}?'),
-        content: Text(
-          entry.isDirectory
-              ? 'This permanently removes the folder and all its contents from the device.'
-              : 'This permanently removes the file from the device.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    return confirmed ?? false;
-  }
+  Future<bool> _confirmDelete(DeviceFileEntry entry) => showConfirmDialog(
+    context,
+    title: 'Delete ${entry.name}?',
+    message: entry.isDirectory
+        ? 'This permanently removes the folder and all its contents from the device.'
+        : 'This permanently removes the file from the device.',
+    confirmLabel: 'Delete',
+    destructive: true,
+  );
 
   @override
   Widget buildContent(BuildContext context) {
@@ -325,7 +304,7 @@ class _FileManagerFeatureViewState
       body: Stack(
         children: [
           Positioned.fill(child: _buildBody(context)),
-          if (controller.isBusy) _buildBusyOverlay(context),
+          if (controller.isBusy) BusyOverlay(label: controller.busyLabel),
         ],
       ),
       statusBar: _buildStatusBar(context),
@@ -346,11 +325,7 @@ class _FileManagerFeatureViewState
           icon: Icons.folder_off_outlined,
           title: 'Could not open this folder',
           description: controller.error ?? 'Something went wrong.',
-          footer: FilledButton.icon(
-            onPressed: controller.refresh,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Try again'),
-          ),
+          footer: RetryButton(onPressed: controller.refresh),
         );
       case FileLoadState.ready:
         if (controller.entryCount == 0) {
@@ -456,39 +431,6 @@ class _FileManagerFeatureViewState
     );
   }
 
-  Widget _buildBusyOverlay(BuildContext context) {
-    final theme = Theme.of(context);
-    return Positioned.fill(
-      child: ColoredBox(
-        color: theme.colorScheme.surface.withValues(alpha: 0.6),
-        child: Center(
-          child: Material(
-            color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    controller.busyLabel ?? 'Working…',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   /// "12 folders · 30 files", or "5 of 42 items" while filtered, noting
   /// any hidden files left out.
   String _countsLabel() {
@@ -497,15 +439,12 @@ class _FileManagerFeatureViewState
       if (controller.isFiltered)
         '${controller.visibleCount} of ${controller.entryCount - hidden} items'
       else
-        '${_plural(controller.directoryCount, 'folder')} · '
-            '${_plural(controller.fileCount, 'file')}',
+        '${pluralize(controller.directoryCount, 'folder')} · '
+            '${pluralize(controller.fileCount, 'file')}',
       if (hidden > 0) '$hidden hidden',
     ];
     return parts.join(' · ');
   }
-
-  static String _plural(int count, String noun) =>
-      '$count $noun${count == 1 ? '' : 's'}';
 
   Widget _buildStatusBar(BuildContext context) {
     final theme = Theme.of(context);

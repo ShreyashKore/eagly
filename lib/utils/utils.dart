@@ -44,3 +44,35 @@ int parseIntOrZero(dynamic value) {
   if (value is num) return value.toInt();
   return int.tryParse(value?.toString() ?? '') ?? 0;
 }
+
+/// The first of [first] and [second] with any non-blank text, trimmed.
+String? firstNonBlank(String? first, [String? second]) {
+  for (final value in [first, second]) {
+    if (value != null && value.trim().isNotEmpty) return value.trim();
+  }
+  return null;
+}
+
+/// `Key: value` lines — `ideviceinfo`, `dumpsys` — as a map, both sides
+/// trimmed. Lines without a key or a value are skipped.
+Map<String, String> parseColonSeparated(String output) {
+  final values = <String, String>{};
+  for (final line in output.split('\n')) {
+    final separatorIndex = line.indexOf(':');
+    if (separatorIndex <= 0) continue;
+    final key = line.substring(0, separatorIndex).trim();
+    final value = line.substring(separatorIndex + 1).trim();
+    if (key.isEmpty || value.isEmpty) continue;
+    values[key] = value;
+  }
+  return values;
+}
+
+/// "1 file", "3 files": [count] and [noun], plural unless [count] is 1.
+/// [plural] covers nouns that don't just take an "s".
+String pluralize(int count, String noun, {String? plural}) =>
+    '$count ${count == 1 ? noun : plural ?? '${noun}s'}';
+
+/// Single-quotes [value] for a POSIX shell — usually the *device's* `sh` —
+/// so spaces and metacharacters can't break out of the command being built.
+String shellQuote(String value) => "'${value.replaceAll("'", r"'\''")}'";

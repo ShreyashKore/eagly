@@ -7,6 +7,7 @@ import '../data/models/log_entry.dart';
 import '../../../utils/utils.dart';
 import 'log_formats/log_formats.dart';
 import '../../../services/preferences_service.dart';
+import '../../../utils/file_dialog_directory.dart';
 
 class const LogExportResult({
   final String? fileName,
@@ -73,7 +74,7 @@ class LogFileService {
       return LogExportResult.failure(error: 'No logs available to export.');
     }
 
-    final initialDirectory = await _resolveInitialDirectory();
+    final initialDirectory = FileDialogDirectory.initial();
 
     final exported = format.export(logs, device: device);
 
@@ -91,7 +92,7 @@ class LogFileService {
 
     try {
       await File(result).writeAsString(exported.content);
-      await _rememberDialogDirectoryFromPath(result);
+      await FileDialogDirectory.rememberParentOf(result);
       return LogExportResult.success(fileName: fileName);
     } catch (e) {
       return LogExportResult.failure(
@@ -118,7 +119,7 @@ class LogFileService {
       filePath = path;
       fileName = extractFileName(path);
     } else {
-      final initialDirectory = await _resolveInitialDirectory();
+      final initialDirectory = FileDialogDirectory.initial();
 
       final result = await FilePicker.platform.pickFiles(
         dialogTitle: 'Import Logcat File',
@@ -151,7 +152,7 @@ class LogFileService {
     }
 
     try {
-      await _rememberDialogDirectoryFromPath(filePath);
+      await FileDialogDirectory.rememberParentOf(filePath);
 
       final content = await File(filePath).readAsString();
       final parseResult = format.parse(content);
@@ -174,79 +175,5 @@ class LogFileService {
         error: 'Failed to import "$fileName": ${describeError(e)}',
       );
     }
-  }
-
-  static Future<String?> _resolveInitialDirectory() async {
-    if (!_supportsInitialDirectory) {
-      return null;
-    }
-
-    final rememberedDirectory = PreferencesService.lastFileDialogDirectory;
-    if (_isUsableInitialDirectory(rememberedDirectory)) {
-      return rememberedDirectory;
-    }
-
-    for (final candidate in _defaultInitialDirectoryCandidates()) {
-      if (_isUsableInitialDirectory(candidate)) {
-        return candidate;
-      }
-    }
-
-    return null;
-  }
-
-  static Future<void> _rememberDialogDirectoryFromPath(String path) async {
-    final directoryPath = File(path).parent.path;
-    if (!_isUsableInitialDirectory(directoryPath)) {
-      return;
-    }
-
-    await PreferencesService.setLastFileDialogDirectory(directoryPath);
-  }
-
-  static Iterable<String> _defaultInitialDirectoryCandidates() sync* {
-    final homeDirectory = _userHomeDirectory;
-    if (homeDirectory == null || homeDirectory.isEmpty) {
-      return;
-    }
-
-    yield '$homeDirectory${Platform.pathSeparator}Downloads';
-    yield '$homeDirectory${Platform.pathSeparator}Documents';
-    yield homeDirectory;
-  }
-
-  static bool _isUsableInitialDirectory(String? path) {
-    if (path == null || path.isEmpty) {
-      return false;
-    }
-
-    final directory = Directory(path);
-    return directory.isAbsolute && directory.existsSync();
-  }
-
-  static bool get _supportsInitialDirectory =>
-      Platform.isMacOS || Platform.isLinux || Platform.isWindows;
-
-  static String? get _userHomeDirectory {
-    final home = Platform.environment['HOME'];
-    if (home != null && home.isNotEmpty) {
-      return home;
-    }
-
-    final userProfile = Platform.environment['USERPROFILE'];
-    if (userProfile != null && userProfile.isNotEmpty) {
-      return userProfile;
-    }
-
-    final homeDrive = Platform.environment['HOMEDRIVE'];
-    final homePath = Platform.environment['HOMEPATH'];
-    if (homeDrive != null &&
-        homeDrive.isNotEmpty &&
-        homePath != null &&
-        homePath.isNotEmpty) {
-      return '$homeDrive$homePath';
-    }
-
-    return null;
   }
 }

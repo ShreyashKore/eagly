@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../tips_controller.dart';
 import 'confirm_disable_tips.dart';
-import 'menu_row.dart';
+import '../../../presentation/components/context_menu.dart';
 
 /// The three-dot options menu for the tips panel.
 class const TipsMenuButton({

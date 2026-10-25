@@ -31,11 +31,7 @@ class const Body({super.key, required final CrashReportController controller})
           icon: Icons.error_outline_rounded,
           title: 'Could not read crash reports',
           description: controller.error ?? 'Something went wrong.',
-          footer: FilledButton.icon(
-            onPressed: controller.refresh,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Try again'),
-          ),
+          footer: RetryButton(onPressed: controller.refresh),
         );
       case CrashReportLoadState.ready:
         if (controller.reports.isEmpty) {

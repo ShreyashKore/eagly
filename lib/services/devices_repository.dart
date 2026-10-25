@@ -14,6 +14,7 @@ import '../utils/apple_device_mapping.dart';
 import 'tools/adb_tool.dart';
 import 'ios/apple_usb_probe.dart';
 import 'ios/ios_device_service.dart';
+import '../utils/utils.dart';
 
 /// Looks up an Android device's marketing name from its `ro.product.brand`,
 /// `ro.product.device` and `ro.product.model`.
@@ -472,7 +473,7 @@ class DevicesRepository._({
     return Device.ios(
       info.deviceId,
       info.status,
-      name: _firstNonEmpty(info.deviceName, info.productName),
+      name: firstNonBlank(info.deviceName, info.productName),
       model: await _resolveIosModel(info),
     );
   }
@@ -485,17 +486,7 @@ class DevicesRepository._({
       return human ?? normalizedProductType;
     }
 
-    return _firstNonEmpty(info.hardwareModel, null);
-  }
-
-  String? _firstNonEmpty(String? first, String? second) {
-    if (first != null && first.trim().isNotEmpty) {
-      return first.trim();
-    }
-    if (second != null && second.trim().isNotEmpty) {
-      return second.trim();
-    }
-    return null;
+    return firstNonBlank(info.hardwareModel);
   }
 
   void _scheduleAndroidRefresh() {

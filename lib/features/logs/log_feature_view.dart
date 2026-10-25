@@ -12,6 +12,7 @@ import '../../presentation/components/notice_banner.dart';
 import 'presentation/components/log_viewer.dart';
 import '../../utils/log_entry_utils.dart';
 import '../../utils/log_feedback.dart';
+import '../../utils/utils.dart';
 import 'presentation/components/log_filter_area.dart';
 import 'presentation/components/scroll_to_end_button.dart';
 import 'presentation/components/log_status_bar.dart';
@@ -63,9 +64,7 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
   Future<void> _handleCopyAllLogs(LogController controller) async {
     final copiedCount = await controller.copyAllLogs();
     if (!mounted || copiedCount == 0) return;
-    showSnackBar(
-      copiedCount == 1 ? 'Copied 1 log.' : 'Copied $copiedCount logs.',
-    );
+    showSnackBar('Copied ${pluralize(copiedCount, 'log')}.');
   }
 
   Future<void> _handleRowCopyAction(

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:updat/updat.dart';
 
 import 'components/update_pill.dart';
+import '../../presentation/components/confirm_dialog.dart';
 
 /// A quiet header pill that surfaces app updates. It wraps [UpdatWidget] — which
 /// checks the latest GitHub release once on mount — with a compact chip that
@@ -79,27 +80,15 @@ class const AppUpdateChip({super.key}) extends StatelessWidget {
     BuildContext context,
     String latestVersion,
   ) async {
-    final shouldInstall = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Quit Eagly to install update?'),
-        content: Text(
+    final shouldInstall = await showConfirmDialog(
+      context,
+      title: 'Quit Eagly to install update?',
+      message:
           'Eagly will quit, then open the downloaded v$latestVersion installer. '
           'Save any unfinished work before continuing.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Quit and install'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Quit and install',
     );
-    if (shouldInstall != true || !context.mounted) return;
+    if (!shouldInstall || !context.mounted) return;
 
     try {
       await AppUpdateService.quitAndOpenInstaller(latestVersion);

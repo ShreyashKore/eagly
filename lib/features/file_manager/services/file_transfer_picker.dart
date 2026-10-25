@@ -1,8 +1,6 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 
-import '../../../services/preferences_service.dart';
+import '../../../utils/file_dialog_directory.dart';
 
 /// Thin wrapper over `file_picker` for the file-manager's host-side dialogs:
 /// choosing local files to upload to the device, and choosing a destination
@@ -14,7 +12,7 @@ class const FileTransferPicker._() {
   static Future<List<String>> pickFilesToUpload(String deviceLabel) async {
     final result = await FilePicker.platform.pickFiles(
       dialogTitle: 'Upload to $deviceLabel',
-      initialDirectory: await _initialDirectory(),
+      initialDirectory: FileDialogDirectory.initial(),
       allowMultiple: true,
       type: FileType.any,
     );
@@ -26,7 +24,7 @@ class const FileTransferPicker._() {
         .where((path) => path.trim().isNotEmpty)
         .toList();
     if (paths.isNotEmpty) {
-      await _rememberDirectory(File(paths.first).parent.path);
+      await FileDialogDirectory.rememberParentOf(paths.first);
     }
     return paths;
   }
@@ -36,40 +34,11 @@ class const FileTransferPicker._() {
   static Future<String?> pickDownloadDirectory(String fileName) async {
     final directory = await FilePicker.platform.getDirectoryPath(
       dialogTitle: 'Download $fileName to…',
-      initialDirectory: await _initialDirectory(),
+      initialDirectory: FileDialogDirectory.initial(),
     );
     if (directory != null) {
-      await _rememberDirectory(directory);
+      await FileDialogDirectory.remember(directory);
     }
     return directory;
-  }
-
-  static Future<void> _rememberDirectory(String path) async {
-    if (_isUsableDirectory(path)) {
-      await PreferencesService.setLastFileDialogDirectory(path);
-    }
-  }
-
-  static Future<String?> _initialDirectory() async {
-    final remembered = PreferencesService.lastFileDialogDirectory;
-    if (_isUsableDirectory(remembered)) return remembered;
-
-    final home =
-        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-    if (home == null || home.isEmpty) return null;
-    for (final candidate in [
-      '$home${Platform.pathSeparator}Downloads',
-      '$home${Platform.pathSeparator}Documents',
-      home,
-    ]) {
-      if (_isUsableDirectory(candidate)) return candidate;
-    }
-    return null;
-  }
-
-  static bool _isUsableDirectory(String? path) {
-    if (path == null || path.isEmpty) return false;
-    final directory = Directory(path);
-    return directory.isAbsolute && directory.existsSync();
   }
 }

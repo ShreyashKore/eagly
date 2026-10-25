@@ -45,7 +45,7 @@ pub struct IosDeviceHandle {
 pub struct IosDeviceSummary {
     pub udid: String,
     /// `"device"` when lockdownd answered; otherwise `"unpaired"`, `"locked"`
-    /// or `"unavailable"`. Matches the strings `IosGuidance` switches on.
+    /// or `"unavailable"`. Matches the strings `DeviceGuidance` switches on.
     pub status: String,
     /// The user-chosen device name, e.g. `"QA iPhone"`.
     pub name: Option<String>,

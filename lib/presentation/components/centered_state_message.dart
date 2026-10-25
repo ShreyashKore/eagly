@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+/// A pane's empty, unsupported or failed state: an icon, a [title] and a
+/// [description] centred in the pane, with an optional [footer] action.
 class const CenteredStateMessage({
   super.key,
   required final IconData icon,
@@ -37,6 +39,19 @@ class const CenteredStateMessage({
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The "Try again" [CenteredStateMessage.footer] of a load that failed.
+class const RetryButton({super.key, required final VoidCallback onPressed})
+    extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      onPressed: onPressed,
+      icon: const Icon(Icons.refresh),
+      label: const Text('Try again'),
     );
   }
 }

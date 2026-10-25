@@ -1,3 +1,4 @@
+import '../../../utils/utils.dart';
 import 'network_transaction.dart';
 
 /// [transaction]'s request as a POSIX-shell `curl` command, with [body] (the
@@ -13,7 +14,7 @@ String curlCommand(NetworkTransaction transaction, {String? body}) {
   final lines = <String>[
     'curl',
     '--request ${_shellToken(request.method.toUpperCase())}',
-    '--url ${_shellQuote(request.url)}',
+    '--url ${shellQuote(request.url)}',
   ];
   var hasContentType = false;
   for (final header in request.headers) {
@@ -22,13 +23,13 @@ String curlCommand(NetworkTransaction transaction, {String? body}) {
       continue;
     }
     hasContentType |= name == 'content-type';
-    lines.add('--header ${_shellQuote('${header.name}: ${header.value}')}');
+    lines.add('--header ${shellQuote('${header.name}: ${header.value}')}');
   }
   if (request.contentType case final type? when !hasContentType) {
-    lines.add('--header ${_shellQuote('Content-Type: $type')}');
+    lines.add('--header ${shellQuote('Content-Type: $type')}');
   }
   if (body != null && body.isNotEmpty) {
-    lines.add('--data-raw ${_shellQuote(body)}');
+    lines.add('--data-raw ${shellQuote(body)}');
   }
   return lines.join(' \\\n  ');
 }
@@ -37,9 +38,7 @@ String curlCommand(NetworkTransaction transaction, {String? body}) {
 String headersText(List<NetworkHeader> headers) =>
     headers.map((header) => '${header.name}: ${header.value}').join('\n');
 
-String _shellQuote(String value) => "'${value.replaceAll("'", r"'\''")}'";
-
 /// [value] bare when it is plain letters (every real HTTP method), so the
 /// command reads `--request GET`; anything else, quoted.
 String _shellToken(String value) =>
-    RegExp(r'^[A-Za-z]+$').hasMatch(value) ? value : _shellQuote(value);
+    RegExp(r'^[A-Za-z]+$').hasMatch(value) ? value : shellQuote(value);

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../apps_controller.dart';
 import '../data/app_info.dart';
 import 'app_utility_menu.dart';
+import '../../../presentation/components/context_menu.dart';
 
 /// The app actions that need dialogs or snackbars. Owned by the feature view
 /// and invoked from the context menu, so the menu helper stays free of
@@ -68,7 +69,7 @@ Future<void> showAppContextMenu(
 
   final result = await showMenu<_AppAction>(
     context: context,
-    position: _positionFrom(position),
+    position: menuPositionAt(position),
     items: [
       if (controller.canLaunchApps)
         const PopupMenuItem(
@@ -157,13 +158,6 @@ Future<void> showAppContextMenu(
       actions.onUninstall(app);
   }
 }
-
-RelativeRect _positionFrom(Offset globalPosition) => RelativeRect.fromLTRB(
-  globalPosition.dx,
-  globalPosition.dy,
-  globalPosition.dx,
-  globalPosition.dy,
-);
 
 class const _MenuRow(
   final IconData icon,

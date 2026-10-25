@@ -9,6 +9,10 @@ import '../data/network_transaction_store.dart';
 import '../network_controller.dart';
 import 'network_body_view.dart';
 import 'network_presentation.dart';
+import '../../../presentation/components/context_menu.dart';
+import '../../../presentation/components/snack_bars.dart';
+import '../../../utils/timestamp_utils.dart';
+import '../../../presentation/components/hover_builder.dart';
 
 /// One exchange in full, in DevTools' tabs: Headers (a general summary, then
 /// each side's headers), Payload (query parameters and the request body),
@@ -114,14 +118,7 @@ class const _TabButton({
   required final String label,
   required final bool selected,
   required final VoidCallback onTap,
-}) extends StatefulWidget {
-  @override
-  State<_TabButton> createState() => _TabButtonState();
-}
-
-class _TabButtonState extends State<_TabButton> {
-  bool _hovered = false;
-
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -129,36 +126,32 @@ class _TabButtonState extends State<_TabButton> {
     final tokens = context.eaglyTheme;
     return Semantics(
       button: true,
-      selected: widget.selected,
-      child: MouseRegion(
+      selected: selected,
+      child: HoverBuilder(
         cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
+        builder: (context, hovered) => GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
+          onTap: onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             padding: const EdgeInsets.symmetric(horizontal: 12),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: _hovered && !widget.selected
+              color: hovered && !selected
                   ? cs.onSurface.withValues(alpha: 0.06)
                   : null,
               border: Border(
                 bottom: BorderSide(
-                  color: widget.selected ? cs.primary : Colors.transparent,
+                  color: selected ? cs.primary : Colors.transparent,
                   width: 2,
                 ),
               ),
             ),
             child: Text(
-              widget.label,
+              label,
               style: theme.textTheme.labelMedium?.copyWith(
-                color: widget.selected
-                    ? cs.onSurface
-                    : tokens.secondaryTextColor,
-                fontWeight: widget.selected ? FontWeight.w600 : null,
+                color: selected ? cs.onSurface : tokens.secondaryTextColor,
+                fontWeight: selected ? FontWeight.w600 : null,
               ),
             ),
           ),
@@ -200,7 +193,7 @@ class _HeadersTabState extends State<_HeadersTab> {
       NetworkHeader('Status', statusDescription(transaction)),
       if (request.protocol case final protocol?)
         NetworkHeader('Protocol', protocol),
-      if (started != null) NetworkHeader('Started', formatClockTime(started)),
+      if (started != null) NetworkHeader('Started', formatTimeOfDay(started)),
       if (elapsed != null) NetworkHeader('Duration', formatElapsed(elapsed)),
       if (response?.tlsVersion case final tls?) NetworkHeader('TLS', tls),
       if (response?.cipherSuite case final cipher?)
@@ -490,27 +483,27 @@ class _HeaderRowState extends State<_HeaderRow> {
         if (selected != null && selected.isNotEmpty) ...[
           const PopupMenuItem(
             value: _HeaderAction.copySelection,
-            child: NetworkMenuRow(Icons.content_copy, 'Copy selection'),
+            child: MenuRow(Icons.content_copy, 'Copy selection'),
           ),
           const PopupMenuDivider(),
         ],
         const PopupMenuItem(
           value: _HeaderAction.copyValue,
-          child: NetworkMenuRow(Icons.copy, 'Copy value'),
+          child: MenuRow(Icons.copy, 'Copy value'),
         ),
         const PopupMenuItem(
           value: _HeaderAction.copyLine,
-          child: NetworkMenuRow(Icons.notes, 'Copy name and value'),
+          child: MenuRow(Icons.notes, 'Copy name and value'),
         ),
         const PopupMenuItem(
           value: _HeaderAction.copyName,
-          child: NetworkMenuRow(Icons.title, 'Copy name'),
+          child: MenuRow(Icons.title, 'Copy name'),
         ),
         if (widget.onFilter != null) ...[
           const PopupMenuDivider(),
           PopupMenuItem(
             value: _HeaderAction.filter,
-            child: NetworkMenuRow(
+            child: MenuRow(
               Icons.filter_alt_outlined,
               'Show only requests with ${header.name}',
             ),
@@ -761,8 +754,8 @@ class const _TimingTab({required final NetworkEntry entry})
         children: [
           if (span != null)
             Text(
-              'Started at ${formatClockTime(span.start)}'
-              '${span.end == null ? ', still running' : ', finished at ${formatClockTime(span.end!)}'}',
+              'Started at ${formatTimeOfDay(span.start)}'
+              '${span.end == null ? ', still running' : ', finished at ${formatTimeOfDay(span.end!)}'}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: tokens.secondaryTextColor,
               ),

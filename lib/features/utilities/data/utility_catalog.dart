@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../data/device.dart';
+import '../../../utils/utils.dart';
 import 'utility_command.dart';
 import 'utility_suggestions.dart';
 
@@ -33,6 +34,24 @@ UtilityInvocation? _idevice(
   UtilityTool tool,
   List<String> arguments,
 ) => device is IosDevice ? UtilityInvocation(tool, arguments) : null;
+
+// ── Shared params ─────────────────────────────────────────────────────────
+
+/// The app an app command acts on — the key every `packageParamKey` names.
+const _packageParam = UtilityParam(
+  key: 'package',
+  label: 'Package',
+  hint: 'com.example.app',
+  helperText: 'Right-click an app in the Apps pane to fill this in.',
+);
+
+const _permissionParam = UtilityParam.suggestion(
+  key: 'permission',
+  label: 'Permission',
+  hint: 'android.permission.CAMERA',
+  options: androidRuntimePermissions,
+  helperText: 'Pick a common one, or type any permission name.',
+);
 
 // ── Power & connection ────────────────────────────────────────────────────
 
@@ -485,21 +504,7 @@ final _appsGroup = UtilityGroup(
       expectsOutput: false,
       successMessage: 'Permission granted.',
       packageParamKey: 'package',
-      params: const [
-        UtilityParam(
-          key: 'package',
-          label: 'Package',
-          hint: 'com.example.app',
-          helperText: 'Right-click an app in the Apps pane to fill this in.',
-        ),
-        UtilityParam.suggestion(
-          key: 'permission',
-          label: 'Permission',
-          hint: 'android.permission.CAMERA',
-          options: androidRuntimePermissions,
-          helperText: 'Pick a common one, or type any permission name.',
-        ),
-      ],
+      params: const [_packageParam, _permissionParam],
       build: (device, args) => _adbShell(
         device,
         'pm grant ${shellQuote(args['package'])} '
@@ -515,21 +520,7 @@ final _appsGroup = UtilityGroup(
       expectsOutput: false,
       successMessage: 'Permission revoked.',
       packageParamKey: 'package',
-      params: const [
-        UtilityParam(
-          key: 'package',
-          label: 'Package',
-          hint: 'com.example.app',
-          helperText: 'Right-click an app in the Apps pane to fill this in.',
-        ),
-        UtilityParam.suggestion(
-          key: 'permission',
-          label: 'Permission',
-          hint: 'android.permission.CAMERA',
-          options: androidRuntimePermissions,
-          helperText: 'Pick a common one, or type any permission name.',
-        ),
-      ],
+      params: const [_packageParam, _permissionParam],
       build: (device, args) => _adbShell(
         device,
         'pm revoke ${shellQuote(args['package'])} '
@@ -546,14 +537,7 @@ final _appsGroup = UtilityGroup(
           'Every runtime permission for this package goes back to "ask". The '
           'app is force-stopped in the process.',
       packageParamKey: 'package',
-      params: const [
-        UtilityParam(
-          key: 'package',
-          label: 'Package',
-          hint: 'com.example.app',
-          helperText: 'Right-click an app in the Apps pane to fill this in.',
-        ),
-      ],
+      params: const [_packageParam],
       build: (device, args) => _adbShell(
         device,
         'pm reset-permissions -p ${shellQuote(args['package'])}',
@@ -567,14 +551,7 @@ final _appsGroup = UtilityGroup(
       packageParamKey: 'package',
       // Read-only, so it is the one app command safe to aim at a system app.
       systemAppSafe: true,
-      params: const [
-        UtilityParam(
-          key: 'package',
-          label: 'Package',
-          hint: 'com.example.app',
-          helperText: 'Right-click an app in the Apps pane to fill this in.',
-        ),
-      ],
+      params: const [_packageParam],
       build: (device, args) =>
           _adbShell(device, 'dumpsys package ${shellQuote(args['package'])}'),
     ),
@@ -589,12 +566,7 @@ final _appsGroup = UtilityGroup(
           'run this against a signed-in production account.',
       packageParamKey: 'package',
       params: const [
-        UtilityParam(
-          key: 'package',
-          label: 'Package',
-          hint: 'com.example.app',
-          helperText: 'Right-click an app in the Apps pane to fill this in.',
-        ),
+        _packageParam,
         UtilityParam(
           key: 'events',
           label: 'Event count',

@@ -25,9 +25,9 @@ class const ToolbarAction({
   final bool isActive = false,
   final Color? color,
 
-  /// Replaces the icon in the bar (e.g. a progress spinner). The menu always
-  /// uses [icon].
-  final Widget? iconOverride,
+  /// Shows a spinner in place of the icon in the bar, and disables the
+  /// button, while the action's work runs. The menu always uses [icon].
+  final bool busy = false,
 
   /// Draws a group separator before this action — a vertical divider in the
   /// bar, a [PopupMenuDivider] in the menu.
@@ -137,15 +137,14 @@ class _OverflowToolbarState extends State<OverflowToolbar> {
   }
 
   Widget _defaultActionButton(BuildContext context, ToolbarAction action) {
-    final override = action.iconOverride;
     return AppIconButton(
       tooltip: action.tooltip ?? action.label,
       iconSize: widget.iconSize,
       isActive: action.isActive,
       color: action.color,
       onPressed: action.onPressed,
-      icon: override == null ? action.icon : null,
-      child: override,
+      busy: action.busy,
+      icon: action.icon,
     );
   }
 

@@ -16,6 +16,7 @@ import 'services/android_sdk_picker.dart';
 import 'data/emulator_entry.dart';
 import 'data/emulator_launch_options.dart';
 import 'emulator_manager_controller.dart';
+import '../../presentation/components/confirm_dialog.dart';
 
 /// Presents the emulator manager.
 Future<void> showEmulatorManagerDialog({
@@ -155,55 +156,25 @@ class _EmulatorManagerDialogState extends State<EmulatorManagerDialog> {
     );
   }
 
-  Future<bool> _confirmDelete(String label) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.delete_outline),
-        title: const Text('Delete this emulator?'),
-        content: Text(
-          '$label and everything on it is removed from disk. Recreating it '
-          'is easy; getting its contents back is not.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    return confirmed ?? false;
-  }
+  Future<bool> _confirmDelete(String label) => showConfirmDialog(
+    context,
+    icon: Icons.delete_outline,
+    title: 'Delete this emulator?',
+    message:
+        '$label and everything on it is removed from disk. Recreating it '
+        'is easy; getting its contents back is not.',
+    confirmLabel: 'Delete',
+  );
 
-  Future<bool> _confirmWipe(String label) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.delete_sweep_outlined),
-        title: const Text('Wipe data and start?'),
-        content: Text(
-          'Everything on $label — installed apps, accounts, files and '
-          'settings — is erased before it boots. This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Wipe and start'),
-          ),
-        ],
-      ),
-    );
-    return confirmed ?? false;
-  }
+  Future<bool> _confirmWipe(String label) => showConfirmDialog(
+    context,
+    icon: Icons.delete_sweep_outlined,
+    title: 'Wipe data and start?',
+    message:
+        'Everything on $label — installed apps, accounts, files and '
+        'settings — is erased before it boots. This cannot be undone.',
+    confirmLabel: 'Wipe and start',
+  );
 
   @override
   Widget build(BuildContext context) {

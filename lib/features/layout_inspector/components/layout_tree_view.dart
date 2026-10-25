@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../../presentation/components/app_icon_button.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../data/layout_snapshot.dart';
 import '../layout_inspector_controller.dart';
+import '../../../presentation/components/pane_search_field.dart';
 
 /// The captured tree, one row per window and node. Rows have one height, so
 /// a node picked on the screenshot can be scrolled to by its index.
@@ -264,53 +264,22 @@ class _TreeSearchFieldState extends State<_TreeSearchField> {
     super.dispose();
   }
 
-  void _clear() {
-    _text.clear();
-    widget.controller.setQuery('');
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final hasText = widget.controller.query.isNotEmpty;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-      ),
-      child: SizedBox(
-        height: context.scaled(30),
-        child: CallbackShortcuts(
-          bindings: {
-            if (hasText)
-              const SingleActivator(LogicalKeyboardKey.escape): _clear,
-          },
-          child: TextField(
-            controller: _text,
-            onChanged: widget.controller.setQuery,
-            style: theme.textTheme.bodySmall,
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: 'Find by class, id or text…',
-              prefixIcon: const Icon(Icons.search, size: 16),
-              suffixIcon: hasText
-                  ? AppIconButton(
-                      tooltip: 'Clear search',
-                      iconSize: 14,
-                      padding: 4,
-                      onPressed: _clear,
-                      icon: Icons.close,
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-            ),
+          bottom: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
           ),
         ),
+      ),
+      child: PaneSearchField(
+        controller: _text,
+        onChanged: widget.controller.setQuery,
+        hint: 'Find by class, id or text…',
+        compact: true,
       ),
     );
   }

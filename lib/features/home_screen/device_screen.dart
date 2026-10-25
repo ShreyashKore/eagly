@@ -10,6 +10,7 @@ import 'components/device_screen_content.dart';
 import 'components/drop_overlay.dart';
 import 'components/install_progress_banner.dart';
 import 'feature_rail.dart';
+import '../../presentation/components/snack_bars.dart';
 
 /// The screen shown for the selected device tab: the feature rail on the far
 /// left, then Home or the open feature panes, arranged however the user left
@@ -32,10 +33,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
   DropZoneHandle? _hoveredZone;
 
   void _showSnackBar(String message) {
-    if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(content: Text(message)));
+    if (mounted) showMessageSnackBar(context, message);
   }
 
   Future<void> _handleInstallApp() async {

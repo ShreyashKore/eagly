@@ -3,6 +3,7 @@ import 'dart:io';
 import '../../data/ios_device_info.dart';
 import '../ios/ios_device_domains.dart';
 import 'tool_process_runner.dart';
+import '../../utils/utils.dart';
 
 class IdeviceInfoTool({super.executablePath}) extends ToolProcessRunner {
   this : super(executableName: 'ideviceinfo');
@@ -21,7 +22,7 @@ class IdeviceInfoTool({super.executablePath}) extends ToolProcessRunner {
         );
       }
 
-      final info = _parseInfoOutput(result.stdout);
+      final info = parseColonSeparated(result.stdout);
       return IosDeviceInfo(
         deviceId: deviceId,
         status: 'device',
@@ -57,10 +58,10 @@ class IdeviceInfoTool({super.executablePath}) extends ToolProcessRunner {
       ]);
 
       return IosDeviceDomains(
-        root: _parseInfoOutput(results[0].stdout),
-        battery: _parseInfoOutput(results[1].stdout),
-        diskUsage: _parseInfoOutput(results[2].stdout),
-        international: _parseInfoOutput(results[3].stdout),
+        root: parseColonSeparated(results[0].stdout),
+        battery: parseColonSeparated(results[1].stdout),
+        diskUsage: parseColonSeparated(results[2].stdout),
+        international: parseColonSeparated(results[3].stdout),
       );
     } on ProcessException catch (error) {
       logError('ProcessException reading iOS domains for $deviceId', error);
@@ -69,19 +70,6 @@ class IdeviceInfoTool({super.executablePath}) extends ToolProcessRunner {
       logError('Unexpected error reading iOS domains for $deviceId', error);
       return const IosDeviceDomains();
     }
-  }
-
-  Map<String, String> _parseInfoOutput(String stdout) {
-    final info = <String, String>{};
-    for (final line in stdout.split('\n')) {
-      final separatorIndex = line.indexOf(':');
-      if (separatorIndex <= 0) continue;
-      final key = line.substring(0, separatorIndex).trim();
-      final value = line.substring(separatorIndex + 1).trim();
-      if (key.isEmpty || value.isEmpty) continue;
-      info[key] = value;
-    }
-    return info;
   }
 
   String _describeDeviceStatus(ToolCommandResult result) {

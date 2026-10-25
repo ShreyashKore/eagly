@@ -6,6 +6,8 @@ import '../../../presentation/theme/app_theme.dart';
 import '../data/network_filter.dart';
 import '../network_controller.dart';
 import 'network_presentation.dart';
+import '../../../utils/timestamp_utils.dart';
+import '../../../presentation/components/hover_builder.dart';
 
 /// The Network pane's filter: a DevTools-style query field that suggests keys
 /// and the values seen so far, and a row of status and type toggles. Edits
@@ -492,38 +494,28 @@ class const _ToggleChip({
   required final String tooltip,
   required final bool selected,
   required final VoidCallback onTap,
-}) extends StatefulWidget {
-  @override
-  State<_ToggleChip> createState() => _ToggleChipState();
-}
-
-class _ToggleChipState extends State<_ToggleChip> {
-  bool _hovered = false;
-
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final selected = widget.selected;
     return Tooltip(
-      message: widget.tooltip,
+      message: tooltip,
       waitDuration: const Duration(milliseconds: 500),
       child: Semantics(
         button: true,
         selected: selected,
-        child: MouseRegion(
+        child: HoverBuilder(
           cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => _hovered = true),
-          onExit: (_) => setState(() => _hovered = false),
-          child: GestureDetector(
-            onTap: widget.onTap,
+          builder: (context, hovered) => GestureDetector(
+            onTap: onTap,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: selected
                     ? cs.secondaryContainer
-                    : _hovered
+                    : hovered
                     ? cs.onSurface.withValues(alpha: 0.08)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(6),
@@ -532,7 +524,7 @@ class _ToggleChipState extends State<_ToggleChip> {
                 ),
               ),
               child: Text(
-                widget.label,
+                label,
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: selected
                       ? cs.onSecondaryContainer
@@ -576,13 +568,13 @@ class const _TimeWindowChip({
           (first, t) => first == null || t.isBefore(first) ? t : first,
         );
     String at(DateTime t) => origin == null
-        ? formatClockTime(t)
+        ? formatTimeOfDay(t)
         : formatElapsed(t.difference(origin));
 
     return Tooltip(
       message:
-          'Only requests active between ${formatClockTime(window.start)} '
-          'and ${formatClockTime(window.end)}',
+          'Only requests active between ${formatTimeOfDay(window.start)} '
+          'and ${formatTimeOfDay(window.end)}',
       child: Container(
         padding: const EdgeInsets.only(left: 8),
         decoration: BoxDecoration(

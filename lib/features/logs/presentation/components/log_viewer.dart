@@ -14,10 +14,12 @@ import '../../../../services/preferences_service.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../../../utils/log_entry_utils.dart';
 import '../../../../utils/text_search_pattern.dart';
+import '../../../../utils/utils.dart';
 import 'column_visibility_menu.dart';
 import 'log_row.dart';
 import 'log_viewer_header.dart';
 import '../log_viewer_constants.dart';
+import '../../../../presentation/components/context_menu.dart';
 
 enum LogViewerCopyAction { copyRow, copyMessage, copyTimestampAndMessage }
 
@@ -645,12 +647,7 @@ class _LogViewerState extends State<LogViewer> {
     var latestHidden = Set.of(_hiddenColumns);
     showMenu<void>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy,
-        position.dx,
-        position.dy,
-      ),
+      position: menuPositionAt(position),
       items: [
         PopupMenuItem<void>(
           padding: EdgeInsets.zero,
@@ -914,12 +911,7 @@ class _LogViewerState extends State<LogViewer> {
   }) async {
     final action = await showMenu<LogViewerCopyAction>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        globalPosition.dx,
-        globalPosition.dy,
-        globalPosition.dx,
-        globalPosition.dy,
-      ),
+      position: menuPositionAt(globalPosition),
       items: const [
         PopupMenuItem(value: LogViewerCopyAction.copyRow, child: Text('Copy')),
         PopupMenuItem(
@@ -961,7 +953,7 @@ class _LogViewerState extends State<LogViewer> {
                     vertical: 10,
                   ),
                   child: Text(
-                    count == 1 ? '1 row selected' : '$count rows selected',
+                    '${pluralize(count, 'row')} selected',
                     style: theme.textTheme.labelLarge?.copyWith(
                       color: theme.colorScheme.onSurface,
                       fontWeight: FontWeight.w600,

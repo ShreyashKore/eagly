@@ -150,12 +150,7 @@ class _NetworkFeatureViewState extends FeatureViewState<NetworkFeatureView> {
           icon: Icons.save_alt,
           label: 'Export as HAR',
           onPressed: controller.isEmpty || _exporting ? null : _exportHar,
-          iconOverride: _exporting
-              ? const SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : null,
+          busy: _exporting,
         ),
         ToolbarAction(
           icon: Icons.block,

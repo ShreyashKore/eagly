@@ -4,6 +4,7 @@ import 'package:gap/gap.dart';
 import '../../../data/device.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../../../session/device_session_controller.dart';
+import '../../../presentation/components/hover_builder.dart';
 
 /// The feature launcher strip — every pane the app offers for this device,
 /// kept above the fold so a new user can see what Eagly does at a glance.
@@ -155,40 +156,30 @@ class const _ShortcutTile({
 
   /// Drops the sublabel and tightens the padding.
   required final bool compact,
-}) extends StatefulWidget {
-  @override
-  State<_ShortcutTile> createState() => _ShortcutTileState();
-}
-
-class _ShortcutTileState extends State<_ShortcutTile> {
-  bool _hovered = false;
-
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final spec = widget.spec;
     final active = spec.isActive;
     final enabled = spec.onTap != null;
-    final compact = widget.compact;
     final accent = theme.colorScheme.primary;
-    final borderColor = active
-        ? accent.withValues(alpha: 0.45)
-        : _hovered
-        ? theme.colorScheme.outline
-        : theme.colorScheme.outlineVariant;
     final iconBoxSize = compact ? 28.0 : 32.0;
 
-    final tile = MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
+    final tile = HoverBuilder(
+      builder: (context, hovered) => AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         decoration: BoxDecoration(
           color: active
               ? theme.colorScheme.primaryContainer.withValues(alpha: 0.55)
               : theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor),
+          border: Border.all(
+            color: active
+                ? accent.withValues(alpha: 0.45)
+                : hovered
+                ? theme.colorScheme.outline
+                : theme.colorScheme.outlineVariant,
+          ),
         ),
         child: Material(
           color: Colors.transparent,

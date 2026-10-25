@@ -58,11 +58,6 @@ class const DeviceLabel({
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final effectiveTextStyle = _textStyle(theme);
-    final effectiveIconColor =
-        iconColor ??
-        (device.isDisconnected
-            ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
-            : theme.colorScheme.primary);
 
     final label = Column(
       mainAxisSize: MainAxisSize.min,
@@ -80,40 +75,25 @@ class const DeviceLabel({
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelSmall?.copyWith(
-              color: device.isDisconnected
-                  ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
-                  : null,
+              color: device.isDisconnected ? _dimmed(theme) : null,
             ),
           ),
       ],
     );
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        DevicePlatformIconWidget(
-          device: device,
-          color: effectiveIconColor,
-          size: iconSize ?? 24,
-        ),
-        const SizedBox(width: 8),
-        if (maxWidth != null)
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxWidth!),
-            child: label,
-          )
-        else
-          Flexible(child: label),
-      ],
+    return _IconLabelRow(
+      device: device,
+      iconColor: iconColor,
+      iconSize: iconSize,
+      maxWidth: maxWidth,
+      label: label,
     );
   }
 
   TextStyle? _textStyle(ThemeData theme) {
     final baseStyle = textStyle ?? theme.textTheme.bodyMedium;
     return baseStyle?.copyWith(
-      color: device.isDisconnected
-          ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
-          : baseStyle.color,
+      color: device.isDisconnected ? _dimmed(theme) : baseStyle.color,
     );
   }
 }
@@ -134,11 +114,6 @@ class const DeviceSelectionLabel({
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final label = device.displayLabel;
-    final effectiveIconColor =
-        iconColor ??
-        (device.isDisconnected
-            ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
-            : theme.colorScheme.primary);
     final primaryStyle = _primaryTextStyle(theme);
     final secondaryStyle = _secondaryTextStyle(theme);
 
@@ -167,32 +142,19 @@ class const DeviceSelectionLabel({
       ],
     );
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        DevicePlatformIconWidget(
-          device: device,
-          color: effectiveIconColor,
-          size: iconSize ?? 24,
-        ),
-        const SizedBox(width: 8),
-        if (maxWidth != null)
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxWidth!),
-            child: textColumn,
-          )
-        else
-          Flexible(child: textColumn),
-      ],
+    return _IconLabelRow(
+      device: device,
+      iconColor: iconColor,
+      iconSize: iconSize,
+      maxWidth: maxWidth,
+      label: textColumn,
     );
   }
 
   TextStyle? _primaryTextStyle(ThemeData theme) {
     final baseStyle = textStyle ?? theme.textTheme.bodySmall;
     return baseStyle?.copyWith(
-      color: device.isDisconnected
-          ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
-          : baseStyle.color,
+      color: device.isDisconnected ? _dimmed(theme) : baseStyle.color,
     );
   }
 
@@ -200,9 +162,47 @@ class const DeviceSelectionLabel({
     final baseStyle = secondaryTextStyle ?? theme.textTheme.labelSmall;
     return baseStyle?.copyWith(
       fontSize: 10,
-      color: device.isDisconnected
-          ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
-          : baseStyle.color,
+      color: device.isDisconnected ? _dimmed(theme) : baseStyle.color,
+    );
+  }
+}
+
+/// Text and icons of a disconnected device.
+Color _dimmed(ThemeData theme) =>
+    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6);
+
+/// [device]'s platform icon, then [label] — capped at [maxWidth] when given.
+class const _IconLabelRow({
+  required final Device device,
+  required final Color? iconColor,
+  required final double? iconSize,
+  required final double? maxWidth,
+  required final Widget label,
+}) extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        DevicePlatformIconWidget(
+          device: device,
+          color:
+              iconColor ??
+              (device.isDisconnected
+                  ? _dimmed(theme)
+                  : theme.colorScheme.primary),
+          size: iconSize ?? 24,
+        ),
+        const SizedBox(width: 8),
+        if (maxWidth != null)
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth!),
+            child: label,
+          )
+        else
+          Flexible(child: label),
+      ],
     );
   }
 }

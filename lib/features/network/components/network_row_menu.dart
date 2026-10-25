@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../../../presentation/components/feature_view.dart';
 import '../../../utils/utils.dart';
 import '../data/network_copy.dart';
 import '../data/network_filter.dart';
 import '../data/network_transaction.dart';
 import '../data/network_transaction_store.dart';
 import '../network_controller.dart';
-import 'network_presentation.dart';
+import '../../../presentation/components/context_menu.dart';
+import '../../../presentation/components/snack_bars.dart';
 
 enum _EntryAction {
   copyUrl,
@@ -47,64 +47,61 @@ Future<void> showNetworkEntryMenu(
     items: [
       const PopupMenuItem(
         value: _EntryAction.copyUrl,
-        child: NetworkMenuRow(Icons.link, 'Copy URL'),
+        child: MenuRow(Icons.link, 'Copy URL'),
       ),
       const PopupMenuItem(
         value: _EntryAction.copyCurl,
-        child: NetworkMenuRow(Icons.terminal, 'Copy as cURL'),
+        child: MenuRow(Icons.terminal, 'Copy as cURL'),
       ),
       PopupMenuItem(
         value: _EntryAction.copyRequestHeaders,
         enabled: request.headers.isNotEmpty,
-        child: const NetworkMenuRow(Icons.north_east, 'Copy request headers'),
+        child: const MenuRow(Icons.north_east, 'Copy request headers'),
       ),
       PopupMenuItem(
         value: _EntryAction.copyResponseHeaders,
         enabled: response?.headers.isNotEmpty ?? false,
-        child: const NetworkMenuRow(Icons.south_west, 'Copy response headers'),
+        child: const MenuRow(Icons.south_west, 'Copy response headers'),
       ),
       PopupMenuItem(
         value: _EntryAction.copyResponseBody,
         enabled: response?.body.isFetchable ?? false,
-        child: const NetworkMenuRow(Icons.data_object, 'Copy response body'),
+        child: const MenuRow(Icons.data_object, 'Copy response body'),
       ),
       const PopupMenuDivider(),
       if (host.isNotEmpty) ...[
         PopupMenuItem(
           value: _EntryAction.onlyHost,
-          child: NetworkMenuRow(Icons.filter_alt_outlined, 'Show only $host'),
+          child: MenuRow(Icons.filter_alt_outlined, 'Show only $host'),
         ),
         PopupMenuItem(
           value: _EntryAction.hideHost,
-          child: NetworkMenuRow(Icons.filter_alt_off_outlined, 'Hide $host'),
+          child: MenuRow(Icons.filter_alt_off_outlined, 'Hide $host'),
         ),
       ],
       if (path.isNotEmpty && path != '/')
         PopupMenuItem(
           value: _EntryAction.onlyPath,
-          child: NetworkMenuRow(Icons.route_outlined, 'Show only $path'),
+          child: MenuRow(Icons.route_outlined, 'Show only $path'),
         ),
       PopupMenuItem(
         value: _EntryAction.onlyMethod,
-        child: NetworkMenuRow(
-          Icons.swap_vert,
-          'Show only ${request.method} requests',
-        ),
+        child: MenuRow(Icons.swap_vert, 'Show only ${request.method} requests'),
       ),
       if (code != null)
         PopupMenuItem(
           value: _EntryAction.onlyStatus,
-          child: NetworkMenuRow(Icons.tag, 'Show only status $code'),
+          child: MenuRow(Icons.tag, 'Show only status $code'),
         ),
       if (controller.filter.isActive)
         const PopupMenuItem(
           value: _EntryAction.clearFilters,
-          child: NetworkMenuRow(Icons.clear_all, 'Clear filters'),
+          child: MenuRow(Icons.clear_all, 'Clear filters'),
         ),
       const PopupMenuDivider(),
       const PopupMenuItem(
         value: _EntryAction.clearList,
-        child: NetworkMenuRow(Icons.block, 'Clear list'),
+        child: MenuRow(Icons.block, 'Clear list'),
       ),
     ],
   );
@@ -145,7 +142,7 @@ Future<void> showNetworkEntryMenu(
         if (!context.mounted) return;
         final text = body.text;
         if (text == null) {
-          FeatureView.showSnackBar(
+          showMessageSnackBar(
             context,
             'The response body is binary; export a HAR file to keep it.',
           );
@@ -154,7 +151,7 @@ Future<void> showNetworkEntryMenu(
         await copyWithToast(context, text, 'Copied response body.');
       } catch (error) {
         if (context.mounted) {
-          FeatureView.showSnackBar(
+          showMessageSnackBar(
             context,
             'Could not load the body: ${describeError(error)}',
           );

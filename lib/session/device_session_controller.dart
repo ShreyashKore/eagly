@@ -19,6 +19,7 @@ import '../features/utilities/utilities_controller.dart';
 import '../services/app_breadcrumbs.dart';
 import '../services/app_install_service.dart';
 import '../services/device_session_repository.dart';
+import '../utils/file_dialog_directory.dart';
 import '../utils/utils.dart';
 import 'workspace_layout.dart';
 
@@ -539,7 +540,7 @@ class DeviceSessionController._({
     _notify();
 
     try {
-      await AppInstallService.rememberDialogDirectoryFromPath(normalizedPath);
+      await FileDialogDirectory.rememberParentOf(normalizedPath);
       if (replacing != null) {
         AppBreadcrumbs.action(
           'Uninstalling ${replacing.packageName} to replace it',

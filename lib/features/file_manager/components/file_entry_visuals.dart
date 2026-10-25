@@ -5,6 +5,7 @@ import '../../../utils/text_search_pattern.dart';
 import '../../../utils/utils.dart';
 import '../data/device_file_entry.dart';
 import '../data/file_view_options.dart';
+import '../../../utils/timestamp_utils.dart';
 
 /// Icon, colour and text formatting helpers shared by the list and grid views
 /// so an entry renders identically in both.
@@ -44,10 +45,7 @@ class const FileEntryVisuals._() {
 
   static String formatModified(DateTime? modified) {
     if (modified == null) return '—';
-    final local = modified.toLocal();
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${local.year}-${two(local.month)}-${two(local.day)} '
-        '${two(local.hour)}:${two(local.minute)}';
+    return formatDateTime(modified, precision: TimePrecision.minute);
   }
 }
 

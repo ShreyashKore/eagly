@@ -19,7 +19,7 @@ final class LogEntryUtils {
     assert(type != LogEntryType.log, 'Use the default constructor for logs.');
     return LogEntry(
       type: type,
-      timestamp: timestamp ?? TimestampUtils.formatDate(DateTime.now()),
+      timestamp: timestamp ?? formatDateTime(DateTime.now()),
       pid: pid,
       tid: tid,
       level: level,

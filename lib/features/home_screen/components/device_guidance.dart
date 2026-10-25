@@ -3,7 +3,16 @@ import 'package:gap/gap.dart';
 
 import 'step_list.dart';
 
-class const AndroidUnauthorizedGuidance({super.key}) extends StatelessWidget {
+/// Full-pane instructions for a device that needs the user before Eagly can
+/// use it: an untrusted iPhone, an Android phone waiting for USB debugging
+/// to be allowed.
+class const DeviceGuidance({
+  super.key,
+  required final IconData icon,
+  required final String title,
+  required final String message,
+  required final List<String> steps,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -18,11 +27,11 @@ class const AndroidUnauthorizedGuidance({super.key}) extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(Icons.usb, size: 32, color: theme.colorScheme.primary),
+                  Icon(icon, size: 32, color: theme.colorScheme.primary),
                   const Gap(12),
                   Expanded(
                     child: Text(
-                      'Allow USB Debugging',
+                      title,
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -32,22 +41,13 @@ class const AndroidUnauthorizedGuidance({super.key}) extends StatelessWidget {
               ),
               const Gap(12),
               Text(
-                'Your Android device is asking for permission to allow USB '
-                'debugging from this computer.',
+                message,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
               const Gap(20),
-              StepList(
-                steps: const [
-                  'Check your Android device screen',
-                  'Tap "Allow" on the "Allow USB debugging?" dialog',
-                  'Optionally check "Always allow from this computer"',
-                  'If the dialog has dismissed, disconnect and reconnect '
-                      'the USB cable',
-                ],
-              ),
+              StepList(steps: steps),
             ],
           ),
         ),

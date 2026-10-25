@@ -214,7 +214,3 @@ class const UtilityRunResult({
     return '\$ $commandLine\n$body';
   }
 }
-
-/// Single-quotes [value] for the *device* shell so spaces and metacharacters
-/// in user input can't break out of the command being built.
-String shellQuote(String value) => "'${value.replaceAll("'", r"'\''")}'";

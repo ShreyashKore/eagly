@@ -6,6 +6,7 @@ import '../../../data/device.dart';
 import '../../../presentation/components/notice_banner.dart';
 import '../../../presentation/theme/app_theme.dart';
 import 'home_primitives.dart';
+import '../../../utils/timestamp_utils.dart';
 
 /// Full-width notice shown at the top of the dashboard once the device drops
 /// off. The dashboard below it keeps rendering the last snapshot, so this
@@ -22,7 +23,7 @@ class const DisconnectedBanner({
 
     final subtitle = hasSnapshot
         ? 'Showing the last known state'
-              '${seen == null ? '' : ', captured at ${formatClockTime(seen)}'}.'
+              '${seen == null ? '' : ', captured at ${formatTimeOfDay(seen, precision: TimePrecision.minute)}'}.'
         : 'Reconnect the device to see its vitals and use its features.';
 
     return NoticeBanner(

@@ -1,3 +1,39 @@
+/// How much of the time of day [formatDateTime] and [formatTimeOfDay] write.
+enum TimePrecision { minute, second, millisecond }
+
+String _two(int value) => value.toString().padLeft(2, '0');
+
+/// `14:03:07.250` in local time, down to [precision].
+String formatTimeOfDay(
+  DateTime time, {
+  TimePrecision precision = TimePrecision.millisecond,
+}) {
+  final local = time.toLocal();
+  final buffer = StringBuffer('${_two(local.hour)}:${_two(local.minute)}');
+  if (precision != TimePrecision.minute) buffer.write(':${_two(local.second)}');
+  if (precision == TimePrecision.millisecond) {
+    buffer.write('.${local.millisecond.toString().padLeft(3, '0')}');
+  }
+  return buffer.toString();
+}
+
+/// `2026-10-25 14:03:07.250` in local time, down to [precision].
+String formatDateTime(
+  DateTime time, {
+  TimePrecision precision = TimePrecision.millisecond,
+}) {
+  final local = time.toLocal();
+  return '${local.year}-${_two(local.month)}-${_two(local.day)} '
+      '${formatTimeOfDay(local, precision: precision)}';
+}
+
+/// `20261025-140307`, local time: a timestamp safe in a file name.
+String fileNameTimestamp(DateTime time) {
+  final local = time.toLocal();
+  return '${local.year}${_two(local.month)}${_two(local.day)}-'
+      '${_two(local.hour)}${_two(local.minute)}${_two(local.second)}';
+}
+
 class TimestampUtils {
   /// Convert Unix timestamp (seconds + nanoseconds) to readable format
   static String formatTimestamp(int seconds, int nanos) {
@@ -8,19 +44,7 @@ class TimestampUtils {
       isUtc: false,
     );
 
-    return formatDate(dateTime);
-  }
-
-  static String formatDate(DateTime dateTime) {
-    final year = dateTime.year;
-    final month = dateTime.month.toString().padLeft(2, '0');
-    final day = dateTime.day.toString().padLeft(2, '0');
-    final hour = dateTime.hour.toString().padLeft(2, '0');
-    final minute = dateTime.minute.toString().padLeft(2, '0');
-    final second = dateTime.second.toString().padLeft(2, '0');
-    final millisecond = dateTime.millisecond.toString().padLeft(3, '0');
-
-    return '$year-$month-$day $hour:$minute:$second.$millisecond';
+    return formatDateTime(dateTime);
   }
 
   /// Parse readable timestamp back to seconds/nanos format

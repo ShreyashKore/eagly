@@ -263,7 +263,7 @@ class const _CpuTile({
       value: percent / 100,
       headline: '${percent.toStringAsFixed(0)}%',
       detail:
-          '${cpu.coreCount} core${cpu.coreCount == 1 ? '' : 's'} · load '
+          '${pluralize(cpu.coreCount, 'core')} · load '
           '${cpu.loadAverage1m.toStringAsFixed(2)} / '
           '${cpu.loadAverage5m.toStringAsFixed(2)} / '
           '${cpu.loadAverage15m.toStringAsFixed(2)}',

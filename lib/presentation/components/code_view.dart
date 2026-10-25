@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/re_highlight.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
@@ -7,8 +6,9 @@ import 'package:re_highlight/styles/atom-one-light.dart';
 
 import '../theme/app_theme.dart';
 import 'app_icon_button.dart';
-import 'feature_view.dart';
 import 'find_bar.dart';
+import 'snack_bars.dart';
+import 'context_menu.dart';
 
 /// Read-only text in a code view: syntax highlighting from [language], fold
 /// markers for nested `{}` / `[]`, line numbers, and a find bar (⌘F / Ctrl+F,
@@ -118,12 +118,11 @@ class _CodeViewState extends State<CodeView> {
     }
   }
 
-  Future<void> _copyAll() async {
-    await Clipboard.setData(
-      ClipboardData(text: widget.copyText ?? widget.text),
-    );
-    if (mounted) FeatureView.showSnackBar(context, 'Copied ${widget.noun}.');
-  }
+  Future<void> _copyAll() => copyWithToast(
+    context,
+    widget.copyText ?? widget.text,
+    'Copied ${widget.noun}.',
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -324,12 +323,12 @@ class const _CodeContextMenu({
     final at = anchors.primaryAnchor;
     showMenu<void>(
       context: context,
-      position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
+      position: menuPositionAt(at),
       items: [
         PopupMenuItem(
           enabled: hasSelection,
           onTap: controller.copy,
-          child: _MenuRow(
+          child: MenuRow(
             Icons.content_copy,
             'Copy',
             shortcut: shortcutLabel('C'),
@@ -337,7 +336,7 @@ class const _CodeContextMenu({
         ),
         PopupMenuItem(
           onTap: controller.selectAll,
-          child: _MenuRow(
+          child: MenuRow(
             Icons.select_all,
             'Select all',
             shortcut: shortcutLabel('A'),
@@ -346,37 +345,12 @@ class const _CodeContextMenu({
         const PopupMenuDivider(),
         PopupMenuItem(
           onTap: onFind,
-          child: _MenuRow(Icons.search, 'Find…', shortcut: shortcutLabel('F')),
+          child: MenuRow(Icons.search, 'Find…', shortcut: shortcutLabel('F')),
         ),
         PopupMenuItem(
           onTap: onCopyAll,
-          child: _MenuRow(Icons.copy_all, copyAllLabel),
+          child: MenuRow(Icons.copy_all, copyAllLabel),
         ),
-      ],
-    );
-  }
-}
-
-class const _MenuRow(
-  final IconData icon,
-  final String label, {
-  final String? shortcut,
-}) extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 16),
-        const SizedBox(width: 10),
-        Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
-        if (shortcut != null) ...[
-          const SizedBox(width: 24),
-          Text(
-            shortcut!,
-            style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: context.eaglyTheme.tertiaryTextColor),
-          ),
-        ],
       ],
     );
   }

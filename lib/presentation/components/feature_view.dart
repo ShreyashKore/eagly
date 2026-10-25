@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 
 import 'overflow_toolbar.dart';
 import 'workspace_pane_scope.dart';
+import 'snack_bars.dart';
 
 /// Base class for the per-device feature panes (logs, mirror, crash reports,
 /// file manager, device home) — the view counterpart of `FeatureController`.
@@ -20,16 +21,7 @@ abstract class const FeatureView({
   /// Hides the pane (handled by the device screen). `null` for panes that
   /// cannot be closed (e.g. device home).
   final VoidCallback? onClose,
-}) extends StatefulWidget {
-  /// Shows [message] in a snackbar, replacing the current one. Static so
-  /// deeply-nested pane content can use it with any [BuildContext].
-  static void showSnackBar(BuildContext context, String message) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-}
+}) extends StatefulWidget {}
 
 /// Base [State] for a [FeatureView]: rebuilds [buildContent] whenever
 /// [listenable] notifies. Subclasses implement [buildContent] instead of
@@ -53,10 +45,11 @@ abstract class FeatureViewState<T extends FeatureView> extends State<T> {
     );
   }
 
-  /// Shows [message] in a snackbar; safe to call after async gaps.
-  void showSnackBar(String message) {
-    if (!mounted) return;
-    FeatureView.showSnackBar(context, message);
+  /// Shows [message] in a snackbar; safe to call after async gaps. A `null`
+  /// [message] — an action that had nothing to report — shows nothing.
+  void showSnackBar(String? message) {
+    if (message == null || !mounted) return;
+    showMessageSnackBar(context, message);
   }
 }
 

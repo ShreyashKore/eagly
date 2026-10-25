@@ -22,20 +22,24 @@ class const AppMenuState({
   required final bool hasSavedLayout,
 }) {
   /// State when no device is selected (Home screen / no active log tab).
-  static const empty = AppMenuState(
-    hasActiveLog: false,
-    isImported: false,
-    deviceConnected: false,
-    logcatState: LogcatState.stopped,
-    hasLogs: false,
-    isIos: false,
-    selectedLogLevel: null,
-    wrapText: false,
-    autoScroll: false,
-    searchBarVisible: false,
-    canSaveLayout: false,
-    hasSavedLayout: false,
-  );
+  /// Home can still clear a [hasSavedLayout].
+  const new idle({bool hasSavedLayout = false})
+    : this(
+        hasActiveLog: false,
+        isImported: false,
+        deviceConnected: false,
+        logcatState: LogcatState.stopped,
+        hasLogs: false,
+        isIos: false,
+        selectedLogLevel: null,
+        wrapText: false,
+        autoScroll: false,
+        searchBarVisible: false,
+        canSaveLayout: false,
+        hasSavedLayout: hasSavedLayout,
+      );
+
+  static const empty = AppMenuState.idle();
 
   bool get isRunning => logcatState != LogcatState.stopped;
   bool get isPaused => logcatState == LogcatState.paused;

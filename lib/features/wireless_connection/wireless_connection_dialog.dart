@@ -94,14 +94,14 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
       );
     }
 
-    final pairingHost = _hostFromAddress(_pairAddressController.text);
+    final pairingHost = wirelessHostFromAddress(_pairAddressController.text);
     if (pairingHost != null) {
       return _discoveredTargets.firstWhereOrNull(
         (target) => target.host == pairingHost,
       );
     }
 
-    final connectHost = _hostFromAddress(_connectAddressController.text);
+    final connectHost = wirelessHostFromAddress(_connectAddressController.text);
     if (connectHost != null) {
       return _discoveredTargets.firstWhereOrNull(
         (target) => target.host == connectHost,
@@ -156,26 +156,31 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
         _showManualConnectSection = true;
         _fallbackConnectHost =
             selectedTarget?.host ??
-            _hostFromAddress(_connectAddressController.text);
+            wirelessHostFromAddress(_connectAddressController.text);
       } else {
         _fallbackConnectHost = null;
       }
     });
 
+    if (_reportPairResult(result)) return;
+    _applySuggestedAddresses();
+  }
+
+  /// Shows [result]'s error or message, and closes the dialog once the pair
+  /// went on to connect. True when there is nothing left for the dialog to do.
+  bool _reportPairResult(WirelessPairResult result) {
     if (result.error != null) {
       widget.onShowSnackBar(result.error!);
-      return;
+      return true;
     }
-
     if (result.message != null) {
       widget.onShowSnackBar(result.message!);
     }
     if (result.autoConnected) {
       Navigator.of(context).pop();
-      return;
+      return true;
     }
-
-    _applySuggestedAddresses();
+    return false;
   }
 
   /// The scan loop paired a device from a scanned QR code — mirror the outcome
@@ -183,17 +188,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   void _handleQrPairingCompleted(WirelessPairResult result) {
     if (!mounted) return;
 
-    if (result.error != null) {
-      widget.onShowSnackBar(result.error!);
-      return;
-    }
-    if (result.message != null) {
-      widget.onShowSnackBar(result.message!);
-    }
-    if (result.autoConnected) {
-      Navigator.of(context).pop();
-      return;
-    }
+    if (_reportPairResult(result)) return;
 
     if (result.connectAddresses.isNotEmpty) {
       _connectAddressController.text = result.connectAddresses.first;
@@ -263,8 +258,8 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
       }
 
       _selectedDiscoveryHost ??=
-          _hostFromAddress(suggestedPairing) ??
-          _hostFromAddress(suggestedConnect);
+          wirelessHostFromAddress(suggestedPairing) ??
+          wirelessHostFromAddress(suggestedConnect);
     });
   }
 
@@ -285,26 +280,18 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     return manager.devices.firstWhereOrNull(
       (device) =>
           device.status == 'device' &&
-          _hostFromAddress(device.id) == target.host,
+          wirelessHostFromAddress(device.id) == target.host,
     );
   }
 
   Device? _connectedDeviceForAddress(String address) {
-    final host = _hostFromAddress(address);
+    final host = wirelessHostFromAddress(address);
     if (host == null) return null;
     return manager.devices.firstWhereOrNull(
       (device) =>
-          device.status == 'device' && _hostFromAddress(device.id) == host,
+          device.status == 'device' &&
+          wirelessHostFromAddress(device.id) == host,
     );
-  }
-
-  String? _hostFromAddress(String? address) {
-    if (address == null) return null;
-    final trimmed = address.trim();
-    if (trimmed.isEmpty) return null;
-    final separatorIndex = trimmed.lastIndexOf(':');
-    if (separatorIndex <= 0) return null;
-    return trimmed.substring(0, separatorIndex);
   }
 
   // ── Pair pane ──────────────────────────────────────────────────────────

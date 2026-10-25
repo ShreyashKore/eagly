@@ -1,6 +1,8 @@
 import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
 
+import '../../../utils/timestamp_utils.dart';
+
 /// The Network pane's file dialogs. Reading and writing the files is the
 /// controller's job; this only asks the user where.
 abstract final class NetworkFileService {
@@ -26,10 +28,7 @@ abstract final class NetworkFileService {
 
   /// `<device>-network-<yyyyMMdd-HHmmss>.har`, safe on every file system.
   static String suggestedHarName(String deviceName, DateTime now) {
-    String two(int value) => value.toString().padLeft(2, '0');
-    final stamp =
-        '${now.year}${two(now.month)}${two(now.day)}-'
-        '${two(now.hour)}${two(now.minute)}${two(now.second)}';
+    final stamp = fileNameTimestamp(now);
     final device = deviceName
         .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');

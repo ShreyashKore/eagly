@@ -9,6 +9,7 @@ import 'components/confirm_disable_tips.dart';
 import 'components/tips_menu_button.dart';
 import 'tip.dart';
 import 'tips_controller.dart';
+import '../../presentation/components/hover_builder.dart';
 
 /// Largest width the inline pill is allowed to claim in the header. It shrinks
 /// to fit shorter tips and ellipsizes anything longer.
@@ -26,23 +27,16 @@ const double _minWindowWidthForTips = 820;
 class const TipsHeaderPanel({
   super.key,
   required final TipsController controller,
-}) extends StatefulWidget {
-  @override
-  State<TipsHeaderPanel> createState() => _TipsHeaderPanelState();
-}
-
-class _TipsHeaderPanelState extends State<TipsHeaderPanel> {
-  bool _hovered = false;
-
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: widget.controller,
+      listenable: controller,
       builder: (context, _) {
-        final tip = widget.controller.currentTip;
+        final tip = controller.currentTip;
         final tooNarrow =
             MediaQuery.sizeOf(context).width < _minWindowWidthForTips;
-        if (!widget.controller.visible || tip == null || tooNarrow) {
+        if (!controller.visible || tip == null || tooNarrow) {
           return const SizedBox.shrink();
         }
 
@@ -53,20 +47,18 @@ class _TipsHeaderPanelState extends State<TipsHeaderPanel> {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: _maxPanelWidth),
-            child: MouseRegion(
-              onEnter: (_) => setState(() => _hovered = true),
-              onExit: (_) => setState(() => _hovered = false),
-              child: AnimatedContainer(
+            child: HoverBuilder(
+              builder: (context, hovered) => AnimatedContainer(
                 duration: const Duration(milliseconds: 140),
                 padding: const EdgeInsets.only(left: 10, right: 2),
                 decoration: BoxDecoration(
-                  color: _hovered
+                  color: hovered
                       ? theme.colorScheme.surfaceContainerHighest
                       : theme.colorScheme.surface,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: theme.colorScheme.outlineVariant.withValues(
-                      alpha: _hovered ? 1 : 0.6,
+                      alpha: hovered ? 1 : 0.6,
                     ),
                   ),
                 ),
@@ -110,9 +102,9 @@ class _TipsHeaderPanelState extends State<TipsHeaderPanel> {
                       tooltip: 'Hide tip',
                       iconSize: 16,
                       padding: 4,
-                      onPressed: widget.controller.dismissForSession,
+                      onPressed: controller.dismissForSession,
                     ),
-                    TipsMenuButton(controller: widget.controller),
+                    TipsMenuButton(controller: controller),
                   ],
                 ),
               ),
@@ -124,7 +116,7 @@ class _TipsHeaderPanelState extends State<TipsHeaderPanel> {
   }
 
   Future<void> _openDetail(BuildContext context, Tip tip) {
-    return showTipDetailDialog(context, tip, widget.controller);
+    return showTipDetailDialog(context, tip, controller);
   }
 }
 

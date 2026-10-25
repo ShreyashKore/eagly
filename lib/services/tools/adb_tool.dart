@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:eagly/features/logs/services/log_parsers/log_line_parser.dart';
 import 'package:eagly/features/logs/services/log_parsers/logcat_parser.dart';
 
 import '../../data/app_install_conflict.dart';
@@ -146,21 +145,18 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
 
       final properties = _parseAndroidGetPropOutput(result.stdout);
       final brand = _normalizeAndroidBrand(
-        _firstNonEmpty(
+        firstNonBlank(
           properties['ro.product.brand'],
           properties['ro.product.manufacturer'],
         ),
       );
-      final model = _firstNonEmpty(properties['ro.product.model'], null);
-      final marketName = _firstNonEmpty(
-        properties['ro.product.marketname'],
-        null,
-      );
-      final name = _firstNonEmpty(
+      final model = firstNonBlank(properties['ro.product.model']);
+      final marketName = firstNonBlank(properties['ro.product.marketname']);
+      final name = firstNonBlank(
         properties['ro.product.device'],
         properties['ro.product.name'],
       );
-      final serialNumber = _firstNonEmpty(
+      final serialNumber = firstNonBlank(
         properties['ro.serialno'],
         properties['ro.boot.serialno'],
       );
@@ -281,7 +277,7 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
       return DeviceInfo(
         identity: DeviceIdentityInfo(
           deviceName: device.name ?? device.model,
-          manufacturer: _firstNonEmpty(
+          manufacturer: firstNonBlank(
             properties['ro.product.manufacturer'],
             device.brand,
           ),
@@ -331,24 +327,10 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
     }
   }
 
-  Map<String, String> _parseColonSeparated(String output) {
-    final values = <String, String>{};
-    for (final rawLine in output.split('\n')) {
-      final line = rawLine.trim();
-      final separatorIndex = line.indexOf(':');
-      if (separatorIndex <= 0) continue;
-      final key = line.substring(0, separatorIndex).trim();
-      final value = line.substring(separatorIndex + 1).trim();
-      if (key.isEmpty || value.isEmpty) continue;
-      values[key] = value;
-    }
-    return values;
-  }
-
   /// `dumpsys battery` reports BatteryManager int constants for status/health
   /// and temperature in tenths of a degree Celsius.
   DeviceBatteryInfo _parseAndroidBattery(String output) {
-    final values = _parseColonSeparated(output);
+    final values = parseColonSeparated(output);
     final level = int.tryParse(values['level'] ?? '');
     final scale = int.tryParse(values['scale'] ?? '');
     final percentage = (level != null && scale != null && scale > 0)
@@ -658,85 +640,12 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
     }
   }
 
-  ToolStreamSession<LogEntry> startLogcat(String deviceId) {
-    Process? process;
-    var stopRequested = false;
-    var stopFuture = Future<void>.value();
-    late final StreamController<LogEntry> controller;
-
-    Future<void> stop() {
-      if (stopRequested) {
-        return stopFuture;
-      }
-      stopRequested = true;
-      stopFuture = stopProcess(process);
-      return stopFuture;
-    }
-
-    controller = StreamController<LogEntry>(
-      onListen: () async {
-        logInfo('Starting logcat for $deviceId');
-        try {
-          process = await startProcess([
-            '-s',
-            deviceId,
-            'logcat',
-            '-v',
-            'long',
-          ]);
-          final stderrFuture = stderrText(process!);
-          var emittedLogs = false;
-
-          await for (final entry in parseLogLines(
-            stdoutLines(process!),
-            LogcatParser(),
-          )) {
-            emittedLogs = true;
-            controller.add(entry);
-          }
-
-          final stderrOutput = (await stderrFuture).trim();
-          if (!emittedLogs && stderrOutput.isNotEmpty) {
-            controller.add(
-              buildToolErrorEntry(
-                stderrOutput,
-                tag: 'adb logcat',
-                processName: deviceId,
-              ),
-            );
-          }
-        } on ProcessException catch (error) {
-          logError('Failed to start adb logcat for $deviceId', error);
-          controller.add(
-            buildToolErrorEntry(
-              'Failed to start adb logcat: ${describeError(error)}',
-              tag: 'adb logcat',
-              processName: deviceId,
-            ),
-          );
-        } catch (error) {
-          logError(
-            'Unexpected error while streaming adb logcat for $deviceId',
-            error,
-          );
-          controller.add(
-            buildToolErrorEntry(
-              'adb logcat error: ${describeError(error)}',
-              tag: 'adb logcat',
-              processName: deviceId,
-            ),
-          );
-        } finally {
-          logInfo('Logcat stream ended for $deviceId');
-          await stop();
-          await controller.close();
-        }
-      },
-      onCancel: stop,
-    );
-
-    return ToolStreamSession(stream: controller.stream, onStop: stop);
-  }
+  ToolStreamSession<LogEntry> startLogcat(String deviceId) => streamLogLines(
+    ['-s', deviceId, 'logcat', '-v', 'long'],
+    parser: LogcatParser(),
+    tag: 'adb logcat',
+    subject: deviceId,
+  );
 
   Future<void> stopLogcat(String deviceId) async {
     logInfo('Stopping logcat for $deviceId');
@@ -989,16 +898,6 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
       '_adb-tls-pairing._tcp' => WirelessDebugServiceType.pairing,
       _ => WirelessDebugServiceType.unknown,
     };
-  }
-
-  String? _firstNonEmpty(String? first, String? second) {
-    if (first != null && first.trim().isNotEmpty) {
-      return first.trim();
-    }
-    if (second != null && second.trim().isNotEmpty) {
-      return second.trim();
-    }
-    return null;
   }
 
   String? _normalizeAndroidBrand(String? brand) {

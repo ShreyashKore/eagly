@@ -48,13 +48,7 @@ class _LayoutInspectorFeatureViewState
             onPressed: canCapture && !controller.live
                 ? controller.capture
                 : null,
-            iconOverride: capturing && !controller.live
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : null,
+            busy: capturing && !controller.live,
           ),
           ToolbarAction(
             icon: Icons.sensors,

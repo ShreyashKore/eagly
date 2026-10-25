@@ -214,7 +214,7 @@ class WirelessConnectionController({
 
       final connectResult = await _connectWirelessDeviceInternal(
         candidateAddresses: resolvedConnectAddresses,
-        host: _wirelessHostFromAddress(normalizedAddress),
+        host: wirelessHostFromAddress(normalizedAddress),
         suppressFailureState: true,
       );
       if (_disposed) {
@@ -449,7 +449,7 @@ class WirelessConnectionController({
 
     return _connectWirelessDeviceInternal(
       candidateAddresses: normalizedAddresses,
-      host: _wirelessHostFromAddress(normalizedAddresses.first),
+      host: wirelessHostFromAddress(normalizedAddresses.first),
     );
   }
 
@@ -603,7 +603,7 @@ class WirelessConnectionController({
       return providedAddresses;
     }
 
-    final host = _wirelessHostFromAddress(pairingAddress);
+    final host = wirelessHostFromAddress(pairingAddress);
     final cachedAddresses = _pickWirelessConnectAddresses(
       services: _wirelessServices,
       host: host,
@@ -695,7 +695,7 @@ class WirelessConnectionController({
     if (exactAddresses.contains(device.id)) {
       return true;
     }
-    final deviceHost = _wirelessHostFromAddress(device.id);
+    final deviceHost = wirelessHostFromAddress(device.id);
     return host != null && deviceHost == host;
   }
 
@@ -743,15 +743,6 @@ class WirelessConnectionController({
     return 'Tried ${addresses.length} connect ports (${addresses.join(', ')}), but none succeeded. $summary';
   }
 
-  String? _wirelessHostFromAddress(String? address) {
-    if (address == null) return null;
-    final trimmed = address.trim();
-    if (trimmed.isEmpty) return null;
-    final separatorIndex = trimmed.lastIndexOf(':');
-    if (separatorIndex <= 0) return null;
-    return trimmed.substring(0, separatorIndex);
-  }
-
   @override
   void dispose() {
     _disposed = true;
@@ -759,4 +750,15 @@ class WirelessConnectionController({
     _scanGeneration++;
     super.dispose();
   }
+}
+
+/// The host of a `host:port` adb address, or `null` when [address] has no
+/// port to strip.
+String? wirelessHostFromAddress(String? address) {
+  if (address == null) return null;
+  final trimmed = address.trim();
+  if (trimmed.isEmpty) return null;
+  final separatorIndex = trimmed.lastIndexOf(':');
+  if (separatorIndex <= 0) return null;
+  return trimmed.substring(0, separatorIndex);
 }

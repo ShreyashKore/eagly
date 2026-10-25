@@ -6,6 +6,7 @@ import '../../utilities/data/utility_command.dart';
 import '../../utilities/utility_runner.dart';
 import '../data/app_info.dart';
 import '../../../presentation/theme/app_theme.dart';
+import '../../../presentation/components/context_menu.dart';
 
 /// The Utilities bridge for the Apps pane.
 ///
@@ -53,12 +54,7 @@ Future<void> showAppUtilityMenu(
 
   final picked = await showMenu<UtilityCommand>(
     context: context,
-    position: RelativeRect.fromLTRB(
-      position.dx,
-      position.dy,
-      position.dx,
-      position.dy,
-    ),
+    position: menuPositionAt(position),
     items: [
       PopupMenuItem<UtilityCommand>(
         enabled: false,

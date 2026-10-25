@@ -14,8 +14,7 @@ import '../../mirror/mirror_feature_view.dart';
 import '../../network/network_feature_view.dart';
 import '../../terminal/terminal_feature_view.dart';
 import '../../utilities/utilities_feature_view.dart';
-import 'android_unauthorized_guidance.dart';
-import 'ios_guidance.dart';
+import 'device_guidance.dart';
 import 'workspace_view.dart';
 
 /// The content area of the device screen: guidance when the device needs user
@@ -127,11 +126,24 @@ class const _Workspace({
 Widget? _guidanceForDevice(Device device) {
   if (device is AndroidDevice) {
     if (device.status == 'unauthorized') {
-      return const AndroidUnauthorizedGuidance();
+      return const DeviceGuidance(
+        icon: Icons.usb,
+        title: 'Allow USB Debugging',
+        message:
+            'Your Android device is asking for permission to allow USB '
+            'debugging from this computer.',
+        steps: [
+          'Check your Android device screen',
+          'Tap "Allow" on the "Allow USB debugging?" dialog',
+          'Optionally check "Always allow from this computer"',
+          'If the dialog has dismissed, disconnect and reconnect '
+              'the USB cable',
+        ],
+      );
     }
   } else if (device is IosDevice) {
     return switch (device.status) {
-      'unpaired' => const IosGuidance(
+      'unpaired' => const DeviceGuidance(
         icon: Icons.phonelink_lock_outlined,
         title: 'Trust This Computer',
         message:
@@ -143,7 +155,7 @@ Widget? _guidanceForDevice(Device device) {
           'Enter your iPhone passcode if prompted',
         ],
       ),
-      'locked' => const IosGuidance(
+      'locked' => const DeviceGuidance(
         icon: Icons.lock_outline,
         title: 'iPhone Locked',
         message: 'Your iPhone is locked. Unlock it and trust this computer to continue.',
@@ -152,7 +164,7 @@ Widget? _guidanceForDevice(Device device) {
           'If prompted, tap "Trust" on the "Trust This Computer?" alert',
         ],
       ),
-      'unavailable' => const IosGuidance(
+      'unavailable' => const DeviceGuidance(
         icon: Icons.usb_off_outlined,
         title: 'Device Unavailable',
         message: 'Could not communicate with your iPhone. Try the steps below.',

@@ -2,11 +2,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 
-import '../../../presentation/components/feature_view.dart';
 import '../../../presentation/theme/app_theme.dart';
+import '../../../presentation/components/snack_bars.dart';
 
 /// Shared building blocks for the device home dashboard: card chrome, dense
 /// label/value grids, gauges and sparklines.
@@ -189,14 +188,6 @@ String acceleratorLabel(String key, {bool shift = false}) {
   return 'Ctrl+${shift ? 'Shift+' : ''}$key';
 }
 
-/// `HH:mm` in the user's local time — used for "last seen"/install stamps.
-String formatClockTime(DateTime time) {
-  final local = time.toLocal();
-  final hours = local.hour.toString().padLeft(2, '0');
-  final minutes = local.minute.toString().padLeft(2, '0');
-  return '$hours:$minutes';
-}
-
 /// Compact copy-to-clipboard affordance used next to ids and serials.
 class const CopyButton({
   super.key,
@@ -210,10 +201,8 @@ class const CopyButton({
       message: 'Copy $label',
       child: InkWell(
         borderRadius: BorderRadius.circular(6),
-        onTap: () {
-          Clipboard.setData(ClipboardData(text: value));
-          FeatureView.showSnackBar(context, 'Copied $label to clipboard.');
-        },
+        onTap: () =>
+            copyWithToast(context, value, 'Copied $label to clipboard.'),
         child: Padding(
           padding: const EdgeInsets.all(3),
           child: Icon(

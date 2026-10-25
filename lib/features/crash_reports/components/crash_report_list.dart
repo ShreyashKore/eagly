@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../crash_report_controller.dart';
 
-import '../utils.dart';
+import '../../../utils/timestamp_utils.dart';
 
 class const CrashReportList({
   super.key,
@@ -39,7 +39,7 @@ class const CrashReportList({
               overflow: TextOverflow.ellipsis,
             ),
             subtitle: Text(
-              CrashReportUtils.formatTimestamp(report.timestamp),
+              formatDateTime(report.timestamp, precision: TimePrecision.second),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

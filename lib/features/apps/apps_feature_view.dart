@@ -12,6 +12,10 @@ import 'components/app_tile.dart';
 import 'data/app_info.dart';
 import 'data/apps_view_options.dart';
 import '../../presentation/theme/app_theme.dart';
+import '../../presentation/components/snack_bars.dart';
+import '../../presentation/components/busy_overlay.dart';
+import '../../presentation/components/pane_search_field.dart';
+import '../../presentation/components/confirm_dialog.dart';
 
 /// Apps feature pane: lists installed apps as an icon grid or a detailed list
 /// (with a resizable icon), pins the most recently installed apps above them,
@@ -53,10 +57,7 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
   }
 
   void _showSnackBar(String? message) {
-    if (message == null || !mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(content: Text(message)));
+    if (message != null && mounted) showMessageSnackBar(context, message);
   }
 
   Future<void> _handleLaunch(AppInfo app) async {
@@ -123,29 +124,13 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
     required String title,
     required String message,
     required String confirmLabel,
-  }) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(confirmLabel),
-          ),
-        ],
-      ),
-    );
-    return confirmed ?? false;
-  }
+  }) => showConfirmDialog(
+    context,
+    title: title,
+    message: message,
+    confirmLabel: confirmLabel,
+    destructive: true,
+  );
 
   late final AppActions _actions = AppActions(
     onLaunch: _handleLaunch,
@@ -176,7 +161,8 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
                 child: Stack(
                   children: [
                     Positioned.fill(child: _buildBody(context)),
-                    if (controller.isBusy) _buildBusyOverlay(context),
+                    if (controller.isBusy)
+                      BusyOverlay(label: controller.busyLabel),
                   ],
                 ),
               ),
@@ -200,11 +186,7 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
           icon: Icons.apps_outlined,
           title: 'Could not load apps',
           description: controller.error ?? 'Something went wrong.',
-          footer: FilledButton.icon(
-            onPressed: controller.refresh,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Try again'),
-          ),
+          footer: RetryButton(onPressed: controller.refresh),
         );
       case AppLoadState.ready:
         if (controller.filteredApps.isEmpty) {
@@ -376,39 +358,6 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
       showSnackBar: _showSnackBar,
     );
   }
-
-  Widget _buildBusyOverlay(BuildContext context) {
-    final theme = Theme.of(context);
-    return Positioned.fill(
-      child: ColoredBox(
-        color: theme.colorScheme.surface.withValues(alpha: 0.6),
-        child: Center(
-          child: Material(
-            color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  const Gap(12),
-                  Text(
-                    controller.busyLabel ?? 'Working…',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class const _Header({
@@ -430,13 +379,7 @@ class const _Header({
           icon: Icons.refresh,
           label: 'Refresh',
           onPressed: controller.isLoading ? null : controller.refresh,
-          iconOverride: controller.isLoading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : null,
+          busy: controller.isLoading,
         ),
       ],
     );
@@ -450,36 +393,17 @@ class const _Toolbar({
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        border: Border(
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-      ),
+    return PaneSearchBar(
       // The layout options and the system-apps toggle collapse into the
       // overflow menu before the search field is squeezed below its minimum
       // (the system-apps switch first, as a checked entry).
       child: OverflowToolbar(
         spacing: 0,
         flexibleMinWidth: 140,
-        flexible: SizedBox(
-          height: context.scaled(34),
-          child: TextField(
-            controller: searchController,
-            onChanged: controller.setSearchText,
-            style: theme.textTheme.bodySmall,
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: 'Search apps…',
-              prefixIcon: const Icon(Icons.search, size: 18),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-            ),
-          ),
+        flexible: PaneSearchField(
+          controller: searchController,
+          onChanged: controller.setSearchText,
+          hint: 'Search apps…',
         ),
         actions: [
           _viewModeAction(),

@@ -6,6 +6,7 @@ import '../../../presentation/theme/app_theme.dart';
 import '../data/device_info.dart';
 import '../data/installed_app_info.dart';
 import 'home_primitives.dart';
+import '../../../utils/timestamp_utils.dart';
 
 /// Secondary, slower-moving device facts. Each card groups one topic so the
 /// grid stays scannable instead of one long list of label/value rows.
@@ -387,7 +388,10 @@ class const RecentInstallsCard({
                   ),
                   if (app.installTime != null)
                     Text(
-                      formatClockTime(app.installTime!),
+                      formatTimeOfDay(
+                        app.installTime!,
+                        precision: TimePrecision.minute,
+                      ),
                       style: theme.textTheme.labelSmall?.copyWith(
                         fontFamily: 'monospace',
                         fontSize: 10.5,

@@ -16,6 +16,7 @@ import '../../presentation/components/eagly_dialog.dart';
 import '../../presentation/theme/app_theme.dart';
 import '../../utils/android_sdk_path.dart';
 import 'components/settings_section_card.dart';
+import '../../presentation/components/snack_bars.dart';
 
 /// Presents the settings as a large desktop dialog.
 Future<void> showSettingsDialog(BuildContext context) {
@@ -69,10 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
-  }
+  void _showSnackBar(String message) => showMessageSnackBar(context, message);
 
   Future<void> _saveLogLinesLimit() async {
     final parsed = int.tryParse(_logLinesController.text.trim());

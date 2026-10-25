@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-import '../../../presentation/components/feature_view.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../data/layout_selectors.dart';
 import '../layout_inspector_controller.dart';
+import '../../../presentation/components/snack_bars.dart';
 
 /// Everything known about the selected node: the accessibility node's
 /// fields, the View it was matched to, and selectors to copy. A click on a
@@ -144,7 +143,7 @@ class const _PropertyRow({
     final theme = Theme.of(context);
     return InkWell(
       borderRadius: BorderRadius.circular(4),
-      onTap: () => _copy(context, value, '$label copied'),
+      onTap: () => copyWithToast(context, value, '$label copied'),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
@@ -179,8 +178,11 @@ class const _CopyAsButton({required final List<LayoutSelector> selectors})
   Widget build(BuildContext context) {
     return PopupMenuButton<LayoutSelector>(
       tooltip: 'Copy a selector for this node',
-      onSelected: (selector) =>
-          _copy(context, selector.value, '${selector.label} selector copied'),
+      onSelected: (selector) => copyWithToast(
+        context,
+        selector.value,
+        '${selector.label} selector copied',
+      ),
       itemBuilder: (context) => [
         for (final selector in selectors)
           PopupMenuItem(
@@ -217,9 +219,4 @@ class const _CopyAsButton({required final List<LayoutSelector> selectors})
       ),
     );
   }
-}
-
-Future<void> _copy(BuildContext context, String text, String message) async {
-  await Clipboard.setData(ClipboardData(text: text));
-  if (context.mounted) FeatureView.showSnackBar(context, message);
 }

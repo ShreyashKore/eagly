@@ -50,7 +50,7 @@ class AndroidFileSystem({required final String deviceId, super.executablePath})
       // so symlinked directories (e.g. `/sdcard` → `/storage/self/primary`,
       // `/storage/emulated/self` → `…/0`) list their target's contents instead
       // of a single symlink line. Child symlinks still report as symlinks.
-      _shellQuote(_ensureTrailingSlash(path)),
+      shellQuote(_ensureTrailingSlash(path)),
     ]);
 
     final stderr = result.stderr.trim();
@@ -126,7 +126,7 @@ class AndroidFileSystem({required final String deviceId, super.executablePath})
       deviceId,
       'shell',
       'mkdir',
-      _shellQuote(target),
+      shellQuote(target),
     ]);
     if (!result.isSuccess) {
       throw DeviceFileException(
@@ -146,8 +146,8 @@ class AndroidFileSystem({required final String deviceId, super.executablePath})
       deviceId,
       'shell',
       'mv',
-      _shellQuote(entry.path),
-      _shellQuote(target),
+      shellQuote(entry.path),
+      shellQuote(target),
     ]);
     if (!result.isSuccess) {
       throw DeviceFileException(
@@ -164,7 +164,7 @@ class AndroidFileSystem({required final String deviceId, super.executablePath})
       'shell',
       'rm',
       entry.isDirectory ? '-rf' : '-f',
-      _shellQuote(entry.path),
+      shellQuote(entry.path),
     ]);
     if (!result.isSuccess) {
       throw DeviceFileException(
@@ -250,12 +250,6 @@ class AndroidFileSystem({required final String deviceId, super.executablePath})
       return '"$path" is not a directory.';
     }
     return raw.isEmpty ? 'Failed to list "$path".' : raw;
-  }
-
-  /// Single-quotes a path for the on-device shell, escaping embedded quotes so
-  /// names with spaces or shell metacharacters list correctly.
-  String _shellQuote(String value) {
-    return "'${value.replaceAll("'", r"'\''")}'";
   }
 
   String _ensureTrailingSlash(String path) =>

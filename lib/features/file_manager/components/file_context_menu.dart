@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../data/device_file_entry.dart';
 import '../file_manager_controller.dart';
+import '../../../presentation/components/context_menu.dart';
+import '../../../presentation/components/snack_bars.dart';
 
 /// The file actions that need dialogs / pickers / snackbars. These are owned by
 /// the feature view and invoked from both the toolbar and the context menus, so
@@ -31,36 +32,36 @@ Future<void> showFileEntryMenu(
   final theme = Theme.of(context);
   final result = await showMenu<_EntryAction>(
     context: context,
-    position: _positionFrom(position),
+    position: menuPositionAt(position),
     items: [
       if (entry.isNavigable)
         const PopupMenuItem(
           value: _EntryAction.open,
-          child: _MenuRow(Icons.folder_open_outlined, 'Open'),
+          child: MenuRow(Icons.folder_open_outlined, 'Open'),
         ),
       const PopupMenuItem(
         value: _EntryAction.download,
-        child: _MenuRow(Icons.download_outlined, 'Download…'),
+        child: MenuRow(Icons.download_outlined, 'Download…'),
       ),
       if (controller.supportsRename)
         const PopupMenuItem(
           value: _EntryAction.rename,
-          child: _MenuRow(Icons.drive_file_rename_outline, 'Rename…'),
+          child: MenuRow(Icons.drive_file_rename_outline, 'Rename…'),
         ),
       const PopupMenuDivider(),
       const PopupMenuItem(
         value: _EntryAction.copyPath,
-        child: _MenuRow(Icons.link_outlined, 'Copy path'),
+        child: MenuRow(Icons.link_outlined, 'Copy path'),
       ),
       const PopupMenuItem(
         value: _EntryAction.copyName,
-        child: _MenuRow(Icons.title_outlined, 'Copy name'),
+        child: MenuRow(Icons.title_outlined, 'Copy name'),
       ),
       if (controller.supportsDelete) ...[
         const PopupMenuDivider(),
         PopupMenuItem(
           value: _EntryAction.delete,
-          child: _MenuRow(
+          child: MenuRow(
             Icons.delete_outline,
             'Delete',
             color: theme.colorScheme.error,
@@ -79,11 +80,9 @@ Future<void> showFileEntryMenu(
     case _EntryAction.rename:
       actions.onRename(entry);
     case _EntryAction.copyPath:
-      await Clipboard.setData(ClipboardData(text: entry.path));
-      if (context.mounted) _toast(context, 'Copied path.');
+      await copyWithToast(context, entry.path, 'Copied path.');
     case _EntryAction.copyName:
-      await Clipboard.setData(ClipboardData(text: entry.name));
-      if (context.mounted) _toast(context, 'Copied name.');
+      await copyWithToast(context, entry.name, 'Copied name.');
     case _EntryAction.delete:
       actions.onDelete(entry);
   }
@@ -99,21 +98,21 @@ Future<void> showFileAreaMenu(
 }) async {
   final result = await showMenu<_AreaAction>(
     context: context,
-    position: _positionFrom(position),
+    position: menuPositionAt(position),
     items: [
       const PopupMenuItem(
         value: _AreaAction.upload,
-        child: _MenuRow(Icons.upload_file_outlined, 'Upload here…'),
+        child: MenuRow(Icons.upload_file_outlined, 'Upload here…'),
       ),
       if (controller.supportsCreateDirectory)
         const PopupMenuItem(
           value: _AreaAction.newFolder,
-          child: _MenuRow(Icons.create_new_folder_outlined, 'New folder…'),
+          child: MenuRow(Icons.create_new_folder_outlined, 'New folder…'),
         ),
       const PopupMenuDivider(),
       const PopupMenuItem(
         value: _AreaAction.refresh,
-        child: _MenuRow(Icons.refresh, 'Refresh'),
+        child: MenuRow(Icons.refresh, 'Refresh'),
       ),
     ],
   );
@@ -126,35 +125,5 @@ Future<void> showFileAreaMenu(
       actions.onNewFolder();
     case _AreaAction.refresh:
       controller.refresh();
-  }
-}
-
-void _toast(BuildContext context, String message) {
-  final messenger = ScaffoldMessenger.of(context);
-  messenger.hideCurrentSnackBar();
-  messenger.showSnackBar(SnackBar(content: Text(message)));
-}
-
-RelativeRect _positionFrom(Offset globalPosition) => RelativeRect.fromLTRB(
-  globalPosition.dx,
-  globalPosition.dy,
-  globalPosition.dx,
-  globalPosition.dy,
-);
-
-class const _MenuRow(
-  final IconData icon,
-  final String label, {
-  final Color? color,
-}) extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 10),
-        Text(label, style: color == null ? null : TextStyle(color: color)),
-      ],
-    );
   }
 }

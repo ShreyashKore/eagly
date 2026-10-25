@@ -1,10 +1,5 @@
-import 'dart:async';
-import 'dart:io';
-
 import '../../features/logs/data/models/log_entry.dart';
-import '../../utils/utils.dart';
 import '../../features/logs/services/log_parsers/ios_syslog_parser.dart';
-import '../../features/logs/services/log_parsers/log_line_parser.dart';
 import 'tool_process_runner.dart';
 
 class IdeviceSyslogTool({super.executablePath}) extends ToolProcessRunner {
@@ -13,77 +8,10 @@ class IdeviceSyslogTool({super.executablePath}) extends ToolProcessRunner {
   ToolStreamSession<LogEntry> start({
     required String deviceId,
     required String processName,
-  }) {
-    Process? process;
-    var stopRequested = false;
-    var stopFuture = Future<void>.value();
-    late final StreamController<LogEntry> controller;
-
-    Future<void> stop() {
-      if (stopRequested) {
-        return stopFuture;
-      }
-      stopRequested = true;
-      stopFuture = stopProcess(process);
-      return stopFuture;
-    }
-
-    controller = StreamController<LogEntry>(
-      onListen: () async {
-        logInfo('Starting idevicesyslog for $processName');
-        try {
-          process = await startProcess(['-u', deviceId]);
-          final stderrFuture = stderrText(process!);
-          var emittedLogs = false;
-
-          await for (final entry in parseLogLines(
-            stdoutLines(process!),
-            IosSyslogParser(),
-          )) {
-            emittedLogs = true;
-            controller.add(entry);
-          }
-
-          final stderrOutput = (await stderrFuture).trim();
-          if (!emittedLogs && stderrOutput.isNotEmpty) {
-            controller.add(
-              buildToolErrorEntry(
-                stderrOutput,
-                tag: 'idevicesyslog',
-                processName: processName,
-              ),
-            );
-          }
-        } on ProcessException catch (error) {
-          logError('Failed to start idevicesyslog for $processName', error);
-          controller.add(
-            buildToolErrorEntry(
-              'Failed to start idevicesyslog: ${describeError(error)}',
-              tag: 'idevicesyslog',
-              processName: processName,
-            ),
-          );
-        } catch (error) {
-          logError(
-            'Unexpected error while streaming idevicesyslog for $processName',
-            error,
-          );
-          controller.add(
-            buildToolErrorEntry(
-              'idevicesyslog error: ${describeError(error)}',
-              tag: 'idevicesyslog',
-              processName: processName,
-            ),
-          );
-        } finally {
-          logInfo('idevicesyslog stream ended for $processName');
-          await stop();
-          await controller.close();
-        }
-      },
-      onCancel: stop,
-    );
-
-    return ToolStreamSession(stream: controller.stream, onStop: stop);
-  }
+  }) => streamLogLines(
+    ['-u', deviceId],
+    parser: IosSyslogParser(),
+    tag: 'idevicesyslog',
+    subject: processName,
+  );
 }

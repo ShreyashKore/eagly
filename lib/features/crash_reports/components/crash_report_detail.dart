@@ -8,6 +8,7 @@ import '../../../presentation/components/code_view.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../crash_report_controller.dart';
 import '../utils.dart';
+import '../../../utils/timestamp_utils.dart';
 
 /// The selected crash report in a [CodeView]. An `.ips` report (a JSON
 /// header line, then a JSON body) is highlighted and shown pretty-printed,
@@ -84,7 +85,7 @@ class _CrashReportDetailState extends State<CrashReportDetail> {
               style: theme.textTheme.bodySmall,
             ),
             Text(
-              CrashReportUtils.formatTimestamp(report.timestamp),
+              formatDateTime(report.timestamp, precision: TimePrecision.second),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: context.eaglyTheme.tertiaryTextColor,
               ),

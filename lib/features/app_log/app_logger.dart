@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 
 import '../../services/app_breadcrumbs.dart';
+import '../../utils/timestamp_utils.dart';
 
 /// Severity level of an [AppLogEntry].
 enum AppLogLevel { debug, info, success, warning, error }
@@ -22,7 +23,7 @@ class AppLogEntry({
 
   String toExportString() {
     final buf = StringBuffer();
-    buf.write('[${_formatTimestamp(timestamp)}]');
+    buf.write('[${formatTimeOfDay(timestamp)}]');
     buf.write(' ${level.name.toUpperCase().padRight(7)}');
     buf.write(' [$source]');
     if (sessionTag != null) buf.write(' {$sessionTag}');
@@ -31,14 +32,6 @@ class AppLogEntry({
       buf.write('\n    ${detail!.replaceAll('\n', '\n    ')}');
     }
     return buf.toString();
-  }
-
-  static String _formatTimestamp(DateTime dt) {
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    final s = dt.second.toString().padLeft(2, '0');
-    final ms = dt.millisecond.toString().padLeft(3, '0');
-    return '$h:$m:$s.$ms';
   }
 }
 

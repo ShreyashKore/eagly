@@ -4,8 +4,8 @@ import 'package:file_picker/file_picker.dart';
 
 import '../data/app_install_conflict.dart';
 import '../data/device.dart';
+import '../utils/file_dialog_directory.dart';
 import '../utils/utils.dart';
-import 'preferences_service.dart';
 
 class const AppInstallSelectionResult({
   final String? filePath,
@@ -90,7 +90,7 @@ class AppInstallService {
   static Future<AppInstallSelectionResult> pickInstallable(
     Device device,
   ) async {
-    final initialDirectory = await _resolveInitialDirectory();
+    final initialDirectory = FileDialogDirectory.initial();
     final result = await FilePicker.platform.pickFiles(
       dialogTitle: 'Install app on ${device.displayName}',
       initialDirectory: initialDirectory,
@@ -205,80 +205,5 @@ class AppInstallService {
     }
 
     return 'Unsupported iOS app format for "$fileName". Use an IPA or .app bundle.';
-  }
-
-  static Future<void> rememberDialogDirectoryFromPath(String path) async {
-    final entityType = FileSystemEntity.typeSync(path, followLinks: true);
-    final directoryPath = switch (entityType) {
-      FileSystemEntityType.directory => Directory(path).parent.path,
-      FileSystemEntityType.file ||
-      FileSystemEntityType.link => File(path).parent.path,
-      FileSystemEntityType.notFound => File(path).parent.path,
-      _ => File(path).parent.path,
-    };
-
-    if (!_isUsableInitialDirectory(directoryPath)) {
-      return;
-    }
-
-    await PreferencesService.setLastFileDialogDirectory(directoryPath);
-  }
-
-  static Future<String?> _resolveInitialDirectory() async {
-    final rememberedDirectory = PreferencesService.lastFileDialogDirectory;
-    if (_isUsableInitialDirectory(rememberedDirectory)) {
-      return rememberedDirectory;
-    }
-
-    for (final candidate in _defaultInitialDirectoryCandidates()) {
-      if (_isUsableInitialDirectory(candidate)) {
-        return candidate;
-      }
-    }
-
-    return null;
-  }
-
-  static Iterable<String> _defaultInitialDirectoryCandidates() sync* {
-    final homeDirectory = _userHomeDirectory;
-    if (homeDirectory == null || homeDirectory.isEmpty) {
-      return;
-    }
-
-    yield '$homeDirectory${Platform.pathSeparator}Downloads';
-    yield '$homeDirectory${Platform.pathSeparator}Documents';
-    yield homeDirectory;
-  }
-
-  static bool _isUsableInitialDirectory(String? path) {
-    if (path == null || path.isEmpty) {
-      return false;
-    }
-
-    final directory = Directory(path);
-    return directory.isAbsolute && directory.existsSync();
-  }
-
-  static String? get _userHomeDirectory {
-    final home = Platform.environment['HOME'];
-    if (home != null && home.isNotEmpty) {
-      return home;
-    }
-
-    final userProfile = Platform.environment['USERPROFILE'];
-    if (userProfile != null && userProfile.isNotEmpty) {
-      return userProfile;
-    }
-
-    final homeDrive = Platform.environment['HOMEDRIVE'];
-    final homePath = Platform.environment['HOMEPATH'];
-    if (homeDrive != null &&
-        homeDrive.isNotEmpty &&
-        homePath != null &&
-        homePath.isNotEmpty) {
-      return '$homeDrive$homePath';
-    }
-
-    return null;
   }
 }

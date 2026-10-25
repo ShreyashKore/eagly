@@ -329,7 +329,7 @@ class IosDeviceSummary {
   final String udid;
 
   /// `"device"` when lockdownd answered; otherwise `"unpaired"`, `"locked"`
-  /// or `"unavailable"`. Matches the strings `IosGuidance` switches on.
+  /// or `"unavailable"`. Matches the strings `DeviceGuidance` switches on.
   final String status;
 
   /// The user-chosen device name, e.g. `"QA iPhone"`.

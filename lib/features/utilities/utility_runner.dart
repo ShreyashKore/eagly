@@ -4,6 +4,7 @@ import 'components/utility_params_dialog.dart';
 import 'components/utility_result_dialog.dart';
 import 'data/utility_command.dart';
 import 'utilities_controller.dart';
+import '../../presentation/components/confirm_dialog.dart';
 
 /// Runs [command] through [controller] the same way the Utilities pane does:
 /// collect parameters (if any), confirm (if the command asks for it), run it,
@@ -95,26 +96,10 @@ Future<bool> _confirmUtility(
   BuildContext context,
   UtilityCommand command,
   String message,
-) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('${command.label}?'),
-      content: Text(message),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(command.label),
-        ),
-      ],
-    ),
-  );
-  return confirmed ?? false;
-}
+) => showConfirmDialog(
+  context,
+  title: '${command.label}?',
+  message: message,
+  confirmLabel: command.label,
+  destructive: true,
+);

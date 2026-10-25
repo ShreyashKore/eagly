@@ -48,13 +48,7 @@ class _CrashReportFeatureViewState
             icon: Icons.refresh,
             label: 'Refresh',
             onPressed: controller.isLoading ? null : controller.refresh,
-            iconOverride: controller.isLoading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : null,
+            busy: controller.isLoading,
           ),
         ],
       ),

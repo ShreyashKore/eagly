@@ -547,6 +547,18 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   numbers, folding, wrap, a ⌘F find bar and copy, under a toolbar that takes a `leading`
   widget and extra `actions`. A short snippet shown whole uses `HighlightedCodeText` instead.
   The editor needs a bounded height, so it doesn't suit a panel that shrinks to its text.
+- Reach for the shared pieces before writing another copy. In `presentation/components/`:
+  `showConfirmDialog` (Cancel + confirm, `destructive:` for the red button),
+  `showMessageSnackBar` / `copyWithToast` (`snack_bars.dart`), `MenuRow` + `menuPositionAt`
+  for context menus (`context_menu.dart`), `PaneSearchBar` / `PaneSearchField` (clear button,
+  Esc), `BusyOverlay`, `PaneTabStrip` / `PaneTabChip` (Logs and Terminal tabs), `RetryButton`
+  under a `CenteredStateMessage`, `ToolbarAction.busy` for a spinner in a toolbar, and
+  `HoverBuilder` for a widget whose only state is whether it is hovered. In
+  `utils/`: `pluralize`, `shellQuote`, `firstNonBlank`, `parseColonSeparated` (`utils.dart`),
+  `formatDateTime` / `formatTimeOfDay` / `fileNameTimestamp` (`timestamp_utils.dart`), and
+  `FileDialogDirectory` for where a host file dialog opens. A pane with its own tabs extends
+  `TabListManager` (`session/`); a tool that streams log lines uses
+  `ToolProcessRunner.streamLogLines`.
 - Explanations for a user who looks stuck go in a `HintNote`
   (`presentation/components/hint_note.dart`) wrapped in a `DelayedReveal`
   (`presentation/components/delayed_reveal.dart`): the note is not built at all until the
