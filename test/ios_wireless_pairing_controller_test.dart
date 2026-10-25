@@ -12,7 +12,7 @@ void main() {
     service = _FakeIosWirelessService();
     controller = IosWirelessPairingController(
       service: service,
-      storageDir: '/tmp/eagly-test',
+      resolveStorageDir: () async => '/tmp/eagly-test',
       hostName: 'Test Mac',
     );
   });
@@ -89,6 +89,62 @@ void main() {
 
     expect(controller.isPairing, isFalse);
     expect(service.stopCalls, 1);
+  });
+
+  group('while the storage dir is still resolving', () {
+    late Completer<String> storageDir;
+
+    IosWirelessPairingController slowController() =>
+        IosWirelessPairingController(
+          service: service,
+          resolveStorageDir: () => storageDir.future,
+          hostName: 'Test Mac',
+        );
+
+    setUp(() => storageDir = Completer<String>());
+
+    test('a second start still advertises only once', () async {
+      final slow = slowController();
+      addTearDown(slow.dispose);
+      final first = slow.start();
+      final second = slow.start();
+      storageDir.complete('/tmp/eagly-test');
+      await Future.wait([first, second]);
+
+      expect(service.starts, hasLength(1));
+      expect(slow.isPairing, isTrue);
+    });
+
+    test('a stop wins over the start it interrupts', () async {
+      final slow = slowController();
+      addTearDown(slow.dispose);
+      final start = slow.start();
+      await slow.stop();
+      storageDir.complete('/tmp/eagly-test');
+      await start;
+
+      expect(service.starts, isEmpty);
+      expect(slow.isPairing, isFalse);
+    });
+
+    test('disposing stops the start from advertising', () async {
+      final slow = slowController();
+      final start = slow.start();
+      slow.dispose();
+      storageDir.complete('/tmp/eagly-test');
+      await start;
+
+      expect(service.starts, isEmpty);
+    });
+  });
+
+  test('stopping does not report the closing stream as a failure', () async {
+    await controller.start();
+    await service.emit(const IosWirelessPairEvent(kind: 'listening'));
+    await controller.stop();
+    await service.close();
+
+    expect(controller.error, isNull);
   });
 
   test(

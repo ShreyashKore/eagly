@@ -32,7 +32,7 @@ void main() {
     service = _FakeIosWirelessService();
     controller = IosWirelessPairingController(
       service: service,
-      storageDir: '/tmp/eagly-test',
+      resolveStorageDir: () async => '/tmp/eagly-test',
       hostName: 'Test Mac',
     );
   });

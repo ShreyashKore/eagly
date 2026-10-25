@@ -171,6 +171,7 @@ async fn run(mut events: tokio::sync::mpsc::UnboundedReceiver<ServiceEvent>) {
     let mut adverts: HashMap<String, Advertisement> = HashMap::new();
     // Devices drop out of mDNS and come back all the time; trace each once.
     let mut traced: HashSet<String> = HashSet::new();
+    let mut unpaired: HashSet<String> = HashSet::new();
     let mut tick = tokio::time::interval(TICK);
 
     loop {
@@ -208,13 +209,15 @@ async fn run(mut events: tokio::sync::mpsc::UnboundedReceiver<ServiceEvent>) {
             _ = tick.tick() => {}
         }
 
-        connect_matching(&adverts);
+        connect_matching(&adverts, &mut unpaired);
     }
 }
 
 /// Starts an attempt for every advertisement that belongs to a record and has
-/// no tunnel, attempt or backoff in the way.
-fn connect_matching(adverts: &HashMap<String, Advertisement>) {
+/// no tunnel, attempt or backoff in the way. Advertisements no record matches
+/// are traced once each into `unpaired`, since a device paired only with
+/// Xcode advertises just like one paired with us.
+fn connect_matching(adverts: &HashMap<String, Advertisement>, unpaired: &mut HashSet<String>) {
     let mut state = state();
     prune(&mut state);
     let Some(storage_dir) = state.storage_dir.clone() else {
@@ -223,8 +226,14 @@ fn connect_matching(adverts: &HashMap<String, Advertisement>) {
     let records = load_records(&storage_dir);
     let now = Instant::now();
 
-    for advert in adverts.values() {
+    for (fullname, advert) in adverts {
         let Some(record) = record_for(&records, advert) else {
+            if unpaired.insert(fullname.clone()) {
+                trace(format!(
+                    "skipping {fullname}: none of the {} Eagly pairing(s) match it",
+                    records.len()
+                ));
+            }
             continue;
         };
 
