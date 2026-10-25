@@ -116,6 +116,7 @@ class NetworkController(super.session) extends FeatureController {
   late final InspektorWatcher _watcher = InspektorWatcher(
     findEndpoints: service.findInspektorEndpoints,
     openTunnel: service.openInspektorTunnel,
+    listenForToken: service.listenForInspektorToken,
     resumeAfter: lastIdFor,
     attach: (source, key) => attach(source, key: key),
   );

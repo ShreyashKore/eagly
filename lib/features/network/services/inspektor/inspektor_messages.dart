@@ -5,12 +5,17 @@ import '../../data/network_transaction.dart';
 import 'inspektor_frame_codec.dart';
 
 /// The protocol version this build of Eagly speaks.
-const int inspektorProtocolVersion = 1;
+const int inspektorProtocolVersion = 2;
 
 /// The `hello` an Inspektor server sends first on every connection
 /// (docs/NETWORK_INSPECTOR.md §4.5). It carries only public identity.
 class const InspektorHello({
   required final int protocol,
+
+  /// Whether the client's first request must be `auth` with the token the
+  /// app wrote to the device log (§4.3). False when the transport has already
+  /// checked who connected, as Android's does.
+  final bool requiresToken = false,
   required final String sdkName,
   final String? sdkVersion,
 
@@ -46,11 +51,19 @@ class const InspektorHello({
     if (protocol is! int) {
       throw InspektorProtocolException('"hello" has no protocol version.');
     }
+    final auth = json['auth'] ?? 'none';
+    if (auth != 'none' && auth != 'token') {
+      throw InspektorProtocolException(
+        'This app asks for "$auth" authentication, which this Eagly does not '
+        'know; update Eagly to inspect it.',
+      );
+    }
     final sdk = _map(json, 'sdk') ?? const {};
     final app = _map(json, 'app') ?? const {};
     final store = _map(json, 'store') ?? const {};
     return InspektorHello(
       protocol: protocol,
+      requiresToken: auth == 'token',
       sdkName: _string(sdk, 'name') ?? 'inspektor',
       sdkVersion: _string(sdk, 'version'),
       runtime: _string(sdk, 'runtime'),
