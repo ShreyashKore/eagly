@@ -339,17 +339,32 @@ Phases 1 and 2 landed on 2026-10-25 and work stopped there by choice. In rough p
   be told apart.
 - **System windows have no titles** on the emulators tried (the status bar shows as `system`).
 
-**Next features, smallest first**
+**Next: the plan, in order** (agreed 2026-10-25)
 
-1. Live max-wait (above).
-2. Draw the selection over the Mirror pane through `ScrcpyView.overlay` (normalized
-   `bounds / displaySize`), and a pick mode there. The pane's own screenshot stays the source of
-   truth: it is what keeps boxes and picture in step.
-3. Resizable splits between screenshot, tree and details (they are fixed fractions).
-4. Keyboard navigation in the tree (↑/↓/←/→), and a right-click menu: expand or collapse the
-   subtree (`setSubtreeCollapsed` is there, unused), Copy as.
-5. Phase 3 (Flutter VM service, §3), then phase 4 (iOS, §4/§5) once the questions below are
-   settled.
+1. **Hands-on test.** Use the pane in the running app and fix whatever turns up first.
+2. **Hardening, about one session.**
+   - Live max-wait in `Main.onEvent`: send `changed` at least every ~500 ms while UI events keep
+     coming, so spinners, video and endless animations are followed. Rebuild the jar, and add a
+     device test on an animating screen.
+   - Windows and Linux hosts: confirm that closing the pane stops the device-side helper (see
+     above). If it doesn't, add a device-side fallback, such as `pkill -f
+     dev.eagly.inspector.Main` before a start and after a close. A leftover helper holds UI
+     Automation and breaks Appium, Maestro and UI tests, so this is the riskiest open point.
+   - Run the device test once on a physical phone (ideally an OEM build such as Samsung or
+     Xiaomi) and once in landscape.
+3. **Polish, 1–2 sessions.**
+   - Draw the selection over the Mirror pane through `ScrcpyView.overlay` (normalized
+     `bounds / displaySize`), with a pick mode there. The pane's own screenshot stays the source
+     of truth: it is what keeps boxes and picture in step.
+   - Resizable splits between screenshot, tree and details (they are fixed fractions).
+   - Keyboard navigation in the tree (↑/↓/←/→), and a right-click menu: expand or collapse the
+     subtree (`setSubtreeCollapsed` is there, unused), Copy as.
+   - Lighter Live captures: the helper's `scale`/`quality` params, and `dumpsys` only on manual
+     captures or every few live ones. This matters over Wi-Fi adb.
+4. **New platforms.**
+   - Phase 3, Flutter debug/profile builds through the VM service (§3), on both platforms. The
+     VM service URL is already in the log stream. Medium size; its own project.
+   - Phase 4, iOS (§4, §5): blocked on the open questions below.
 
 ## Open questions for the user
 
