@@ -493,6 +493,18 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     `socket.transform(…)`.** A `Socket` is a `Stream<Uint8List>`, and `transform` fails the
     runtime type check.
 
+- **Layout inspector:** **read docs/LAYOUT_INSPECTOR.md §0 before touching it.** The Layout pane
+  (`features/layout_inspector/`, Android only) captures the screen as an accessibility tree with a
+  screenshot, joins in the real View classes from `dumpsys activity top`, and recaptures live.
+  Captures go through an on-device helper (`inspector_helper/`, a dex run with `app_process` like
+  scrcpy's server, committed as `assets/inspector/eagly-inspector.jar`; after changing the Java,
+  rebuild with `scripts/build_inspector_helper.sh` and commit the source and the jar together, or
+  the app ships a stale helper) and fall back to `uiautomator dump`. The rule most easily
+  broken: **Android allows one UI Automation connection at a time**, so the helper locks out UI
+  tests, Appium, Maestro and `uiautomator` while it runs. It is kept only while Live is on and
+  for `LayoutInspectorController.helperLinger` after a capture, and released when the pane closes.
+  Work paused after phase 2; open points and what to check first are in §8 of that doc.
+
 ## Conventions
 
 - **Agent skills live in `.agents/skills/<name>/SKILL.md`** — that directory is

@@ -1109,6 +1109,74 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
     return result.exitCode == 0 ? result.stdout : '';
   }
 
+  // ── Layout inspector (docs/LAYOUT_INSPECTOR.md) ───────────────────────
+
+  /// `uiautomator dump`'s XML on stdout, trailer and all; see
+  /// `parseUiAutomatorDump`. Its own failures (`could not get idle state`)
+  /// come back as text, not as an exception. ~2 s: most of it is the
+  /// `uiautomator` JVM starting and waiting for the UI to go idle.
+  Future<String> dumpUiHierarchy(String deviceId) async {
+    final result = await runTextWithTimeout([
+      '-s',
+      deviceId,
+      'exec-out',
+      'uiautomator',
+      'dump',
+      '/dev/tty',
+    ], timeout: const Duration(seconds: 30));
+    return result.combinedOutput;
+  }
+
+  /// `dumpsys activity top`: the View tree of each visible task's top
+  /// activity; see `ViewHierarchy.parse`.
+  Future<String> dumpTopActivity(String deviceId) async {
+    final result = await runTextWithTimeout([
+      '-s',
+      deviceId,
+      'exec-out',
+      'dumpsys',
+      'activity',
+      'top',
+    ], timeout: const Duration(seconds: 10));
+    return result.stdout;
+  }
+
+  /// Copies [localPath] to [devicePath]. Throws a [StateError] with adb's
+  /// message when it fails.
+  Future<void> pushFile(
+    String deviceId,
+    String localPath,
+    String devicePath,
+  ) async {
+    final result = await runTextWithTimeout([
+      '-s',
+      deviceId,
+      'push',
+      localPath,
+      devicePath,
+    ], timeout: const Duration(seconds: 30));
+    if (!result.isSuccess) {
+      throw StateError('adb push failed: ${result.combinedOutput.trim()}');
+    }
+  }
+
+  /// Starts [mainClass] from the dex jar at [jarPath] on the device as the
+  /// shell user, the way `uiautomator` and scrcpy's server run. The process's
+  /// stdin and stdout are the program's.
+  Future<Process> startAppProcess(
+    String deviceId, {
+    required String jarPath,
+    required String mainClass,
+  }) => startProcess([
+    '-s',
+    deviceId,
+    'shell',
+    'CLASSPATH=$jarPath',
+    'app_process',
+    '/',
+    mainClass,
+  ]);
+
   Future<String?> readProcFile(String deviceId, String path) async {
     try {
       final result = await runText(['-s', deviceId, 'shell', 'cat', path]);

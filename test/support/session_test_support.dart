@@ -6,6 +6,9 @@ import 'dart:ui' show Size;
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/apps/data/app_info.dart';
 import 'package:eagly/features/device_home/data/device_info.dart';
+import 'package:eagly/features/layout_inspector/data/layout_snapshot.dart';
+import 'package:eagly/features/layout_inspector/data/view_hierarchy.dart';
+import 'package:eagly/features/layout_inspector/services/inspector_helper.dart';
 import 'package:eagly/features/logs/data/models/log_column.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
@@ -399,6 +402,38 @@ class FakeSessionService(Device device) extends DeviceSessionRepository {
     final process = FakeTerminalProcess();
     terminalProcesses.add(process);
     return process.session;
+  }
+
+  // ── Layout inspector ──────────────────────────────────────────────────
+
+  /// What [captureLayoutWithUiAutomator] returns; throws when null.
+  LayoutSnapshot Function()? uiAutomatorLayout;
+  int uiAutomatorCaptures = 0;
+
+  /// Starts the helper; by default it can't (`connect`), as on a device
+  /// without UI Automation.
+  Future<InspectorHelper> Function()? startHelper;
+  int helperStarts = 0;
+  ViewHierarchy? viewHierarchy;
+
+  @override
+  Future<LayoutSnapshot> captureLayoutWithUiAutomator() async {
+    uiAutomatorCaptures++;
+    final layout = uiAutomatorLayout;
+    if (layout == null) throw const FormatException('no uiautomator in tests');
+    return layout();
+  }
+
+  @override
+  Future<ViewHierarchy?> dumpViewHierarchy() async => viewHierarchy;
+
+  @override
+  Future<InspectorHelper> startInspectorHelper() {
+    helperStarts++;
+    return startHelper?.call() ??
+        Future.error(
+          InspectorHelperException(code: 'connect', message: 'no helper'),
+        );
   }
 
   @override

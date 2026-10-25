@@ -406,6 +406,33 @@ final _screenGroup = UtilityGroup(
       ),
     ),
     UtilityCommand(
+      id: 'show-layout-bounds',
+      label: 'Show layout bounds',
+      description:
+          'Outlines every view\'s bounds, margins and padding, in every app.',
+      icon: Icons.border_outer,
+      expectsOutput: false,
+      successMessage: 'Layout bounds updated.',
+      params: const [
+        UtilityParam.choice(
+          key: 'value',
+          label: 'Show layout bounds',
+          options: _toggleOptions,
+          defaultValue: '1',
+        ),
+      ],
+      // Developer options' switch is a system property. The binder call is
+      // SYSPROPS_TRANSACTION: it makes running apps re-read their properties,
+      // so they redraw without a restart. It answers "Not a data message",
+      // which is not a failure. `&&`: a failed setprop must fail the command,
+      // not be masked by the binder call's status.
+      build: (device, args) => _adbShell(
+        device,
+        'setprop debug.layout ${args['value'] == '1'} && '
+        'service call activity 1599295570 > /dev/null',
+      ),
+    ),
+    UtilityCommand(
       id: 'animation-scale',
       label: 'Animation scale',
       description: 'Speeds up or slows down all system animations at once.',

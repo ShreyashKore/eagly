@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' show Size;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
@@ -10,6 +11,10 @@ import '../features/apps/data/app_info.dart';
 import '../features/device_home/data/device_info.dart';
 import '../features/device_home/data/device_performance_stats.dart';
 import '../features/device_home/data/installed_app_info.dart';
+import '../features/layout_inspector/data/layout_parsers.dart';
+import '../features/layout_inspector/data/layout_snapshot.dart';
+import '../features/layout_inspector/data/view_hierarchy.dart';
+import '../features/layout_inspector/services/inspector_helper.dart';
 import '../features/logs/data/models/log_entry.dart';
 import '../features/network/services/inspektor/inspektor_endpoint.dart';
 import '../features/terminal/data/terminal_line.dart';
@@ -63,6 +68,10 @@ class DeviceSessionRepository({
   IosNetworkService? iosNetworkService,
   final IosScreenCapture _iosScreenCapture = const IosScreenCapture(),
   ScrcpyMirror? scrcpyMirror,
+
+  /// The layout helper jar's path on this machine; tests pass their own.
+  final Future<String> Function() _inspectorHelperJar =
+      extractInspectorHelperJar,
 }) {
   final AdbTool _adbTool;
   final IosAppService _iosAppService;
@@ -698,6 +707,52 @@ class DeviceSessionRepository({
     AndroidDevice() => _adbTool.captureScreenshotPng(_deviceId),
     IosDevice() => _iosMirrorService.captureScreenshot(_deviceId),
   };
+
+  // ── Layout inspector (docs/LAYOUT_INSPECTOR.md) ───────────────────────
+
+  /// Where the helper jar lives on the device.
+  static const _inspectorHelperDevicePath =
+      '/data/local/tmp/eagly-inspector.jar';
+
+  /// The UI as `uiautomator dump` sees it, with a `screencap` taken at the
+  /// same time: ~2 s, the active window only. The route that needs nothing
+  /// but adb, for when the helper can't run. Android only.
+  Future<LayoutSnapshot> captureLayoutWithUiAutomator() async {
+    final started = DateTime.now();
+    final (dump, screenshot) = await (
+      _adbTool.dumpUiHierarchy(_deviceId),
+      _adbTool.captureScreenshotPng(_deviceId),
+    ).wait;
+    return parseUiAutomatorDump(
+      dump,
+      displaySize: pngSize(screenshot) ?? Size.zero,
+      screenshot: screenshot,
+      capturedAt: started,
+      elapsed: DateTime.now().difference(started),
+    );
+  }
+
+  /// The resumed activity's View tree, from `dumpsys activity top`, or null
+  /// when it printed none. Android only.
+  Future<ViewHierarchy?> dumpViewHierarchy() async =>
+      ViewHierarchy.parse(await _adbTool.dumpTopActivity(_deviceId));
+
+  /// Pushes the layout helper and starts it. Throws an
+  /// [InspectorHelperException] when it can't connect — most often because
+  /// another UI Automation client holds the connection. Android only.
+  Future<InspectorHelper> startInspectorHelper() async {
+    await _adbTool.pushFile(
+      _deviceId,
+      await _inspectorHelperJar(),
+      _inspectorHelperDevicePath,
+    );
+    final process = await _adbTool.startAppProcess(
+      _deviceId,
+      jarPath: _inspectorHelperDevicePath,
+      mainClass: inspectorHelperMainClass,
+    );
+    return InspectorHelper.attach(process);
+  }
 
   // ── iOS screen mirror (docs/IOS_SCREEN_MIRROR.md) ─────────────────────
 

@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.6.1+54
+version: 1.7.0+55
 
 environment:
   sdk: ^3.13.0
@@ -59,6 +59,8 @@ dependencies:
   re_editor: ^0.10.0
   re_highlight: ^0.0.3
   ffi: ^2.2.0
+  # `uiautomator dump`'s output, for the layout inspector.
+  xml: ^7.0.1
 
 dev_dependencies:
   sentry_dart_plugin: ^3.4.0
@@ -92,6 +94,8 @@ flutter:
   assets:
     - assets/app_icon.png
     - assets/logos/
+    # The layout inspector's on-device helper (scripts/build_inspector_helper.sh).
+    - assets/inspector/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

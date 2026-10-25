@@ -133,6 +133,18 @@ List<CommandPaletteItem> buildCommandPaletteItems({
         ),
       );
     }
+    if (session.canInspectLayout) {
+      items.add(
+        CommandPaletteItem(
+          id: 'nav.layout',
+          label: 'Layout Inspector',
+          category: 'Navigate',
+          icon: Icons.account_tree_outlined,
+          subtitle: deviceName,
+          run: session.toggleLayoutInspector,
+        ),
+      );
+    }
     if (session.canUseTerminal) {
       items.add(
         CommandPaletteItem(
