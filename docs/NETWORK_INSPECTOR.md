@@ -22,11 +22,12 @@ Covering WebViews is a stretch goal. Covering other people's apps is a further s
   3. Eagly reaches that socket through adb or usbmux and renders it.
 - **The wire protocol is the contract between the two projects; there is no shared library.** It
   must be implementable in Kotlin (JVM and Native) and in Dart, so it is plain length-prefixed JSON
-  over a stream socket. §4 is the v1 draft; the spec itself should live in the Inspektor repo.
-- **Development builds only, and no authentication.** Production releases ship Inspektor's no-op
-  artifacts. In debug, UAT and dev-release builds, the remote server runs only when the app turns
-  it on. Like Metro, the protocol trusts whoever connects (§4.3). UAT builds are what keep the
-  socket: the journal-file and device-log alternatives can't serve them (§1.1).
+  over a stream socket. §4 is the original draft; the spec itself lives in the Inspektor repo.
+- **Development builds only, and only the developer's tools get in.** Production releases ship
+  Inspektor's no-op artifacts. In debug, UAT and dev-release builds, the remote server runs only
+  when the app turns it on, and only in a development build or one that opts in. Since protocol 2,
+  Android checks the peer's uid and iOS asks for a token from the device log (§4.3). UAT builds
+  are what keep the socket: the journal-file and device-log alternatives can't serve them (§1.1).
 - **Mocking comes from Inspektor's override engine, edited from Eagly.** That was the main reason
   to build a MITM proxy. For apps that ship Inspektor, we no longer need one.
 - **Two routes that need nothing installed stay as complements**, in this order:
@@ -71,6 +72,13 @@ It lets Flutter and React Native apps be inspected without shipping Compose Mult
 them.
 
 ### 1.1 Scope decision: development builds only, no authentication (2026-10-18)
+
+> **Reversed on 2026-10-25, in protocol 2.** A security review found the trade too loose. Before
+> Android 9, any app can connect to another app's abstract socket, and on iOS any app can reach a
+> loopback port. Such an app could read weeks of traffic, tokens included, and plant overrides
+> that survive a restart. Inspektor now authenticates the client, much as the superseded design
+> did (§4.3). It also refuses to serve a build that isn't a development build unless that build
+> opts in. The decision below is kept for its reasoning about transports, which still holds.
 
 Inspektor is a development tool, like Chucker.
 - **Production releases** ship the no-op artifacts, so there is no server code in them at all.
@@ -317,7 +325,7 @@ Two things to keep in mind when changing it:
 - **re_editor highlights and folds in a background isolate.** Widget tests see the text with
   neither applied, so assert on `CodeEditor.controller.text`, not on colors.
 
-## 4. Eagly ↔ Inspektor protocol, v1 draft
+## 4. Eagly ↔ Inspektor protocol, original draft (now v2)
 
 > **The canonical spec now lives in the Inspektor repo, as
 > [`docs/REMOTE_PROTOCOL.md`](https://github.com/ShreyashKore/inspektor/blob/main/docs/REMOTE_PROTOCOL.md).**
@@ -330,7 +338,8 @@ Two things to keep in mind when changing it:
 > - the iOS and desktop port range is 38470–38477;
 > - the Android socket is `@inspektor_<pid>_kotlin`;
 > - the switch is `InspektorRemote.start()`;
-> - `store.id` is kept in a file beside the database (§4.9).
+> - `store.id` is kept in a file beside the database (§4.9);
+> - protocol 2 added authentication (§4.3), and Eagly speaks only 2.
 
 ### 4.1 Principles
 
@@ -339,7 +348,8 @@ Two things to keep in mind when changing it:
   this.
 - **The server runs in the app and the client in Eagly.** That is the only direction that works
   over USB on both platforms: iOS has no device→host route without a jailbreak.
-- **No authentication.** The scope and the safeguards that replace it are in §4.3.
+- **Only the developer's tools get in** (§4.3): by peer uid on Android, by a token from the
+  device log on iOS.
 - **Additive evolution.** Clients ignore unknown fields and unknown events.
 - **No body bytes on the wire unless asked for.**
 
@@ -356,25 +366,42 @@ Two things to keep in mind when changing it:
 Don't end socket names in `_devtools_remote`. `chrome://inspect` would list the socket and then
 fail to speak CDP to it.
 
-### 4.3 Trust model: no authentication
+### 4.3 Trust model (protocol 2)
 
-There is no authentication step. Whoever reaches the socket can read every transaction and
-create or delete overrides. That covers Eagly through adb or usbmux, and also other apps on the
-same device, because iOS apps can connect to each other's loopback ports and Android apps can
-connect to each other's abstract sockets. This was decided in §1.1.
+Whoever is let in can read every transaction and create or delete overrides. So the server makes
+sure the client is the developer's tool:
 
-What bounds it:
+- **Android: the kernel names the peer.** An abstract socket has no file permissions, and before
+  Android 9 any app could connect to another app's. The server reads `SO_PEERCRED` and accepts
+  only uid 2000 (shell, which is how `adb forward` connections arrive), 0 (adbd as root) and its
+  own uid. Its `hello` says `"auth": "none"`, and Eagly goes straight on.
+- **iOS (and desktop): a token from the device log.** A loopback port names no peer, since every
+  iOS app can reach it.
+  - The server makes a random token each time it starts (32 hex digits).
+  - It writes the token only to the device log, which other apps can't read and a paired Mac can:
+    `Inspektor: remote inspection listening on 127.0.0.1:38470, token <token>`.
+  - It writes that line when it starts and again for every connection it accepts.
+  - Its `hello` says `"auth": "token"`. The client's first request must be
+    `{"method": "auth", "params": {"token": …}}`. Anything else, or a wrong token, gets
+    `unauthorized` and a closed connection.
+- **How Eagly finds the token** (`InspektorTokenListener`):
+  - iOS's syslog relay carries only live lines. So the watcher starts a syslog stream of its own
+    before it opens the tunnel, waits for the first line to arrive, then connects.
+  - The server's repeated line for that connection is the one it catches. It matches the line by
+    port, and by the pid in `hello`.
+  - The stream stops once the source is ready or has failed.
+
+What else bounds it:
 
 - **Production releases have no server.** They ship the no-op artifacts, which contain no
-  transport code.
-- **The server is opt-in.** It starts only when the app turns it on in Inspektor's config (§5).
+  transport code. `InspektorRemote.start()` also refuses a build that isn't a development build
+  (not debuggable on Android, not development-signed on iOS) unless that build's manifest or
+  Info.plist opts in.
 - **It is reachable only on the device.**
   - The iOS listener binds `127.0.0.1`, and the Android listener is an abstract Unix socket, so
     the network can't reach either. That is unlike Metro, which listens on every interface.
   - It isn't HTTP, so a web page in a browser can't talk to it usefully. That is the attack
     Metro's `Origin` check exists for.
-- **It is visible.** When the server starts, Inspektor writes one line to the device log naming
-  its socket or port. On Android, Inspektor's existing notification can say so too.
 
 Two rules keep "a browser can't use it" true. Both are requirements on every server
 implementation:
@@ -389,19 +416,8 @@ implementation:
      itself, so it can never forge a valid first frame.
    - The page can't read anything back either. `hello` isn't an HTTP response, so `fetch` fails,
      and a WebSocket attempt never gets its `101 Switching Protocols` reply.
-2. **Any HTTP or WebSocket endpoint added later needs a token,** like the Dart VM service's.
-   Adding one, for example so a browser-based viewer can connect, removes the protection above.
-   Flutter's VM service binds to loopback and still requires a secret token in its URL for
-   exactly this reason.
-
-Optional hardening, outside the protocol: the Kotlin Android server can reject peers whose uid
-isn't 0 (adbd as root), 2000 (shell, which is how `adb forward` connections arrive) or its own.
-That is a few lines with `LocalSocket.getPeerCredentials()`, and it's the rule Chromium applies to
-its DevTools sockets. Eagly doesn't notice either way.
-
-If authentication is ever needed again, the superseded design is written up in
-[the dropped-routes doc](NETWORK_INSPECTOR_DROPPED_ROUTES.md#authentication-on-the-socket-superseded).
-A later protocol version could add it, with `hello` announcing the method.
+2. **Any HTTP or WebSocket endpoint added later needs the same token,** like the Dart VM
+   service's.
 
 ### 4.4 Framing
 
@@ -417,7 +433,7 @@ a broken peer fails fast instead of being buffered.
 The server speaks first:
 
 ```json
-{"type": "hello", "protocol": 1,
+{"type": "hello", "protocol": 2, "auth": "token",
  "sdk":   {"name": "inspektor", "version": "0.9.0", "runtime": "kotlin",
            "adapters": ["okhttp", "ktor"], "overrides": true},
  "app":   {"id": "com.example.app", "name": "Example", "version": "1.4.0 (51)",
@@ -425,7 +441,8 @@ The server speaks first:
  "store": {"id": "7c0e2f4a-…", "persistent": true, "oldestId": "1201"}}
 ```
 
-The client can send requests as soon as `hello` arrives. There is no authentication step (§4.3).
+With `"auth": "none"`, the client can send requests as soon as `hello` arrives. With
+`"auth": "token"`, its first request must be `auth` (§4.3).
 
 If Eagly can't speak the server's `protocol` version, it says which side needs updating. A server
 can also refuse a client with `{"type": "error", "code": "unsupported_protocol", "supported": [1]}`.
@@ -763,10 +780,10 @@ script the server by hand (`test/support/inspektor_test_support.dart`).
 
 - **The Kotlin and Dart servers drift apart.** Mitigation: the §4.10 fixtures run in CI on both,
   and Eagly pins a protocol version.
-- **No authentication, by decision (§1.1).** While an opted-in build runs, other apps on that
-  device can read its traffic and set overrides. The bounds are in §4.3: no server in production,
-  explicit opt-in, and on-device listeners only. Revisit if Inspektor is ever meant for builds
-  that real users install.
+- **The iOS token comes through the device log (§4.3).** If the syslog relay ever drops or
+  delays Inspektor's line, the connection fails at `auth` and the watcher retries after its retry
+  delay. Not yet checked against a physical iPhone; run `network_inspektor_ios_device_test.dart`
+  before relying on it.
 - **iOS apps are suspended in the background**, so live capture stops. The paused state and
   backfill cover the gap, and the UI should say so rather than look broken.
 - **Polling adb and usbmux costs the device link.** Mitigation: one shell per Android poll, polling
@@ -778,9 +795,10 @@ script the server by hand (`test/support/inspektor_test_support.dart`).
 
 ## 8. Spikes and checks
 
-Dropping authentication (§1.1) removed two spikes: whether Dart can read the connecting peer's uid,
-and whether iOS delivers a token line to Eagly's log tap. Both are kept with the superseded design
-in
+Protocol 2 restored authentication (§4.3), and with it one of the two spikes that dropping it had
+removed: **whether iOS delivers the token line to Eagly's log tap.** Eagly's side is built and
+tested against fakes; it still needs a run on a physical iPhone. The other spike, whether Dart can
+read the peer's uid, waits for the Dart server. Both are written up in
 [the dropped-routes doc](NETWORK_INSPECTOR_DROPPED_ROUTES.md#authentication-on-the-socket-superseded).
 
 What's left:
