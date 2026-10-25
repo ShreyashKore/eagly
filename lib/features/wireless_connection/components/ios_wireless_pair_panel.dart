@@ -67,9 +67,11 @@ class IosWirelessPairPanel extends StatelessWidget {
           ),
           const Gap(6),
           Text(
-            'On the iPhone (iOS 27 or later), open Settings → Developer and '
-            'choose this computer from the remote pairing list. The device '
-            'drives the pairing; a code appears here to type on the phone.',
+            'On the iPhone (iOS 27 or later), open Settings → Privacy & '
+            'Security → Developer Mode (not Settings → Developer), scroll '
+            'down and tap “Pair with ${hostName ?? 'this computer'}”. The '
+            'device drives the pairing; a code appears here to type on the '
+            'phone.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -86,6 +88,10 @@ class IosWirelessPairPanel extends StatelessWidget {
                 child: HintNote(
                   title: 'Still waiting?',
                   text:
+                      'Check you are on the Developer Mode screen. The '
+                      'separate Settings → Developer screen has no pairing '
+                      'entry, and the computers it lists as paired are '
+                      'paired with Xcode, not Eagly. '
                       'The computer and the iPhone must be on the same Wi-Fi '
                       'network, and networks that isolate clients (guest or '
                       'public Wi-Fi) block discovery. Keep the Settings screen '
