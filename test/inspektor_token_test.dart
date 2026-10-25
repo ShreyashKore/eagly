@@ -83,19 +83,16 @@ void main() {
   });
 
   test('closing fails a pending wait and stops reading', () async {
-    final token = listener.tokenFor(4242);
+    final failed = expectLater(listener.tokenFor(4242), throwsStateError);
     await listener.close();
 
-    await expectLater(token, throwsStateError);
+    await failed;
     expect(log.hasListener, isFalse);
   });
 
   test('the log ending fails a pending wait', () async {
-    final token = listener.tokenFor(4242);
-    await log.close();
-
-    await expectLater(
-      token,
+    final failed = expectLater(
+      listener.tokenFor(4242),
       throwsA(
         isA<StateError>().having(
           (e) => e.message,
@@ -104,5 +101,8 @@ void main() {
         ),
       ),
     );
+    await log.close();
+
+    await failed;
   });
 }

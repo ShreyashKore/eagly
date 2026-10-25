@@ -304,6 +304,11 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
         'how. Other apps on the device can’t connect: Android lets in only '
         'adb, and iOS asks for a token from the device log, which Eagly '
         'reads for you.';
+    // A qaRelease variant would get releaseImplementation's no-op twins.
+    const qaBody =
+        'A QA build you want to inspect needs the real artifacts too: with '
+        'qa and prod flavors, use qaImplementation for them and '
+        'prodImplementation for the no-op twins.';
     final versionNote = _Link(
       label: 'Replace <version> with the latest release',
       url: NetworkGuideLinks.mavenCentral,
@@ -317,7 +322,7 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
           body:
               'Release builds get the no-op twins: the same API, doing '
               'nothing, so your code compiles in both and users never get '
-              'Inspektor.',
+              'Inspektor. $qaBody',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -360,7 +365,7 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
           body:
               'Release builds get the no-op twin: the same API, doing '
               'nothing. For Kotlin Multiplatform shared code, the README '
-              'shows how to swap it in.',
+              'shows how to swap it in. $qaBody',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

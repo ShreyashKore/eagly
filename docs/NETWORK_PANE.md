@@ -174,8 +174,9 @@ Whoever connects to remote inspection can read the recorded traffic, tokens and 
 and change responses through Inspektor's overrides. So Inspektor makes sure only the developer's
 tools get in:
 
-- **It can't be reached from the network,** only from the device itself. Eagly reaches it over
-  USB.
+- **It can't be reached from the network,** only from the device itself. Eagly reaches it through
+  the connection it already has to the device: adb port forwarding on Android, over USB or paired
+  Wi-Fi, and a tunnel on iPhone.
 - **Other apps on the device can't connect.**
   - On Android it accepts only adb, which is how Eagly connects.
   - On iPhone it asks for a token that is new each time the app starts. The app writes the token
