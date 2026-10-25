@@ -75,6 +75,11 @@ The full set-up, with every option, is in
    [latest version](https://central.sonatype.com/artifact/com.gyanoba.inspektor/inspektor), and
    keep every Inspektor artifact on the same one.
 
+   A QA build you want to inspect needs the real artifacts too, and a `qaRelease` variant gets
+   `releaseImplementation`'s no-op ones. With a `qa` and a `prod` product flavor, depend by flavor
+   instead: `qaImplementation(…)` for the real artifacts and `prodImplementation(…)` for the no-op
+   ones. [Inspektor's README](https://github.com/ShreyashKore/inspektor#readme) shows both.
+
 2. **Hook it into your HTTP client.**
 
    | Client | Artifact | Hook |
@@ -95,13 +100,13 @@ The full set-up, with every option, is in
    From Swift it is `InspektorRemote.shared.start()`. It returns at once and is safe to call more
    than once.
 
-   It serves only a debug build, so a release build that ships Inspektor by mistake exposes
-   nothing:
+   It serves only a debug build by default, so a release build that links the real library by
+   mistake still exposes nothing, as long as the setting below stays out of every build you ship:
 
    | Platform | Serves | To also serve a QA or UAT build |
    |---|---|---|
-   | Android | A debuggable build | Add `<meta-data android:name="com.gyanoba.inspektor.remote.ALLOW" android:value="true"/>` to that build's manifest only, e.g. `src/qa/AndroidManifest.xml` |
-   | iOS | The simulator, or a build signed for development | Set `InspektorRemoteAllow` to `YES` in that configuration's Info.plist only (ad hoc and TestFlight builds) |
+   | Android | A debuggable build | Add `<meta-data android:name="com.gyanoba.inspektor.remote.ALLOW" android:value="true"/>` to that build's manifest only, e.g. `src/qa/AndroidManifest.xml`. It works only in a build that has the real artifacts (step 1) |
+   | iOS | The simulator, or a build signed for development | Set `InspektorRemoteAllow` to `YES` in that configuration's Info.plist only (ad hoc and TestFlight builds). The Podfile must list that configuration for the pod |
 
    When it doesn't serve, it writes why to the device log: `Inspektor: remote inspection is off: …`.
 

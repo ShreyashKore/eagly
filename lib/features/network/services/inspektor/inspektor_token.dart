@@ -31,7 +31,10 @@ class InspektorTokenListener(Stream<LogEntry> log, {required final int port}) {
     _subscription = log.listen(
       _handle,
       onError: (_) {},
-      onDone: () => _logEnded = true,
+      onDone: () {
+        _logEnded = true;
+        _failWaiters(StateError('The device log ended.'));
+      },
     );
   }
 
@@ -66,10 +69,12 @@ class InspektorTokenListener(Stream<LogEntry> log, {required final int port}) {
   Future<void> close() async {
     _logEnded = true;
     await _subscription.cancel();
+    _failWaiters(StateError('Stopped reading the device log.'));
+  }
+
+  void _failWaiters(StateError error) {
     for (final waiter in _waiters) {
-      waiter.completer.completeError(
-        StateError('Stopped reading the device log.'),
-      );
+      waiter.completer.completeError(error);
     }
     _waiters.clear();
   }

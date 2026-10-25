@@ -446,7 +446,8 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
           body:
               'Inspektor isn’t on CocoaPods yet, so build it from a checkout '
               'of the Inspektor repository and point your Podfile at it. List '
-              'only development configurations.',
+              'Debug and any QA configuration you want to inspect, never the '
+              'one you ship.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -462,7 +463,7 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
                 language: langRuby,
                 code:
                     "pod 'InspektorUrlSession', :path => '../inspektor',\n"
-                    "    :configurations => ['Debug']",
+                    "    :configurations => ['Debug', 'QA']",
               ),
             ],
           ),
@@ -475,7 +476,8 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
               'This records URLSession.shared; a session built from its own '
               'configuration also needs addTo(configuration:). It serves a '
               'build signed for development; an ad hoc or TestFlight build '
-              'also needs InspektorRemoteAllow set to YES in its Info.plist. '
+              'needs the pod in its configuration (step 1) and '
+              'InspektorRemoteAllow set to YES in its Info.plist. '
               'Eagly reads the token the app writes to its log by itself.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

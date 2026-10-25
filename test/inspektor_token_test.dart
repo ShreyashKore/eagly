@@ -89,4 +89,20 @@ void main() {
     await expectLater(token, throwsStateError);
     expect(log.hasListener, isFalse);
   });
+
+  test('the log ending fails a pending wait', () async {
+    final token = listener.tokenFor(4242);
+    await log.close();
+
+    await expectLater(
+      token,
+      throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('ended'),
+        ),
+      ),
+    );
+  });
 }
