@@ -190,9 +190,11 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
         title: 'Get a test build that includes Inspektor',
         body:
             'Ask the app’s developers for a debug, dev or QA build with '
-            'Inspektor’s remote inspection turned on. Builds from the App '
-            'Store or Google Play never include it, on purpose. Developers '
-            'can follow “I’m building the app” above.',
+            'Inspektor’s remote inspection turned on. A QA build needs one '
+            'extra setting to allow it, which the developers will know '
+            'about. Builds from the App Store or Google Play never include '
+            'it, on purpose. Developers can follow “I’m building the app” '
+            'above.',
       ),
       ListenableBuilder(
         listenable: _controller.session,
@@ -235,9 +237,10 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
             else ...const [
               _Bullet(
                 'Open the Logs pane and search for “Inspektor: remote '
-                'inspection listening”. If that line never appears, this '
-                'build doesn’t start Inspektor. Ask the developers for one '
-                'that does.',
+                'inspection”. If no such line appears, this build doesn’t '
+                'start Inspektor. If it says “remote inspection is off”, it '
+                'says why: usually a QA build that wasn’t allowed to serve. '
+                'Ask the developers for a build that does.',
               ),
               _Bullet(
                 'If the app restarted or crashed, give it a moment. Eagly '
@@ -295,8 +298,12 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
     const startBody =
         'Call it once, early: in Application.onCreate on Android, or when '
         'the app launches on iOS. It returns at once and is safe to call '
-        'again. There is no password, so while it runs other apps on the '
-        'device could read the traffic. Keep it to debug and test builds.';
+        'again. It serves only a debug build: a debuggable Android app, or '
+        'an iOS app on the simulator or signed for development. A QA build '
+        'must allow it in its own manifest or Info.plist; the README shows '
+        'how. Other apps on the device can’t connect: Android lets in only '
+        'adb, and iOS asks for a token from the device log, which Eagly '
+        'reads for you.';
     final versionNote = _Link(
       label: 'Replace <version> with the latest release',
       url: NetworkGuideLinks.mavenCentral,
@@ -466,8 +473,10 @@ class _NetworkEmptyGuideState extends State<NetworkEmptyGuide> {
           body:
               'At launch, in application(_:didFinishLaunchingWithOptions:). '
               'This records URLSession.shared; a session built from its own '
-              'configuration also needs addTo(configuration:). There is no '
-              'password, so keep it out of builds that reach users.',
+              'configuration also needs addTo(configuration:). It serves a '
+              'build signed for development; an ad hoc or TestFlight build '
+              'also needs InspektorRemoteAllow set to YES in its Info.plist. '
+              'Eagly reads the token the app writes to its log by itself.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

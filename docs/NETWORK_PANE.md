@@ -28,7 +28,8 @@ That means:
 - **No proxy, no certificates and no Wi-Fi settings.** HTTPS traffic shows up in full, because
   Inspektor reads it inside the app, before it is encrypted.
 - **It needs a test build.** Inspektor goes only into debug, dev or QA builds. Builds from the App
-  Store or Google Play never contain it.
+  Store or Google Play never contain it. Even when a build contains it, remote inspection runs only
+  in a debug build, or in a QA build that its developers have allowed.
 - **It covers the common HTTP libraries:** OkHttp (and Retrofit, which uses it) and Ktor on
   Android, URLSession (and Alamofire, which uses it) on iOS, and React Native on iOS.
 
@@ -37,8 +38,8 @@ You can also open a [HAR file](#har-files) without any device at all.
 ## If you test apps
 
 1. **Get a test build that includes Inspektor.** Ask the app's developers for a debug, dev or QA
-   build with Inspektor's remote inspection turned on. Point them at
-   [If you build apps](#if-you-build-apps).
+   build with Inspektor's remote inspection turned on. A QA build needs one extra setting to allow
+   it (step 3 of [If you build apps](#if-you-build-apps)); point the developers there.
 2. **Connect the device to Eagly.**
    - Android: connect it with a USB cable and allow USB debugging when the phone asks, or pair it
      over Wi-Fi from Eagly's device list.
@@ -94,6 +95,16 @@ The full set-up, with every option, is in
    From Swift it is `InspektorRemote.shared.start()`. It returns at once and is safe to call more
    than once.
 
+   It serves only a debug build, so a release build that ships Inspektor by mistake exposes
+   nothing:
+
+   | Platform | Serves | To also serve a QA or UAT build |
+   |---|---|---|
+   | Android | A debuggable build | Add `<meta-data android:name="com.gyanoba.inspektor.remote.ALLOW" android:value="true"/>` to that build's manifest only, e.g. `src/qa/AndroidManifest.xml` |
+   | iOS | The simulator, or a build signed for development | Set `InspektorRemoteAllow` to `YES` in that configuration's Info.plist only (ad hoc and TestFlight builds) |
+
+   When it doesn't serve, it writes why to the device log: `Inspektor: remote inspection is off: …`.
+
 4. **Run the debug build on a device connected to Eagly** and open the Network pane.
 
 The empty Network pane shows these steps too, with snippets you can copy for each client.
@@ -125,10 +136,14 @@ A HAR file is a saved recording of network traffic in a standard format. You can
 
 **The pane says "Looking for apps with Inspektor…" and nothing happens.**
 
-- On Android, open Eagly's **Logs** pane and search for `Inspektor: remote inspection listening`.
-  Inspektor writes that line when remote inspection starts. If it never appears, the build doesn't
-  call `InspektorRemote.start()`, or it is a release build with the no-op library. Ask the
-  developers for a build that does.
+- On Android, open Eagly's **Logs** pane and search for `Inspektor: remote inspection`.
+  - `… listening on …` means it is running.
+  - `… is off: …` says why it isn't, usually a QA build that wasn't allowed to serve (see step 3
+    of [If you build apps](#if-you-build-apps)).
+  - If neither appears, the build doesn't call `InspektorRemote.start()`, or it is a release build
+    with the no-op library.
+
+  Either way, ask the developers for a build that serves.
 - On iPhone, keep the app in the foreground and the phone unlocked: iOS pauses apps in the
   background, and Eagly reconnects when the app comes back. (iOS hides Inspektor's log line as
   `<private>`, so searching the Logs pane doesn't help there.)
@@ -150,8 +165,18 @@ repeating it.
 
 ## Safety
 
-Remote inspection has no password: while it runs, other apps on the same device could read the
-recorded traffic and change responses through Inspektor's overrides. It can't be reached from the
-network, only from the device itself, and Eagly reaches it over USB. That is why Inspektor belongs
-in test builds only, and why release builds should use the no-op artifacts. See
+Whoever connects to remote inspection can read the recorded traffic, tokens and cookies included,
+and change responses through Inspektor's overrides. So Inspektor makes sure only the developer's
+tools get in:
+
+- **It can't be reached from the network,** only from the device itself. Eagly reaches it over
+  USB.
+- **Other apps on the device can't connect.**
+  - On Android it accepts only adb, which is how Eagly connects.
+  - On iPhone it asks for a token that is new each time the app starts. The app writes the token
+    only to the device log, which other apps can't read and Eagly can. Eagly reads it and presents
+    it by itself; there is nothing to type.
+- **It runs only in a debug build,** unless a QA build's own settings allow it.
+
+Inspektor still belongs in test builds only, and release builds should use the no-op artifacts. See
 [Inspektor's notes on remote inspection](https://github.com/ShreyashKore/inspektor#remote-inspection-with-eagly).
