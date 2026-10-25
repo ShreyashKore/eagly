@@ -84,6 +84,11 @@ class PreferencesService {
   static const _keyFilesShowHidden = 'filesShowHidden';
   static const _keyWorkspaceLayout = 'workspaceLayout';
   static const _keySavedWorkspaceLayout = 'savedWorkspaceLayout';
+  static const _keyMcpEnabled = 'mcpEnabled';
+  static const _keyMcpPort = 'mcpPort';
+  static const _keyMcpRequireToken = 'mcpRequireToken';
+  static const _keyMcpToken = 'mcpToken';
+  static const _keyMcpRedactHeaders = 'mcpRedactHeaders';
 
   /// Maximum number of recently opened log files retained for quick re-open.
   static const _maxRecentLogFiles = 10;
@@ -439,4 +444,43 @@ class PreferencesService {
       _prefs.setJson(_keySavedWorkspaceLayout, v);
     }
   }
+
+  // --- MCP server (docs/MCP_SERVER.md) ---
+
+  /// Whether the MCP server for coding agents runs. Off until the user
+  /// turns it on.
+  static bool get mcpEnabled => _prefs.getBool(_keyMcpEnabled) ?? false;
+  static set mcpEnabled(bool v) => _prefs.setBool(_keyMcpEnabled, v);
+
+  /// The MCP server's port; null means the default.
+  static int? get mcpPort => _prefs.getInt(_keyMcpPort);
+  static set mcpPort(int? v) =>
+      v == null ? _prefs.remove(_keyMcpPort) : _prefs.setInt(_keyMcpPort, v);
+
+  /// Whether agents must send [mcpToken] as a bearer token.
+  static bool get mcpRequireToken =>
+      _prefs.getBool(_keyMcpRequireToken) ?? false;
+  static set mcpRequireToken(bool v) => _prefs.setBool(_keyMcpRequireToken, v);
+
+  /// The MCP server's bearer token: 256 random bits, made on first use.
+  static String get mcpToken =>
+      _prefs.getString(_keyMcpToken) ?? regenerateMcpToken();
+
+  /// Replaces [mcpToken] with a new one; clients holding the old one stop
+  /// working.
+  static String regenerateMcpToken() {
+    final random = Random.secure();
+    final token = [
+      for (var i = 0; i < 32; i++)
+        random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ].join();
+    _prefs.setString(_keyMcpToken, token);
+    return token;
+  }
+
+  /// Whether `get_network_request` hides credential headers.
+  static bool get mcpRedactHeaders =>
+      _prefs.getBool(_keyMcpRedactHeaders) ?? true;
+  static set mcpRedactHeaders(bool v) =>
+      _prefs.setBool(_keyMcpRedactHeaders, v);
 }

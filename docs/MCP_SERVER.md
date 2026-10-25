@@ -1,14 +1,69 @@
-# MCP server: plan
+# MCP server
 
-> **Status: proposal, nothing is built yet.** Written on 2026-10-22. It covers the transport,
-> the security model, the phase-1 read-only tools and the questions still open. Facts about the
-> MCP spec and the Dart packages were checked against primary sources on that date
-> ([References](#references)). Claims that still need a spike are marked *unverified*.
+> **Status: phase 1 is built (2026-10-25), not yet released or tried in the app UI.** §0 says
+> what was built and where it departs from the plan; the rest is the plan written on 2026-10-22,
+> kept as the reasoning behind it. Where they disagree, §0 wins. Facts about the MCP spec and the
+> Dart packages were checked against primary sources on those dates ([References](#references)).
+> Claims that still need checking are marked *unverified*.
 
 **Goal.** Let a coding agent (Claude Code, Cursor, VS Code and others) see what Eagly sees about
 a running app: the device list, its logs, iOS crash reports, the HTTP traffic Inspektor captures,
 and the screen. An agent that can build and install an app today can't see it run. Eagly already
 holds that runtime state, parsed and buffered, on Android and iOS alike, so it can close the loop.
+
+## 0. What is built
+
+Code is in `lib/features/mcp/`; tests are `test/mcp_protocol_test.dart`,
+`test/mcp_http_server_test.dart` and `test/mcp_tools_test.dart`.
+
+| File | What it does |
+|---|---|
+| `mcp_protocol.dart` | JSON-RPC over Streamable HTTP, stateless and dual-era: a request whose `_meta` carries a protocol version is served as 2026-07-28 (`server/discover`, header checks, `resultType`); `initialize` and anything without `_meta` is served as 2025-11-25 back to 2025-03-26. Pure: headers and body in, status and body out. |
+| `mcp_http_server.dart` | `dart:io` `HttpServer` on `127.0.0.1`, and the checks of §3.3: Host, Origin, JSON content type, POST only, optional bearer token, 1 MB body cap. |
+| `mcp_server_controller.dart` | Lifecycle, preferences, the Settings state, the server `instructions`, the app-log line per call. Created in `HomeScreen`'s state. |
+| `tools/*.dart` | The tools, grouped by feature. `McpToolContext` resolves the `device` argument and holds the Network watcher open. |
+| `components/mcp_settings_section.dart` | **Settings → MCP server**. |
+
+**Tools (10):** `list_devices`, `list_apps`, `query_logs`, `wait_for_log`,
+`list_network_requests`, `get_network_request`, `wait_for_network_request`,
+`list_crash_reports`, `get_crash_report`, `take_screenshot`. `get_device_info` is not built yet:
+`DeviceInfo` has no JSON form to return.
+
+**Hooks added to existing controllers:** `LogController.appendedLogs` (each flush's new entries),
+`packageForPid`, `isRetentionFilterActive`, `isActivated`; `NetworkController.holdWatching()` and
+`capacity`.
+
+**Decisions that differ from the plan below:**
+
+1. **A hand-written server, not `mcp_dart`.** A tools-only, stateless server is about 300 lines,
+   and the 2026-07-28 rules (`server/discover`, the `Mcp-Method`/`Mcp-Name` checks, version
+   errors) were easier to get exactly right in code we own than to check in a library whose
+   server API isn't documented on pub.dev. No new dependency.
+2. **The bearer token is optional, off by default** (Settings → *Require an access token*). Host,
+   Origin and the JSON content-type check already stop every request a web page can make; the
+   token only adds protection from *other accounts* on the same machine. Without it, the URL is
+   the whole config, the same on every machine, so a project can check in a `.mcp.json` as
+   Flocon's users do. Turn it on for shared machines.
+3. **The default device is the one selected in Eagly**, then the only connected one (Flocon does
+   the same). The plan only defaulted when one device was connected.
+4. **Port 9311 by default.** A taken port shows in Settings and is retried every 10 s, often
+   another Eagly that is still quitting. No other port is picked silently.
+5. **No header chip yet.** Settings shows *Listening on … · last client: Claude Code*, and every
+   call goes to the app log.
+6. **Waits return plain JSON**, with no SSE progress. `wait_*` cap at 120 s.
+
+**Compared with Flocon** ([openflocon/Flocon](https://github.com/openflocon/Flocon), Kotlin,
+`FloconDesktop/mcp/`): both embed a stateless Streamable HTTP server on loopback with tools
+grouped per feature, server `instructions`, and a default target taken from the UI. Flocon is
+always on with no authentication or Origin check, and its data comes from an SDK inside the app,
+so it can also mock calls, read databases and open deeplinks. Eagly's comes from the device
+(logcat, syslog, crash files, the screen), so it works on apps without an SDK. Only network
+capture needs Inspektor.
+
+**Verified:** the unit tests; Claude Code 2.1.310 connected to the server (it then could not run
+a model, because the account has CLI access turned off); every tool and both eras driven over
+HTTP with curl against fake devices. **Not yet:** the Settings section in the running app, a
+real phone, a full agent session.
 
 ## TL;DR
 
@@ -131,9 +186,9 @@ Other processes running as the same user are **out of scope**. They can already 
   returns 403. This stops DNS rebinding even when a request carries no Origin.
 - **Check the Origin header.** The spec requires it ("MUST"). A request *with* an Origin header is
   rejected with 403 unless the origin is loopback on Eagly's own port. Agents send none.
-- **Bearer token.** 256 random bits, made when the server is first turned on, stored in
-  Eagly's preferences, and compared in constant time. The spec only says servers "SHOULD"
-  authenticate. We require it because a browser can't send this header to another origin without
+- **Bearer token** (built as optional and off by default; see §0). 256 random bits, made when the
+  server is first turned on, stored in Eagly's preferences, and compared in constant time. The
+  spec only says servers "SHOULD" authenticate. The plan was to require it because a browser can't send this header to another origin without
   a CORS preflight, and the server answers no preflight. Regenerating the token breaks every
   configured client, and that's intended.
 - **No CORS headers at all.** The server answers no preflight (`OPTIONS`) request, and sends no
@@ -173,8 +228,8 @@ Other processes running as the same user are **out of scope**. They can already 
   through `DeviceSessionManager` → `DeviceSessionController` → the feature controllers. A tool
   never runs an `AdbTool` or a `services/ios/*` call directly. That keeps the agent's view the
   same as the user's, and the existing connect and disconnect hooks still apply.
-- **Device ids are `Device.id`**: the adb serial or the iOS UDID. When exactly one device is
-  connected, `device` may be left out.
+- **Device ids are `Device.id`**: the adb serial or the iOS UDID. Left out, `device` means the
+  device selected in Eagly, else the only connected one (§0).
 
 ### 4.2 What "read-only" allows
 

@@ -110,6 +110,9 @@ class LogController(super.session, {required LogTabSettings initialSettings})
 
   LogBuffer<LogEntry> _logsBuffer;
   final List<LogEntry> _pendingLogs = [];
+  final StreamController<List<LogEntry>> _appended = StreamController.broadcast(
+    sync: true,
+  );
 
   /// pid→package learned from entries that arrived with a resolved package, so
   /// a package filter still matches the entries whose mapping was missing.
@@ -203,12 +206,28 @@ class LogController(super.session, {required LogTabSettings initialSettings})
 
   List<LogEntry> get logs => _logsBuffer.getLogs();
 
+  /// The entries each flush appends to [logs], oldest first — what the MCP
+  /// server's `wait_for_log` watches instead of polling the buffer. Special
+  /// entries, imports and replaced buffers aren't announced.
+  Stream<List<LogEntry>> get appendedLogs => _appended.stream;
+
+  /// The package Eagly has learned for [pid], for filtering by package the way
+  /// the filter bar does.
+  String? packageForPid(String pid) => _pidPackages.packageForPid(pid);
+
+  /// Whether the buffer evicts lines that miss the active filter first, so
+  /// lines outside it may be gone sooner than the line limit suggests.
+  bool get isRetentionFilterActive => _logsBuffer.isFilterActive;
+
   set logs(List<LogEntry> value) {
     _replaceStoredLogs(value);
   }
 
   String get appLogSessionTag => device.id;
   bool get isImported => _isImported;
+
+  /// Whether [activate] has run, so capture has been started once.
+  bool get isActivated => _activated;
   String? get importedFileName => _importedFileName;
 
   bool get searchBarVisible => _searchBarVisible;
@@ -1287,6 +1306,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
 
     _invalidateSearchMatches();
     _notify();
+    if (_appended.hasListener) _appended.add(pendingLogs);
 
     _followTail();
   }
@@ -1683,6 +1703,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     listController.dispose();
     searchFocusNode.dispose();
     filter.dispose();
+    unawaited(_appended.close());
     super.dispose();
   }
 }

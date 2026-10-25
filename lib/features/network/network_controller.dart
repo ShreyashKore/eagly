@@ -125,6 +125,9 @@ class NetworkController(super.session) extends FeatureController {
 
   /// Every transaction, oldest first.
   List<NetworkEntry> get entries => _store.entries;
+
+  /// The most transactions kept; past it the oldest are dropped.
+  int get capacity => _store.capacity;
   bool get isEmpty => _store.isEmpty;
 
   List<NetworkSourceInfo> get sources => [
@@ -494,6 +497,23 @@ class NetworkController(super.session) extends FeatureController {
   /// Whether the device is being polled for apps to connect to.
   bool get isWatching => _watcher.isRunning;
 
+  int _watchHolds = 0;
+
+  /// Keeps polling for apps while the pane is closed, until the returned
+  /// callback runs (once; later calls do nothing). The MCP server holds one
+  /// so an agent can see traffic without the user's layout changing.
+  VoidCallback holdWatching() {
+    _watchHolds++;
+    _syncWatching();
+    var released = false;
+    return () {
+      if (released) return;
+      released = true;
+      _watchHolds--;
+      _syncWatching();
+    };
+  }
+
   @override
   void onSessionChanged() => _syncWatching();
 
@@ -503,14 +523,14 @@ class NetworkController(super.session) extends FeatureController {
     _watcher.reset();
   }
 
-  /// Polls for apps while the pane is open and the device connected; open
-  /// connections outlive a closed pane.
+  /// Polls for apps while the pane is open (or [holdWatching] holds it) and
+  /// the device connected; open connections outlive a closed pane.
   void _syncWatching() {
     if (_disposed) return;
     final watch =
         isConnected &&
         !session.isImportedWorkspace &&
-        session.isPaneOpen(WorkspacePane.network);
+        (session.isPaneOpen(WorkspacePane.network) || _watchHolds > 0);
     if (watch) {
       _watcher.start();
     } else {

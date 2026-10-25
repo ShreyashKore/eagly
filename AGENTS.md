@@ -509,11 +509,15 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   - **Decode frames with `const InspektorFrameDecoder().bind(stream)`, never
     `socket.transform(…)`.** A `Socket` is a `Stream<Uint8List>`, and `transform` fails the
     runtime type check.
-- **MCP server (proposal, not built):** **read docs/MCP_SERVER.md before any MCP or agent
-  integration work.** Eagly would serve read-only tools to coding agents over Streamable HTTP
-  on loopback. Unlike the Inspektor socket, it *does* authenticate (bearer token plus Host and
-  Origin checks), because any browser tab can reach a localhost port. Update the doc as
-  decisions land.
+- **MCP server:** **read docs/MCP_SERVER.md §0 before any MCP or agent integration work.**
+  `features/mcp/` serves read-only tools to coding agents over Streamable HTTP on
+  `127.0.0.1:9311/mcp`; it is off until turned on in Settings. The protocol is hand-written and
+  dual-era (2026-07-28 per-request `_meta`, or a legacy `initialize`), so check both eras when you
+  change it. Tools go through the session's controllers and never through `AdbTool` or
+  `services/ios/*`, so an agent sees what the user sees. They must not change the user's layout,
+  selection or filters (they call `NetworkController.holdWatching()` instead of opening the
+  pane). Unlike the Inspektor socket, the server refuses anything a web page can send: it checks
+  Host and Origin and requires a JSON content type, and a bearer token can be required too.
 
 - **Layout inspector:** **read docs/LAYOUT_INSPECTOR.md §0 before touching it.** The Layout pane
   (`features/layout_inspector/`, Android only) captures the screen as an accessibility tree with a

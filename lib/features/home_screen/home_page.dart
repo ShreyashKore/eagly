@@ -18,6 +18,7 @@ import '../../services/preferences_service.dart';
 import '../../services/tools/tool_process_runner.dart';
 import '../../session/device_session_manager.dart';
 import '../emulator_manager/emulator_manager_dialog.dart';
+import '../mcp/mcp_server_controller.dart';
 import '../settings/settings_screen.dart';
 import '../tips/tips_controller.dart';
 import '../wireless_connection/wireless_connection_dialog.dart';
@@ -38,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final DeviceSessionManager _manager = DeviceSessionManager();
   final TipsController _tipsController = TipsController();
   late final AppMenuController _menuController = AppMenuController(_manager);
+  late final McpServerController _mcpServer;
   final ValueNotifier<int> _appMemoryBytes = ValueNotifier<int>(0);
   Timer? _memoryRefreshTimer;
   AppLifecycleListener? _lifecycleListener;
@@ -66,6 +68,8 @@ class _HomeScreenState extends State<HomeScreen> {
       onExitRequested: _terminateToolProcesses,
     );
     _manager.addListener(_promptForIosSupport);
+    // Starts the server now if the user turned it on in an earlier run.
+    _mcpServer = McpServerController(manager: _manager);
   }
 
   /// Asks to install Apple Devices when an iPhone Eagly can't reach is
@@ -114,6 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _appMemoryBytes.dispose();
     _menuController.dispose();
     _tipsController.dispose();
+    _mcpServer.dispose();
     _manager.dispose();
     super.dispose();
   }
@@ -126,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openSettings() async {
-    await showSettingsDialog(context);
+    await showSettingsDialog(context, mcpServer: _mcpServer);
     if (!mounted) return;
     setState(() {});
   }
