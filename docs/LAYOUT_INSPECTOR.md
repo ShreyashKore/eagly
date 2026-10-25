@@ -45,7 +45,8 @@ The **Layout** pane (`lib/features/layout_inspector/`, Android only) shows the
 screen as a tree beside the screenshot it was read from. Hover the screenshot to outline the node
 under the pointer, click to select it; the tree, the details panel and **Copy as** (resource id,
 text, XPath, UiAutomator, Espresso, Compose `testTag`, Maestro) follow the selection. **Live**
-recaptures whenever the UI changes. **Show layout bounds** is in Utilities → Screen & Input.
+recaptures when the UI reports a change; an endless animation, video or spinner reports none, so
+Live doesn't follow it (see §8). **Show layout bounds** is in Utilities → Screen & Input.
 
 | Piece | Where |
 |---|---|

@@ -201,7 +201,7 @@ void main() {
       );
       expect(selectors['UiAutomator'], 'By.res("com.example.app:id/sign_in")');
       expect(selectors['Espresso'], 'onView(withId(R.id.sign_in))');
-      expect(selectors['Maestro'], 'id: "com.example.app:id/sign_in"');
+      expect(selectors['Maestro'], r'id: "com\\.example\\.app:id/sign_in"');
       expect(selectors.containsKey('Compose test'), isFalse);
     });
 
@@ -226,6 +226,44 @@ void main() {
         'composeTestRule.onNodeWithTag("signInButton")',
       );
       expect(labels['Espresso'], 'onView(withText("Sign in"))');
+    });
+
+    test('a framework id goes through android.R in Espresso', () {
+      final result = helperSnapshotResult();
+      final app = (result['windows'] as List)[1] as Map;
+      final children = (app['root'] as Map)['children'] as List;
+      (children[1] as Map)['resourceId'] = 'android:id/button1';
+      final snapshot = parseHelperSnapshot(
+        result,
+        capturedAt: DateTime(2026, 10, 25),
+      );
+      final labels = {
+        for (final selector in selectorsFor(
+          snapshot.nodeByKey('1.1')!,
+          snapshot,
+        ))
+          selector.label: selector.value,
+      };
+      expect(labels['Espresso'], 'onView(withId(android.R.id.button1))');
+    });
+
+    test('Maestro matches text literally, not as a pattern', () {
+      final snapshot = parseUiAutomatorDump(
+        uiautomatorDumpOutput.replaceFirst(
+          'content-desc="Profile"',
+          'content-desc="Total (\$5.00)?"',
+        ),
+        displaySize: const Size(2400, 1080),
+        capturedAt: DateTime(2026, 10, 25),
+      );
+      final labels = {
+        for (final selector in selectorsFor(
+          snapshot.nodeByKey('0.1')!,
+          snapshot,
+        ))
+          selector.label: selector.value,
+      };
+      expect(labels['Maestro'], r'text: "Total \\(\\$5\\.00\\)\\?"');
     });
 
     test('XPath quotes a value holding double quotes with single ones', () {

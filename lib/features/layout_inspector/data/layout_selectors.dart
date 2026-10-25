@@ -18,6 +18,8 @@ List<LayoutSelector> selectorsFor(LayoutNode node, LayoutSnapshot snapshot) {
   final description = node.contentDescription;
   // An Android resource id has a type; a bare one is a testID or testTag.
   final isResource = id != null && id.contains(':id/');
+  // A framework id (`android:id/button1`) is in android.R, not the app's R.
+  final isFramework = id != null && id.startsWith('android:id/');
 
   return [
     if (id != null) LayoutSelector(label: 'Resource id', value: id),
@@ -37,7 +39,9 @@ List<LayoutSelector> selectorsFor(LayoutNode node, LayoutSnapshot snapshot) {
     if (isResource)
       LayoutSelector(
         label: 'Espresso',
-        value: 'onView(withId(R.id.${node.resourceEntry}))',
+        value: isFramework
+            ? 'onView(withId(android.R.id.${node.resourceEntry}))'
+            : 'onView(withId(R.id.${node.resourceEntry}))',
       )
     else if (text != null)
       LayoutSelector(
@@ -50,11 +54,20 @@ List<LayoutSelector> selectorsFor(LayoutNode node, LayoutSnapshot snapshot) {
         value: 'composeTestRule.onNodeWithTag(${_quoted(id)})',
       ),
     if (id != null)
-      LayoutSelector(label: 'Maestro', value: 'id: ${_quoted(id)}')
+      LayoutSelector(
+        label: 'Maestro',
+        value: 'id: ${_quoted(_regexLiteral(id))}',
+      )
     else if (text != null)
-      LayoutSelector(label: 'Maestro', value: 'text: ${_quoted(text)}')
+      LayoutSelector(
+        label: 'Maestro',
+        value: 'text: ${_quoted(_regexLiteral(text))}',
+      )
     else if (description != null)
-      LayoutSelector(label: 'Maestro', value: 'text: ${_quoted(description)}'),
+      LayoutSelector(
+        label: 'Maestro',
+        value: 'text: ${_quoted(_regexLiteral(description))}',
+      ),
   ];
 }
 
@@ -109,6 +122,11 @@ String _xpathString(String value) {
   final parts = value.split('"').map((part) => '"$part"').join(", '\"', ");
   return 'concat($parts)';
 }
+
+/// Maestro reads `id:` and `text:` as regular expressions (Java syntax), so
+/// `Total ($5.00)` or `Continue?` would match other text, or not this node.
+String _regexLiteral(String value) =>
+    value.replaceAllMapped(RegExp(r'[\\^$.|?*+()\[\]{}]'), (m) => '\\${m[0]}');
 
 /// A double-quoted string literal; Java and YAML escape the same way here.
 String _quoted(String value) =>

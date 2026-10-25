@@ -497,8 +497,9 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   (`features/layout_inspector/`, Android only) captures the screen as an accessibility tree with a
   screenshot, joins in the real View classes from `dumpsys activity top`, and recaptures live.
   Captures go through an on-device helper (`inspector_helper/`, a dex run with `app_process` like
-  scrcpy's server, committed as `assets/inspector/eagly-inspector.jar`; rebuild with
-  `scripts/build_inspector_helper.sh`) and fall back to `uiautomator dump`. The rule most easily
+  scrcpy's server, committed as `assets/inspector/eagly-inspector.jar`; after changing the Java,
+  rebuild with `scripts/build_inspector_helper.sh` and commit the source and the jar together, or
+  the app ships a stale helper) and fall back to `uiautomator dump`. The rule most easily
   broken: **Android allows one UI Automation connection at a time**, so the helper locks out UI
   tests, Appium, Maestro and `uiautomator` while it runs. It is kept only while Live is on and
   for `LayoutInspectorController.helperLinger` after a capture, and released when the pane closes.
