@@ -14,13 +14,14 @@ holds that runtime state, parsed and buffered, on Android and iOS alike, so it c
 ## 0. What is built
 
 Code is in `lib/features/mcp/`; tests are `test/mcp_protocol_test.dart`,
-`test/mcp_http_server_test.dart` and `test/mcp_tools_test.dart`.
+`test/mcp_http_server_test.dart`, `test/mcp_tools_test.dart` and `test/mcp_token_store_test.dart`.
 
 | File | What it does |
 |---|---|
 | `mcp_protocol.dart` | JSON-RPC over Streamable HTTP, stateless and dual-era: a request whose `_meta` carries a protocol version is served as 2026-07-28 (`server/discover`, header checks, `resultType`); `initialize` and anything without `_meta` is served as 2025-11-25 back to 2025-03-26. Pure: headers and body in, status and body out. |
 | `mcp_http_server.dart` | `dart:io` `HttpServer` on `127.0.0.1`, and the checks of §3.3: Host, Origin, JSON content type, POST only, optional bearer token, 1 MB body cap. |
 | `mcp_server_controller.dart` | Lifecycle, preferences, the Settings state, the server `instructions`, the app-log line per call. Created in `HomeScreen`'s state. |
+| `mcp_token_store.dart` | The bearer token, in its own owner-only file rather than in preferences (§3.3). |
 | `tools/*.dart` | The tools, grouped by feature. `McpToolContext` resolves the `device` argument and holds the Network watcher open. |
 | `components/mcp_settings_section.dart` | **Settings → MCP server**. |
 
@@ -186,8 +187,13 @@ Other processes running as the same user are **out of scope**. They can already 
   returns 403. This stops DNS rebinding even when a request carries no Origin.
 - **Check the Origin header.** The spec requires it ("MUST"). A request *with* an Origin header is
   rejected with 403 unless the origin is loopback on Eagly's own port. Agents send none.
-- **Bearer token** (built as optional and off by default; see §0). 256 random bits, made when the
-  server is first turned on, stored in Eagly's preferences, and compared in constant time. The
+- **Bearer token** (built as optional and off by default; see §0). 256 random bits, made on the
+  first launch that has the MCP code, and compared in constant time. It is kept in its own file,
+  `<app support>/mcp_token`, readable only by its owner (0600 on macOS and Linux, set before the
+  token is written; on Windows the per-user app support folder is private already). Not in
+  Eagly's preferences: on Linux shared_preferences writes its JSON file 0644, so another account
+  could read it under a 0755 home. A token an older build kept in preferences moves into the file
+  and leaves preferences. The
   spec only says servers "SHOULD" authenticate. The plan was to require it because a browser can't send this header to another origin without
   a CORS preflight, and the server answers no preflight. Regenerating the token breaks every
   configured client, and that's intended.

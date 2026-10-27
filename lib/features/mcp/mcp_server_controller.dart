@@ -11,6 +11,7 @@ import '../../session/device_session_manager.dart';
 import '../app_log/app_logger.dart';
 import 'mcp_http_server.dart';
 import 'mcp_protocol.dart';
+import 'mcp_token_store.dart';
 import 'mcp_tool.dart';
 import 'tools/capture_tools.dart';
 import 'tools/device_tools.dart';
@@ -23,9 +24,12 @@ enum McpServerStatus { off, starting, running, failed }
 /// Runs the MCP server coding agents connect to (docs/MCP_SERVER.md): owns
 /// the HTTP server, the tools, and the state Settings shows. Created in
 /// `HomeScreen`'s state next to the [DeviceSessionManager] it reads from.
-class McpServerController({required final DeviceSessionManager manager})
-    extends ChangeNotifier {
+class McpServerController({
+  required final DeviceSessionManager manager,
+  McpTokenStore? tokenStore,
+}) extends ChangeNotifier {
   this {
+    _tokenLoad = _loadToken();
     if (PreferencesService.mcpEnabled) unawaited(_start());
   }
 
@@ -37,6 +41,11 @@ class McpServerController({required final DeviceSessionManager manager})
 
   final AppLogger _log = AppLogger(source: 'MCP');
 
+  final McpTokenStore _tokenStore = tokenStore ?? McpTokenStore();
+
+  /// The first read of the token file; null when it failed.
+  late final Future<String?> _tokenLoad;
+  String? _token;
   late final McpToolContext _context = McpToolContext(
     manager: manager,
     redactHeaders: () => PreferencesService.mcpRedactHeaders,
@@ -69,7 +78,9 @@ class McpServerController({required final DeviceSessionManager manager})
   bool get enabled => PreferencesService.mcpEnabled;
   int get port => PreferencesService.mcpPort ?? defaultPort;
   bool get requireToken => PreferencesService.mcpRequireToken;
-  String get token => PreferencesService.mcpToken;
+
+  /// The bearer token; null until its file has been read.
+  String? get token => _token;
   bool get redactHeaders => PreferencesService.mcpRedactHeaders;
 
   String get url => 'http://127.0.0.1:$port${McpHttpServer.path}';
@@ -100,7 +111,13 @@ class McpServerController({required final DeviceSessionManager manager})
   }
 
   Future<void> regenerateToken() async {
-    PreferencesService.regenerateMcpToken();
+    await _tokenLoad;
+    try {
+      _token = await _tokenStore.regenerate();
+    } on Exception catch (error) {
+      _log.warning('Could not save a new MCP token', detail: '$error');
+      return;
+    }
     if (requireToken) await _restart();
     _notify();
   }
@@ -118,7 +135,7 @@ class McpServerController({required final DeviceSessionManager manager})
   /// The Claude Code command that adds this server.
   String get claudeCommand => [
     'claude mcp add --transport http eagly $url',
-    if (requireToken) '--header "Authorization: Bearer $token"',
+    if (requireToken) '--header "Authorization: Bearer ${token ?? '…'}"',
   ].join(' ');
 
   /// The `mcpServers` entry for clients configured by a JSON file (Cursor,
@@ -128,12 +145,26 @@ class McpServerController({required final DeviceSessionManager manager})
       'eagly': {
         'type': 'http',
         'url': url,
-        if (requireToken) 'headers': {'Authorization': 'Bearer $token'},
+        if (requireToken)
+          'headers': {'Authorization': 'Bearer ${token ?? '…'}'},
       },
     },
   });
 
   // ── Lifecycle ────────────────────────────────────────────────────────
+
+  Future<String?> _loadToken() async {
+    try {
+      final token = await _tokenStore.load();
+      if (_disposed) return token;
+      _token = token;
+      _notify();
+      return token;
+    } on Exception catch (error) {
+      _log.warning('Could not read the MCP token', detail: '$error');
+      return null;
+    }
+  }
 
   Future<void> _start() async {
     if (_disposed || _server != null || !enabled) return;
@@ -142,6 +173,20 @@ class McpServerController({required final DeviceSessionManager manager})
     _status = McpServerStatus.starting;
     _error = null;
     _notify();
+
+    String? token;
+    if (requireToken) {
+      await _tokenLoad;
+      // A failed first read is tried again, so Retry can recover.
+      token = _token ?? await _loadToken();
+      if (_disposed || _server != null || !enabled) return;
+      if (token == null) {
+        _status = McpServerStatus.failed;
+        _error = 'Could not read the access token. See the app log.';
+        _notify();
+        return;
+      }
+    }
 
     final server = McpHttpServer(
       protocol: McpProtocol(

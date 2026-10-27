@@ -8,6 +8,7 @@ import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/features/mirror/services/capture_storage.dart';
 import 'package:eagly/features/emulator_manager/services/android_sdk_picker.dart';
 import 'package:eagly/features/mcp/mcp_server_controller.dart';
+import 'package:eagly/features/mcp/mcp_token_store.dart';
 import 'package:eagly/features/settings/settings_screen.dart';
 import 'package:eagly/services/devices_repository.dart';
 import 'package:eagly/session/device_session_manager.dart';
@@ -21,6 +22,7 @@ void main() {
   late DevicesRepository repository;
   late DeviceSessionManager manager;
   late McpServerController mcpServer;
+  final mcpTokenDir = Directory.systemTemp.createTempSync('settings-mcp');
 
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
@@ -41,7 +43,11 @@ void main() {
       repository: repository,
       serviceFactory: FakeSessionService.new,
     );
-    mcpServer = McpServerController(manager: manager);
+    mcpServer = McpServerController(
+      manager: manager,
+      // Never the real app support folder.
+      tokenStore: McpTokenStore(directory: () async => mcpTokenDir),
+    );
   });
 
   tearDown(() async {
@@ -49,6 +55,10 @@ void main() {
     manager.dispose();
     repository.dispose();
     await adbTool.disposeTool();
+  });
+
+  tearDownAll(() {
+    if (mcpTokenDir.existsSync()) mcpTokenDir.deleteSync(recursive: true);
   });
 
   test('theme mode defaults to dark when no preference is stored', () {

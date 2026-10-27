@@ -132,15 +132,25 @@ class _McpSettingsSectionState extends State<McpSettingsSection> {
             ListTile(
               dense: true,
               title: const Text('Token'),
-              subtitle: Text('${_server.token.substring(0, 8)}…', style: mono),
+              subtitle: Text(
+                _server.token == null
+                    ? '…'
+                    : '${_server.token!.substring(0, 8)}…',
+                style: mono,
+              ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   AppIconButton(
                     tooltip: 'Copy token',
                     icon: Icons.copy_outlined,
-                    onPressed: () =>
-                        copyWithToast(context, _server.token, 'Token copied.'),
+                    onPressed: _server.token == null
+                        ? null
+                        : () => copyWithToast(
+                            context,
+                            _server.token!,
+                            'Token copied.',
+                          ),
                   ),
                   TextButton(
                     onPressed: _server.regenerateToken,

@@ -70,3 +70,4 @@ sentry.properties
 # .claude/skills, a symlink to the agent-agnostic .agents/skills source of truth.
 .claude/*
 !.claude/skills
+.agents/tasks

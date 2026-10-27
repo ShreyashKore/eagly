@@ -457,26 +457,15 @@ class PreferencesService {
   static set mcpPort(int? v) =>
       v == null ? _prefs.remove(_keyMcpPort) : _prefs.setInt(_keyMcpPort, v);
 
-  /// Whether agents must send [mcpToken] as a bearer token.
+  /// Whether agents must send the bearer token (`McpTokenStore`).
   static bool get mcpRequireToken =>
       _prefs.getBool(_keyMcpRequireToken) ?? false;
   static set mcpRequireToken(bool v) => _prefs.setBool(_keyMcpRequireToken, v);
 
-  /// The MCP server's bearer token: 256 random bits, made on first use.
-  static String get mcpToken =>
-      _prefs.getString(_keyMcpToken) ?? regenerateMcpToken();
-
-  /// Replaces [mcpToken] with a new one; clients holding the old one stop
-  /// working.
-  static String regenerateMcpToken() {
-    final random = Random.secure();
-    final token = [
-      for (var i = 0; i < 32; i++)
-        random.nextInt(256).toRadixString(16).padLeft(2, '0'),
-    ].join();
-    _prefs.setString(_keyMcpToken, token);
-    return token;
-  }
+  /// The bearer token as an older Eagly stored it. Only `McpTokenStore`
+  /// reads it, to move it into its owner-only file; nothing writes it.
+  static String? get legacyMcpToken => _prefs.getString(_keyMcpToken);
+  static Future<void> removeLegacyMcpToken() => _prefs.remove(_keyMcpToken);
 
   /// Whether `get_network_request` hides credential headers.
   static bool get mcpRedactHeaders =>
