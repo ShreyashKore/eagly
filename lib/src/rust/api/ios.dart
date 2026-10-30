@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `afc_client`, `basename`, `claim_syslog_session`, `connect_usbmuxd`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_syslog_session`, `format_os_trace_log`, `installation_proxy`, `ios_app_bundle_path`, `is_crash_report`, `is_hidden_app`, `is_network`, `is_skippable_record_error`, `join_afc_path`, `open_session`, `provider_for`, `read_afc_file`, `status`, `string_value`, `upload_recursive`
+// These functions are ignored because they are not marked as `pub`: `afc_client`, `basename`, `claim_syslog_session`, `connect_usbmuxd`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_syslog_session`, `format_os_trace_log`, `installation_proxy`, `ios_app_bundle_path`, `is_crash_report`, `is_hidden_app`, `is_network`, `is_skippable_record_error`, `join_afc_path`, `message`, `open_session`, `provider_for`, `read_afc_file`, `status`, `string_value`, `upload_recursive`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
 /// Lists every device usbmuxd knows about.
@@ -46,8 +46,8 @@ Future<IosDeviceDomains> readIosDeviceDomains({required String udid}) =>
 /// `parseLogRecords` rather than the CLI's line-by-line `parseLogLines`.
 ///
 /// Connecting happens before the stream starts, so a device that refuses the
-/// service raises an error the caller can show — the CLI path could only infer
-/// that from stderr after an empty stream.
+/// service sends the stream an error the caller can show — the CLI path could
+/// only infer that from stderr after an empty stream.
 Stream<String> startIosSyslog({
   required String udid,
   required String sessionId,
