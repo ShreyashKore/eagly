@@ -294,11 +294,17 @@ class _LoadedBodyState extends State<_LoadedBody> {
     _preparedFor = body;
     final input = (body.bytes, widget.contentType);
     final document = body.bytes.length > _backgroundThreshold
-        ? await Isolate.run(() => _prepare(input))
+        ? await _prepareInBackground(input)
         : _prepare(input);
     if (!mounted || !identical(body, _preparedFor)) return;
     setState(() => _document = document);
   }
+
+  /// Static, so the isolate's closure doesn't capture `this`: one built in
+  /// [_prepareDocument] shares its context with the `setState` closure, and
+  /// the state reaches objects that can't be sent to another isolate.
+  static Future<_Document> _prepareInBackground((Uint8List, String?) input) =>
+      Isolate.run(() => _prepare(input));
 
   @override
   Widget build(BuildContext context) {
