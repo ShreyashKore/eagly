@@ -71,7 +71,10 @@ class const FileManagerToolbar({
             icon: Icons.refresh,
           ),
         ],
-        flexible: const PaneDragArea(child: SizedBox.expand()),
+        flexible: const PaneDragArea(
+          slop: paneToolbarDragSlop,
+          child: SizedBox.expand(),
+        ),
         actions: [
           ToolbarAction(
             icon: isList ? Icons.grid_view_rounded : Icons.view_list_rounded,

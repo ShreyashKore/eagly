@@ -133,6 +133,7 @@ class const FeatureViewHeader({
           if (leading != null) leading!,
         ],
         flexible: PaneDragArea(
+          slop: paneToolbarDragSlop,
           child: Align(
             alignment: Alignment.centerLeft,
             child: WorkspacePaneScope.showsOwnTitle(context)

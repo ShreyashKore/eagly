@@ -223,6 +223,31 @@ void main() {
       expect(find.text('Move to'), findsOneWidget);
     });
 
+    testWidgets('jitter on the grip that never strays far is still a click', (
+      tester,
+    ) async {
+      useWindow(tester);
+      final layout = createLayout([WorkspacePane.logs, WorkspacePane.mirror]);
+      await pumpWorkspace(tester, layout);
+
+      // 40 px of travel back and forth, never more than 3 px from the press:
+      // the path is long, the move is not.
+      final gesture = await tester.startGesture(
+        tester.getCenter(gripOf(WorkspacePane.logs)),
+        kind: PointerDeviceKind.mouse,
+      );
+      for (var i = 0; i < 20; i++) {
+        await gesture.moveBy(Offset(i.isEven ? 2 : -2, 1 - (i % 2) * 2));
+        await tester.pump();
+      }
+      expect(layout.panels.drag, isNull);
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(describe(layout.root), 'row(logs, mirror)');
+      expect(find.text('Move to'), findsOneWidget);
+    });
+
     testWidgets('the grip menu moves a pane without dragging', (tester) async {
       useWindow(tester);
       final layout = createLayout([WorkspacePane.logs, WorkspacePane.mirror]);
@@ -328,6 +353,29 @@ void main() {
       expect(describe(layout.root), 'tabs(*logs, mirror)');
     });
 
+    testWidgets('jitter on a tab chip that never strays far selects it', (
+      tester,
+    ) async {
+      useWindow(tester);
+      final layout = createLayout([WorkspacePane.logs, WorkspacePane.mirror]);
+      layout.stackWith(WorkspacePane.mirror, WorkspacePane.logs);
+      await pumpWorkspace(tester, layout);
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(chipOf('Logs')),
+        kind: PointerDeviceKind.mouse,
+      );
+      for (var i = 0; i < 20; i++) {
+        await gesture.moveBy(Offset(i.isEven ? 2 : -2, 1 - (i % 2) * 2));
+        await tester.pump();
+      }
+      expect(layout.panels.drag, isNull);
+      await gesture.up();
+      await tester.pump();
+
+      expect(describe(layout.root), 'tabs(*logs, mirror)');
+    });
+
     testWidgets('a tab chip drags its tab out once moved far enough', (
       tester,
     ) async {
@@ -385,6 +433,54 @@ void main() {
       expect(find.byIcon(Icons.drag_indicator), findsNothing);
       expect(find.text('Mirror'), findsOneWidget);
       expect(find.byIcon(Icons.close), findsOneWidget);
+    });
+
+    testWidgets('the toolbar\'s empty stretch needs a longer move than the '
+        'grip', (tester) async {
+      useWindow(tester);
+      final controls = _NoControls();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.darkTheme,
+          home: Scaffold(
+            body: WorkspacePaneScope(
+              controls: controls,
+              isTabbed: false,
+              canMove: true,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: FeatureViewHeader(title: 'Apps', onClose: () {}),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      Future<void> drag(Finder from, double dx) async {
+        final gesture = await tester.startGesture(
+          tester.getTopLeft(from) + const Offset(4, 4),
+          kind: PointerDeviceKind.mouse,
+        );
+        await gesture.moveBy(Offset(dx, 0));
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+      }
+
+      final grip = find.byIcon(Icons.drag_indicator);
+      final title = find.text('Apps');
+
+      // Past the grip's slop, short of the toolbar's: only the grip moves.
+      const between = (paneDragSlop + paneToolbarDragSlop) / 2;
+      await drag(title, between);
+      expect(controls.drags, 0);
+      await drag(grip, between);
+      expect(controls.drags, 1);
+      await tester.tapAt(const Offset(1, 1)); // close the grip's menu, if any
+      await tester.pumpAndSettle();
+
+      await drag(title, paneToolbarDragSlop + 4);
+      expect(controls.drags, 2);
     });
 
     testWidgets('a header leads with the grip, and leaves the title bar to '
@@ -569,10 +665,13 @@ class const _TestPane({
 }
 
 class _NoControls implements PaneControls {
+  /// How many drags have started.
+  int drags = 0;
+
   @override
   String get title => 'Pane';
   @override
-  void startDrag(Offset globalPosition) {}
+  void startDrag(Offset globalPosition) => drags++;
   @override
   void updateDrag(Offset globalPosition) {}
   @override
