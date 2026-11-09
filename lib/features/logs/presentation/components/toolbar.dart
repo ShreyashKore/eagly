@@ -78,10 +78,8 @@ class const Toolbar({
                 AppIconButton(
                   iconSize: 20,
                   icon: Icons.delete_outline,
-                  tooltip: c.logs.isNotEmpty
-                      ? 'Clear logs'
-                      : 'No logs to clear',
-                  onPressed: c.logs.isNotEmpty ? c.clearLogs : null,
+                  tooltip: c.hasLogs ? 'Clear logs' : 'No logs to clear',
+                  onPressed: c.hasLogs ? c.clearLogs : null,
                 ),
                 gap,
                 div,
