@@ -238,6 +238,11 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     } else {
       // Stop advertising the host the moment the user leaves the iOS pane.
       unawaited(iosController.stop());
+      // Resume the scan the iPhone pane stopped: it is what notices the QR
+      // code being scanned, so without it the code shown does nothing.
+      if (_section == _WirelessDialogSection.pair) {
+        wirelessController.beginPairing();
+      }
     }
   }
 

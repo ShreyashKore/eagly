@@ -95,6 +95,22 @@ void main() {
     await closeDialog(tester, manager);
   });
 
+  testWidgets('returning to Android resumes the QR scan', (tester) async {
+    final manager = await pumpDialog(tester);
+    const waiting = 'Waiting for the device to scan…';
+    expect(find.text(waiting), findsOneWidget);
+
+    await tester.tap(find.text('iPhone'));
+    await tester.pump();
+    await tester.tap(find.text('Android'));
+    await tester.pump();
+
+    expect(find.text(waiting), findsOneWidget);
+    expect(service.stopCalls, 1);
+
+    await closeDialog(tester, manager);
+  });
+
   testWidgets('the setup code renders once a device connects', (tester) async {
     final manager = await pumpDialog(tester);
 
