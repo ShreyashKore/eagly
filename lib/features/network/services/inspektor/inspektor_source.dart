@@ -19,10 +19,10 @@ class InspektorRequestException(final String code, final String message)
 /// (docs/NETWORK_INSPECTOR.md §4).
 ///
 /// The server speaks first with `hello`. The source checks the protocol
-/// version, subscribes — asking for everything after [afterId] first, so a
-/// reconnect picks up where it left off — and from then on turns
-/// `transaction.*` events into [NetworkSourceEvent]s. There is no
-/// authentication step (§4.3).
+/// version and, when the hello asks for one, presents the app's token (§4.3)
+/// before anything else. It then subscribes — asking for everything after
+/// [afterId] first, so a reconnect picks up where it left off — and from then
+/// on turns `transaction.*` events into [NetworkSourceEvent]s.
 ///
 /// [input] and [output] are the two halves of the connection: a [Socket] in
 /// the app, in-memory pipes in tests. The source owns them, and [dispose]
@@ -40,6 +40,10 @@ class InspektorSource(
   /// Bodies up to this many bytes arrive inline with their transaction.
   /// Zero keeps every body on the device until it is asked for.
   final int inlineBodyLimit = 0,
+
+  /// Finds the token the app wrote to the device log, for a hello that asks
+  /// for one (iOS). Without it, such an app can't be inspected.
+  final Future<String> Function(InspektorHello hello)? token,
 }) implements NetworkSource {
   this {
     // `bind`, not `input.transform`: a Socket is a `Stream<Uint8List>`, and
@@ -60,6 +64,7 @@ class InspektorSource(
     String? afterId,
     String? Function(InspektorHello hello)? resumeAfter,
     int inlineBodyLimit = 0,
+    Future<String> Function(InspektorHello hello)? token,
     Duration timeout = const Duration(seconds: 5),
   }) async {
     final socket = await Socket.connect(host, port, timeout: timeout);
@@ -70,6 +75,7 @@ class InspektorSource(
       afterId: afterId,
       resumeAfter: resumeAfter,
       inlineBodyLimit: inlineBodyLimit,
+      token: token,
     );
   }
 
@@ -90,8 +96,9 @@ class InspektorSource(
   /// The server's `hello`, once it has arrived.
   InspektorHello? hello;
 
-  /// Completes with the server's `hello` once the source has subscribed, or
-  /// with an error if the connection fails first.
+  /// Completes with the server's `hello` once the source has authenticated,
+  /// where the app asks for it, and subscribed, or with an error if the
+  /// connection fails first.
   Future<InspektorHello> get ready => _ready.future;
 
   /// Completes once the session is over: the app closed the connection, it
@@ -176,6 +183,7 @@ class InspektorSource(
   }
 
   Future<void> _subscribe(InspektorHello received) async {
+    if (received.requiresToken && !await _authenticate(received)) return;
     try {
       final after = resumeAfter?.call(received) ?? afterId;
       await _request('subscribe', {
@@ -185,6 +193,36 @@ class InspektorSource(
       if (!_ready.isCompleted) _ready.complete(received);
     } on Object catch (error) {
       _finish('The app refused the subscription: $error');
+    }
+  }
+
+  /// Presents the app's token, which must be the first request (§4.3). The
+  /// app closes the connection on a wrong one, so there is one attempt.
+  Future<bool> _authenticate(InspektorHello received) async {
+    final findToken = token;
+    if (findToken == null) {
+      _finish(
+        'This app asks for its Inspektor token, which Eagly can only read '
+        'from an iOS device\'s log.',
+      );
+      return false;
+    }
+    final String value;
+    try {
+      value = await findToken(received);
+    } on Object catch (error) {
+      _finish('Could not find this app\'s Inspektor token in its log: $error');
+      return false;
+    }
+    try {
+      await _request('auth', {'token': value});
+      return true;
+    } on InspektorRequestException catch (error) {
+      _finish('The app refused the token: ${error.message}');
+      return false;
+    } on Object catch (error) {
+      _finish('The app did not accept the token: $error');
+      return false;
     }
   }
 

@@ -6,6 +6,7 @@ import '../../../app_log/app_logger.dart';
 import 'inspektor_endpoint.dart';
 import 'inspektor_messages.dart';
 import 'inspektor_source.dart';
+import 'inspektor_token.dart';
 
 /// The key a connection's transactions are filed under: one per app store,
 /// not per connection, so a restarted app continues its own list.
@@ -27,6 +28,10 @@ String inspektorStoreKey(InspektorHello hello) =>
 ///   connects to the endpoint again if it is still there. On iOS a restarted
 ///   app usually takes the same port, so this is the only way to see it.
 /// - A failed connection is retried after [retryDelay], not on every poll.
+/// - Where an app asks for its token (iOS), [listenForToken] starts reading
+///   the device log before the connection opens, because the app writes the
+///   token line as it accepts the connection. The listener is stopped once
+///   the source is ready or has failed.
 ///
 /// [stop] only stops polling: connections stay up, so traffic keeps arriving
 /// while the pane is hidden, and the next [start] picks up what changed.
@@ -35,6 +40,11 @@ class InspektorWatcher({
   required final Future<InspektorTunnel> Function(InspektorEndpoint) openTunnel,
   required final String? Function(String key) resumeAfter,
   required final void Function(InspektorSource source, String key) attach,
+
+  /// Starts following the device log for [InspektorEndpoint]'s token, or
+  /// returns null where no token is needed (Android checks the peer itself).
+  final InspektorTokenListener? Function(InspektorEndpoint endpoint)?
+  listenForToken,
 }) {
   /// How often the device is asked for its Inspektor endpoints.
   @visibleForTesting
@@ -44,9 +54,15 @@ class InspektorWatcher({
   @visibleForTesting
   static Duration retryDelay = const Duration(seconds: 10);
 
-  /// How long a new connection may take to say hello and subscribe.
+  /// How long a new connection may take to say hello, present its token and
+  /// subscribe. The token can take a moment to come through the device log.
   @visibleForTesting
-  static Duration helloTimeout = const Duration(seconds: 5);
+  static Duration helloTimeout = const Duration(seconds: 10);
+
+  /// How long to wait for the device log to start flowing before connecting.
+  /// The connection goes ahead after it regardless.
+  @visibleForTesting
+  static Duration logStartTimeout = const Duration(seconds: 3);
 
   final AppLogger _logger = AppLogger(source: 'InspektorWatcher');
   final Map<InspektorEndpoint, _Connection> _connections = {};
@@ -130,7 +146,11 @@ class InspektorWatcher({
   Future<void> _connect(InspektorEndpoint endpoint, _Connection claim) async {
     bool current() => !_disposed && identical(_connections[endpoint], claim);
     InspektorSource? source;
+    final tokens = listenForToken?.call(endpoint);
     try {
+      if (tokens != null) {
+        await tokens.started.timeout(logStartTimeout, onTimeout: () {});
+      }
       final tunnel = claim.tunnel = await openTunnel(endpoint);
       if (!current()) {
         await claim.close();
@@ -140,6 +160,7 @@ class InspektorWatcher({
         tunnel.host,
         tunnel.port,
         resumeAfter: (hello) => resumeAfter(inspektorStoreKey(hello)),
+        token: tokens == null ? null : (hello) => tokens.tokenFor(hello.pid),
       );
       final hello = await source.ready.timeout(helloTimeout);
       if (!current()) {
@@ -164,6 +185,9 @@ class InspektorWatcher({
         _connections.remove(endpoint);
         _failedAt[endpoint] = DateTime.now();
       }
+    } finally {
+      // The token is only needed to get in; the log relay isn't kept open.
+      await tokens?.close();
     }
   }
 }

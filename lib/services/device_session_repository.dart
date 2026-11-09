@@ -17,6 +17,7 @@ import '../features/layout_inspector/data/view_hierarchy.dart';
 import '../features/layout_inspector/services/inspector_helper.dart';
 import '../features/logs/data/models/log_entry.dart';
 import '../features/network/services/inspektor/inspektor_endpoint.dart';
+import '../features/network/services/inspektor/inspektor_token.dart';
 import '../features/terminal/data/terminal_line.dart';
 import '../features/terminal/data/terminal_process.dart';
 import '../features/terminal/data/terminal_tools.dart';
@@ -680,6 +681,30 @@ class DeviceSessionRepository({
             return _iosNetworkService.removeForward(port);
           },
         );
+    }
+  }
+
+  /// Starts reading the device log for the token of the Inspektor server at
+  /// [endpoint] (Inspektor's docs/REMOTE_PROTOCOL.md, "Authentication"), to
+  /// run from before the client connects. Null on Android, where the server
+  /// checks the peer's uid instead and asks for no token.
+  InspektorTokenListener? listenForInspektorToken(InspektorEndpoint endpoint) {
+    final port = endpoint.port;
+    if (device is! IosDevice || port == null) return null;
+    return InspektorTokenListener(_iosSyslogForInspektor(), port: port);
+  }
+
+  /// A syslog stream of its own, apart from the log tabs' and not counted in
+  /// [isLogStreamActive]. Cancelling it stops the relay.
+  Stream<LogEntry> _iosSyslogForInspektor() async* {
+    final session = _iosLogService.startSyslog(
+      deviceId: _deviceId,
+      processName: device.displayName,
+    );
+    try {
+      yield* session.stream;
+    } finally {
+      await session.stop();
     }
   }
 

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:eagly/features/network/data/network_transaction.dart';
 import 'package:eagly/features/network/services/inspektor/inspektor_frame_codec.dart';
+import 'package:eagly/features/network/services/inspektor/inspektor_messages.dart';
 import 'package:eagly/features/network/services/inspektor/inspektor_source.dart';
 import 'package:eagly/features/network/services/network_source.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,9 +16,17 @@ void main() {
   late List<NetworkSourceEvent> events;
   late Completer<void> eventsDone;
 
-  void connect({String? afterId, int inlineBodyLimit = 0}) {
+  void connect({
+    String? afterId,
+    int inlineBodyLimit = 0,
+    Future<String> Function(InspektorHello hello)? token,
+  }) {
     server = FakeInspektorServer();
-    source = server.connect(afterId: afterId, inlineBodyLimit: inlineBodyLimit);
+    source = server.connect(
+      afterId: afterId,
+      inlineBodyLimit: inlineBodyLimit,
+      token: token,
+    );
     events = [];
     eventsDone = Completer<void>();
     source.events.listen(events.add, onDone: eventsDone.complete);
@@ -186,6 +195,49 @@ void main() {
     expect(server.clientClosed, isTrue);
   });
 
+  group('with a token', () {
+    const token = '0123456789abcdef0123456789abcdef';
+
+    test('presents it before anything else, then subscribes', () async {
+      final askedFor = <int?>[];
+      connect(
+        token: (hello) async {
+          askedFor.add(hello.pid);
+          return token;
+        },
+      );
+      server.hello(auth: 'token');
+
+      final auth = await server.nextRequest();
+      expect(auth['method'], 'auth');
+      expect(auth['params'], {'token': token});
+      var ready = false;
+      unawaited(source.ready.then((_) => ready = true));
+      await pumpEventQueue();
+      expect(ready, isFalse);
+      server.reply(auth['id']! as int, const <String, Object?>{});
+
+      await server.acceptSubscribe();
+      expect((await source.ready).requiresToken, isTrue);
+      expect(askedFor, [12345]);
+    });
+
+    test('is not asked for when the app needs none', () async {
+      var asked = false;
+      connect(
+        token: (_) async {
+          asked = true;
+          return token;
+        },
+      );
+      server.hello();
+
+      await server.acceptSubscribe();
+      await source.ready;
+      expect(asked, isFalse);
+    });
+  });
+
   group('fails', () {
     Future<String?> failureMessage() async {
       await eventsDone.future;
@@ -196,15 +248,46 @@ void main() {
 
     test('on a newer protocol, asking for a newer Eagly', () async {
       connect();
-      server.hello(protocol: 2);
+      server.hello(protocol: 3);
       expect(await failureMessage(), contains('update Eagly'));
       await expectLater(source.ready, throwsStateError);
     });
 
     test('on an older protocol, asking for a newer Inspektor', () async {
       connect();
-      server.hello(protocol: 0);
+      // Protocol 1 had no authentication; this Eagly won't speak it.
+      server.hello(protocol: 1);
       expect(await failureMessage(), contains('update Inspektor'));
+    });
+
+    test('when the app refuses the token', () async {
+      connect(token: (_) async => 'stale');
+      server.hello(auth: 'token');
+      final auth = await server.nextRequest();
+      server.replyError(auth['id']! as int, 'unauthorized', 'Wrong token.');
+
+      expect(await failureMessage(), contains('refused the token'));
+    });
+
+    test('when the app wants a token and there is no way to find it', () async {
+      connect();
+      server.hello(auth: 'token');
+      expect(await failureMessage(), contains('token'));
+    });
+
+    test('when the token never turns up in the log', () async {
+      connect(token: (_) async => throw StateError('The device log ended.'));
+      server.hello(auth: 'token');
+      expect(await failureMessage(), contains('The device log ended.'));
+    });
+
+    test('on an authentication it does not know, asking for a newer Eagly', () {
+      connect();
+      server.hello(auth: 'passkey');
+      return expectLater(
+        failureMessage(),
+        completion(contains('update Eagly')),
+      );
     });
 
     test('when the first message is not hello', () async {
@@ -253,7 +336,7 @@ void main() {
     socket.add(
       encodeInspektorFrame({
         'type': 'hello',
-        'protocol': 1,
+        'protocol': 2,
         'app': {'id': 'com.example.app'},
         'store': {'id': 's'},
       }),

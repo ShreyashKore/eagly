@@ -468,6 +468,16 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     open ones. A port with a tunnel isn't probed again: each probe is a connection the app sees.
     A connection that ends is dropped, so the next poll reconnects; on iOS a restarted app usually
     takes the same port.
+  - **Authentication (protocol 2):**
+    - On Android, the app checks the peer's uid itself, and `hello` says `"auth": "none"`.
+    - On iOS, `hello` says `"auth": "token"`. The token appears only in the app's device-log line
+      `listening on 127.0.0.1:<port>, token <hex>`.
+    - So the watcher asks `DeviceSessionRepository.listenForInspektorToken` for an
+      `InspektorTokenListener` before it opens the tunnel. That is a syslog stream of its own,
+      outside the log tabs. iOS relays only live lines, and the app repeats its line as it
+      accepts the connection.
+    - `InspektorSource` sends `auth` before `subscribe`, and the listener stops once the source
+      is ready.
   - **Device tests:** `EAGLY_TEST_ANDROID_SERIAL=<serial> fvm flutter test
     test/device/network_inspektor_device_test.dart`, with Inspektor's sample app (dev flavour)
     running; `EAGLY_TEST_IOS_UDID=<udid> EAGLY_TEST_INSPEKTOR_BUNDLE=<bundle id>` for

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:eagly/features/network/services/inspektor/inspektor_frame_codec.dart';
+import 'package:eagly/features/network/services/inspektor/inspektor_messages.dart';
 import 'package:eagly/features/network/services/inspektor/inspektor_source.dart';
 
 /// The app side of an Inspektor connection, in memory: it sends frames to an
@@ -29,13 +30,17 @@ class FakeInspektorServer() {
       (_toClient.stream, _fromClient.sink);
 
   /// A source connected to this server.
-  InspektorSource connect({String? afterId, int inlineBodyLimit = 0}) =>
-      InspektorSource(
-        _toClient.stream,
-        _fromClient.sink,
-        afterId: afterId,
-        inlineBodyLimit: inlineBodyLimit,
-      );
+  InspektorSource connect({
+    String? afterId,
+    int inlineBodyLimit = 0,
+    Future<String> Function(InspektorHello hello)? token,
+  }) => InspektorSource(
+    _toClient.stream,
+    _fromClient.sink,
+    afterId: afterId,
+    inlineBodyLimit: inlineBodyLimit,
+    token: token,
+  );
 
   void send(Map<String, Object?> message) =>
       _toClient.add(encodeInspektorFrame(message));
@@ -43,9 +48,14 @@ class FakeInspektorServer() {
   /// Raw bytes, for frames the encoder would refuse to produce.
   void sendBytes(List<int> bytes) => _toClient.add(bytes);
 
-  void hello({int protocol = 1, String storeId = 'store-1'}) => send({
+  void hello({
+    int protocol = inspektorProtocolVersion,
+    String storeId = 'store-1',
+    String auth = 'none',
+  }) => send({
     'type': 'hello',
     'protocol': protocol,
+    'auth': auth,
     'sdk': {
       'name': 'inspektor',
       'version': '0.9.0',

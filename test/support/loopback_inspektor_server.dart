@@ -3,13 +3,17 @@ import 'dart:io';
 
 import 'package:eagly/features/network/services/inspektor/inspektor_endpoint.dart';
 import 'package:eagly/features/network/services/inspektor/inspektor_frame_codec.dart';
+import 'package:eagly/features/network/services/inspektor/inspektor_messages.dart';
 
 import 'inspektor_test_support.dart';
 
 /// An Inspektor server on a real loopback socket, for tests that go through
 /// [InspektorSource.connect]: the app side of a tunnel.
 ///
-/// Every connection gets a `hello` for [appId]/[storeId]. A `subscribe` is
+/// Every connection gets a `hello` for [appId]/[storeId]. With a [token], the
+/// hello asks for it, and a client whose first request isn't `auth` with it
+/// gets `unauthorized` and a closed connection, as an iOS app does. A
+/// `subscribe` is
 /// recorded in [subscribes] and answered with every transaction in
 /// [transactions] whose id is above its `afterId`; `body.get` answers
 /// `body of <id>`.
@@ -17,16 +21,19 @@ class LoopbackInspektorServer._(
   final ServerSocket _server, {
   required final String appId,
   required final String storeId,
+  final String? token,
 }) {
   static Future<LoopbackInspektorServer> start({
     String appId = 'com.example.app',
     String storeId = 'store-1',
+    String? token,
     List<String> transactionIds = const [],
   }) async {
     final server = LoopbackInspektorServer._(
       await ServerSocket.bind(InternetAddress.loopbackIPv4, 0),
       appId: appId,
       storeId: storeId,
+      token: token,
     );
     server.transactions.addAll(transactionIds);
     server._server.listen(server._serve);
@@ -83,12 +90,14 @@ class LoopbackInspektorServer._(
     socket.add(
       encodeInspektorFrame({
         'type': 'hello',
-        'protocol': 1,
+        'protocol': inspektorProtocolVersion,
+        'auth': token == null ? 'none' : 'token',
         'sdk': {'name': 'inspektor', 'runtime': 'kotlin', 'overrides': true},
-        'app': {'id': appId, 'name': 'Example'},
+        'app': {'id': appId, 'name': 'Example', 'pid': 4242},
         'store': {'id': storeId, 'persistent': true},
       }),
     );
+    var authenticated = token == null;
     final Stream<List<int>> incoming = socket;
     const InspektorFrameDecoder()
         .bind(incoming)
@@ -97,6 +106,21 @@ class LoopbackInspektorServer._(
             final id = frame['id'];
             final params =
                 (frame['params'] as Map<String, Object?>?) ?? const {};
+            if (!authenticated) {
+              if (frame['method'] == 'auth' && params['token'] == token) {
+                authenticated = true;
+                socket.add(encodeInspektorFrame({'id': id, 'result': {}}));
+              } else {
+                socket.add(
+                  encodeInspektorFrame({
+                    'id': id,
+                    'error': {'code': 'unauthorized', 'message': 'No token.'},
+                  }),
+                );
+                socket.destroy();
+              }
+              return;
+            }
             switch (frame['method']) {
               case 'subscribe':
                 subscribes.add(params);

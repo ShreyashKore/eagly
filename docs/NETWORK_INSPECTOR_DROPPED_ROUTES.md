@@ -450,6 +450,10 @@ Eagly is the server and Inspektor dials it, the way React Native apps dial Metro
 
 ### Authentication on the socket (superseded)
 
+> **Restored on 2026-10-25 as protocol 2**, in a simpler form; see NETWORK_INSPECTOR.md §4.3.
+> Android checks the peer's uid. On iOS, the server writes one token per start rather than per
+> connection, and repeats the line for every connection. There is no trust-on-first-use fallback.
+
 #### What it was
 
 The protocol's first draft authenticated every connection, because a listening socket is reachable
