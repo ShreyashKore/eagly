@@ -619,13 +619,27 @@ pub async fn start_ios_wireless_pairing(
             // Stopped from Dart, which has already dropped the stream.
             None => {}
             Some(Ok(peer)) => {
-                crate::ios_wireless::persist_device_record(&storage_dir, &peer, &pairing_file);
-                let _ = sink.add(IosWirelessPairEvent {
-                    device_name: Some(peer.name),
-                    device_model: Some(peer.model),
-                    device_udid: Some(peer.remotepairing_udid),
-                    ..pair_event("paired")
-                });
+                // Without its record the device is never reconnected, so a
+                // failed save is a failed pairing, not a paired device.
+                let event = match crate::ios_wireless::persist_device_record(
+                    &storage_dir,
+                    &peer,
+                    &pairing_file,
+                ) {
+                    Ok(()) => IosWirelessPairEvent {
+                        device_name: Some(peer.name),
+                        device_model: Some(peer.model),
+                        device_udid: Some(peer.remotepairing_udid),
+                        ..pair_event("paired")
+                    },
+                    Err(error) => IosWirelessPairEvent {
+                        message: Some(format!(
+                            "Paired, but the pairing could not be saved: {error}"
+                        )),
+                        ..pair_event("error")
+                    },
+                };
+                let _ = sink.add(event);
             }
             Some(Err(message)) => {
                 let _ = sink.add(IosWirelessPairEvent {

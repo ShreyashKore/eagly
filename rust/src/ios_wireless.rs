@@ -493,19 +493,24 @@ struct DeviceRecord {
 /// One file per device because the host identity is shared across devices
 /// while the altIRK is not: a single record would be overwritten by the next
 /// pairing, losing the previous device's.
+///
+/// An error means nothing usable was saved, so the device would never be
+/// reconnected: the pairing has to be reported as failed, not paired.
 pub(crate) fn persist_device_record(
     storage_dir: &str,
     peer: &PeerDevice,
     pairing_file: &RpPairingFile,
-) {
+) -> Result<(), String> {
     // The UDID comes off the wire; keep it from naming a path elsewhere.
     let file_stem = file_stem(&peer.remotepairing_udid);
     if file_stem.is_empty() {
-        return;
+        return Err(format!(
+            "the device sent an unusable UDID ({:?})",
+            peer.remotepairing_udid
+        ));
     }
-    let Ok(mut record) = plist::from_bytes::<Dictionary>(&pairing_file.to_bytes()) else {
-        return;
-    };
+    let mut record = plist::from_bytes::<Dictionary>(&pairing_file.to_bytes())
+        .map_err(|error| format!("reading the pairing record: {error}"))?;
     record.insert(
         "udid".into(),
         Value::String(peer.remotepairing_udid.clone()),
@@ -514,8 +519,12 @@ pub(crate) fn persist_device_record(
     record.insert("model".into(), Value::String(peer.model.clone()));
 
     let dir = Path::new(storage_dir).join(DEVICE_RECORDS_DIR);
-    let _ = std::fs::create_dir_all(&dir);
-    let _ = Value::Dictionary(record).to_file_xml(dir.join(format!("{file_stem}.plist")));
+    std::fs::create_dir_all(&dir)
+        .map_err(|error| format!("creating {}: {error}", dir.display()))?;
+    let path = dir.join(format!("{file_stem}.plist"));
+    Value::Dictionary(record)
+        .to_file_xml(&path)
+        .map_err(|error| format!("saving {}: {error}", path.display()))
 }
 
 fn file_stem(udid: &str) -> String {
@@ -619,7 +628,8 @@ mod tests {
             storage.to_str().unwrap(),
             &peer("00008110-001A2B3C00000000", [7; 16]),
             &file,
-        );
+        )
+        .unwrap();
 
         let records = load_records(&storage);
         assert_eq!(records.len(), 1);
@@ -639,8 +649,8 @@ mod tests {
     fn each_device_keeps_its_own_record() {
         let storage = temp_storage("two-devices");
         let dir = storage.to_str().unwrap();
-        persist_device_record(dir, &peer("first", [1; 16]), &paired_file([1; 16]));
-        persist_device_record(dir, &peer("second", [2; 16]), &paired_file([2; 16]));
+        persist_device_record(dir, &peer("first", [1; 16]), &paired_file([1; 16])).unwrap();
+        persist_device_record(dir, &peer("second", [2; 16]), &paired_file([2; 16])).unwrap();
 
         let mut udids: Vec<String> = load_records(&storage)
             .into_iter()
@@ -656,8 +666,8 @@ mod tests {
     fn advertisement_matches_only_its_devices_record() {
         let storage = temp_storage("matching");
         let dir = storage.to_str().unwrap();
-        persist_device_record(dir, &peer("first", [1; 16]), &paired_file([1; 16]));
-        persist_device_record(dir, &peer("second", [2; 16]), &paired_file([2; 16]));
+        persist_device_record(dir, &peer("first", [1; 16]), &paired_file([1; 16])).unwrap();
+        persist_device_record(dir, &peer("second", [2; 16]), &paired_file([2; 16])).unwrap();
         let records = load_records(&storage);
 
         let advert = advert_from([2; 16], "2BE6E510-0325-4365-923E-B14C6F57DB3A");
@@ -685,6 +695,21 @@ mod tests {
         tokio::time::sleep(TICK + Duration::from_millis(500)).await;
         assert!(devices().is_empty());
         assert!(route("00008110-001A2B3C00000000").is_none());
+
+        let _ = std::fs::remove_dir_all(&storage);
+    }
+
+    #[test]
+    fn a_record_that_cannot_be_saved_is_an_error() {
+        let storage = temp_storage("unsaved");
+        let dir = storage.to_str().unwrap();
+        let file = paired_file([1; 16]);
+        assert!(persist_device_record(dir, &peer("../..", [1; 16]), &file).is_err());
+
+        // A file where the records folder should be.
+        std::fs::write(storage.join(DEVICE_RECORDS_DIR), b"").unwrap();
+        assert!(persist_device_record(dir, &peer("first", [1; 16]), &file).is_err());
+        assert!(load_records(&storage).is_empty());
 
         let _ = std::fs::remove_dir_all(&storage);
     }
