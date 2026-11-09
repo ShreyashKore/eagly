@@ -1,4 +1,5 @@
 import 'package:eagly/data/device.dart';
+import 'package:eagly/features/logs/log_controller.dart';
 import 'package:eagly/features/logs/presentation/components/log_viewer.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/services/preferences_service.dart';
@@ -26,33 +27,7 @@ void main() {
     'a burst of logs glides to the newest row without overshooting',
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     (tester) async {
-      final device = Device(
-        'emulator-5554',
-        'device',
-        platform: DevicePlatform.android,
-      );
-      final service = FakeSessionService(device);
-      final session = DeviceSessionController(device: device, service: service);
-      final log = session.logSessionManager.selectedTab!;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.lightTheme,
-          home: Scaffold(
-            body: ListenableBuilder(
-              listenable: log,
-              builder: (context, _) => LogViewer(
-                logs: log.filteredLogs,
-                scrollController: log.scrollController,
-                listController: log.listController,
-                wrapText: false,
-              ),
-            ),
-          ),
-        ),
-      );
-      await log.startLogcat();
-      expect(log.autoScroll, isTrue);
+      final (:session, :service, :log) = await _pumpLogViewer(tester);
 
       final position = log.scrollController.position;
       var worstOvershoot = 0.0;
@@ -104,4 +79,94 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     },
   );
+
+  testWidgets(
+    'with Eagly in the background a burst lands on the newest row at once',
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    (tester) async {
+      final (:session, :service, :log) = await _pumpLogViewer(tester);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      addTearDown(
+        () => tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        ),
+      );
+
+      final position = log.scrollController.position;
+      var line = 0;
+      for (var burst = 0; burst < 3; burst++) {
+        for (var i = 0; i < 600; i++) {
+          service.emit(testLogEntry(message: 'Line ${line++}'));
+        }
+        await tester.pump(const Duration(milliseconds: 300));
+
+        final path = <double>[position.pixels];
+        for (var frame = 0; frame < 14; frame++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          path.add(position.pixels);
+        }
+
+        // At most one correction after landing, not a glide's run of frames.
+        final steps = [
+          for (var i = 1; i < path.length; i++) path[i] - path[i - 1],
+        ];
+        expect(
+          steps.where((step) => step.abs() > 0.5).length,
+          lessThanOrEqualTo(1),
+          reason: 'burst $burst should land, not glide: $path',
+        );
+        expect(
+          log.listController.visibleRange?.$2,
+          log.filteredLogs.length - 1,
+        );
+        expect(
+          position.pixels,
+          moreOrLessEquals(position.maxScrollExtent, epsilon: 0.5),
+        );
+      }
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      session.dispose();
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+}
+
+/// A log viewer on a fake Android device, capturing with auto-scroll on.
+Future<
+  ({
+    DeviceSessionController session,
+    FakeSessionService service,
+    LogController log,
+  })
+>
+_pumpLogViewer(WidgetTester tester) async {
+  final device = Device(
+    'emulator-5554',
+    'device',
+    platform: DevicePlatform.android,
+  );
+  final service = FakeSessionService(device);
+  final session = DeviceSessionController(device: device, service: service);
+  final log = session.logSessionManager.selectedTab!;
+
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: Scaffold(
+        body: ListenableBuilder(
+          listenable: log,
+          builder: (context, _) => LogViewer(
+            logs: log.filteredLogs,
+            scrollController: log.scrollController,
+            listController: log.listController,
+            wrapText: false,
+          ),
+        ),
+      ),
+    ),
+  );
+  await log.startLogcat();
+  expect(log.autoScroll, isTrue);
+  return (session: session, service: service, log: log);
 }

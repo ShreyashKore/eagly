@@ -400,11 +400,21 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   /// the list, then bounced back. This glide re-reads the end every frame and
   /// never moves past it, then lands with [ListController.jumpToItem], which
   /// pins the last row to the bottom edge exactly.
+  ///
+  /// Under a steady stream that's a frame on every other vsync for as long as
+  /// logs flow, so with Eagly in the background, where nobody is watching the
+  /// list move, it lands straight away.
   void _followTail() {
     if (!autoScroll || !scrollController.hasClients) return;
     final generation = ++_followGeneration;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_isFollowing(generation)) return;
+      if (!_isAppActive) {
+        if (!scrollController.position.isScrollingNotifier.value) {
+          _landOnTail();
+        }
+        return;
+      }
       final start = scrollController.position.pixels;
       Duration? startedAt;
 
@@ -433,6 +443,11 @@ class LogController(super.session, {required LogTabSettings initialSettings})
       SchedulerBinding.instance.scheduleFrameCallback(tick);
     });
   }
+
+  bool get _isAppActive => switch (WidgetsBinding.instance.lifecycleState) {
+    null || AppLifecycleState.resumed => true,
+    _ => false,
+  };
 
   bool _isFollowing(int generation) =>
       generation == _followGeneration &&

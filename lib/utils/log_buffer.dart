@@ -101,31 +101,34 @@ class LogBuffer<T>({required final int baseCapacity}) {
   }
 
   List<T> _evictUntilSize(int targetSize) {
-    final evicted = <T>[];
     final removeCount = size - targetSize;
-    for (var index = 0; index < removeCount; index++) {
-      final removed = _evictOne(preferNonMatching: _activeFilter != null);
-      if (removed == null) {
-        break;
-      }
-      evicted.add(removed);
+    if (removeCount <= 0) return const [];
+
+    final evicted = <T>[];
+    if (_activeFilter != null) _evictNonMatching(removeCount, evicted);
+    while (evicted.length < removeCount) {
+      evicted.add(_entries.removeFirst().value);
     }
     return evicted;
   }
 
-  T? _evictOne({required bool preferNonMatching}) {
-    if (_entries.isEmpty) return null;
-
-    if (preferNonMatching) {
-      for (final entry in _entries) {
-        if (!entry.matchesFilter) {
-          _entries.remove(entry);
-          return entry.value;
-        }
+  /// Moves up to [count] of the oldest non-matching entries into [evicted].
+  ///
+  /// Rebuilds the queue in one pass: removing a row from the middle of a
+  /// [ListQueue] shifts the rows around it, which row by row took 5 s for a
+  /// full batch, blocking the UI.
+  void _evictNonMatching(int count, List<T> evicted) {
+    final kept = <_BufferEntry<T>>[];
+    for (final entry in _entries) {
+      if (!entry.matchesFilter && evicted.length < count) {
+        evicted.add(entry.value);
+      } else {
+        kept.add(entry);
       }
     }
-
-    return _entries.removeFirst().value;
+    _entries
+      ..clear()
+      ..addAll(kept);
   }
 }
 
