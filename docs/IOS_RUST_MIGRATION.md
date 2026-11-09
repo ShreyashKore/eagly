@@ -99,7 +99,8 @@ Two halves, both in Rust, and no libimobiledevice counterpart:
   and we show the setup code it asks for. Our host identity is in `remote_pairing_host.plist` +
   `remote_pairing_host_alt_irk`; each paired device gets `remote_pairing_devices/<udid>.plist`
   (our keys plus *that* device's altIRK — one file per device, or the next pairing overwrites it).
-  All under the application-support directory.
+  All under the application-support directory, owner-only (`write_private`). The pane is hidden
+  when the Rust backend is off (`iosWirelessPairingAvailable`), since nothing would find the phone.
 - **Connecting** (`rust/src/ios_wireless.rs`, started by `start_ios_wireless_discovery` on the
   first discovery poll that finds a device record — browsing mDNS raises macOS's Local Network
   prompt, so no one is asked before they pair; a failed start is retried 30 s later). Browses `_remotepairing._tcp`; an advertisement's `authTag` is a

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'ios_backend.dart';
 import 'rust_ios_wireless_service.dart';
 
 /// Folder under the storage dir holding one record per iPhone paired over
@@ -75,3 +76,10 @@ abstract interface class IosWirelessService {
 }
 
 IosWirelessService createIosWirelessService() => RustIosWirelessService();
+
+/// Whether iPhone wireless pairing can be offered. It needs the Rust
+/// backend twice over: pairing runs in Rust, and only
+/// `RustIosDeviceService` watches for paired iPhones afterwards. Under
+/// `EAGLY_IOS_BACKEND=cli`, or when the Rust library failed to load, a
+/// pairing would either throw or produce a phone that never appears.
+bool get iosWirelessPairingAvailable => useRustIosBackend;

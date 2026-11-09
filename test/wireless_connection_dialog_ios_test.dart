@@ -6,6 +6,7 @@ import 'package:eagly/features/wireless_connection/wireless_connection_controlle
 import 'package:eagly/features/wireless_connection/wireless_connection_dialog.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/services/devices_repository.dart';
+import 'package:eagly/services/ios/ios_backend.dart';
 import 'package:eagly/services/ios/ios_wireless_service.dart';
 import 'package:eagly/session/device_session_manager.dart';
 import 'package:flutter/material.dart';
@@ -91,6 +92,19 @@ void main() {
     expect(find.text('Pair an iPhone over Wi-Fi'), findsOneWidget);
     expect(service.starts, hasLength(1));
     expect(service.starts.single.$1, 'Test Mac');
+
+    await closeDialog(tester, manager);
+  });
+
+  testWidgets('without the Rust backend only the Android pane is offered', (
+    tester,
+  ) async {
+    rustIosRuntimeFailed = true;
+    addTearDown(() => rustIosRuntimeFailed = false);
+    final manager = await pumpDialog(tester);
+
+    expect(find.text('iPhone'), findsNothing);
+    expect(find.text('Pair a device'), findsOneWidget);
 
     await closeDialog(tester, manager);
   });
