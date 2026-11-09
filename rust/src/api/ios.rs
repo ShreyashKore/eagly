@@ -700,7 +700,7 @@ async fn advertise_pairable_host(
         .iter()
         .map(|(key, value)| (key.as_str(), value.as_str()))
         .collect();
-    let hostname = format!("eagly-{}.local.", &service_identifier[..8]);
+    let hostname = mdns_hostname(&service_identifier);
     let registered = ServiceInfo::new(
         PAIRABLE_HOST_SERVICE_TYPE,
         &service_identifier,
@@ -726,6 +726,20 @@ async fn advertise_pairable_host(
         pairing_file,
         host_info,
     })
+}
+
+/// The `.local.` name the pairing service is advertised under: `eagly-` and
+/// the first 8 alphanumerics of the identifier. The identifier is read back
+/// from a file, so it is not trusted to be a UUID — slicing it by bytes
+/// panicked on one shorter than 8 bytes or with a multi-byte character there.
+fn mdns_hostname(identifier: &str) -> String {
+    let short: String = identifier
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .take(8)
+        .collect();
+    let short = if short.is_empty() { "host" } else { short.as_str() };
+    format!("eagly-{short}.local.")
 }
 
 /// Waits for one device to connect and runs the rppairing pair-setup with it,
@@ -1418,6 +1432,17 @@ async fn usbmuxd_device(udid: &str) -> Result<UsbmuxdDevice, IosError> {
 mod tests {
     use super::*;
     use chrono::DateTime;
+
+    #[test]
+    fn mdns_hostname_takes_a_uuid_prefix_and_never_panics() {
+        assert_eq!(
+            mdns_hostname("2BE6E510-0325-4365-923E-B14C6F57DB3A"),
+            "eagly-2BE6E510.local."
+        );
+        assert_eq!(mdns_hostname("ab"), "eagly-ab.local.");
+        assert_eq!(mdns_hostname("ééééé-12"), "eagly-12.local.");
+        assert_eq!(mdns_hostname(""), "eagly-host.local.");
+    }
 
     /// A record as idevice 0.1.68 builds it: `from_timestamp(seconds,
     /// microseconds).naive_local()` — UTC, with micros in the nanos field.
