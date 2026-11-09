@@ -178,6 +178,13 @@ pub async fn list_ios_devices() -> Result<Vec<IosDeviceHandle>, IosError> {
 /// [`list_ios_devices`] lists it and every per-device call here reaches it
 /// through the tunnel whenever usbmuxd does not know its UDID. Idempotent.
 pub async fn start_ios_wireless_discovery(storage_dir: String) -> Result<(), IosError> {
+    // Pairing files saved before they were written owner-only (1.8.2) keep
+    // their old mode until rewritten, and a device's record is rewritten
+    // only when that device pairs again. Best effort: it never stops discovery.
+    let dir = PathBuf::from(&storage_dir);
+    let host_files = [HOST_IDENTITY_FILE, HOST_ALT_IRK_FILE];
+    let tighten = move || crate::ios_wireless::tighten_pairing_files(&dir, &host_files);
+    let _ = tokio::task::spawn_blocking(tighten).await;
     crate::ios_wireless::start(storage_dir).map_err(IosError::Other)
 }
 

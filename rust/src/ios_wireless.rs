@@ -602,6 +602,42 @@ pub(crate) fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     written
 }
 
+/// Narrows every file under the records folder, and each of `host_files` in
+/// `storage_dir`, to this user — for files saved before [`write_private`]
+/// existed, which kept the default mode. A no-op off Unix, where the per-user
+/// app-data ACL already does this.
+pub(crate) fn tighten_pairing_files(storage_dir: &Path, host_files: &[&str]) {
+    let records = std::fs::read_dir(storage_dir.join(DEVICE_RECORDS_DIR))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path());
+    let hosts = host_files.iter().map(|name| storage_dir.join(name));
+    for path in records.chain(hosts) {
+        make_private(&path);
+    }
+}
+
+#[cfg(unix)]
+fn make_private(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+
+    // Not following links: only a file of ours is narrowed.
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return;
+    };
+    if !metadata.is_file() || metadata.permissions().mode() & 0o077 == 0 {
+        return;
+    }
+    match std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)) {
+        Ok(()) => trace(format!("made {} private", path.display())),
+        Err(error) => trace(format!("could not make {} private: {error}", path.display())),
+    }
+}
+
+#[cfg(not(unix))]
+fn make_private(_path: &Path) {}
+
 fn file_stem(udid: &str) -> String {
     udid.chars()
         .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
@@ -807,6 +843,33 @@ mod tests {
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
         persist_device_record(dir, &peer("first", [1; 16]), &file).unwrap();
         assert_eq!(mode(&path), 0o600);
+
+        let _ = std::fs::remove_dir_all(&storage);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn files_saved_before_they_were_private_are_tightened() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let storage = temp_storage("tighten");
+        let records = storage.join(DEVICE_RECORDS_DIR);
+        std::fs::create_dir_all(&records).unwrap();
+        let record = records.join("first.plist");
+        let host = storage.join("host.plist");
+        let unrelated = storage.join("unrelated.txt");
+        let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        for path in [&record, &host, &unrelated] {
+            std::fs::write(path, b"").unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        }
+
+        // A host file that is not there yet is skipped, not an error.
+        tighten_pairing_files(&storage, &["host.plist", "missing.plist"]);
+
+        assert_eq!(mode(&record), 0o600);
+        assert_eq!(mode(&host), 0o600);
+        assert_eq!(mode(&unrelated), 0o644);
 
         let _ = std::fs::remove_dir_all(&storage);
     }
