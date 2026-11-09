@@ -11,6 +11,7 @@ import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../../data/device.dart';
 import '../../services/app_breadcrumbs.dart';
+import 'data/models/log_column.dart';
 import 'data/models/log_entry.dart';
 import 'data/models/log_filters.dart';
 import 'data/models/log_level.dart';
@@ -362,8 +363,49 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     _notify();
   }
 
-  Future<LogExportResult> exportLogs() async {
-    return LogFileService.exportLogs(logs, device);
+  /// Writes the [scope] of this tab's logs to a file the user picks, in
+  /// [format]. With [visibleColumnsOnly], a plain-text export leaves out the
+  /// columns hidden in the viewer.
+  Future<LogExportResult> exportLogs({
+    LogExportScope scope = LogExportScope.all,
+    LogExportFormat format = LogExportFormat.androidStudio,
+    bool visibleColumnsOnly = false,
+  }) {
+    return LogFileService.exportLogs(
+      entriesForExport(scope),
+      device,
+      format: format,
+      scope: scope,
+      columns: visibleColumnsOnly && hiddenColumns.isNotEmpty
+          ? visibleColumns.toSet()
+          : null,
+      isIos: isIosLogContext,
+    );
+  }
+
+  /// The columns the viewer shows, in order.
+  List<LogColumn> get visibleColumns => [
+    for (final column in LogColumn.values)
+      if (!hiddenColumns.contains(column.name)) column,
+  ];
+
+  /// A snapshot of the entries an export of [scope] writes: the whole buffer,
+  /// what the filters show, or the selected rows in display order.
+  List<LogEntry> entriesForExport(LogExportScope scope) {
+    switch (scope) {
+      case LogExportScope.all:
+        return List.of(logs);
+      case LogExportScope.filtered:
+        return List.of(filteredLogs);
+      case LogExportScope.selected:
+        final filtered = filteredLogs;
+        final indices =
+            _selectedRowIndices
+                .where((i) => i >= 0 && i < filtered.length)
+                .toList()
+              ..sort();
+        return [for (final i in indices) filtered[i]];
+    }
   }
 
   void scrollToEnd() {

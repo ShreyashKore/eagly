@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:eagly/data/device.dart';
 import 'package:eagly/features/logs/services/log_file_service.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,6 +26,37 @@ void main() {
 
   tearDown(() {
     if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+  });
+
+  test('suggestedExportFileName names the device, scope and format', () {
+    final time = DateTime(2026, 11, 9, 14, 5, 7);
+    final device = Device(
+      'emulator-5554',
+      'device',
+      platform: DevicePlatform.android,
+    );
+    final deviceName = device.displayName
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+
+    expect(
+      LogFileService.suggestedExportFileName(
+        device: device,
+        format: LogExportFormat.androidStudio,
+        scope: LogExportScope.all,
+        time: time,
+      ),
+      '$deviceName-logs-20261109-140507.json',
+    );
+    expect(
+      LogFileService.suggestedExportFileName(
+        device: null,
+        format: LogExportFormat.plainText,
+        scope: LogExportScope.filtered,
+        time: time,
+      ),
+      'logs-filtered-20261109-140507.txt',
+    );
   });
 
   test('importLogs(path:) parses the file and records it as recent', () async {

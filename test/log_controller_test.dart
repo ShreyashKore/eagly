@@ -6,6 +6,7 @@ import 'package:eagly/features/logs/data/models/log_filters.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 import 'package:eagly/features/logs/data/models/log_tab_settings.dart';
 import 'package:eagly/features/logs/log_controller.dart';
+import 'package:eagly/features/logs/services/log_file_service.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
 import 'package:eagly/utils/log_entry_utils.dart';
@@ -1034,6 +1035,40 @@ void main() {
       );
     },
   );
+
+  test('entriesForExport picks all, filtered or selected entries', () {
+    final log = createLog();
+    log.logs = [
+      testLogEntry(message: 'one', tag: 'Auth'),
+      testLogEntry(message: 'two', tag: 'Net'),
+      testLogEntry(message: 'three', tag: 'Auth'),
+      testLogEntry(message: 'four', tag: 'Auth'),
+    ];
+    applyTypedFilter(log, 'tag:Auth');
+    log.setRowSelectionMode(true);
+    // Indices are into the filtered view; picked out of order on purpose.
+    log.setRowSelected(2, true);
+    log.setRowSelected(0, true);
+
+    List<String> messages(LogExportScope scope) =>
+        log.entriesForExport(scope).map((e) => e.message).toList();
+
+    expect(messages(LogExportScope.all), ['one', 'two', 'three', 'four']);
+    expect(messages(LogExportScope.filtered), ['one', 'three', 'four']);
+    expect(messages(LogExportScope.selected), ['one', 'four']);
+  });
+
+  test('visibleColumns follows the columns hidden in the viewer', () {
+    final log = createLog();
+    log.setHiddenColumns({LogColumn.pid.name, LogColumn.tid.name});
+
+    expect(log.visibleColumns, [
+      LogColumn.timestamp,
+      LogColumn.level,
+      LogColumn.tag,
+      LogColumn.message,
+    ]);
+  });
 
   test('disabling row selection mode clears selected rows', () {
     final log = createLog();

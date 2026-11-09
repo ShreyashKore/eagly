@@ -130,6 +130,23 @@ extension LogEntryExt on LogEntry {
         '$timestamp ${packageName ?? pid} $tid $level $tag: $message',
     };
   }
+
+  /// One line holding only [columns], in viewer order and each as the viewer
+  /// shows it. As in [LogCopyFormat.fullLine], the tag ends in a colon when
+  /// the message follows it. Empty cells are left out.
+  String formatColumns(Iterable<LogColumn> columns, {bool isIos = false}) {
+    final shown = columns.toSet();
+    final parts = <String>[];
+    for (final column in LogColumn.values) {
+      if (!shown.contains(column)) continue;
+      final value = valueForColumn(column, isIos: isIos);
+      if (value.trim().isEmpty) continue;
+      final endsTag =
+          column == LogColumn.tag && shown.contains(LogColumn.message);
+      parts.add(endsTag ? '$value:' : value);
+    }
+    return parts.join(' ');
+  }
 }
 
 int estimateLogsBytes(Iterable<LogEntry> entries) {

@@ -125,4 +125,45 @@ void main() {
       expect(entry.message, 'Beginning of crash');
     });
   });
+
+  group('formatColumns', () {
+    final entry = LogEntry(
+      timestamp: '2026-04-26 10:00:00.000',
+      pid: '101',
+      tid: '202',
+      level: 'I',
+      tag: 'Auth',
+      packageName: 'com.example',
+      message: 'Signed in',
+    );
+
+    test('writes only the given columns, in viewer order', () {
+      expect(
+        entry.formatColumns({
+          LogColumn.message,
+          LogColumn.timestamp,
+          LogColumn.level,
+        }),
+        '2026-04-26 10:00:00.000 I Signed in',
+      );
+    });
+
+    test('ends the tag in a colon only when the message follows', () {
+      expect(
+        entry.formatColumns({LogColumn.tag, LogColumn.message}),
+        'Auth: Signed in',
+      );
+      expect(
+        entry.formatColumns({LogColumn.timestamp, LogColumn.tag}),
+        '2026-04-26 10:00:00.000 Auth',
+      );
+    });
+
+    test('shows cells as the viewer does', () {
+      expect(
+        entry.formatColumns(LogColumn.values),
+        '2026-04-26 10:00:00.000 com.example 101/202 I Auth: Signed in',
+      );
+    });
+  });
 }

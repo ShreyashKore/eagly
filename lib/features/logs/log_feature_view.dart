@@ -11,8 +11,8 @@ import '../../presentation/components/feature_view.dart';
 import '../../presentation/components/notice_banner.dart';
 import 'presentation/components/log_viewer.dart';
 import '../../utils/log_entry_utils.dart';
-import '../../utils/log_feedback.dart';
 import '../../utils/utils.dart';
+import 'presentation/components/log_export_dialog.dart';
 import 'presentation/components/log_filter_area.dart';
 import 'presentation/components/scroll_to_end_button.dart';
 import 'presentation/components/log_status_bar.dart';
@@ -43,11 +43,8 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
   @override
   Listenable get listenable => logManager;
 
-  Future<void> _handleExportLogs(LogController controller) async {
-    final result = await controller.exportLogs();
-    if (!mounted || result.cancelled) return;
-    showSnackBar(formatExportLogsMessage(result));
-  }
+  Future<void> _handleExportLogs(LogController controller) =>
+      exportLogsInteractively(context, controller, showMessage: showSnackBar);
 
   Future<void> _handleImportLog() async {
     final result = await logManager.importLog();
