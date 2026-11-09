@@ -180,7 +180,9 @@ fn back_off(state: &mut State, record_udid: &str) -> Duration {
     let delay = state
         .backoff
         .get(record_udid)
-        .map_or(MIN_BACKOFF, |(_, previous)| (*previous * 2).min(MAX_BACKOFF));
+        .map_or(MIN_BACKOFF, |(_, previous)| {
+            (*previous * 2).min(MAX_BACKOFF)
+        });
     state
         .backoff
         .insert(record_udid.to_string(), (Instant::now() + delay, delay));
@@ -631,7 +633,10 @@ fn make_private(path: &Path) {
     }
     match std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)) {
         Ok(()) => trace(format!("made {} private", path.display())),
-        Err(error) => trace(format!("could not make {} private: {error}", path.display())),
+        Err(error) => trace(format!(
+            "could not make {} private: {error}",
+            path.display()
+        )),
     }
 }
 

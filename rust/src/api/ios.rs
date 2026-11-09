@@ -748,7 +748,11 @@ fn mdns_hostname(identifier: &str) -> String {
         .filter(char::is_ascii_alphanumeric)
         .take(8)
         .collect();
-    let short = if short.is_empty() { "host" } else { short.as_str() };
+    let short = if short.is_empty() {
+        "host"
+    } else {
+        short.as_str()
+    };
     format!("eagly-{short}.local.")
 }
 
@@ -915,9 +919,8 @@ fn persist_host_identity(
     let dir = PathBuf::from(storage_dir);
     let save = |name: &str, bytes: &[u8]| {
         let path = dir.join(name);
-        crate::ios_wireless::write_private(&path, bytes).map_err(|error| {
-            IosError::Other(format!("failed to save {}: {error}", path.display()))
-        })
+        crate::ios_wireless::write_private(&path, bytes)
+            .map_err(|error| IosError::Other(format!("failed to save {}: {error}", path.display())))
     };
     std::fs::create_dir_all(&dir)
         .map_err(|error| IosError::Other(format!("failed to create {storage_dir}: {error}")))?;
