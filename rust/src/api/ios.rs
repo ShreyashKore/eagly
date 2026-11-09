@@ -681,7 +681,7 @@ async fn advertise_pairable_host(
     let HostIdentity {
         pairing_file,
         alt_irk,
-    } = load_or_create_host_identity(storage_dir, host_name, host_model);
+    } = load_or_create_host_identity(storage_dir, host_name, host_model)?;
     let host_info = PairableHostInfo {
         name: host_name.to_string(),
         model: host_model.to_string(),
@@ -805,7 +805,11 @@ struct HostIdentity {
 
 /// Loads the host identity from `storage_dir`, generating and persisting a
 /// fresh one on first run.
-fn load_or_create_host_identity(storage_dir: &str, name: &str, model: &str) -> HostIdentity {
+fn load_or_create_host_identity(
+    storage_dir: &str,
+    name: &str,
+    model: &str,
+) -> Result<HostIdentity, IosError> {
     let dir = PathBuf::from(storage_dir);
     let pairing_path = dir.join(HOST_IDENTITY_FILE);
     let irk_path = dir.join(HOST_ALT_IRK_FILE);
@@ -822,21 +826,34 @@ fn load_or_create_host_identity(storage_dir: &str, name: &str, model: &str) -> H
         .and_then(|bytes| <[u8; 16]>::try_from(bytes.as_slice()).ok())
         .unwrap_or_else(|| PairableHostInfo::generate(name, model).alt_irk);
 
-    persist_host_identity(storage_dir, &pairing_file, alt_irk);
+    persist_host_identity(storage_dir, &pairing_file, alt_irk)?;
 
-    HostIdentity {
+    Ok(HostIdentity {
         pairing_file,
         alt_irk,
-    }
+    })
 }
 
 /// Writes the host identity files, so an already-paired device keeps
-/// recognising this host across launches.
-fn persist_host_identity(storage_dir: &str, pairing_file: &RpPairingFile, alt_irk: [u8; 16]) {
+/// recognising this host across launches. Owner-only: they hold our private
+/// key. A failure is an error, since pairing with an identity that was never
+/// saved leaves the device paired with a host that will not exist next launch.
+fn persist_host_identity(
+    storage_dir: &str,
+    pairing_file: &RpPairingFile,
+    alt_irk: [u8; 16],
+) -> Result<(), IosError> {
     let dir = PathBuf::from(storage_dir);
-    let _ = std::fs::create_dir_all(&dir);
-    let _ = std::fs::write(dir.join(HOST_IDENTITY_FILE), pairing_file.to_bytes());
-    let _ = std::fs::write(dir.join(HOST_ALT_IRK_FILE), alt_irk);
+    let save = |name: &str, bytes: &[u8]| {
+        let path = dir.join(name);
+        crate::ios_wireless::write_private(&path, bytes).map_err(|error| {
+            IosError::Other(format!("failed to save {}: {error}", path.display()))
+        })
+    };
+    std::fs::create_dir_all(&dir)
+        .map_err(|error| IosError::Other(format!("failed to create {storage_dir}: {error}")))?;
+    save(HOST_IDENTITY_FILE, &pairing_file.to_bytes()[..])?;
+    save(HOST_ALT_IRK_FILE, &alt_irk[..])
 }
 
 /// One installed app.

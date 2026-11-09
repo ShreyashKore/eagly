@@ -522,9 +522,46 @@ pub(crate) fn persist_device_record(
     std::fs::create_dir_all(&dir)
         .map_err(|error| format!("creating {}: {error}", dir.display()))?;
     let path = dir.join(format!("{file_stem}.plist"));
+    let mut bytes = Vec::new();
     Value::Dictionary(record)
-        .to_file_xml(&path)
-        .map_err(|error| format!("saving {}: {error}", path.display()))
+        .to_writer_xml(&mut bytes)
+        .map_err(|error| format!("encoding the pairing record: {error}"))?;
+    write_private(&path, &bytes).map_err(|error| format!("saving {}: {error}", path.display()))
+}
+
+/// Writes `bytes` to `path` readable by this user only, since pairing files
+/// hold this host's private key. Goes through a temporary file and a rename,
+/// so a failed write leaves no half-written key and a replaced file does not
+/// keep an older, looser mode. On Windows the per-user app-data ACL is what
+/// keeps the file private.
+pub(crate) fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    #[cfg(unix)]
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+    let mut temp = path.as_os_str().to_owned();
+    temp.push(".tmp");
+    let temp = PathBuf::from(temp);
+
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+
+    let written = (|| -> std::io::Result<()> {
+        let mut file = options.open(&temp)?;
+        // `mode` applies only when the file is created; a temporary file
+        // left behind by a crash keeps whatever mode it had.
+        #[cfg(unix)]
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        std::fs::rename(&temp, path)
+    })();
+    if written.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    written
 }
 
 fn file_stem(udid: &str) -> String {
@@ -710,6 +747,28 @@ mod tests {
         std::fs::write(storage.join(DEVICE_RECORDS_DIR), b"").unwrap();
         assert!(persist_device_record(dir, &peer("first", [1; 16]), &file).is_err());
         assert!(load_records(&storage).is_empty());
+
+        let _ = std::fs::remove_dir_all(&storage);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn records_are_readable_by_this_user_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let storage = temp_storage("private");
+        let dir = storage.to_str().unwrap();
+        let file = paired_file([1; 16]);
+        let path = storage.join(DEVICE_RECORDS_DIR).join("first.plist");
+        let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+
+        persist_device_record(dir, &peer("first", [1; 16]), &file).unwrap();
+        assert_eq!(mode(&path), 0o600);
+
+        // Replacing a file that was left world-readable tightens it.
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        persist_device_record(dir, &peer("first", [1; 16]), &file).unwrap();
+        assert_eq!(mode(&path), 0o600);
 
         let _ = std::fs::remove_dir_all(&storage);
     }
