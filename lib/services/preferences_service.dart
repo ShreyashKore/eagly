@@ -64,6 +64,7 @@ class PreferencesService {
   static const _keyThemeMode = 'themeMode';
   static const _keyInstallId = 'installId';
   static const _keyLastFileDialogDirectory = 'lastFileDialogDirectory';
+  static const _keyLogExportFormat = 'logExportFormat';
   static const _keyLogFontSize = 'logFontSize';
   static const _keyRecentLogFiles = 'recentLogFiles';
   static const _keyTipsEnabled = 'tipsEnabled';
@@ -130,6 +131,13 @@ class PreferencesService {
 
   static String? get lastFileDialogDirectory =>
       _prefs.getString(_keyLastFileDialogDirectory);
+
+  /// The name of the log export format picked last, so the export dialog
+  /// starts on it.
+  static String? get logExportFormat => _prefs.getString(_keyLogExportFormat);
+  static set logExportFormat(String? value) => value == null
+      ? _prefs.remove(_keyLogExportFormat)
+      : _prefs.setString(_keyLogExportFormat, value);
 
   static Future<bool> setLastFileDialogDirectory(String? value) {
     if (value == null || value.isEmpty) {

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../../constants/app_constants.dart';
 import '../logs/log_controller.dart';
+import '../logs/presentation/components/log_export_dialog.dart';
 import '../../app_menu/intents.dart';
 import '../../command_palette/command_palette_dialog.dart';
 import '../../command_palette/command_palette_items.dart';
@@ -16,7 +17,6 @@ import '../../services/eagly_info_service.dart';
 import '../../services/preferences_service.dart';
 import '../../services/tools/tool_process_runner.dart';
 import '../../session/device_session_manager.dart';
-import '../../utils/log_feedback.dart';
 import '../emulator_manager/emulator_manager_dialog.dart';
 import '../settings/settings_screen.dart';
 import '../tips/tips_controller.dart';
@@ -223,9 +223,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _handleExportLogs() async {
     final log = _activeLog;
     if (log == null) return;
-    final result = await log.exportLogs();
-    if (!mounted || result.cancelled) return;
-    _showSnackBar(formatExportLogsMessage(result));
+    await exportLogsInteractively(
+      context,
+      log,
+      showMessage: (message) {
+        if (mounted) _showSnackBar(message);
+      },
+    );
   }
 
   /// Opens a log file without a connected device (via picker, or [path] to
