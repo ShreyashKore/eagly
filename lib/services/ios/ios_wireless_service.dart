@@ -1,4 +1,26 @@
+import 'dart:io';
+
 import 'rust_ios_wireless_service.dart';
+
+/// Folder under the storage dir holding one record per iPhone paired over
+/// Wi-Fi. Must match `DEVICE_RECORDS_DIR` in `rust/src/ios_wireless.rs`.
+const iosWirelessDeviceRecordsDir = 'remote_pairing_devices';
+
+/// Whether any iPhone has been paired over Wi-Fi with records kept under
+/// `storageDir`. A cheap directory read, safe to call on every poll.
+Future<bool> hasIosWirelessPairings(String storageDir) async {
+  final dir = Directory(
+    '$storageDir${Platform.pathSeparator}$iosWirelessDeviceRecordsDir',
+  );
+  try {
+    if (!await dir.exists()) return false;
+    return await dir.list().any(
+      (entry) => entry is File && entry.path.endsWith('.plist'),
+    );
+  } on FileSystemException {
+    return false;
+  }
+}
 
 /// One progress event from an in-flight iOS wireless (remote) pairing.
 class IosWirelessPairEvent {

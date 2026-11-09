@@ -7,6 +7,7 @@ import '../../features/app_log/app_logger.dart';
 import '../../src/rust/api/ios.dart' as rust;
 import 'ios_device_domains.dart';
 import 'ios_device_service.dart';
+import 'ios_wireless_service.dart';
 
 /// [IosDeviceService] backed by the `idevice` Rust crate, which talks to
 /// usbmuxd and lockdownd directly instead of spawning CLI processes.
@@ -26,6 +27,7 @@ class RustIosDeviceService implements IosDeviceService {
   var _wirelessDiscovery = _WirelessDiscovery.idle;
   DateTime? _wirelessDiscoveryRetryAt;
   var _wirelessDiscoveryWarned = false;
+  String? _storageDir;
 
   @override
   bool get usbmuxdUnavailable => _usbmuxdUnavailable;
@@ -72,10 +74,19 @@ class RustIosDeviceService implements IosDeviceService {
   /// application-support directory. Each one it reaches is listed from then
   /// on, flagged in [networkDeviceIds]. Started once, from a poll; a failed
   /// start is retried by a later poll after [_wirelessDiscoveryRetryDelay].
+  ///
+  /// Waits for a first pairing: browsing mDNS makes macOS ask for Local
+  /// Network access, which no one who never paired an iPhone over Wi-Fi
+  /// should be asked at launch. Until then each poll only checks the folder.
   Future<void> _startWirelessDiscovery() async {
     _wirelessDiscovery = _WirelessDiscovery.starting;
     try {
-      final storageDir = (await getApplicationSupportDirectory()).path;
+      final storageDir = _storageDir ??=
+          (await getApplicationSupportDirectory()).path;
+      if (!await hasIosWirelessPairings(storageDir)) {
+        _wirelessDiscovery = _WirelessDiscovery.idle;
+        return;
+      }
       await rust.startIosWirelessDiscovery(storageDir: storageDir);
       _wirelessDiscovery = _WirelessDiscovery.started;
       _wirelessDiscoveryRetryAt = null;

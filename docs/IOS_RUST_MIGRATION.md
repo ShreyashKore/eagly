@@ -101,7 +101,8 @@ Two halves, both in Rust, and no libimobiledevice counterpart:
   (our keys plus *that* device's altIRK — one file per device, or the next pairing overwrites it).
   All under the application-support directory.
 - **Connecting** (`rust/src/ios_wireless.rs`, started by `start_ios_wireless_discovery` on the
-  first discovery poll). Browses `_remotepairing._tcp`; an advertisement's `authTag` is a
+  first discovery poll that finds a device record — browsing mDNS raises macOS's Local Network
+  prompt, so no one is asked before they pair; a failed start is retried 30 s later). Browses `_remotepairing._tcp`; an advertisement's `authTag` is a
   SipHash of its `identifier` keyed by the device's altIRK, so it names its record without a
   connection. Then pair-verify → `createListener` → TLS-PSK + CDTunnel → userspace TCP (`jktcp`)
   → RSD, following the crate's `tools/src/pair_rsd_ios.rs` and the
