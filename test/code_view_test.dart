@@ -261,5 +261,26 @@ void main() {
       expect(find.byTooltip('Pretty-print'), findsNothing);
       expect(find.byTooltip('Show as written'), findsNothing);
     });
+
+    // FLUTTER-7W: a closure built in the state's method captured the state
+    // too, and sending it to the isolate threw "object is unsendable".
+    testWidgets('a large .ips report is pretty-printed on another isolate', (
+      tester,
+    ) async {
+      final large =
+          '{"app_name":"Runner"}\n'
+          '{"threads":[${List.filled(40000, '{"id":1}').join(',')}]}';
+      expect(large.length, greaterThan(256 * 1024));
+      await showReport(tester, large);
+
+      for (var i = 0; i < 100 && shown(tester) == large; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
+
+      expect(shown(tester), CrashReportUtils.prettyIps(large));
+    });
   });
 }

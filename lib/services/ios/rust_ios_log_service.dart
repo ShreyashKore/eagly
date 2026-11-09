@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
+
 import '../../features/app_log/app_logger.dart';
 import '../../features/logs/data/models/log_entry.dart';
 import '../../features/logs/services/log_parsers/ios_syslog_parser.dart';
@@ -59,13 +61,18 @@ class RustIosLogService implements IosLogService {
             ).listen(
               controller.add,
               onError: (Object error) {
+                // Connecting failed (locked, gone): Rust sends the reason
+                // through the stream as an `AnyhowException`.
+                final reason = error is AnyhowException
+                    ? error.message
+                    : '$error';
                 _logger.error(
                   'iOS syslog stream failed for $processName',
-                  detail: error.toString(),
+                  detail: reason,
                 );
                 controller.add(
                   LogEntryUtils.buildToolError(
-                    message: 'idevice syslog error: $error',
+                    message: 'idevice syslog error: $reason',
                     tag: 'idevice',
                     processName: processName,
                   ),

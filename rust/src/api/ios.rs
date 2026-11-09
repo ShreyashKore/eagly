@@ -89,6 +89,20 @@ impl IosError {
             _ => "unavailable",
         }
     }
+
+    /// The sentence to send a stream's listener. A `StreamSink`'s errors reach
+    /// Dart as an `AnyhowException` carrying a string, not as an [`IosError`],
+    /// so the variant is lost and only this text crosses.
+    pub(crate) fn message(&self) -> String {
+        match self {
+            IosError::UsbmuxdUnavailable => "usbmuxd is not reachable.".to_string(),
+            IosError::DeviceNotFound(detail)
+            | IosError::NotPaired(detail)
+            | IosError::PairingDialogPending(detail)
+            | IosError::Locked(detail)
+            | IosError::Other(detail) => detail.clone(),
+        }
+    }
 }
 
 impl From<IdeviceError> for IosError {
@@ -293,7 +307,11 @@ fn string_value(values: &Value, key: &str) -> Option<String> {
 ///
 /// A handle returned to Dart would be tidier, but flutter_rust_bridge turns any
 /// function taking a `StreamSink` into a Dart `Stream` and discards its return
-/// value — `Result<(), E>` is the only shape it supports here.
+/// value — `Result<(), E>` is the only shape it supports here. Worse, the
+/// generated Dart calls it `unawaited`, so an `Err` returned here is never
+/// seen by the stream's listener and lands in `PlatformDispatcher.onError` as
+/// an unhandled crash (Sentry FLUTTER-6W). So a stream function reports a
+/// failure with `sink.add_error(error.message())` and returns `Ok(())`.
 static SYSLOG_SESSIONS: LazyLock<Mutex<HashMap<String, CancellationToken>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
@@ -309,8 +327,8 @@ static SYSLOG_SESSIONS: LazyLock<Mutex<HashMap<String, CancellationToken>>> =
 /// `parseLogRecords` rather than the CLI's line-by-line `parseLogLines`.
 ///
 /// Connecting happens before the stream starts, so a device that refuses the
-/// service raises an error the caller can show — the CLI path could only infer
-/// that from stderr after an empty stream.
+/// service sends the stream an error the caller can show — the CLI path could
+/// only infer that from stderr after an empty stream.
 pub async fn start_ios_syslog(
     sink: StreamSink<String>,
     udid: String,
@@ -333,7 +351,10 @@ pub async fn start_ios_syslog(
         Ok(receiver) => receiver,
         Err(error) => {
             forget_syslog_session(&session_id);
-            return Err(error);
+            // Into the sink, not `Err`: see `SYSLOG_SESSIONS`. Fails only if
+            // Dart has already dropped the stream, when nobody is listening.
+            let _ = sink.add_error(error.message());
+            return Ok(());
         }
     };
     if token.is_cancelled() {

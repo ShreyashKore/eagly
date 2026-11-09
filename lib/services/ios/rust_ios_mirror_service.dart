@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
+
 import '../../features/app_log/app_logger.dart';
 import '../../src/rust/api/ios.dart';
 import '../../src/rust/api/ios_mirror.dart' as rust;
@@ -123,6 +125,8 @@ String _describe(Object error) => switch (error) {
   IosError_PairingDialogPending(:final field0) ||
   IosError_Locked(:final field0) ||
   IosError_Other(:final field0) => field0,
+  // A stream's setup failure: Rust sends `IosError::message` through the sink.
+  AnyhowException(:final message) => message,
   _ => error.toString(),
 };
 

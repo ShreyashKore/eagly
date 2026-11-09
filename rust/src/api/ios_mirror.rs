@@ -261,7 +261,10 @@ pub async fn start_ios_screenshot_stream(
         Ok(connected) => connected,
         Err(error) => {
             forget_screenshot_stream(&session_id);
-            return Err(error);
+            // Into the sink, not `Err`, which Dart would never see: see
+            // `SYSLOG_SESSIONS` in `ios.rs`.
+            let _ = sink.add_error(error.message());
+            return Ok(());
         }
     };
     if token.is_cancelled() {

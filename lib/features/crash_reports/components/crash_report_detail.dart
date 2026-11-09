@@ -48,11 +48,17 @@ class _CrashReportDetailState extends State<CrashReportDetail> {
     _pretty = null;
     if (body == null) return;
     final pretty = body.length > _backgroundThreshold
-        ? await Isolate.run(() => CrashReportUtils.prettyIps(body))
+        ? await _prettyInBackground(body)
         : CrashReportUtils.prettyIps(body);
     if (!mounted || !identical(body, _preparedFor)) return;
     setState(() => _pretty = pretty);
   }
+
+  /// Static, so the isolate's closure doesn't capture `this`: one built in
+  /// [_prepare] shares its context with the `setState` closure, and the
+  /// controller's timer can't be sent to another isolate.
+  static Future<String?> _prettyInBackground(String body) =>
+      Isolate.run(() => CrashReportUtils.prettyIps(body));
 
   @override
   Widget build(BuildContext context) {
