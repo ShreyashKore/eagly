@@ -627,13 +627,16 @@ pub async fn start_ios_wireless_pairing(
             None => {}
             Some(Ok(peer)) => {
                 // Without its record the device is never reconnected, so a
-                // failed save is a failed pairing, not a paired device.
-                let event = match crate::ios_wireless::persist_device_record(
-                    &storage_dir,
-                    &peer,
-                    &pairing_file,
-                ) {
-                    Ok(()) => IosWirelessPairEvent {
+                // failed save is a failed pairing, not a paired device. Saved
+                // off the async workers, since the write ends in an fsync.
+                let saved = tokio::task::spawn_blocking(move || {
+                    crate::ios_wireless::persist_device_record(&storage_dir, &peer, &pairing_file)
+                        .map(|()| peer)
+                })
+                .await
+                .unwrap_or_else(|error| Err(error.to_string()));
+                let event = match saved {
+                    Ok(peer) => IosWirelessPairEvent {
                         device_name: Some(peer.name),
                         device_model: Some(peer.model),
                         device_udid: Some(peer.remotepairing_udid),
@@ -688,7 +691,7 @@ async fn advertise_pairable_host(
     let HostIdentity {
         pairing_file,
         alt_irk,
-    } = load_or_create_host_identity(storage_dir, host_name, host_model)?;
+    } = host_identity(storage_dir, host_name, host_model).await?;
     let host_info = PairableHostInfo {
         name: host_name.to_string(),
         model: host_model.to_string(),
@@ -822,6 +825,16 @@ fn forget_pairing_session(session_id: &str) {
 struct HostIdentity {
     pairing_file: RpPairingFile,
     alt_irk: [u8; 16],
+}
+
+/// [`load_or_create_host_identity`] on the blocking pool, off the async
+/// workers: saving the identity ends in an fsync per file.
+async fn host_identity(dir: &str, name: &str, model: &str) -> Result<HostIdentity, IosError> {
+    let (dir, name, model) = (dir.to_owned(), name.to_owned(), model.to_owned());
+    let load = move || load_or_create_host_identity(&dir, &name, &model);
+    tokio::task::spawn_blocking(load)
+        .await
+        .map_err(|error| IosError::Other(format!("failed to load the host identity: {error}")))?
 }
 
 /// Loads the host identity from `storage_dir`, generating and persisting a
