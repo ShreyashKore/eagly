@@ -88,6 +88,35 @@ EAGLY_IOS_BACKEND=cli fvm flutter run -d macos   # fall back to libimobiledevice
 | Network inspection: port probe and forward | — | `probe_ios_ports`, `start_ios_port_forward`, `stop_ios_port_forward` (`api/ios_network.rs`) | Rust only (`IosNetworkService`), verified on an iPhone 16 (iOS 27.0) with `test/device/network_inspektor_ios_device_test.dart` |
 | Screen mirror: probe, screenshots, touch / keys / buttons, pasteboard, rotation | — | `probe_ios_mirror`, `capture_ios_screenshot`, `start_ios_screenshot_stream`, `start_ios_input` and the `send_ios_*` calls (`api/ios_mirror.rs`) | Rust only (`IosMirrorService`). Probe, screenshots, the screenshot stream, touch and Home verified on an iPhone 16e (iOS 26.6) with `test/device/ios_mirror_device_test.dart`; keys, the pasteboard and rotation are not covered by it. The picture on macOS comes from QuickTime's route instead. See **docs/IOS_SCREEN_MIRROR.md** |
 | Utilities / Terminal | `DeviceToolRunner` | — | **blocked on a product decision — see below** |
+| Wireless pairing + connection (iOS 27+) | — | `start_ios_wireless_pairing`, `start_ios_wireless_discovery` | **Rust only, unverified on hardware** — see below |
+
+### Wireless iOS: pair once, then tunnel
+
+Two halves, both in Rust, and no libimobiledevice counterpart:
+
+- **Pairing** (`start_ios_wireless_pairing`, the iPhone pane of the wireless dialog). The
+  *device* starts it: we advertise `_remotepairing-pairable-host._tcp`, the iPhone connects,
+  and we show the setup code it asks for. Our host identity is in `remote_pairing_host.plist` +
+  `remote_pairing_host_alt_irk`; each paired device gets `remote_pairing_devices/<udid>.plist`
+  (our keys plus *that* device's altIRK — one file per device, or the next pairing overwrites it).
+  All under the application-support directory.
+- **Connecting** (`rust/src/ios_wireless.rs`, started by `start_ios_wireless_discovery` on the
+  first discovery poll). Browses `_remotepairing._tcp`; an advertisement's `authTag` is a
+  SipHash of its `identifier` keyed by the device's altIRK, so it names its record without a
+  connection. Then pair-verify → `createListener` → TLS-PSK + CDTunnel → userspace TCP (`jktcp`)
+  → RSD, following the crate's `tools/src/pair_rsd_ios.rs` and the
+  [rppairing spec](https://jkcoxson.com/blog/rppairing-spec). Failed attempts back off 5 s → 60 s.
+
+Every per-device call goes through `route_for`: **usbmuxd first**, the tunnel only when usbmuxd
+does not know the UDID. Over a tunnel each service is its RSD `*.shim.remote` endpoint and
+lockdown is `com.apple.mobile.lockdown.remote.trusted` (no session to start). Tunnels are keyed
+by RSD's `UniqueDeviceID`, so a phone on both a cable and Wi-Fi lists once, as USB.
+`list_ios_devices` reports tunnelled devices as `is_network`, which becomes `IosDevice.isWireless`.
+
+A dead tunnel is noticed when the TCP stack drops its stream (a `DropGuard` inside it cancels the
+tunnel's token); TCP keepalive on both sockets makes a phone that leaves Wi-Fi without a FIN show
+up in ~20 s. Unverified: whether a paired iPhone advertises `_remotepairing._tcp` while locked,
+and whether `remotepairing_udid` always equals the lockdown UDID (the tunnel key does not rely on it).
 
 ### Syslog: what hardware showed
 
@@ -185,9 +214,10 @@ per device, because eagly opens one log stream per tab and several tabs may watc
 
 Cargo features are enabled per surface in `rust/Cargo.toml` rather than via `full`, which is the
 difference between a 30-second and a 4-minute cold build. Note `crashreportcopymobile` implies
-`afc`, and the pairing error variants above need `pair`. The screen mirror adds the CoreDevice tunnel
-(`core_device_proxy`, `tunnel_tcp_stack`, `rsd`, `core_device`), `display_stream` (which also gates
-the crate's HID module) and `springboardservices`.
+`afc`, the pairing error variants above need `pair`, and wireless iOS needs `remote_pairing`,
+`rsd` and `tunnel_tcp_stack`. The screen mirror adds the CoreDevice tunnel (`core_device_proxy`,
+`tunnel_tcp_stack`, `rsd`, `core_device`), `display_stream` (which also gates the crate's HID
+module) and `springboardservices`.
 
 The crate is pinned exactly (`=0.1.65`): it is pre-1.0 and its README warns of breaking changes at
 every release until 0.2.0. It is also built against the `ring` TLS backend rather than the default

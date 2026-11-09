@@ -39,6 +39,11 @@ abstract interface class IosDeviceService {
   /// eagly, so this drives the "install Apple Devices" hint. Latched: it stays
   /// true until a later call succeeds.
   bool get usbmuxdUnavailable;
+
+  /// Which of the last [listDeviceIds] are reached over the network rather
+  /// than USB — a remote-pairing tunnel, or usbmuxd's Wi-Fi sync. Latched
+  /// alongside [usbmuxdUnavailable]; empty for a backend that cannot tell.
+  Set<String> get networkDeviceIds;
 }
 
 IosDeviceService createIosDeviceService() {

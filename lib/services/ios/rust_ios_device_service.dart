@@ -1,3 +1,5 @@
+import 'package:path_provider/path_provider.dart';
+
 import '../../data/ios_device_info.dart';
 import '../../features/app_log/app_logger.dart';
 import '../../src/rust/api/ios.dart' as rust;
@@ -14,20 +16,31 @@ class RustIosDeviceService implements IosDeviceService {
   final AppLogger _logger = AppLogger(source: 'RustIosDeviceService');
 
   bool _usbmuxdUnavailable = false;
+  Set<String> _networkDeviceIds = const {};
+  Future<void>? _wirelessDiscovery;
 
   @override
   bool get usbmuxdUnavailable => _usbmuxdUnavailable;
 
   @override
+  Set<String> get networkDeviceIds => _networkDeviceIds;
+
+  @override
   Future<List<String>> listDeviceIds() async {
+    _wirelessDiscovery ??= _startWirelessDiscovery();
     try {
       final handles = await rust.listIosDevices();
       _usbmuxdUnavailable = false;
+      _networkDeviceIds = {
+        for (final handle in handles)
+          if (handle.isNetwork) handle.udid,
+      };
       return [for (final handle in handles) handle.udid];
     } on rust.IosError_UsbmuxdUnavailable {
       // usbmuxd being unreachable is a steady-state environment condition, not
       // a transient error, so latch it and log only on the way in — the poll
       // would otherwise repeat an identical warning every few seconds.
+      _networkDeviceIds = const {};
       if (!_usbmuxdUnavailable) {
         _usbmuxdUnavailable = true;
         _logger.warning(
@@ -36,8 +49,25 @@ class RustIosDeviceService implements IosDeviceService {
       }
       return const [];
     } catch (error) {
+      _networkDeviceIds = const {};
       _logger.error('Failed to list iOS devices', detail: error.toString());
       return const [];
+    }
+  }
+
+  /// Has the Rust side watch the network for iPhones paired over Wi-Fi
+  /// (`IosWirelessPairingController`), whose records live in the same
+  /// application-support directory. Each one it reaches is listed from then
+  /// on, flagged in [networkDeviceIds]. Started once, on the first poll.
+  Future<void> _startWirelessDiscovery() async {
+    try {
+      final storageDir = (await getApplicationSupportDirectory()).path;
+      await rust.startIosWirelessDiscovery(storageDir: storageDir);
+    } catch (error) {
+      _logger.warning(
+        'Wireless iOS discovery is unavailable',
+        detail: error.toString(),
+      );
     }
   }
 

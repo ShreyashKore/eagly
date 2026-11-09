@@ -505,6 +505,7 @@ class FakeAdbTool() extends AdbTool {
 class FakeIosDeviceService implements IosDeviceService {
   List<String> deviceIds = const [];
   bool usbmuxdUnavailableValue = false;
+  Set<String> networkDeviceIdsValue = {};
   final Map<String, IosDeviceInfo> infos = {};
   final Map<String, int> describeCalls = {};
   final Map<String, IosDeviceDomains> domains = {};
@@ -525,6 +526,9 @@ class FakeIosDeviceService implements IosDeviceService {
 
   @override
   bool get usbmuxdUnavailable => usbmuxdUnavailableValue;
+
+  @override
+  Set<String> get networkDeviceIds => networkDeviceIdsValue;
 }
 
 class FakeIdeviceInfoTool() extends IdeviceInfoTool {

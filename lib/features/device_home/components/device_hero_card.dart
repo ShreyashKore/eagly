@@ -40,7 +40,7 @@ class const DeviceHeroCard({
     final device = session.device;
     final identity = info.identity;
     final isIos = device is IosDevice;
-    final wireless = device is AndroidDevice && device.isWireless;
+    final wireless = device.isWireless;
 
     final osLabel = identity.osVersion == null
         ? (isIos ? 'iOS' : 'Android')

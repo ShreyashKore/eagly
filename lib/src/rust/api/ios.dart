@@ -9,15 +9,32 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `afc_client`, `basename`, `claim_syslog_session`, `connect_usbmuxd`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_syslog_session`, `format_os_trace_log`, `installation_proxy`, `ios_app_bundle_path`, `is_crash_report`, `is_hidden_app`, `is_network`, `is_skippable_record_error`, `join_afc_path`, `message`, `open_session`, `provider_for`, `read_afc_file`, `status`, `string_value`, `upload_recursive`
+// These functions are ignored because they are not marked as `pub`: `advertise_pairable_host`, `afc_client`, `basename`, `claim_syslog_session`, `connect_usbmuxd`, `connect`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_pairing_session`, `forget_syslog_session`, `format_os_trace_log`, `installation_proxy`, `ios_app_bundle_path`, `is_crash_report`, `is_hidden_app`, `is_network`, `is_network`, `is_skippable_record_error`, `join_afc_path`, `load_or_create_host_identity`, `lockdown`, `message`, `pair_event`, `pair_one_device`, `persist_host_identity`, `provider_for`, `read_afc_file`, `register_pairing_session`, `route_for`, `status`, `string_value`, `upload_recursive`, `usbmuxd_device`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Advertised`, `HostIdentity`, `Route`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
-/// Lists every device usbmuxd knows about.
+/// Lists every device usbmuxd knows about, plus wireless devices reached
+/// over a remote-pairing tunnel (see [`start_ios_wireless_discovery`]).
 ///
 /// Cheap by design — this is what the discovery poll calls. Only a failure to
-/// reach usbmuxd is an error; an empty list just means nothing is plugged in.
+/// reach usbmuxd is an error, and only while no tunnel is up; an empty list
+/// just means nothing is plugged in.
+///
+/// One entry per UDID. usbmuxd lists a device once per transport, and a
+/// device on USB may also have a tunnel; the USB entry wins either way.
 Future<List<IosDeviceHandle>> listIosDevices() =>
     RustLib.instance.api.crateApiIosListIosDevices();
+
+/// Starts looking for wireless devices paired through
+/// [`start_ios_wireless_pairing`], whose records live under `storage_dir`.
+///
+/// Each paired device that appears on the network gets a tunnel, after which
+/// [`list_ios_devices`] lists it and every per-device call here reaches it
+/// through the tunnel whenever usbmuxd does not know its UDID. Idempotent.
+Future<void> startIosWirelessDiscovery({required String storageDir}) => RustLib
+    .instance
+    .api
+    .crateApiIosStartIosWirelessDiscovery(storageDir: storageDir);
 
 /// Describes one device, opening a lockdown session to do it.
 ///
@@ -65,6 +82,40 @@ Stream<String> startIosSyslog({
 /// stop with no start to follow would leave that token behind for good.
 Future<void> stopIosSyslog({required String sessionId}) =>
     RustLib.instance.api.crateApiIosStopIosSyslog(sessionId: sessionId);
+
+/// Starts the iOS 27+ "pairable host" flow: advertise ourselves over mDNS
+/// (`_remotepairing-pairable-host._tcp`) and pair a device that connects to us.
+///
+/// This is the iOS counterpart to wireless ADB pairing — the *device* browses
+/// for hosts and drives the rppairing conversation, and we show the user the
+/// 6-digit setup code produced mid-handshake. The stream emits an
+/// [`IosWirelessPairEvent`] per stage; [`stop_ios_wireless_pairing`] cancels by
+/// `session_id` at any stage, including after a device has connected.
+///
+/// `storage_dir` is where the host identity (signing keys + mDNS identity) is
+/// persisted, so an already-paired device recognises this host again across
+/// launches, and where each paired device's record is kept (see
+/// `ios_wireless::persist_device_record`).
+Stream<IosWirelessPairEvent> startIosWirelessPairing({
+  required String hostName,
+  required String hostModel,
+  required int port,
+  required String storageDir,
+  required String sessionId,
+}) => RustLib.instance.api.crateApiIosStartIosWirelessPairing(
+  hostName: hostName,
+  hostModel: hostModel,
+  port: port,
+  storageDir: storageDir,
+  sessionId: sessionId,
+);
+
+/// Stops the pairing started under `session_id`. Idempotent, and a no-op for a
+/// pairing that already ended on its own.
+Future<void> stopIosWirelessPairing({required String sessionId}) => RustLib
+    .instance
+    .api
+    .crateApiIosStopIosWirelessPairing(sessionId: sessionId);
 
 /// Lists installed apps, in the order installation_proxy returns them.
 ///
@@ -444,4 +495,51 @@ class IosFileEntry {
           sizeBytes == other.sizeBytes &&
           modifiedMs == other.modifiedMs &&
           linkTarget == other.linkTarget;
+}
+
+/// One progress event from an in-flight iOS wireless pairing.
+///
+/// `kind` is `"listening"`, `"pin"`, `"paired"` or `"error"`; the remaining
+/// fields are populated per kind so Dart can render each stage without a
+/// separate event type.
+class IosWirelessPairEvent {
+  /// `"listening"`, `"pin"`, `"paired"` or `"error"`.
+  final String kind;
+
+  /// The 6-digit setup code to show the user, present on `"pin"`.
+  final String? pin;
+  final String? deviceName;
+  final String? deviceModel;
+  final String? deviceUdid;
+  final String? message;
+
+  const IosWirelessPairEvent({
+    required this.kind,
+    this.pin,
+    this.deviceName,
+    this.deviceModel,
+    this.deviceUdid,
+    this.message,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      pin.hashCode ^
+      deviceName.hashCode ^
+      deviceModel.hashCode ^
+      deviceUdid.hashCode ^
+      message.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is IosWirelessPairEvent &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          pin == other.pin &&
+          deviceName == other.deviceName &&
+          deviceModel == other.deviceModel &&
+          deviceUdid == other.deviceUdid &&
+          message == other.message;
 }

@@ -140,7 +140,14 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   **preserves** captured logs; only a fresh user `startLogcat()` clears them. iOS relies on
   stream EOF (no cheap liveness probe).
 - **Device statuses:** Android is connected only when `adb` status == `device` (offline/
-  unauthorized ⇒ disconnected). iOS presence in `idevice_id -l` ⇒ connected.
+  unauthorized ⇒ disconnected). iOS presence in `idevice_id -l` / `list_ios_devices` ⇒ connected;
+  that list includes iPhones reached over a Wi-Fi tunnel (`IosDevice.isWireless`, below).
+- **Wireless iOS (iOS 27+, Rust only):** the wireless dialog's iPhone pane pairs (the *phone*
+  connects to us and we show its setup code); after that `rust/src/ios_wireless.rs` finds the
+  phone on the network and holds a remote-pairing tunnel to it, and every iOS call falls back to
+  that tunnel when usbmuxd does not know the UDID. Unlike Android a UDID says nothing about the
+  transport, so `IosDeviceService.networkDeviceIds` carries it into `IosDevice.isWireless`. Read
+  the wireless section of **docs/IOS_RUST_MIGRATION.md** before touching either half.
 - **iOS on Windows without Apple's software:** usbmuxd ships with Apple Mobile Device
   Support (the Apple Devices app or iTunes), not with Eagly, yet File Explorer shows an
   iPhone without it. While usbmuxd is unreachable, `WindowsAppleUsbProbe`
