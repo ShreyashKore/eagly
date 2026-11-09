@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:path_provider/path_provider.dart';
 
 import '../../data/ios_device_info.dart';
@@ -15,9 +17,15 @@ import 'ios_device_service.dart';
 class RustIosDeviceService implements IosDeviceService {
   final AppLogger _logger = AppLogger(source: 'RustIosDeviceService');
 
+  /// How long a failed start of wireless discovery waits before a poll may
+  /// try again.
+  static const _wirelessDiscoveryRetryDelay = Duration(seconds: 30);
+
   bool _usbmuxdUnavailable = false;
   Set<String> _networkDeviceIds = const {};
-  Future<void>? _wirelessDiscovery;
+  var _wirelessDiscovery = _WirelessDiscovery.idle;
+  DateTime? _wirelessDiscoveryRetryAt;
+  var _wirelessDiscoveryWarned = false;
 
   @override
   bool get usbmuxdUnavailable => _usbmuxdUnavailable;
@@ -27,7 +35,11 @@ class RustIosDeviceService implements IosDeviceService {
 
   @override
   Future<List<String>> listDeviceIds() async {
-    _wirelessDiscovery ??= _startWirelessDiscovery();
+    final retryAt = _wirelessDiscoveryRetryAt;
+    if (_wirelessDiscovery == _WirelessDiscovery.idle &&
+        (retryAt == null || !DateTime.now().isBefore(retryAt))) {
+      unawaited(_startWirelessDiscovery());
+    }
     try {
       final handles = await rust.listIosDevices();
       _usbmuxdUnavailable = false;
@@ -58,16 +70,30 @@ class RustIosDeviceService implements IosDeviceService {
   /// Has the Rust side watch the network for iPhones paired over Wi-Fi
   /// (`IosWirelessPairingController`), whose records live in the same
   /// application-support directory. Each one it reaches is listed from then
-  /// on, flagged in [networkDeviceIds]. Started once, on the first poll.
+  /// on, flagged in [networkDeviceIds]. Started once, from a poll; a failed
+  /// start is retried by a later poll after [_wirelessDiscoveryRetryDelay].
   Future<void> _startWirelessDiscovery() async {
+    _wirelessDiscovery = _WirelessDiscovery.starting;
     try {
       final storageDir = (await getApplicationSupportDirectory()).path;
       await rust.startIosWirelessDiscovery(storageDir: storageDir);
+      _wirelessDiscovery = _WirelessDiscovery.started;
+      _wirelessDiscoveryRetryAt = null;
+      _wirelessDiscoveryWarned = false;
     } catch (error) {
-      _logger.warning(
-        'Wireless iOS discovery is unavailable',
-        detail: error.toString(),
+      _wirelessDiscovery = _WirelessDiscovery.idle;
+      _wirelessDiscoveryRetryAt = DateTime.now().add(
+        _wirelessDiscoveryRetryDelay,
       );
+      // Warn on the way in only, as for usbmuxd: the retries would otherwise
+      // repeat the same warning every half minute.
+      if (!_wirelessDiscoveryWarned) {
+        _wirelessDiscoveryWarned = true;
+        _logger.warning(
+          'Wireless iOS discovery is unavailable',
+          detail: error.toString(),
+        );
+      }
     }
   }
 
@@ -116,3 +142,6 @@ class RustIosDeviceService implements IosDeviceService {
     );
   }
 }
+
+/// Where [RustIosDeviceService] is in starting wireless discovery.
+enum _WirelessDiscovery { idle, starting, started }
