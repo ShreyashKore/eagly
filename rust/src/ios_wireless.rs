@@ -209,7 +209,17 @@ async fn run(mut events: tokio::sync::mpsc::UnboundedReceiver<ServiceEvent>) {
             _ = tick.tick() => {}
         }
 
-        connect_matching(&adverts, &mut unpaired);
+        // Its own statement, so the state guard is gone before the await.
+        let storage_dir = state().storage_dir.clone();
+        let Some(storage_dir) = storage_dir else {
+            continue;
+        };
+        // Read off the async workers and outside the state lock, which every
+        // device listing and per-device call waits on.
+        let records = tokio::task::spawn_blocking(move || load_records(&storage_dir))
+            .await
+            .unwrap_or_default();
+        connect_matching(&adverts, &records, &mut unpaired);
     }
 }
 
@@ -217,17 +227,17 @@ async fn run(mut events: tokio::sync::mpsc::UnboundedReceiver<ServiceEvent>) {
 /// no tunnel, attempt or backoff in the way. Advertisements no record matches
 /// are traced once each into `unpaired`, since a device paired only with
 /// Xcode advertises just like one paired with us.
-fn connect_matching(adverts: &HashMap<String, Advertisement>, unpaired: &mut HashSet<String>) {
+fn connect_matching(
+    adverts: &HashMap<String, Advertisement>,
+    records: &[DeviceRecord],
+    unpaired: &mut HashSet<String>,
+) {
     let mut state = state();
     prune(&mut state);
-    let Some(storage_dir) = state.storage_dir.clone() else {
-        return;
-    };
-    let records = load_records(&storage_dir);
     let now = Instant::now();
 
     for (fullname, advert) in adverts {
-        let Some(record) = record_for(&records, advert) else {
+        let Some(record) = record_for(records, advert) else {
             if unpaired.insert(fullname.clone()) {
                 trace(format!(
                     "skipping {fullname}: none of the {} Eagly pairing(s) match it",
