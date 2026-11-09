@@ -57,6 +57,8 @@ const DIAL_TIMEOUT: Duration = Duration::from_secs(4);
 /// Retry delay after a failed attempt, doubling up to [`MAX_BACKOFF`].
 const MIN_BACKOFF: Duration = Duration::from_secs(5);
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
+/// How long a tunnel has to last before its record's backoff is cleared.
+const STABLE_TUNNEL: Duration = Duration::from_secs(60);
 
 /// What a service needs to connect through a tunnel. Cheap to clone: the
 /// adapter handle is a channel sender into the TCP stack's task.
@@ -73,6 +75,7 @@ struct Tunnel {
     record_udid: String,
     /// Cancelled once the tunnel's transport is gone.
     dead: CancellationToken,
+    opened_at: Instant,
 }
 
 #[derive(Default)]
@@ -142,14 +145,46 @@ pub(crate) fn route(udid: &str) -> Option<TunnelRoute> {
     state.tunnels.get(udid).map(|tunnel| tunnel.route.clone())
 }
 
+/// Drops dead tunnels. One that lasted [`STABLE_TUNNEL`] clears its record's
+/// backoff, so a phone that comes back to the network reconnects at once; one
+/// that died sooner backs off as a failed attempt does, or a device that
+/// accepts a tunnel and drops it would be reopened on every tick.
 fn prune(state: &mut State) {
+    let mut closed = Vec::new();
     state.tunnels.retain(|udid, tunnel| {
         let alive = !tunnel.dead.is_cancelled();
         if !alive {
             trace(format!("tunnel to {udid} closed"));
+            closed.push((tunnel.record_udid.clone(), tunnel.opened_at.elapsed()));
         }
         alive
     });
+
+    for (record_udid, lived) in closed {
+        if lived >= STABLE_TUNNEL {
+            state.backoff.remove(&record_udid);
+        } else {
+            let delay = back_off(state, &record_udid);
+            trace(format!(
+                "tunnel to {record_udid} lasted {}s, retrying in {}s",
+                lived.as_secs(),
+                delay.as_secs()
+            ));
+        }
+    }
+}
+
+/// Pushes `record_udid`'s next attempt out by double its last delay, from
+/// [`MIN_BACKOFF`] up to [`MAX_BACKOFF`], and returns the new delay.
+fn back_off(state: &mut State, record_udid: &str) -> Duration {
+    let delay = state
+        .backoff
+        .get(record_udid)
+        .map_or(MIN_BACKOFF, |(_, previous)| (*previous * 2).min(MAX_BACKOFF));
+    state
+        .backoff
+        .insert(record_udid.to_string(), (Instant::now() + delay, delay));
+    delay
 }
 
 /// One line on stderr per connection event. `flutter run` shows the app's
@@ -285,25 +320,17 @@ async fn attempt(record: DeviceRecord, advert: Advertisement) {
     state.connecting.remove(&record.udid);
     match result {
         Ok((udid, tunnel)) => {
+            // The backoff stays until the tunnel proves stable; see `prune`.
             trace(format!("tunnel up to {udid}"));
-            state.backoff.remove(&record.udid);
             state.tunnels.insert(udid, tunnel);
         }
         Err(error) => {
-            let delay = state
-                .backoff
-                .get(&record.udid)
-                .map_or(MIN_BACKOFF, |(_, previous)| {
-                    (*previous * 2).min(MAX_BACKOFF)
-                });
+            let delay = back_off(&mut state, &record.udid);
             trace(format!(
                 "connecting to {} failed, retrying in {}s: {error}",
                 record.udid,
                 delay.as_secs()
             ));
-            state
-                .backoff
-                .insert(record.udid.clone(), (Instant::now() + delay, delay));
         }
     }
 }
@@ -399,6 +426,7 @@ async fn open_tunnel(
             },
             record_udid: record.udid.clone(),
             dead,
+            opened_at: Instant::now(),
         },
     ))
 }
@@ -781,6 +809,16 @@ mod tests {
         assert_eq!(mode(&path), 0o600);
 
         let _ = std::fs::remove_dir_all(&storage);
+    }
+
+    #[test]
+    fn backoff_doubles_up_to_its_cap() {
+        let mut state = State::default();
+        let delays: Vec<u64> = (0..6)
+            .map(|_| back_off(&mut state, "first").as_secs())
+            .collect();
+        assert_eq!(delays, [5, 10, 20, 40, 60, 60]);
+        assert_eq!(back_off(&mut state, "second"), MIN_BACKOFF);
     }
 
     #[test]
