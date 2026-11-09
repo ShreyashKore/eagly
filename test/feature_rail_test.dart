@@ -1,4 +1,5 @@
 import 'package:eagly/data/device.dart';
+import 'package:eagly/features/home_screen/components/rail_button.dart';
 import 'package:eagly/features/home_screen/feature_rail.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/presentation/theme/app_zoom.dart';
@@ -83,5 +84,102 @@ void main() {
         reason: '"$label" is squeezed harder when zoomed in',
       );
     }
+  });
+
+  group('focus tray', () {
+    late DeviceSessionController session;
+
+    setUp(() {
+      final device = Device.android('SERIAL', 'device', model: 'Pixel 8');
+      session = DeviceSessionController(
+        device: device,
+        service: FakeSessionService(device),
+      );
+    });
+    tearDown(() => session.dispose());
+
+    Future<void> pumpRail(WidgetTester tester) => tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: Row(
+            children: [
+              FeatureRail(
+                session: session,
+                onInstall: () {},
+                onOpenSettings: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    Rect trayRect(WidgetTester tester) => tester.getRect(
+      find.byElementPredicate(
+        (element) => element.widget.runtimeType.toString() == '_FocusTray',
+      ),
+    );
+
+    Rect buttonRect(WidgetTester tester, String label) => tester.getRect(
+      find.ancestor(of: find.text(label), matching: find.byType(RailButton)),
+    );
+
+    RailButton button(WidgetTester tester, String label) => tester.widget(
+      find.ancestor(of: find.text(label), matching: find.byType(RailButton)),
+    );
+
+    testWidgets(
+      'slides from Home to the panes and back, stretching on the way',
+      (tester) async {
+        await pumpRail(tester);
+        final home = buttonRect(tester, 'Home');
+        final logs = buttonRect(tester, 'Logs');
+        expect(trayRect(tester).contains(home.center), isTrue);
+        expect(trayRect(tester).contains(logs.center), isFalse);
+
+        session.openLogs();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 80));
+        // Midway the leading (bottom) edge is already past Logs while the top
+        // still reaches Home: the tray stretches across both.
+        final midway = trayRect(tester);
+        expect(midway.contains(logs.center), isTrue);
+        expect(midway.top, lessThan(logs.top));
+
+        await tester.pumpAndSettle();
+        final settled = trayRect(tester);
+        expect(settled.contains(logs.center), isTrue);
+        expect(settled.contains(home.center), isFalse);
+
+        session.openHome();
+        await tester.pumpAndSettle();
+        expect(trayRect(tester).contains(home.center), isTrue);
+        expect(trayRect(tester).contains(logs.center), isFalse);
+      },
+    );
+
+    testWidgets('panes open under Home are parked, not active', (tester) async {
+      await pumpRail(tester);
+      session.openLogs();
+      await tester.pumpAndSettle();
+      expect(button(tester, 'Logs').isActive, isTrue);
+      expect(button(tester, 'Logs').parked, isFalse);
+      expect(button(tester, 'Home').isActive, isFalse);
+
+      session.openHome();
+      await tester.pumpAndSettle();
+      expect(button(tester, 'Home').isActive, isTrue);
+      expect(button(tester, 'Logs').isActive, isFalse);
+      expect(button(tester, 'Logs').parked, isTrue);
+      expect(button(tester, 'Logs').tooltip, 'Back to logs');
+      expect(button(tester, 'Files').parked, isFalse);
+
+      // The caption leads back to the parked panes.
+      await tester.tap(find.text('PANES'));
+      await tester.pumpAndSettle();
+      expect(session.isHomeOpen, isFalse);
+      expect(button(tester, 'Logs').isActive, isTrue);
+    });
   });
 }
