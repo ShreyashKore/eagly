@@ -70,7 +70,13 @@ class const ApkIconExtractor._() {
       try {
         label = _resolveLabel(application, table);
       } catch (_) {}
-      return (icon: icon, label: label);
+      // A stored entry's content is a view into [apkBytes], and AppIconCache
+      // keeps icons for the life of the process: without a copy, that's the
+      // whole APK, not a few KB of icon.
+      return (
+        icon: icon == null ? null : Uint8List.fromList(icon),
+        label: label,
+      );
     } catch (_) {
       return (icon: null, label: null);
     }
