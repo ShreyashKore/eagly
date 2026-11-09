@@ -21,7 +21,7 @@ use mdns_sd::{ServiceDaemon, ServiceInfo};
 use plist::Value;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -814,16 +814,13 @@ fn load_or_create_host_identity(
     let pairing_path = dir.join(HOST_IDENTITY_FILE);
     let irk_path = dir.join(HOST_ALT_IRK_FILE);
 
-    let mut pairing_file = std::fs::read(&pairing_path)
-        .ok()
-        .and_then(|bytes| RpPairingFile::from_bytes(&bytes).ok())
-        .unwrap_or_else(|| RpPairingFile::generate(name));
+    let mut pairing_file =
+        read_host_identity_file(&pairing_path, |bytes| RpPairingFile::from_bytes(bytes).ok())?
+            .unwrap_or_else(|| RpPairingFile::generate(name));
     // The host file is ours alone; a device's altIRK belongs in its own record.
     pairing_file.alt_irk = None;
 
-    let alt_irk = std::fs::read(&irk_path)
-        .ok()
-        .and_then(|bytes| <[u8; 16]>::try_from(bytes.as_slice()).ok())
+    let alt_irk = read_host_identity_file(&irk_path, |bytes| <[u8; 16]>::try_from(bytes).ok())?
         .unwrap_or_else(|| PairableHostInfo::generate(name, model).alt_irk);
 
     persist_host_identity(storage_dir, &pairing_file, alt_irk)?;
@@ -832,6 +829,44 @@ fn load_or_create_host_identity(
         pairing_file,
         alt_irk,
     })
+}
+
+/// Reads one host identity file: `None` when there is none yet, or when it
+/// does not `parse` — then it is set aside as `<name>.corrupt` and traced, so
+/// the fresh identity that replaces it is not a silent swap. Any other read
+/// error is returned rather than treated as missing, because overwriting a
+/// file we merely failed to read would throw away a good identity.
+fn read_host_identity_file<T>(
+    path: &Path,
+    parse: impl FnOnce(&[u8]) -> Option<T>,
+) -> Result<Option<T>, IosError> {
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(IosError::Other(format!(
+                "failed to read {}: {error}",
+                path.display()
+            )))
+        }
+    };
+    if let Some(value) = parse(&bytes) {
+        return Ok(Some(value));
+    }
+
+    let mut aside = path.as_os_str().to_owned();
+    aside.push(".corrupt");
+    let aside = PathBuf::from(aside);
+    let moved = std::fs::rename(path, &aside);
+    eprintln!(
+        "[ios_wireless] {} is unreadable, so this host gets a new identity; {}",
+        path.display(),
+        match moved {
+            Ok(()) => format!("the old file is kept as {}", aside.display()),
+            Err(error) => format!("setting it aside failed: {error}"),
+        }
+    );
+    Ok(None)
 }
 
 /// Writes the host identity files, so an already-paired device keeps
