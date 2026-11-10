@@ -57,6 +57,8 @@ const DIAL_TIMEOUT: Duration = Duration::from_secs(4);
 /// Retry delay after a failed attempt, doubling up to [`MAX_BACKOFF`].
 const MIN_BACKOFF: Duration = Duration::from_secs(5);
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
+/// How long a tunnel has to last before its record's backoff is cleared.
+const STABLE_TUNNEL: Duration = Duration::from_secs(60);
 
 /// What a service needs to connect through a tunnel. Cheap to clone: the
 /// adapter handle is a channel sender into the TCP stack's task.
@@ -73,6 +75,7 @@ struct Tunnel {
     record_udid: String,
     /// Cancelled once the tunnel's transport is gone.
     dead: CancellationToken,
+    opened_at: Instant,
 }
 
 #[derive(Default)]
@@ -142,14 +145,48 @@ pub(crate) fn route(udid: &str) -> Option<TunnelRoute> {
     state.tunnels.get(udid).map(|tunnel| tunnel.route.clone())
 }
 
+/// Drops dead tunnels. One that lasted [`STABLE_TUNNEL`] clears its record's
+/// backoff, so a phone that comes back to the network reconnects at once; one
+/// that died sooner backs off as a failed attempt does, or a device that
+/// accepts a tunnel and drops it would be reopened on every tick.
 fn prune(state: &mut State) {
+    let mut closed = Vec::new();
     state.tunnels.retain(|udid, tunnel| {
         let alive = !tunnel.dead.is_cancelled();
         if !alive {
             trace(format!("tunnel to {udid} closed"));
+            closed.push((tunnel.record_udid.clone(), tunnel.opened_at.elapsed()));
         }
         alive
     });
+
+    for (record_udid, lived) in closed {
+        if lived >= STABLE_TUNNEL {
+            state.backoff.remove(&record_udid);
+        } else {
+            let delay = back_off(state, &record_udid);
+            trace(format!(
+                "tunnel to {record_udid} lasted {}s, retrying in {}s",
+                lived.as_secs(),
+                delay.as_secs()
+            ));
+        }
+    }
+}
+
+/// Pushes `record_udid`'s next attempt out by double its last delay, from
+/// [`MIN_BACKOFF`] up to [`MAX_BACKOFF`], and returns the new delay.
+fn back_off(state: &mut State, record_udid: &str) -> Duration {
+    let delay = state
+        .backoff
+        .get(record_udid)
+        .map_or(MIN_BACKOFF, |(_, previous)| {
+            (*previous * 2).min(MAX_BACKOFF)
+        });
+    state
+        .backoff
+        .insert(record_udid.to_string(), (Instant::now() + delay, delay));
+    delay
 }
 
 /// One line on stderr per connection event. `flutter run` shows the app's
@@ -209,7 +246,17 @@ async fn run(mut events: tokio::sync::mpsc::UnboundedReceiver<ServiceEvent>) {
             _ = tick.tick() => {}
         }
 
-        connect_matching(&adverts, &mut unpaired);
+        // Its own statement, so the state guard is gone before the await.
+        let storage_dir = state().storage_dir.clone();
+        let Some(storage_dir) = storage_dir else {
+            continue;
+        };
+        // Read off the async workers and outside the state lock, which every
+        // device listing and per-device call waits on.
+        let records = tokio::task::spawn_blocking(move || load_records(&storage_dir))
+            .await
+            .unwrap_or_default();
+        connect_matching(&adverts, &records, &mut unpaired);
     }
 }
 
@@ -217,17 +264,17 @@ async fn run(mut events: tokio::sync::mpsc::UnboundedReceiver<ServiceEvent>) {
 /// no tunnel, attempt or backoff in the way. Advertisements no record matches
 /// are traced once each into `unpaired`, since a device paired only with
 /// Xcode advertises just like one paired with us.
-fn connect_matching(adverts: &HashMap<String, Advertisement>, unpaired: &mut HashSet<String>) {
+fn connect_matching(
+    adverts: &HashMap<String, Advertisement>,
+    records: &[DeviceRecord],
+    unpaired: &mut HashSet<String>,
+) {
     let mut state = state();
     prune(&mut state);
-    let Some(storage_dir) = state.storage_dir.clone() else {
-        return;
-    };
-    let records = load_records(&storage_dir);
     let now = Instant::now();
 
     for (fullname, advert) in adverts {
-        let Some(record) = record_for(&records, advert) else {
+        let Some(record) = record_for(records, advert) else {
             if unpaired.insert(fullname.clone()) {
                 trace(format!(
                     "skipping {fullname}: none of the {} Eagly pairing(s) match it",
@@ -275,25 +322,17 @@ async fn attempt(record: DeviceRecord, advert: Advertisement) {
     state.connecting.remove(&record.udid);
     match result {
         Ok((udid, tunnel)) => {
+            // The backoff stays until the tunnel proves stable; see `prune`.
             trace(format!("tunnel up to {udid}"));
-            state.backoff.remove(&record.udid);
             state.tunnels.insert(udid, tunnel);
         }
         Err(error) => {
-            let delay = state
-                .backoff
-                .get(&record.udid)
-                .map_or(MIN_BACKOFF, |(_, previous)| {
-                    (*previous * 2).min(MAX_BACKOFF)
-                });
+            let delay = back_off(&mut state, &record.udid);
             trace(format!(
                 "connecting to {} failed, retrying in {}s: {error}",
                 record.udid,
                 delay.as_secs()
             ));
-            state
-                .backoff
-                .insert(record.udid.clone(), (Instant::now() + delay, delay));
         }
     }
 }
@@ -389,6 +428,7 @@ async fn open_tunnel(
             },
             record_udid: record.udid.clone(),
             dead,
+            opened_at: Instant::now(),
         },
     ))
 }
@@ -493,19 +533,24 @@ struct DeviceRecord {
 /// One file per device because the host identity is shared across devices
 /// while the altIRK is not: a single record would be overwritten by the next
 /// pairing, losing the previous device's.
+///
+/// An error means nothing usable was saved, so the device would never be
+/// reconnected: the pairing has to be reported as failed, not paired.
 pub(crate) fn persist_device_record(
     storage_dir: &str,
     peer: &PeerDevice,
     pairing_file: &RpPairingFile,
-) {
+) -> Result<(), String> {
     // The UDID comes off the wire; keep it from naming a path elsewhere.
     let file_stem = file_stem(&peer.remotepairing_udid);
     if file_stem.is_empty() {
-        return;
+        return Err(format!(
+            "the device sent an unusable UDID ({:?})",
+            peer.remotepairing_udid
+        ));
     }
-    let Ok(mut record) = plist::from_bytes::<Dictionary>(&pairing_file.to_bytes()) else {
-        return;
-    };
+    let mut record = plist::from_bytes::<Dictionary>(&pairing_file.to_bytes())
+        .map_err(|error| format!("reading the pairing record: {error}"))?;
     record.insert(
         "udid".into(),
         Value::String(peer.remotepairing_udid.clone()),
@@ -514,9 +559,89 @@ pub(crate) fn persist_device_record(
     record.insert("model".into(), Value::String(peer.model.clone()));
 
     let dir = Path::new(storage_dir).join(DEVICE_RECORDS_DIR);
-    let _ = std::fs::create_dir_all(&dir);
-    let _ = Value::Dictionary(record).to_file_xml(dir.join(format!("{file_stem}.plist")));
+    std::fs::create_dir_all(&dir)
+        .map_err(|error| format!("creating {}: {error}", dir.display()))?;
+    let path = dir.join(format!("{file_stem}.plist"));
+    let mut bytes = Vec::new();
+    Value::Dictionary(record)
+        .to_writer_xml(&mut bytes)
+        .map_err(|error| format!("encoding the pairing record: {error}"))?;
+    write_private(&path, &bytes).map_err(|error| format!("saving {}: {error}", path.display()))
 }
+
+/// Writes `bytes` to `path` readable by this user only, since pairing files
+/// hold this host's private key. Goes through a temporary file and a rename,
+/// so a failed write leaves no half-written key and a replaced file does not
+/// keep an older, looser mode. On Windows the per-user app-data ACL is what
+/// keeps the file private.
+pub(crate) fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    #[cfg(unix)]
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+    let mut temp = path.as_os_str().to_owned();
+    temp.push(".tmp");
+    let temp = PathBuf::from(temp);
+
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+
+    let written = (|| -> std::io::Result<()> {
+        let mut file = options.open(&temp)?;
+        // `mode` applies only when the file is created; a temporary file
+        // left behind by a crash keeps whatever mode it had.
+        #[cfg(unix)]
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        std::fs::rename(&temp, path)
+    })();
+    if written.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    written
+}
+
+/// Narrows every file under the records folder, and each of `host_files` in
+/// `storage_dir`, to this user — for files saved before [`write_private`]
+/// existed, which kept the default mode. A no-op off Unix, where the per-user
+/// app-data ACL already does this.
+pub(crate) fn tighten_pairing_files(storage_dir: &Path, host_files: &[&str]) {
+    let records = std::fs::read_dir(storage_dir.join(DEVICE_RECORDS_DIR))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path());
+    let hosts = host_files.iter().map(|name| storage_dir.join(name));
+    for path in records.chain(hosts) {
+        make_private(&path);
+    }
+}
+
+#[cfg(unix)]
+fn make_private(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+
+    // Not following links: only a file of ours is narrowed.
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return;
+    };
+    if !metadata.is_file() || metadata.permissions().mode() & 0o077 == 0 {
+        return;
+    }
+    match std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)) {
+        Ok(()) => trace(format!("made {} private", path.display())),
+        Err(error) => trace(format!(
+            "could not make {} private: {error}",
+            path.display()
+        )),
+    }
+}
+
+#[cfg(not(unix))]
+fn make_private(_path: &Path) {}
 
 fn file_stem(udid: &str) -> String {
     udid.chars()
@@ -619,7 +744,8 @@ mod tests {
             storage.to_str().unwrap(),
             &peer("00008110-001A2B3C00000000", [7; 16]),
             &file,
-        );
+        )
+        .unwrap();
 
         let records = load_records(&storage);
         assert_eq!(records.len(), 1);
@@ -639,8 +765,8 @@ mod tests {
     fn each_device_keeps_its_own_record() {
         let storage = temp_storage("two-devices");
         let dir = storage.to_str().unwrap();
-        persist_device_record(dir, &peer("first", [1; 16]), &paired_file([1; 16]));
-        persist_device_record(dir, &peer("second", [2; 16]), &paired_file([2; 16]));
+        persist_device_record(dir, &peer("first", [1; 16]), &paired_file([1; 16])).unwrap();
+        persist_device_record(dir, &peer("second", [2; 16]), &paired_file([2; 16])).unwrap();
 
         let mut udids: Vec<String> = load_records(&storage)
             .into_iter()
@@ -656,8 +782,8 @@ mod tests {
     fn advertisement_matches_only_its_devices_record() {
         let storage = temp_storage("matching");
         let dir = storage.to_str().unwrap();
-        persist_device_record(dir, &peer("first", [1; 16]), &paired_file([1; 16]));
-        persist_device_record(dir, &peer("second", [2; 16]), &paired_file([2; 16]));
+        persist_device_record(dir, &peer("first", [1; 16]), &paired_file([1; 16])).unwrap();
+        persist_device_record(dir, &peer("second", [2; 16]), &paired_file([2; 16])).unwrap();
         let records = load_records(&storage);
 
         let advert = advert_from([2; 16], "2BE6E510-0325-4365-923E-B14C6F57DB3A");
@@ -687,6 +813,80 @@ mod tests {
         assert!(route("00008110-001A2B3C00000000").is_none());
 
         let _ = std::fs::remove_dir_all(&storage);
+    }
+
+    #[test]
+    fn a_record_that_cannot_be_saved_is_an_error() {
+        let storage = temp_storage("unsaved");
+        let dir = storage.to_str().unwrap();
+        let file = paired_file([1; 16]);
+        assert!(persist_device_record(dir, &peer("../..", [1; 16]), &file).is_err());
+
+        // A file where the records folder should be.
+        std::fs::write(storage.join(DEVICE_RECORDS_DIR), b"").unwrap();
+        assert!(persist_device_record(dir, &peer("first", [1; 16]), &file).is_err());
+        assert!(load_records(&storage).is_empty());
+
+        let _ = std::fs::remove_dir_all(&storage);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn records_are_readable_by_this_user_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let storage = temp_storage("private");
+        let dir = storage.to_str().unwrap();
+        let file = paired_file([1; 16]);
+        let path = storage.join(DEVICE_RECORDS_DIR).join("first.plist");
+        let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+
+        persist_device_record(dir, &peer("first", [1; 16]), &file).unwrap();
+        assert_eq!(mode(&path), 0o600);
+
+        // Replacing a file that was left world-readable tightens it.
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        persist_device_record(dir, &peer("first", [1; 16]), &file).unwrap();
+        assert_eq!(mode(&path), 0o600);
+
+        let _ = std::fs::remove_dir_all(&storage);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn files_saved_before_they_were_private_are_tightened() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let storage = temp_storage("tighten");
+        let records = storage.join(DEVICE_RECORDS_DIR);
+        std::fs::create_dir_all(&records).unwrap();
+        let record = records.join("first.plist");
+        let host = storage.join("host.plist");
+        let unrelated = storage.join("unrelated.txt");
+        let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        for path in [&record, &host, &unrelated] {
+            std::fs::write(path, b"").unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        }
+
+        // A host file that is not there yet is skipped, not an error.
+        tighten_pairing_files(&storage, &["host.plist", "missing.plist"]);
+
+        assert_eq!(mode(&record), 0o600);
+        assert_eq!(mode(&host), 0o600);
+        assert_eq!(mode(&unrelated), 0o644);
+
+        let _ = std::fs::remove_dir_all(&storage);
+    }
+
+    #[test]
+    fn backoff_doubles_up_to_its_cap() {
+        let mut state = State::default();
+        let delays: Vec<u64> = (0..6)
+            .map(|_| back_off(&mut state, "first").as_secs())
+            .collect();
+        assert_eq!(delays, [5, 10, 20, 40, 60, 60]);
+        assert_eq!(back_off(&mut state, "second"), MIN_BACKOFF);
     }
 
     #[test]

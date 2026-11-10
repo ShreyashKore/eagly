@@ -52,3 +52,17 @@ jobs:
       - name: Test
         run: flutter test
 
+      # `flutter test` builds rust/ for the native-assets hook but never runs
+      # its own unit tests (pairing records, backoff, syslog timestamps…).
+      # rust-toolchain.toml's `minimal` profile has no rustfmt, and adding it
+      # there would make every user's native-assets build download it too.
+      - name: Rust format
+        working-directory: rust
+        run: |
+          rustup component add rustfmt
+          cargo fmt --check
+
+      - name: Rust test
+        working-directory: rust
+        run: cargo test --lib
+

@@ -238,6 +238,11 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     } else {
       // Stop advertising the host the moment the user leaves the iOS pane.
       unawaited(iosController.stop());
+      // Resume the scan the iPhone pane stopped: it is what notices the QR
+      // code being scanned, so without it the code shown does nothing.
+      if (_section == _WirelessDialogSection.pair) {
+        wirelessController.beginPairing();
+      }
     }
   }
 
@@ -619,25 +624,11 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SegmentedButton<_WirelessPlatform>(
-                segments: const [
-                  ButtonSegment<_WirelessPlatform>(
-                    value: _WirelessPlatform.android,
-                    icon: Icon(Icons.android),
-                    label: Text('Android'),
-                  ),
-                  ButtonSegment<_WirelessPlatform>(
-                    value: _WirelessPlatform.ios,
-                    icon: Icon(Icons.phone_iphone),
-                    label: Text('iPhone'),
-                  ),
-                ],
-                selected: {_platform},
-                onSelectionChanged: (selection) {
-                  _onPlatformChanged(selection.first);
-                },
-              ),
-              const Gap(14),
+              // Without iPhone pairing the Android pane is all there is.
+              if (iosWirelessPairingAvailable) ...[
+                _buildPlatformToggle(),
+                const Gap(14),
+              ],
               Flexible(
                 child: switch (_platform) {
                   _WirelessPlatform.android => _buildAndroidPane(context),
@@ -647,6 +638,27 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
             ],
           ),
         );
+      },
+    );
+  }
+
+  Widget _buildPlatformToggle() {
+    return SegmentedButton<_WirelessPlatform>(
+      segments: const [
+        ButtonSegment<_WirelessPlatform>(
+          value: _WirelessPlatform.android,
+          icon: Icon(Icons.android),
+          label: Text('Android'),
+        ),
+        ButtonSegment<_WirelessPlatform>(
+          value: _WirelessPlatform.ios,
+          icon: Icon(Icons.phone_iphone),
+          label: Text('iPhone'),
+        ),
+      ],
+      selected: {_platform},
+      onSelectionChanged: (selection) {
+        _onPlatformChanged(selection.first);
       },
     );
   }

@@ -21,7 +21,7 @@ use mdns_sd::{ServiceDaemon, ServiceInfo};
 use plist::Value;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -178,6 +178,13 @@ pub async fn list_ios_devices() -> Result<Vec<IosDeviceHandle>, IosError> {
 /// [`list_ios_devices`] lists it and every per-device call here reaches it
 /// through the tunnel whenever usbmuxd does not know its UDID. Idempotent.
 pub async fn start_ios_wireless_discovery(storage_dir: String) -> Result<(), IosError> {
+    // Pairing files saved before they were written owner-only (1.8.2) keep
+    // their old mode until rewritten, and a device's record is rewritten
+    // only when that device pairs again. Best effort: it never stops discovery.
+    let dir = PathBuf::from(&storage_dir);
+    let host_files = [HOST_IDENTITY_FILE, HOST_ALT_IRK_FILE];
+    let tighten = move || crate::ios_wireless::tighten_pairing_files(&dir, &host_files);
+    let _ = tokio::task::spawn_blocking(tighten).await;
     crate::ios_wireless::start(storage_dir).map_err(IosError::Other)
 }
 
@@ -619,13 +626,30 @@ pub async fn start_ios_wireless_pairing(
             // Stopped from Dart, which has already dropped the stream.
             None => {}
             Some(Ok(peer)) => {
-                crate::ios_wireless::persist_device_record(&storage_dir, &peer, &pairing_file);
-                let _ = sink.add(IosWirelessPairEvent {
-                    device_name: Some(peer.name),
-                    device_model: Some(peer.model),
-                    device_udid: Some(peer.remotepairing_udid),
-                    ..pair_event("paired")
-                });
+                // Without its record the device is never reconnected, so a
+                // failed save is a failed pairing, not a paired device. Saved
+                // off the async workers, since the write ends in an fsync.
+                let saved = tokio::task::spawn_blocking(move || {
+                    crate::ios_wireless::persist_device_record(&storage_dir, &peer, &pairing_file)
+                        .map(|()| peer)
+                })
+                .await
+                .unwrap_or_else(|error| Err(error.to_string()));
+                let event = match saved {
+                    Ok(peer) => IosWirelessPairEvent {
+                        device_name: Some(peer.name),
+                        device_model: Some(peer.model),
+                        device_udid: Some(peer.remotepairing_udid),
+                        ..pair_event("paired")
+                    },
+                    Err(error) => IosWirelessPairEvent {
+                        message: Some(format!(
+                            "Paired, but the pairing could not be saved: {error}"
+                        )),
+                        ..pair_event("error")
+                    },
+                };
+                let _ = sink.add(event);
             }
             Some(Err(message)) => {
                 let _ = sink.add(IosWirelessPairEvent {
@@ -667,7 +691,7 @@ async fn advertise_pairable_host(
     let HostIdentity {
         pairing_file,
         alt_irk,
-    } = load_or_create_host_identity(storage_dir, host_name, host_model);
+    } = host_identity(storage_dir, host_name, host_model).await?;
     let host_info = PairableHostInfo {
         name: host_name.to_string(),
         model: host_model.to_string(),
@@ -686,7 +710,7 @@ async fn advertise_pairable_host(
         .iter()
         .map(|(key, value)| (key.as_str(), value.as_str()))
         .collect();
-    let hostname = format!("eagly-{}.local.", &service_identifier[..8]);
+    let hostname = mdns_hostname(&service_identifier);
     let registered = ServiceInfo::new(
         PAIRABLE_HOST_SERVICE_TYPE,
         &service_identifier,
@@ -712,6 +736,24 @@ async fn advertise_pairable_host(
         pairing_file,
         host_info,
     })
+}
+
+/// The `.local.` name the pairing service is advertised under: `eagly-` and
+/// the first 8 alphanumerics of the identifier. The identifier is read back
+/// from a file, so it is not trusted to be a UUID — slicing it by bytes
+/// panicked on one shorter than 8 bytes or with a multi-byte character there.
+fn mdns_hostname(identifier: &str) -> String {
+    let short: String = identifier
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .take(8)
+        .collect();
+    let short = if short.is_empty() {
+        "host"
+    } else {
+        short.as_str()
+    };
+    format!("eagly-{short}.local.")
 }
 
 /// Waits for one device to connect and runs the rppairing pair-setup with it,
@@ -789,40 +831,101 @@ struct HostIdentity {
     alt_irk: [u8; 16],
 }
 
+/// [`load_or_create_host_identity`] on the blocking pool, off the async
+/// workers: saving the identity ends in an fsync per file.
+async fn host_identity(dir: &str, name: &str, model: &str) -> Result<HostIdentity, IosError> {
+    let (dir, name, model) = (dir.to_owned(), name.to_owned(), model.to_owned());
+    let load = move || load_or_create_host_identity(&dir, &name, &model);
+    tokio::task::spawn_blocking(load)
+        .await
+        .map_err(|error| IosError::Other(format!("failed to load the host identity: {error}")))?
+}
+
 /// Loads the host identity from `storage_dir`, generating and persisting a
 /// fresh one on first run.
-fn load_or_create_host_identity(storage_dir: &str, name: &str, model: &str) -> HostIdentity {
+fn load_or_create_host_identity(
+    storage_dir: &str,
+    name: &str,
+    model: &str,
+) -> Result<HostIdentity, IosError> {
     let dir = PathBuf::from(storage_dir);
     let pairing_path = dir.join(HOST_IDENTITY_FILE);
     let irk_path = dir.join(HOST_ALT_IRK_FILE);
 
-    let mut pairing_file = std::fs::read(&pairing_path)
-        .ok()
-        .and_then(|bytes| RpPairingFile::from_bytes(&bytes).ok())
-        .unwrap_or_else(|| RpPairingFile::generate(name));
+    let mut pairing_file =
+        read_host_identity_file(&pairing_path, |bytes| RpPairingFile::from_bytes(bytes).ok())?
+            .unwrap_or_else(|| RpPairingFile::generate(name));
     // The host file is ours alone; a device's altIRK belongs in its own record.
     pairing_file.alt_irk = None;
 
-    let alt_irk = std::fs::read(&irk_path)
-        .ok()
-        .and_then(|bytes| <[u8; 16]>::try_from(bytes.as_slice()).ok())
+    let alt_irk = read_host_identity_file(&irk_path, |bytes| <[u8; 16]>::try_from(bytes).ok())?
         .unwrap_or_else(|| PairableHostInfo::generate(name, model).alt_irk);
 
-    persist_host_identity(storage_dir, &pairing_file, alt_irk);
+    persist_host_identity(storage_dir, &pairing_file, alt_irk)?;
 
-    HostIdentity {
+    Ok(HostIdentity {
         pairing_file,
         alt_irk,
+    })
+}
+
+/// Reads one host identity file: `None` when there is none yet, or when it
+/// does not `parse` — then it is set aside as `<name>.corrupt` and traced, so
+/// the fresh identity that replaces it is not a silent swap. Any other read
+/// error is returned rather than treated as missing, because overwriting a
+/// file we merely failed to read would throw away a good identity.
+fn read_host_identity_file<T>(
+    path: &Path,
+    parse: impl FnOnce(&[u8]) -> Option<T>,
+) -> Result<Option<T>, IosError> {
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(IosError::Other(format!(
+                "failed to read {}: {error}",
+                path.display()
+            )))
+        }
+    };
+    if let Some(value) = parse(&bytes) {
+        return Ok(Some(value));
     }
+
+    let mut aside = path.as_os_str().to_owned();
+    aside.push(".corrupt");
+    let aside = PathBuf::from(aside);
+    let moved = std::fs::rename(path, &aside);
+    eprintln!(
+        "[ios_wireless] {} is unreadable, so this host gets a new identity; {}",
+        path.display(),
+        match moved {
+            Ok(()) => format!("the old file is kept as {}", aside.display()),
+            Err(error) => format!("setting it aside failed: {error}"),
+        }
+    );
+    Ok(None)
 }
 
 /// Writes the host identity files, so an already-paired device keeps
-/// recognising this host across launches.
-fn persist_host_identity(storage_dir: &str, pairing_file: &RpPairingFile, alt_irk: [u8; 16]) {
+/// recognising this host across launches. Owner-only: they hold our private
+/// key. A failure is an error, since pairing with an identity that was never
+/// saved leaves the device paired with a host that will not exist next launch.
+fn persist_host_identity(
+    storage_dir: &str,
+    pairing_file: &RpPairingFile,
+    alt_irk: [u8; 16],
+) -> Result<(), IosError> {
     let dir = PathBuf::from(storage_dir);
-    let _ = std::fs::create_dir_all(&dir);
-    let _ = std::fs::write(dir.join(HOST_IDENTITY_FILE), pairing_file.to_bytes());
-    let _ = std::fs::write(dir.join(HOST_ALT_IRK_FILE), alt_irk);
+    let save = |name: &str, bytes: &[u8]| {
+        let path = dir.join(name);
+        crate::ios_wireless::write_private(&path, bytes)
+            .map_err(|error| IosError::Other(format!("failed to save {}: {error}", path.display())))
+    };
+    std::fs::create_dir_all(&dir)
+        .map_err(|error| IosError::Other(format!("failed to create {storage_dir}: {error}")))?;
+    save(HOST_IDENTITY_FILE, &pairing_file.to_bytes()[..])?;
+    save(HOST_ALT_IRK_FILE, &alt_irk[..])
 }
 
 /// One installed app.
@@ -1352,6 +1455,17 @@ async fn usbmuxd_device(udid: &str) -> Result<UsbmuxdDevice, IosError> {
 mod tests {
     use super::*;
     use chrono::DateTime;
+
+    #[test]
+    fn mdns_hostname_takes_a_uuid_prefix_and_never_panics() {
+        assert_eq!(
+            mdns_hostname("2BE6E510-0325-4365-923E-B14C6F57DB3A"),
+            "eagly-2BE6E510.local."
+        );
+        assert_eq!(mdns_hostname("ab"), "eagly-ab.local.");
+        assert_eq!(mdns_hostname("ééééé-12"), "eagly-12.local.");
+        assert_eq!(mdns_hostname(""), "eagly-host.local.");
+    }
 
     /// A record as idevice 0.1.68 builds it: `from_timestamp(seconds,
     /// microseconds).naive_local()` — UTC, with micros in the nanos field.

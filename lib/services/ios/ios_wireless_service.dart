@@ -1,4 +1,27 @@
+import 'dart:io';
+
+import 'ios_backend.dart';
 import 'rust_ios_wireless_service.dart';
+
+/// Folder under the storage dir holding one record per iPhone paired over
+/// Wi-Fi. Must match `DEVICE_RECORDS_DIR` in `rust/src/ios_wireless.rs`.
+const iosWirelessDeviceRecordsDir = 'remote_pairing_devices';
+
+/// Whether any iPhone has been paired over Wi-Fi with records kept under
+/// `storageDir`. A cheap directory read, safe to call on every poll.
+Future<bool> hasIosWirelessPairings(String storageDir) async {
+  final dir = Directory(
+    '$storageDir${Platform.pathSeparator}$iosWirelessDeviceRecordsDir',
+  );
+  try {
+    if (!await dir.exists()) return false;
+    return await dir.list().any(
+      (entry) => entry is File && entry.path.endsWith('.plist'),
+    );
+  } on FileSystemException {
+    return false;
+  }
+}
 
 /// One progress event from an in-flight iOS wireless (remote) pairing.
 class IosWirelessPairEvent {
@@ -53,3 +76,10 @@ abstract interface class IosWirelessService {
 }
 
 IosWirelessService createIosWirelessService() => RustIosWirelessService();
+
+/// Whether iPhone wireless pairing can be offered. It needs the Rust
+/// backend twice over: pairing runs in Rust, and only
+/// `RustIosDeviceService` watches for paired iPhones afterwards. Under
+/// `EAGLY_IOS_BACKEND=cli`, or when the Rust library failed to load, a
+/// pairing would either throw or produce a phone that never appears.
+bool get iosWirelessPairingAvailable => useRustIosBackend;
