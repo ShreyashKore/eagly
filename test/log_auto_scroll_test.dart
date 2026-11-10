@@ -130,6 +130,52 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     },
   );
+
+  // FLUTTER-HS: the list's own animateToItem asks for the same row on every
+  // frame, so when the list shrank under it mid-glide it threw a RangeError.
+  testWidgets(
+    'scroll to end survives the list shrinking mid-glide',
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    (tester) async {
+      final (:session, :service, :log) = await _pumpLogViewer(tester);
+
+      var line = 0;
+      for (var i = 0; i < 600; i++) {
+        service.emit(testLogEntry(message: 'Line ${line++}'));
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      log.disableAutoScroll();
+      log.scrollController.jumpTo(0);
+      await tester.pump();
+
+      log.scrollToEnd();
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 16));
+
+      log.clearLogs();
+      for (var i = 0; i < 16; i++) {
+        service.emit(testLogEntry(message: 'Line ${line++}'));
+      }
+      for (var frame = 0; frame < 30; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(tester.takeException(), isNull);
+      expect(log.filteredLogs, hasLength(16));
+      // The shrink leaves the list past its new end; the bounce physics
+      // springs it back.
+      await tester.pump(const Duration(seconds: 1));
+      final position = log.scrollController.position;
+      expect(
+        position.pixels,
+        moreOrLessEquals(position.maxScrollExtent, epsilon: 0.5),
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      session.dispose();
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
 }
 
 /// A log viewer on a fake Android device, capturing with auto-scroll on.

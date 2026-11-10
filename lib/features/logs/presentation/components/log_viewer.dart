@@ -298,11 +298,13 @@ class _LogViewerState extends State<LogViewer> {
     //   return;
     // }
 
-    _listController.animateToItem(
+    // A jump, not animateToItem: that asks for [index] again on every frame
+    // of its glide and throws a RangeError if the list shrinks under it, as
+    // a filter typed while matches are stepped through can (FLUTTER-HS). It
+    // can't be cancelled, and was only 100 ms.
+    _listController.jumpToItem(
       index: index,
       scrollController: sc,
-      curve: (d) => Curves.easeOut,
-      duration: (d) => Duration(milliseconds: 100),
       alignment: 0.3,
     );
 
