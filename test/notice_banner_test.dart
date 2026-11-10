@@ -70,7 +70,16 @@ void main() {
   testWidgets('text too long to sit beside the actions keeps the full row', (
     tester,
   ) async {
-    await pumpAt(tester, 900);
+    // Long enough to wrap at 900 px in any font: with the bundled Inter
+    // loaded in tests, the default message now fits beside the actions.
+    await pumpAt(
+      tester,
+      900,
+      message:
+          'Pixel 8 disconnected. Reconnect it, then restart logging or open a '
+          'new tab. Logs captured before the disconnect stay in this tab '
+          'until you clear them or close it.',
+    );
     final message = tester.getRect(find.textContaining('Reconnect it'));
     final restart = tester.getRect(find.text('Restart logging'));
     // The text is never squeezed into a column to make room: the actions

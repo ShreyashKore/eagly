@@ -96,6 +96,7 @@ flutter:
     - assets/logos/
     # The layout inspector's on-device helper (scripts/build_inspector_helper.sh).
     - assets/inspector/
+    - assets/fonts/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
