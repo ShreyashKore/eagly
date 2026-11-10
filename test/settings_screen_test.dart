@@ -7,11 +7,23 @@ import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/features/mirror/services/capture_storage.dart';
 import 'package:eagly/features/emulator_manager/services/android_sdk_picker.dart';
+import 'package:eagly/features/mcp/mcp_server_controller.dart';
+import 'package:eagly/features/mcp/mcp_token_store.dart';
 import 'package:eagly/features/settings/settings_screen.dart';
+import 'package:eagly/services/devices_repository.dart';
+import 'package:eagly/session/device_session_manager.dart';
 import 'package:eagly/utils/android_sdk_path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/session_test_support.dart';
+
 void main() {
+  late FakeAdbTool adbTool;
+  late DevicesRepository repository;
+  late DeviceSessionManager manager;
+  late McpServerController mcpServer;
+  final mcpTokenDir = Directory.systemTemp.createTempSync('settings-mcp');
+
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     GoogleFonts.config.allowRuntimeFetching = false;
@@ -22,6 +34,31 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await PreferencesService.init();
+    adbTool = FakeAdbTool();
+    repository = DevicesRepository.forTesting(
+      adbTool: adbTool,
+      iosDeviceService: FakeIosDeviceService(),
+    );
+    manager = DeviceSessionManager(
+      repository: repository,
+      serviceFactory: FakeSessionService.new,
+    );
+    mcpServer = McpServerController(
+      manager: manager,
+      // Never the real app support folder.
+      tokenStore: McpTokenStore(directory: () async => mcpTokenDir),
+    );
+  });
+
+  tearDown(() async {
+    mcpServer.dispose();
+    manager.dispose();
+    repository.dispose();
+    await adbTool.disposeTool();
+  });
+
+  tearDownAll(() {
+    if (mcpTokenDir.existsSync()) mcpTokenDir.deleteSync(recursive: true);
   });
 
   test('theme mode defaults to dark when no preference is stored', () {
@@ -37,7 +74,7 @@ void main() {
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: PreferencesService.themeMode,
-        home: const SettingsScreen(),
+        home: SettingsScreen(mcpServer: mcpServer),
       ),
     );
 
@@ -66,7 +103,7 @@ void main() {
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: PreferencesService.themeMode,
-        home: const SettingsScreen(),
+        home: SettingsScreen(mcpServer: mcpServer),
       ),
     );
 
@@ -83,7 +120,7 @@ void main() {
       MaterialApp(
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
-        home: const SettingsScreen(),
+        home: SettingsScreen(mcpServer: mcpServer),
       ),
     );
 
@@ -117,7 +154,10 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(theme: AppTheme.lightTheme, home: const SettingsScreen()),
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: SettingsScreen(mcpServer: mcpServer),
+      ),
     );
 
     final tile = find.widgetWithText(SwitchListTile, 'Feature tips');
@@ -131,7 +171,10 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(theme: AppTheme.lightTheme, home: const SettingsScreen()),
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: SettingsScreen(mcpServer: mcpServer),
+      ),
     );
 
     final row = find.ancestor(
@@ -180,7 +223,7 @@ void main() {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           // A Scaffold, because these actions report through a SnackBar.
-          home: const Scaffold(body: SettingsScreen()),
+          home: Scaffold(body: SettingsScreen(mcpServer: mcpServer)),
         ),
       );
       final row = find.widgetWithText(ListTile, 'SDK location');
@@ -268,5 +311,30 @@ void main() {
       expect(PreferencesService.androidSdkPath, isNull);
       expect(find.textContaining('Not found'), findsOneWidget);
     });
+  });
+
+  testWidgets('the MCP server section starts off and offers the connect '
+      'command', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(body: SettingsScreen(mcpServer: mcpServer)),
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.text('Add to Claude Code'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.text('MCP server'), findsOneWidget);
+    expect(find.text('Off'), findsOneWidget);
+    expect(
+      find.text(
+        'claude mcp add --transport http eagly http://127.0.0.1:9311/mcp',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Token'), findsNothing);
   });
 }

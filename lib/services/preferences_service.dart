@@ -84,6 +84,11 @@ class PreferencesService {
   static const _keyFilesShowHidden = 'filesShowHidden';
   static const _keyWorkspaceLayout = 'workspaceLayout';
   static const _keySavedWorkspaceLayout = 'savedWorkspaceLayout';
+  static const _keyMcpEnabled = 'mcpEnabled';
+  static const _keyMcpPort = 'mcpPort';
+  static const _keyMcpRequireToken = 'mcpRequireToken';
+  static const _keyMcpToken = 'mcpToken';
+  static const _keyMcpRedactHeaders = 'mcpRedactHeaders';
 
   /// Maximum number of recently opened log files retained for quick re-open.
   static const _maxRecentLogFiles = 10;
@@ -439,4 +444,32 @@ class PreferencesService {
       _prefs.setJson(_keySavedWorkspaceLayout, v);
     }
   }
+
+  // --- MCP server (docs/MCP_SERVER.md) ---
+
+  /// Whether the MCP server for coding agents runs. Off until the user
+  /// turns it on.
+  static bool get mcpEnabled => _prefs.getBool(_keyMcpEnabled) ?? false;
+  static set mcpEnabled(bool v) => _prefs.setBool(_keyMcpEnabled, v);
+
+  /// The MCP server's port; null means the default.
+  static int? get mcpPort => _prefs.getInt(_keyMcpPort);
+  static set mcpPort(int? v) =>
+      v == null ? _prefs.remove(_keyMcpPort) : _prefs.setInt(_keyMcpPort, v);
+
+  /// Whether agents must send the bearer token (`McpTokenStore`).
+  static bool get mcpRequireToken =>
+      _prefs.getBool(_keyMcpRequireToken) ?? false;
+  static set mcpRequireToken(bool v) => _prefs.setBool(_keyMcpRequireToken, v);
+
+  /// The bearer token as an older Eagly stored it. Only `McpTokenStore`
+  /// reads it, to move it into its owner-only file; nothing writes it.
+  static String? get legacyMcpToken => _prefs.getString(_keyMcpToken);
+  static Future<void> removeLegacyMcpToken() => _prefs.remove(_keyMcpToken);
+
+  /// Whether `get_network_request` hides credential headers.
+  static bool get mcpRedactHeaders =>
+      _prefs.getBool(_keyMcpRedactHeaders) ?? true;
+  static set mcpRedactHeaders(bool v) =>
+      _prefs.setBool(_keyMcpRedactHeaders, v);
 }

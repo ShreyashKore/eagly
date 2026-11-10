@@ -7,6 +7,8 @@ import 'package:gap/gap.dart';
 import '../../presentation/components/app_icon_button.dart';
 import '../emulator_manager/services/android_sdk_picker.dart';
 import '../logs/data/models/log_level.dart';
+import '../mcp/components/mcp_settings_section.dart';
+import '../mcp/mcp_server_controller.dart';
 import '../mirror/services/capture_storage.dart';
 import '../../utils/file_reveal.dart';
 import '../../services/eagly_info_service.dart';
@@ -19,14 +21,20 @@ import 'components/settings_section_card.dart';
 import '../../presentation/components/snack_bars.dart';
 
 /// Presents the settings as a large desktop dialog.
-Future<void> showSettingsDialog(BuildContext context) {
+Future<void> showSettingsDialog(
+  BuildContext context, {
+  required McpServerController mcpServer,
+}) {
   return showEaglyDialog<void>(
     context: context,
-    builder: (_) => const SettingsScreen(),
+    builder: (_) => SettingsScreen(mcpServer: mcpServer),
   );
 }
 
-class const SettingsScreen({super.key}) extends StatefulWidget {
+class const SettingsScreen({
+  super.key,
+  required final McpServerController mcpServer,
+}) extends StatefulWidget {
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
@@ -530,6 +538,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
+            const Gap(16),
+            McpSettingsSection(controller: widget.mcpServer),
             const Gap(16),
             SettingsSectionCard(
               title: 'Stored layout defaults',
