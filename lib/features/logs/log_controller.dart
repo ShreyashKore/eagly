@@ -427,28 +427,27 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     }
   }
 
+  /// Glides to the newest row, as the scroll-to-end command.
+  ///
+  /// Not `ListController.animateToItem`: that asks for the same row index on
+  /// every frame, and throws a RangeError when the list shrinks under it
+  /// mid-glide — a clear or a narrower filter (FLUTTER-HS). [_glideToTail]
+  /// aims at the end instead, re-read every frame.
   void scrollToEnd() {
     if (!scrollController.hasClients || !listController.isAttached) return;
-    final count = listController.numberOfItems;
-    if (count == 0) return;
-    // Not animateTo(maxScrollExtent): far from the end that extent is mostly
-    // estimate, and the animation would overshoot into blank space as the
-    // rows it passes get measured.
-    listController.animateToItem(
-      index: count - 1,
-      scrollController: scrollController,
-      alignment: 1.0,
-      duration: (_) => const Duration(milliseconds: 300),
-      curve: (_) => Curves.easeOut,
-    );
+    if (listController.numberOfItems == 0) return;
+    final generation = ++_followGeneration;
+    _glideToTail(scrollToEndDuration, () => _isGliding(generation));
   }
+
+  static const Duration scrollToEndDuration = Duration(milliseconds: 300);
 
   /// How long following the tail glides for — well inside the 300 ms flush
   /// interval, so one glide finishes before the next batch lands.
   static const Duration followTailDuration = Duration(milliseconds: 150);
 
-  /// Bumped by every [_followTail], so a glide still running when the next
-  /// batch lands hands over to the new one instead of fighting it.
+  /// Bumped by every [_followTail] and [scrollToEnd], so a glide still running
+  /// when the next one starts hands over to it instead of fighting it.
   int _followGeneration = 0;
 
   /// Glides the newest row into view after an append, while auto-scroll is
@@ -476,33 +475,46 @@ class LogController(super.session, {required LogTabSettings initialSettings})
         }
         return;
       }
-      final start = scrollController.position.pixels;
-      Duration? startedAt;
-
-      void tick(Duration timestamp) {
-        if (!_isFollowing(generation)) return;
-        final position = scrollController.position;
-        // Something else is moving the list — a drag or fling, or the
-        // scroll-to-end button — so let it.
-        if (position.isScrollingNotifier.value) return;
-
-        startedAt ??= timestamp;
-        final elapsed = timestamp - startedAt!;
-        final t = (elapsed.inMicroseconds / followTailDuration.inMicroseconds)
-            .clamp(0.0, 1.0);
-        if (t >= 1.0) {
-          _landOnTail();
-          return;
-        }
-        final end = position.maxScrollExtent;
-        final next = (start + (end - start) * Curves.easeOut.transform(t))
-            .clamp(position.minScrollExtent, end);
-        if (next != position.pixels) position.jumpTo(next);
-        SchedulerBinding.instance.scheduleFrameCallback(tick);
-      }
-
-      SchedulerBinding.instance.scheduleFrameCallback(tick);
+      _glideToTail(followTailDuration, () => _isFollowing(generation));
     });
+  }
+
+  /// Eases the list from where it is to its end over [duration], then pins
+  /// the newest row with [_landOnTail]. Stops on the first frame [keepGoing]
+  /// is false, or something else — a drag or fling — is moving the list.
+  ///
+  /// It holds no row index, only the end, which it re-reads every frame, so
+  /// rows measured, appended or removed mid-glide can't send it past the end
+  /// or out of range.
+  void _glideToTail(Duration duration, bool Function() keepGoing) {
+    final start = scrollController.position.pixels;
+    Duration? startedAt;
+
+    void tick(Duration timestamp) {
+      if (!keepGoing()) return;
+      final position = scrollController.position;
+      if (position.isScrollingNotifier.value) return;
+
+      startedAt ??= timestamp;
+      final elapsed = timestamp - startedAt!;
+      final t = (elapsed.inMicroseconds / duration.inMicroseconds).clamp(
+        0.0,
+        1.0,
+      );
+      if (t >= 1.0) {
+        _landOnTail();
+        return;
+      }
+      final end = position.maxScrollExtent;
+      final next = (start + (end - start) * Curves.easeOut.transform(t)).clamp(
+        position.minScrollExtent,
+        end,
+      );
+      if (next != position.pixels) position.jumpTo(next);
+      SchedulerBinding.instance.scheduleFrameCallback(tick);
+    }
+
+    SchedulerBinding.instance.scheduleFrameCallback(tick);
   }
 
   bool get _isAppActive => switch (WidgetsBinding.instance.lifecycleState) {
@@ -510,10 +522,11 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     _ => false,
   };
 
-  bool _isFollowing(int generation) =>
+  bool _isFollowing(int generation) => autoScroll && _isGliding(generation);
+
+  bool _isGliding(int generation) =>
       generation == _followGeneration &&
       !_disposed &&
-      autoScroll &&
       scrollController.hasClients &&
       listController.isAttached;
 

@@ -9,6 +9,7 @@ import 'package:eagly/services/ios/ios_backend.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/presentation/theme/app_zoom.dart';
+import 'package:eagly/presentation/theme/bundled_fonts.dart';
 import 'package:eagly/features/home_screen/home_page.dart';
 import 'package:eagly/services/sentry_event_filter.dart';
 import 'package:eagly/utils/record_mode.dart';
@@ -19,6 +20,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  useBundledFonts();
   await initIosBackend();
   // Captures a hot restart left running; a no-op on a fresh launch.
   unawaited(IosScreenCapture.stopAll());

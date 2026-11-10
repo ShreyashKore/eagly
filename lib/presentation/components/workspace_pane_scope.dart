@@ -155,8 +155,15 @@ class _PaneGripState extends State<PaneGrip> {
 /// Makes [child] a handle that moves the pane it sits in — the grip, or the
 /// title area of a pane header (the way a window is moved by its title
 /// bar). Inert outside a workspace or while the pane is alone.
-class const PaneDragArea({super.key, required final Widget child})
-    extends StatelessWidget {
+class const PaneDragArea({
+  super.key,
+
+  /// How far the pointer must move from the press before the pane moves.
+  /// A toolbar's empty stretch passes [paneToolbarDragSlop]: it is pressed
+  /// by accident far more often than the grip, which is there to be dragged.
+  final double slop = paneDragSlop,
+  required final Widget child,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scope = WorkspacePaneScope.maybeOf(context);
@@ -167,8 +174,15 @@ class const PaneDragArea({super.key, required final Widget child})
       gestures: {
         _PaneDragRecognizer:
             GestureRecognizerFactoryWithHandlers<_PaneDragRecognizer>(
-              () => _PaneDragRecognizer(debugOwner: this),
+              // Without onlyAcceptDragOnThreshold, a recognizer alone in
+              // the arena — as on a toolbar's empty stretch, where no button
+              // competes — wins on press and starts the drag there, slop or
+              // not.
+              () =>
+                  _PaneDragRecognizer(debugOwner: this)
+                    ..onlyAcceptDragOnThreshold = true,
               (recognizer) => recognizer
+                ..slop = slop
                 ..onStart = ((details) =>
                     controls.startDrag(details.globalPosition))
                 ..onUpdate = ((details) =>
@@ -187,19 +201,56 @@ class const PaneDragArea({super.key, required final Widget child})
 /// shaky click, or a brush across a header, leaves the layout alone.
 const double paneDragSlop = 20;
 
+/// [paneDragSlop] for the empty stretch of a pane's toolbar, which is easily
+/// pressed on the way to a toolbar button or while just clicking around.
+const double paneToolbarDragSlop = 64;
+
 /// A pan that needs a deliberate move to begin. A mouse pan normally wins
 /// the gesture arena after 2 px, which turns a slightly shaky click on the
 /// grip into a drag that goes nowhere, instead of opening its menu — and a
 /// brush across a pane's title area into a move to a new spot.
+///
+/// The slop is measured as the straight-line distance from where the press
+/// went down. [globalDistanceMoved] can't be used for it: for a pan it is the
+/// length of the whole path, so a hand resting on the mouse — wobbling a
+/// pixel back and forth without going anywhere — adds up to the slop within
+/// a moment and starts a move.
 class _PaneDragRecognizer({super.debugOwner}) extends PanGestureRecognizer {
+  /// [PaneDragArea.slop].
+  double slop = paneDragSlop;
+
+  /// Where the press went down, and where the pointer is now; null for a
+  /// trackpad's two-finger pan, which scrolls and never moves a pane.
+  Offset? _downAt;
+  Offset? _at;
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    _downAt = _at = event.position;
+    super.addAllowedPointer(event);
+  }
+
+  @override
+  void addAllowedPointerPanZoom(PointerPanZoomStartEvent event) {
+    _downAt = _at = null;
+    super.addAllowedPointerPanZoom(event);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    // Before super, which asks [hasSufficientGlobalDistanceToAccept].
+    if (event is PointerMoveEvent && _downAt != null) _at = event.position;
+    super.handleEvent(event);
+  }
+
   @override
   bool hasSufficientGlobalDistanceToAccept(
     PointerDeviceKind pointerDeviceKind,
     double? deviceTouchSlop,
-  ) =>
-      globalDistanceMoved.abs() >
-      math.max(
-        paneDragSlop,
-        computePanSlop(pointerDeviceKind, gestureSettings),
-      );
+  ) {
+    final (downAt, at) = (_downAt, _at);
+    if (downAt == null || at == null) return false;
+    return (at - downAt).distance >
+        math.max(slop, computePanSlop(pointerDeviceKind, gestureSettings));
+  }
 }
