@@ -232,11 +232,15 @@ class const _PromptLabel({
             Icon(Icons.push_pin_outlined, size: 13, color: color),
             const SizedBox(width: 4),
           ],
-          Text(
-            device.displayName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: style.copyWith(fontWeight: FontWeight.w600, color: color),
+          // Flexible, so a long name ellipsizes in a narrow pane instead of
+          // overflowing the row.
+          Flexible(
+            child: Text(
+              device.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: style.copyWith(fontWeight: FontWeight.w600, color: color),
+            ),
           ),
           const SizedBox(width: 6),
           Text(
