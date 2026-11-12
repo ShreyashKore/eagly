@@ -83,7 +83,7 @@ class const AppHeader({
                         const Gap(4),
                         HeaderAction(
                           icon: Icons.wifi_tethering_outlined,
-                          tooltip: 'Wireless ADB',
+                          tooltip: 'Wireless pairing (Android & iPhone)',
                           onPressed: onShowWireless,
                         ),
                         HeaderAction(

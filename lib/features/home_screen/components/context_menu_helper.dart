@@ -20,10 +20,7 @@ void showHeaderMenu(
     items: const [
       PopupMenuItem(
         value: _HeaderMenuAction.wireless,
-        child: MenuRow(
-          Icons.wifi_tethering_outlined,
-          'Connect via Wireless ADB',
-        ),
+        child: MenuRow(Icons.wifi_tethering_outlined, 'Connect wirelessly'),
       ),
       PopupMenuItem(
         value: _HeaderMenuAction.emulators,

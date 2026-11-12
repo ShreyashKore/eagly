@@ -96,7 +96,7 @@ const List<Tip> kTips = [
         'Unplug the cable — connect an Android device wirelessly and stream '
         'logcat over the network. Pair once and reconnect from the header any '
         'time.',
-    actionHint: 'Tap the Wireless ADB icon in the header',
+    actionHint: 'Tap the Wireless pairing icon in the header',
   ),
   Tip(
     id: 'font-size',

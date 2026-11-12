@@ -305,7 +305,7 @@ List<CommandPaletteItem> buildCommandPaletteItems({
   items.add(
     CommandPaletteItem(
       id: 'app.wireless',
-      label: 'Wireless ADB…',
+      label: 'Wireless pairing…',
       category: 'App',
       icon: Icons.wifi_tethering_outlined,
       run: onShowWireless,

@@ -2,7 +2,7 @@
 
 Eagly — a cross-platform **desktop** (macOS/Windows/Linux) log viewer for Android & iOS
 devices. Streams `adb logcat` and `idevicesyslog`, plus screen mirror, file manager,
-crash reports, app install, device utilities, and wireless ADB. Flutter app; Dart package
+crash reports, app install, device utilities, and wireless pairing (ADB and iOS). Flutter app; Dart package
 name and repo dir are both **`eagly`**, so imports are `package:eagly/...`.
 
 ## Commands
@@ -360,7 +360,7 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   per-line colours. Matches are collected again on each flush, and the current one is held
   by its line, so streaming output doesn't move it; the scrollback is a `SuperListView` so
   a match's line can be scrolled to by index.
-- **Wireless ADB:** one dialog (`features/wireless_connection/`) with two panes — **Pair a
+- **Wireless pairing:** one dialog (`features/wireless_connection/`) with two panes — **Pair a
   device** (QR card pinned on top, discovered devices scrolling under it) and **Manual
   entry**. The whole pane is driven by *one* background mDNS scan
   (`WirelessConnectionController._runScanLoop`) that both refreshes the nearby list and
@@ -553,7 +553,7 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `onSurface`, and `test/text_emphasis_test.dart` keeps them apart and above WCAG AA. Prefer
   them to `colorScheme.onSurfaceVariant`: in the light theme that is `#262626` against
   `#181818` text — no visible step. Views are being moved over one at a time (Apps, Utilities,
-  Device home's Quick access, Logs, Files, Terminal, Emulators, Wireless ADB, Settings so far).
+  Device home's Quick access, Logs, Files, Terminal, Emulators, Wireless pairing, Settings so far).
   `ListTile` subtitles default to `onSurfaceVariant` too; Settings overrides them with a
   `ListTileTheme.merge`. Keep color for meaning (destructive, status), not for every row's
   icon — a log row carries its level color on the badge and the message only; package/tag are

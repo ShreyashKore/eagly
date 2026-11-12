@@ -104,7 +104,7 @@ void main() {
     await pumpHome(tester, windowSize: const Size(560, 900));
 
     expect(find.text('Load devices'), findsOneWidget);
-    expect(find.text('Wireless ADB'), findsOneWidget);
+    expect(find.text('Wireless pairing'), findsOneWidget);
     expect(find.text('Emulators'), findsOneWidget);
     expect(tester.takeException(), isNull);
 

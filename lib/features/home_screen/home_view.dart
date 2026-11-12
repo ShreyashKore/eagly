@@ -94,7 +94,7 @@ class const HomeView({
                       FilledButton.tonalIcon(
                         icon: const Icon(Icons.wifi_tethering_outlined),
                         onPressed: onShowWireless,
-                        label: const Text('Wireless ADB'),
+                        label: const Text('Wireless pairing'),
                       ),
                       FilledButton.tonalIcon(
                         icon: const Icon(Icons.smartphone_outlined),
