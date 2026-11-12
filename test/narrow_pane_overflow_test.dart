@@ -7,6 +7,9 @@ import 'package:eagly/features/file_manager/file_manager_controller.dart';
 import 'package:eagly/features/file_manager/services/device_file_system.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
 import 'package:eagly/features/logs/presentation/components/log_filter_area.dart';
+import 'package:eagly/features/network/components/network_transaction_list.dart';
+import 'package:eagly/features/network/data/network_transaction.dart';
+import 'package:eagly/features/network/network_controller.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/presentation/theme/app_zoom.dart';
 import 'package:eagly/services/preferences_service.dart';
@@ -16,6 +19,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/network_test_support.dart';
 import 'support/session_test_support.dart';
 
 /// A workspace pane can be dragged far narrower than its controls fit; these
@@ -210,6 +214,84 @@ void main() {
         );
       }
     }
+  });
+
+  group('network request list', () {
+    setUp(() => NetworkController.notifyInterval = Duration.zero);
+    tearDown(
+      () =>
+          NetworkController.notifyInterval = const Duration(milliseconds: 100),
+    );
+
+    Future<NetworkController> network(WidgetTester tester) async {
+      final controller = session().networkController;
+      final source = FakeNetworkSource();
+      controller.attach(source);
+      source
+        ..upsert(networkTransaction('1'))
+        ..upsert(networkTransaction('2', code: 404))
+        ..upsert(
+          networkTransaction('3', state: NetworkTransactionState.pending),
+        );
+      await tester.pump();
+      await tester.pump();
+      expect(controller.visibleEntries, hasLength(3));
+      return controller;
+    }
+
+    for (final compact in [false, true]) {
+      testWidgets(
+        '${compact ? 'beside an exchange' : 'alone'} fits every pane width '
+        'and zoom',
+        (tester) async {
+          useWideSurface(tester);
+          final controller = await network(tester);
+          for (final zoom in zooms) {
+            for (final width in [...widths, 900.0]) {
+              await pumpAt(
+                tester,
+                width,
+                NetworkTransactionList(
+                  controller: controller,
+                  compact: compact,
+                ),
+                zoom: zoom,
+              );
+              expect(
+                tester.takeException(),
+                isNull,
+                reason: 'zoom $zoom, width $width',
+              );
+            }
+          }
+          await tester.pumpWidget(const SizedBox());
+        },
+      );
+    }
+
+    testWidgets('drops Time, then Size, then Method before squeezing Name', (
+      tester,
+    ) async {
+      final controller = await network(tester);
+      Future<void> pump(double width) =>
+          pumpAt(tester, width, NetworkTransactionList(controller: controller));
+
+      await pump(500);
+      for (final title in ['Status', 'Method', 'Name', 'Size', 'Time']) {
+        expect(find.text(title), findsOneWidget, reason: title);
+      }
+      await pump(330);
+      expect(find.text('Time'), findsNothing);
+      expect(find.text('Size'), findsOneWidget);
+      await pump(260);
+      expect(find.text('Size'), findsNothing);
+      expect(find.text('Method'), findsOneWidget);
+      await pump(180);
+      expect(find.text('Method'), findsNothing);
+      expect(find.text('Status'), findsOneWidget);
+      expect(find.text('Name'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
   });
 }
 
