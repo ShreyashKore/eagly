@@ -15,7 +15,9 @@ export 'log_level_button.dart' show LogLevelButton;
 /// * click the field and pick a field from its "Filter by…" menu — the new
 ///   pill opens its editor (field, operator, value);
 /// * or just type: `tag:Auth`, `-message:noise`, `pid~:^12`, `level:e`,
-///   `age:5m`. Space or ↵ turns each token into a pill, and plain text + ↵
+///   `age:5m`, `framework:unity`. Space or ↵ turns each token into a pill
+///   (a framework token, such as `unity` or `react-native`, sets its
+///   framework chip instead), and plain text + ↵
 ///   adds the highlighted "Message contains …". Backspace in the empty field
 ///   marks the last pill, a second Backspace removes it.
 ///

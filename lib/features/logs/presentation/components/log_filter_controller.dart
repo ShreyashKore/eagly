@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/models/filter_condition.dart';
 import '../../data/models/log_filters.dart';
+import '../../data/models/log_framework.dart';
 import '../../data/models/log_level.dart';
 
 /// Suggestion lists offered to a filter bar, keyed by field. Getters are pulled
@@ -142,7 +143,9 @@ class LogFilterController({
   /// the Filter button.
   int get activeFilterCount =>
       _conditions.where((condition) => !condition.isDraft).length +
-      (maxAge == null ? 0 : 1);
+      (maxAge == null ? 0 : 1) +
+      state.frameworks.length +
+      state.excludedFrameworks.length;
 
   /// Whether the pill [id] should open its editor as soon as it builds. True
   /// once, for the pill [addCondition] / [addAgeCondition] just created.
@@ -176,6 +179,8 @@ class LogFilterController({
       pidTidTerms: terms[FilterConditionField.pidTid]!,
       tagTerms: terms[FilterConditionField.tag]!,
       maxAge: keepMaxAge ? state.maxAge : maxAge,
+      frameworks: state.frameworks,
+      excludedFrameworks: state.excludedFrameworks,
     );
   }
 
@@ -270,11 +275,16 @@ class LogFilterController({
     notifyListeners();
   }
 
-  /// Removes every pill and the age limit; the level stays.
+  /// Removes every pill, the age limit and any framework filter; the level
+  /// stays.
   void clearConditions() {
     _conditions = const [];
     _ageDraft = false;
-    _emitUserState(_buildState(keepMaxAge: false), immediate: true);
+    _emitUserState(
+      _buildState(keepMaxAge: false)
+          .copyWith(frameworks: const {}, excludedFrameworks: const {}),
+      immediate: true,
+    );
     notifyListeners();
   }
 
@@ -290,11 +300,79 @@ class LogFilterController({
     );
     _conditions = List.unmodifiable([..._conditions, ..._pillsFor(parsed)]);
     final maxAge = parsed.maxAge ?? state.maxAge;
+    final frameworks = {...state.frameworks}
+      ..removeAll(parsed.excludedFrameworks)
+      ..addAll(parsed.frameworks);
+    final excludedFrameworks = {...state.excludedFrameworks}
+      ..removeAll(parsed.frameworks)
+      ..addAll(parsed.excludedFrameworks);
     _emitUserState(
-      _buildState(
-        maxAge: maxAge,
-        keepMaxAge: false,
-      ).copyWith(level: parsed.level),
+      _buildState(maxAge: maxAge, keepMaxAge: false).copyWith(
+        level: parsed.level,
+        frameworks: frameworks,
+        excludedFrameworks: excludedFrameworks,
+      ),
+      immediate: true,
+    );
+    notifyListeners();
+  }
+
+  // ── Framework filters ──────────────────────────────────────────────────────
+
+  Set<LogFramework> _detectedFrameworks = const {};
+
+  /// Frameworks the owner has seen log lines from; see
+  /// [updateDetectedFrameworks].
+  Set<LogFramework> get detectedFrameworks => _detectedFrameworks;
+
+  /// Records which frameworks the captured logs show, notifying only when the
+  /// set changed.
+  void updateDetectedFrameworks(Set<LogFramework> frameworks) {
+    if (frameworks.length == _detectedFrameworks.length &&
+        frameworks.containsAll(_detectedFrameworks)) {
+      return;
+    }
+    _detectedFrameworks = Set.unmodifiable(frameworks);
+    notifyListeners();
+  }
+
+  /// The frameworks that get a chip: those detected plus any with an active
+  /// filter (so a filter can always be removed), in [LogFramework] order.
+  List<LogFramework> get visibleFrameworks => [
+    for (final framework in LogFramework.values)
+      if (_detectedFrameworks.contains(framework) ||
+          frameworkMode(framework) != null)
+        framework,
+  ];
+
+  /// How [framework] is filtered, or null when it is not.
+  FrameworkFilterMode? frameworkMode(LogFramework framework) {
+    if (state.frameworks.contains(framework)) return FrameworkFilterMode.only;
+    if (state.excludedFrameworks.contains(framework)) {
+      return FrameworkFilterMode.hide;
+    }
+    return null;
+  }
+
+  /// Shows only, hides, or (with null) stops filtering [framework]'s lines.
+  /// Applied immediately.
+  void setFrameworkMode(LogFramework framework, FrameworkFilterMode? mode) {
+    if (frameworkMode(framework) == mode) return;
+    final frameworks = {...state.frameworks}..remove(framework);
+    final excludedFrameworks = {...state.excludedFrameworks}..remove(framework);
+    switch (mode) {
+      case FrameworkFilterMode.only:
+        frameworks.add(framework);
+      case FrameworkFilterMode.hide:
+        excludedFrameworks.add(framework);
+      case null:
+        break;
+    }
+    _emitUserState(
+      state.copyWith(
+        frameworks: frameworks,
+        excludedFrameworks: excludedFrameworks,
+      ),
       immediate: true,
     );
     notifyListeners();

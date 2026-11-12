@@ -6,6 +6,7 @@ import '../../presentation/components/eagly_dialog.dart';
 import '../../presentation/theme/app_theme.dart';
 import 'components/action_hint.dart';
 import 'components/confirm_disable_tips.dart';
+import 'components/tip_media_view.dart';
 import 'components/tips_menu_button.dart';
 import 'tip.dart';
 import 'tips_controller.dart';
@@ -145,6 +146,7 @@ Future<void> showTipDetailDialog(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (current.media != null) TipMediaView(media: current.media!),
                 Text(
                   current.detail,
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),

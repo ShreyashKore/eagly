@@ -17,6 +17,7 @@ const List<Tip> kTips = [
         'column header to hide or show individual columns — trim it down to just '
         'the message, or add back PID, tag and time when you need them.',
     actionHint: 'Right-click a column header in the log view',
+    media: TipMedia('hide-columns.webp', aspectRatio: 820 / 354),
   ),
   Tip(
     id: 'advanced-filters',

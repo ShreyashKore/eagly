@@ -158,6 +158,8 @@ iPhone 16e (iPhone17,5), iOS 26.6, macOS 26, 2026-10-21:
   100 ms, or 559 ms with the phone just woken. A screenshot took 0.9–1.5 s; three from the stream
   took 1.4–2.7 s. Two drags that stopped before letting go stayed on the page, and a flick went to
   the Today View and back.
+- **Unverified on hardware**: anything on iOS 27 (no phone was at hand), iOS 17.4–18, landscape
+  touch mapping, rotation, the pasteboard, and a phone with two capture devices of one name.
 
 ## A Flutter engine crash to know about
 
@@ -181,17 +183,9 @@ workarounds.
   notice afterwards (strings in `dtremotedisplayd`). It also refuses to stream during a phone or
   VoIP call, while Siri is active, or while the microphone or camera is in use.
 
-## Not done yet
+## Future work
 
-- **CoreDevice video on iOS 27**: needs HEVC alongside H.264 in `ScrcpyVideoPlugin.swift`
-  (VideoToolbox) and `native/scrcpy_video_decoder.cc` (FFmpeg's `hevc`, which the Linux build
-  script leaves out). It would give Windows / Linux live video.
-- **Unverified on hardware**: anything on iOS 27 (no phone was at hand), iOS 17.4–18, landscape
-  touch mapping, rotation, the pasteboard, and a phone with two capture devices of one name.
-- Mounting the developer disk image from Eagly (the crate can, with a TSS request to Apple), so a
-  restarted phone does not need Xcode again.
-- Recording on Windows / Linux (screenshots are too slow to record), scroll-wheel and trackpad
-  scrolling, and phone→desktop clipboard sync.
+What the mirror doesn't do yet is in [plan/IOS_SCREEN_MIRROR.md](../plan/IOS_SCREEN_MIRROR.md).
 
 ## Tests
 

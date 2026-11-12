@@ -94,6 +94,8 @@ flutter:
   assets:
     - assets/app_icon.png
     - assets/logos/
+    # Framework chips' logos (directory entries are not recursive).
+    - assets/logos/frameworks/
     # The layout inspector's on-device helper (scripts/build_inspector_helper.sh).
     - assets/inspector/
     - assets/fonts/

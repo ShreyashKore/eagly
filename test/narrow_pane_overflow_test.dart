@@ -6,7 +6,10 @@ import 'package:eagly/features/file_manager/data/device_file_entry.dart';
 import 'package:eagly/features/file_manager/file_manager_controller.dart';
 import 'package:eagly/features/file_manager/services/device_file_system.dart';
 import 'package:eagly/features/logs/data/models/log_entry.dart';
+import 'package:eagly/features/logs/data/models/log_framework.dart';
 import 'package:eagly/features/logs/presentation/components/log_filter_area.dart';
+import 'package:eagly/features/logs/presentation/components/log_filter_bar.dart';
+import 'package:eagly/features/logs/presentation/components/log_framework_chips.dart';
 import 'package:eagly/features/network/components/network_transaction_list.dart';
 import 'package:eagly/features/network/data/network_transaction.dart';
 import 'package:eagly/features/network/network_controller.dart';
@@ -14,6 +17,7 @@ import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/presentation/theme/app_zoom.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -292,6 +296,133 @@ void main() {
       expect(find.text('Name'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
+  });
+
+  testWidgets('log filter row fits with framework chips shown', (tester) async {
+    useWideSurface(tester);
+    final log = session().logSessionManager.selectedTab!;
+    LogEntry line(String tag) => LogEntry(
+      timestamp: '2026-10-16 10:00:00.000',
+      pid: '1',
+      tid: '1',
+      level: 'I',
+      tag: tag,
+      message: 'hello',
+    );
+    log.logs = [
+      line('flutter'),
+      line('ReactNativeJS'),
+      line('Unity'),
+      line('godot'),
+    ];
+    log.filter.applyTyped('tag:Net framework:flutter -framework:rn ');
+    expect(log.filter.visibleFrameworks, hasLength(4));
+
+    for (final zoom in zooms) {
+      for (final width in [...widths, 1100.0, 1400.0]) {
+        await pumpAt(tester, width, LogFilterArea(controller: log), zoom: zoom);
+        final reason = 'zoom $zoom, width $width';
+        expect(tester.takeException(), isNull, reason: reason);
+
+        // The chips share the filter field's line in both layouts.
+        final filter = tester.getRect(find.byType(LogFilterBar));
+        final chips = tester.getRect(find.byType(LogFrameworkChips));
+        expect(chips.top, greaterThanOrEqualTo(filter.top), reason: reason);
+        expect(chips.top, lessThan(filter.bottom), reason: reason);
+        expect(chips.left, greaterThanOrEqualTo(filter.right), reason: reason);
+      }
+    }
+  });
+
+  /// A log line tagged [tag].
+  LogEntry tagged(String tag) => LogEntry(
+    timestamp: '2026-10-16 10:00:00.000',
+    pid: '1',
+    tid: '1',
+    level: 'I',
+    tag: tag,
+    message: 'hello',
+  );
+
+  /// One Android line per [LogFramework], so every chip shows.
+  const everyFrameworkTag = [
+    'flutter',
+    'ReactNativeJS',
+    'Unity',
+    'UE',
+    'godot',
+    'DOTNET',
+    'Capacitor/Console',
+    'CordovaWebView',
+    'cocos2d-x',
+    'yoyo',
+    'defold',
+    'Corona',
+    'python',
+  ];
+
+  testWidgets('log filter row fits with every framework chip shown', (
+    tester,
+  ) async {
+    useWideSurface(tester);
+    final log = session().logSessionManager.selectedTab!;
+    log.logs = [for (final tag in everyFrameworkTag) tagged(tag)];
+    expect(log.filter.visibleFrameworks, LogFramework.values);
+    // The widest search, as in the test above.
+    await pumpAt(tester, 1400, LogFilterArea(controller: log));
+    await tester.enterText(
+      find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.hintText == 'Search logs',
+      ),
+      'hello',
+    );
+    await tester.pumpAndSettle();
+
+    for (final zoom in zooms) {
+      for (final width in [...widths, 1050.0, 1100.0, 1400.0, 1600.0]) {
+        await pumpAt(tester, width, LogFilterArea(controller: log), zoom: zoom);
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'zoom $zoom, width $width',
+        );
+      }
+    }
+  });
+
+  testWidgets('a vertical mouse wheel scrolls capped chips sideways', (
+    tester,
+  ) async {
+    useWideSurface(tester);
+    final log = session().logSessionManager.selectedTab!;
+    log.logs = [for (final tag in everyFrameworkTag) tagged(tag)];
+    await pumpAt(tester, 1100, LogFilterArea(controller: log));
+
+    final scroller = find
+        .ancestor(
+          of: find.byType(LogFrameworkChips),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    final position = tester.state<ScrollableState>(scroller).position;
+    expect(position.maxScrollExtent, greaterThan(0));
+    expect(position.pixels, 0);
+
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    final center = tester.getCenter(scroller);
+    await tester.sendEventToBinding(pointer.hover(center));
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 120)));
+    await tester.pump();
+    expect(position.pixels, 120);
+
+    // A mouse drag moves it too.
+    await tester.dragFrom(
+      center,
+      const Offset(-60, 0),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    expect(position.pixels, greaterThan(120));
   });
 }
 

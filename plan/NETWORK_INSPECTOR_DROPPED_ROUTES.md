@@ -1,6 +1,8 @@
 # Network inspector: dropped routes
 
-> This is a companion to [NETWORK_INSPECTOR.md](NETWORK_INSPECTOR.md). Everything here was
+> **Status: not built, and not planned.** This is a companion to
+> [docs/NETWORK_INSPECTOR.md](../docs/NETWORK_INSPECTOR.md) and its
+> [plan](NETWORK_INSPECTOR.md). Everything here was
 > evaluated for [#72](https://github.com/ShreyashKore/eagly/issues/72) and dropped on 2026-10-18.
 > It's written up so that revisiting an option starts from the facts rather than a fresh research
 > pass. Claims that could not be confirmed are marked *unverified*.
@@ -11,7 +13,7 @@ There are two kinds of dropped option:
   once Inspektor became the primary route.
 - **[Transports](#transports-between-inspektor-and-eagly):** other ways for Inspektor's data to
   reach Eagly, plus the authentication design. These were dropped once Inspektor was scoped to
-  development builds (NETWORK_INSPECTOR.md §1.1).
+  development builds (docs/NETWORK_INSPECTOR.md §1.1).
 
 **Capture routes**
 
@@ -329,7 +331,7 @@ the consent dialog.
 ## Transports between Inspektor and Eagly
 
 These were the other ways considered for getting Inspektor's data to Eagly, once the capture route
-was settled. The socket in the app won; see NETWORK_INSPECTOR.md §1.1 and §4. All were decided on
+was settled. The socket in the app won; see docs/NETWORK_INSPECTOR.md §1.1 and §4. All were decided on
 2026-10-18.
 
 ### Journal file in the app's storage
@@ -414,7 +416,7 @@ filters those lines out of the log streams it already reads.
 #### What survives
 
 A short announcement line is still a useful *discovery* hint. Inspektor's start-up line naming its
-socket or port (NETWORK_INSPECTOR.md §4.3) is exactly that, and it's the fallback named in the
+socket or port (docs/NETWORK_INSPECTOR.md §4.3) is exactly that, and it's the fallback named in the
 phase-2 probe spike.
 
 ### App connects out to Eagly (Metro's direction)
@@ -450,7 +452,7 @@ Eagly is the server and Inspektor dials it, the way React Native apps dial Metro
 
 ### Authentication on the socket (superseded)
 
-> **Restored on 2026-10-25 as protocol 2**, in a simpler form; see NETWORK_INSPECTOR.md §4.3.
+> **Restored on 2026-10-25 as protocol 2**, in a simpler form; see docs/NETWORK_INSPECTOR.md §4.3.
 > Android checks the peer's uid. On iOS, the server writes one token per start rather than per
 > connection, and repeats the line for every connection. There is no trust-on-first-use fallback.
 
@@ -483,7 +485,7 @@ by other apps on the device.
 
 Inspektor is scoped to development builds: production uses the no-op artifacts, and elsewhere the
 server needs an explicit opt-in. So the protocol accepts the same trade Metro makes
-(NETWORK_INSPECTOR.md §4.3). Dropping it also removed two spikes that had to run before phase 2:
+(docs/NETWORK_INSPECTOR.md §4.3). Dropping it also removed two spikes that had to run before phase 2:
 whether Dart can read `SO_PEERCRED`, and whether iOS delivers the token line.
 
 #### What stays possible
@@ -503,5 +505,5 @@ too easy to leave on. Check two things first:
      adbd runs as root.
    - Connect from a second app; expect that app's uid, and a rejection.
    - Repeat on API 26, 29, 34 and 36, on a phone and an emulator, in debug and release builds.
-2. **Does iOS deliver the token line?** Run the phase-4b log check in NETWORK_INSPECTOR.md §8,
+2. **Does iOS deliver the token line?** Run the phase-4b log check in plan/NETWORK_INSPECTOR.md §8,
    with the token line as the payload.

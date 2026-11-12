@@ -70,6 +70,8 @@ Dev scripts (`scripts/`):
 - `build_linux_ffmpeg.sh` — builds the minimal, glibc-only H.264 FFmpeg bundled for the
   native scrcpy decoder into `.ffmpeg-dev/linux/` (keeps the `.deb` distro-independent).
 - `copy_macos_bundled_tools.sh` — stages the bundled tools into the macOS build.
+- `tips_media/` — records and encodes the animated WebP clips shown in tip dialogs; the
+  clips are hosted on a CDN, not bundled. Recipe in `scripts/tips_media/README.md`.
 
 ## Architecture
 
@@ -203,6 +205,36 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   builder) inside a follower asserts and paints Flutter's red error box. Text fields in a
   card or its anchor pass `AnchoredPopover.textContextMenuBuilder`, or Paste in their
   right-click menu closes the card.
+- **Framework filters:** chips right beside the filter field (`LogFrameworkChips`; in the
+  wide row between the filter and search, in the stacked layout on the filter's own line and
+  compact when narrow; capped at a third of the width in both, scrolling sideways past it by
+  trackpad, mouse drag or plain mouse wheel; with more than two chips
+  (`LogFrameworkChips.labelledUpTo`) every chip shows its logo only, the labels sliding out
+  and back in rather than snapping) isolate or hide a framework's lines: a click
+  toggles *show only*, the right-click menu hides or clears. Each chip draws its framework's
+  official logo (SVGs in `assets/logos/frameworks/`, sources and attribution in its README,
+  path from `LogFramework.logoAsset`): Simple Icons glyphs tinted with the accent, and
+  Defold's own full-colour logo drawn untinted (`logoHasOwnColours`). Solar2D and Kivy have
+  no usable official SVG, so their `logoAsset` is null and the chip draws a glyph of its own
+  per framework (`FrameworkLogo.fallbackIcon`); a hidden chip keeps the logo, dimmed and
+  struck through.
+  Recognised: Flutter, React Native, Unity, Unreal Engine, Godot, .NET (MAUI/Xamarin),
+  Capacitor, Cordova, Cocos, GameMaker, Defold, Solar2D, Kivy (tag `python`; NativeScript is
+  left out: its `JS` tag is too generic). They are `LogFilters.frameworks` /
+  `excludedFrameworks`, ANDed with everything else, typed as `framework:flutter` /
+  `-framework:react-native` (tokens and aliases in `LogFramework.fromToken`);
+  `LogFilterController._buildState` must carry them or a pill edit drops them. Which lines
+  count is a heuristic on the tag in `LogFramework.matches` (`data/models/log_framework.dart`,
+  plain string compares only). On iOS the tag is the image, so `Runner(Flutter)` is
+  `Flutter`, and only frameworks shipped as dynamic images are seen: Unreal, Godot, .NET,
+  Cocos, GameMaker, Defold, Solar2D and Kivy link statically and are never recognised there,
+  and React Native mostly
+  isn't either (React links statically by default and `RCTLog` writes to an os_log subsystem
+  the relay doesn't carry). A chip only shows once `LogController` has seen that framework's
+  lines (detection runs on each flush and on a replaced buffer, and resets on clear and on a
+  fresh capture) or while its filter is set; it stays after the app stops logging, so it
+  never vanishes under the cursor. Accents are one map, `EaglyTheme.frameworkAccentColors`,
+  read through `frameworkColor`; `test/framework_accent_test.dart` holds each to 4.5:1.
 - **Multiple log tabs** per device via `LogSessionManager` (first live tab is permanent;
   extra live + imported tabs allowed).
 - **Screen captures:** screenshots and `screenrecord` videos taken from the mirror pane
@@ -461,9 +493,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   device list.
 - **Network inspector (#72):** **read docs/NETWORK_INSPECTOR.md before any network-capture
   work.** It covers Eagly as the desktop viewer for
-  [Inspektor](https://github.com/ShreyashKore/inspektor), the device↔desktop protocol, the phased
-  plan, and research notes on deferred routes. Dropped routes are in
-  docs/NETWORK_INSPECTOR_DROPPED_ROUTES.md. Update both as phases land.
+  [Inspektor](https://github.com/ShreyashKore/inspektor), the device↔desktop protocol, and the
+  phases that have landed. Phases 3–5, risks, spikes and research notes on deferred routes are
+  in plan/NETWORK_INSPECTOR.md; dropped routes are in plan/NETWORK_INSPECTOR_DROPPED_ROUTES.md.
+  When a phase lands, move it from the plan into the docs file.
   - **Phase 1 is in `features/network/`:** the pane, the model and store, HAR open/export, and
     the Inspektor protocol client (`InspektorSource`).
   - **Phase 2 on Android:** while the pane is open, `InspektorWatcher` finds apps through
@@ -518,6 +551,7 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   selection or filters (they call `NetworkController.holdWatching()` instead of opening the
   pane). Unlike the Inspektor socket, the server refuses anything a web page can send: it checks
   Host and Origin and requires a JSON content type, and a bearer token can be required too.
+  Phase 2 (actions), the rest of the work list and the open questions are in plan/MCP_SERVER.md.
 
 - **Layout inspector:** **read docs/LAYOUT_INSPECTOR.md §0 before touching it.** The Layout pane
   (`features/layout_inspector/`, Android only) captures the screen as an accessibility tree with a
@@ -529,7 +563,8 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   broken: **Android allows one UI Automation connection at a time**, so the helper locks out UI
   tests, Appium, Maestro and `uiautomator` while it runs. It is kept only while Live is on and
   for `LayoutInspectorController.helperLinger` after a capture, and released when the pane closes.
-  Work paused after phase 2; open points and what to check first are in §8 of that doc.
+  Work paused after phase 2; open points and what to check first are in §8 of
+  plan/LAYOUT_INSPECTOR.md, with the Flutter and iOS plans.
 
 ## Conventions
 
@@ -542,6 +577,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   nine-line pointer to it — write changes here, and never copy content back
   there. The two were byte-copies once and drifted 35 lines apart before anyone
   noticed.
+- **`docs/` describes what is built; `plan/` holds plans, explorations and future work**
+  (see `plan/README.md`). A doc for something partly built is split: the built part in
+  `docs/`, the rest in a `plan/` file of the same name. When planned work lands, move its part
+  into `docs/` and trim or delete the plan file. Keep the section numbers that code comments
+  cite (`docs/NETWORK_INSPECTOR.md §4.3` and the like).
 - Match surrounding style: terse doc comments on public/non-obvious members, `// ──` section
   dividers, private helpers prefixed `_`, `unawaited(...)` for fire-and-forget futures.
 - Theme tokens come from the `EaglyTheme` extension: `context.eaglyTheme.<token>` (status

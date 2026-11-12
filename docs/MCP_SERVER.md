@@ -1,10 +1,11 @@
 # MCP server
 
 > **Status: phase 1 is built (2026-10-25), not yet released or tried in the app UI.** §0 says
-> what was built and where it departs from the plan; the rest is the plan written on 2026-10-22,
-> kept as the reasoning behind it. Where they disagree, §0 wins. Facts about the MCP spec and the
-> Dart packages were checked against primary sources on those dates ([References](#references)).
-> Claims that still need checking are marked *unverified*.
+> what was built and where it departs from the design; §1 to §5 are the design written on
+> 2026-10-22, kept as the reasoning behind it. Where they disagree, §0 wins. Phase 2, the work
+> left and the open questions are in [plan/MCP_SERVER.md](../plan/MCP_SERVER.md). Facts about
+> the MCP spec and the Dart packages were checked against primary sources on those dates
+> ([References](#references)). Claims that still need checking are marked *unverified*.
 
 **Goal.** Let a coding agent (Claude Code, Cursor, VS Code and others) see what Eagly sees about
 a running app: the device list, its logs, iOS crash reports, the HTTP traffic Inspektor captures,
@@ -72,15 +73,16 @@ real phone, a full agent session.
   runs connects to Eagly. Eagly needs no API keys or billing, and it never sends device data to a
   cloud model itself.
 - **Streamable HTTP on `127.0.0.1`, inside the running app.** Phase 1 has no headless mode and no
-  stdio bridge. [`mcp_dart`](https://pub.dev/packages/mcp_dart) is the library to spike first,
-  because [`dart_mcp`](https://pub.dev/packages/dart_mcp) has no HTTP server transport yet (§2.2).
-- **Off by default, with a bearer token, and Origin and Host checks.** Any browser tab can
-  reach a localhost port, so this server does *not* inherit the Inspektor protocol's
-  no-authentication decision (§3.1).
+  stdio bridge. The server is hand-written over `dart:io`'s `HttpServer`, with no MCP library
+  (§0, decision 1; §2.2 has the libraries that were weighed).
+- **Off by default, with Origin and Host checks and an optional bearer token.** Any browser tab
+  can reach a localhost port, so this server does *not* inherit the Inspektor protocol's
+  no-authentication decision (§3.1). The token is off until the user turns it on (§0, decision 2).
 - **Phase 1 is read-only.** No tool changes the device, an app, or the user's layout or
   selection. Tools may start capture that Eagly would start anyway: log streaming, or watching
   for Inspektor apps.
-- **Eleven tools**, each a thin wrapper over a controller that already exists (§5). The work that
+- **Ten tools**, each a thin wrapper over a controller that already exists (§5; `get_device_info`
+  is not built, see §0). The work that
   takes design is elsewhere: bounding output for an agent's context, and two small lifecycle
   hooks so tools can wait for a log line or keep the Network watcher running without its pane (§4).
 
@@ -98,7 +100,8 @@ The use cases that set the phase-1 scope:
    exchanges into an issue.
 
 Phase 2 adds actions: launching an app, input, the UI tree, Inspektor overrides for mocking, and
-emulators. It is sketched in §6 so phase 1 doesn't box it in.
+emulators. It is sketched in
+[the plan](../plan/MCP_SERVER.md#6-phase-2-for-scope-only) so phase 1 doesn't box it in.
 
 ## 2. Transport
 
@@ -117,7 +120,7 @@ emulators. It is sketched in §6 so phase 1 doesn't box it in.
   - A response is either `application/json` or a `text/event-stream` for that request alone.
     Progress notifications can ride on it, which is what `wait_for_log` uses (§5.2).
   - Server-initiated change notifications go through `subscriptions/listen`. Phase 1 doesn't
-    need them (open question 5).
+    need them ([open question 5](../plan/MCP_SERVER.md#8-open-questions)).
 - **Connecting:** Settings shows the exact command, for example:
 
   ```bash
@@ -139,6 +142,9 @@ emulators. It is sketched in §6 so phase 1 doesn't box it in.
 | Protocol | Prefers 2026-07-28 and falls back to the initialize flow down to 2024-11-05 | Up to 2025-11 |
 | Security helpers | DNS-rebinding (Host and Origin) protection, authenticator hooks | None. "Aimed at local use" |
 
+**Built: neither.** The server is hand-written (§0, decision 1). The recommendation at the time
+follows.
+
 **Recommendation: spike `mcp_dart`.** Check five things: that its HTTP server can run on
 `dart:io`'s `HttpServer` inside a Flutter desktop app, that it lets us bind to a chosen port, that
 the bearer-token hook works, that progress notifications on a request's SSE stream work, and
@@ -149,7 +155,8 @@ JSON-RPC handler over `HttpServer`. Phase 1 uses tools only, so that's a few hun
 ### 2.3 Not in phase 1
 
 - **A stdio bridge** (`eagly mcp` as a small CLI that forwards stdio to the HTTP port), for
-  clients that only speak stdio. The clients that matter most accept HTTP (open question 3).
+  clients that only speak stdio. The clients that matter most accept HTTP
+  ([open question 3](../plan/MCP_SERVER.md#8-open-questions)).
 - **Headless mode** (the server without a window, for CI). The controllers are built around a
   window and `HomePage`'s state. Revisit this only if someone asks.
 
@@ -157,7 +164,8 @@ JSON-RPC handler over `HttpServer`. Phase 1 uses tools only, so that's a few hun
 
 ### 3.1 Why this differs from Inspektor's socket
 
-The Inspektor protocol has no authentication by design (NETWORK_INSPECTOR.md §4.3). Its socket
+The Inspektor protocol has no authentication by design
+([NETWORK_INSPECTOR.md](NETWORK_INSPECTOR.md) §4.3). Its socket
 lives *on the device*, it is reached only through `adb forward` or usbmux, and it exists only in
 development builds. This server is an HTTP port *on the developer's desktop*, and every web page
 open in their browser can try to reach it. The two decisions don't conflict, and the reasoning
@@ -182,7 +190,7 @@ Other processes running as the same user are **out of scope**. They can already 
 - **Off by default.** Settings gets an **MCP server** section with an on/off switch, the port,
   the token (copy and regenerate), the connect commands, and the redaction setting.
 - **Bind to `127.0.0.1` only.** There's no setting for another address in phase 1. IPv6 `::1`
-  is open question 2.
+  is [open question 2](../plan/MCP_SERVER.md#8-open-questions).
 - **Check the Host header.** It must be `127.0.0.1:<port>` or `localhost:<port>`, or the server
   returns 403. This stops DNS rebinding even when a request carries no Origin.
 - **Check the Origin header.** The spec requires it ("MUST"). A request *with* an Origin header is
@@ -199,10 +207,10 @@ Other processes running as the same user are **out of scope**. They can already 
   configured client, and that's intended.
 - **No CORS headers at all.** The server answers no preflight (`OPTIONS`) request, and sends no
   `Access-Control-Allow-*` header.
-- **The server shows its state in the app.** A chip in the header reads *MCP · Claude Code*,
-  using the client's `clientInfo`, while a client is connected. Each tool call is written to
-  Eagly's app log (`features/app_log/`) with the tool name, the device and the duration, but not
-  the results.
+- **The server shows its state in the app.** Settings shows *Listening on … · last client:
+  Claude Code*, using the client's `clientInfo`. Each tool call is written to Eagly's app log
+  (`features/app_log/`) with the tool name, the device and the duration, but not the results.
+  A header chip is not built ([plan/MCP_SERVER.md](../plan/MCP_SERVER.md) §7).
 - **Nothing reaches Sentry.** Tool arguments and results hold device data. Breadcrumbs record
   only "MCP tool `query_logs` called".
 
@@ -211,11 +219,12 @@ Other processes running as the same user are **out of scope**. They can already 
 - **Device text is data.** Each tool's description says its results contain text from the app
   under test, which may hold instructions that must not be followed. That doesn't stop prompt
   injection; it only labels the risk. Read-only tools limit what an injected instruction can do.
-  Phase 2's actions are where this starts to bite (§6).
+  Phase 2's actions are where this starts to bite
+  ([plan](../plan/MCP_SERVER.md#6-phase-2-for-scope-only)).
 - **Sensitive headers are redacted by default** in `get_network_request`: `Authorization`,
   `Proxy-Authorization`, `Cookie`, `Set-Cookie`, and any header whose name contains `token`,
   `secret` or `api-key`. The value becomes `<redacted, 143 chars>`. A Settings switch turns this
-  off (open question 6).
+  off ([open question 6](../plan/MCP_SERVER.md#8-open-questions)).
 - **Bodies are fetched only on request**, and capped (§5.1). Lists never include bodies.
 - **Tool annotations are hints.** Every phase-1 tool declares `readOnlyHint: true` and
   `openWorldHint: false`. The spec says clients must not trust annotations from servers they
@@ -261,7 +270,7 @@ A phase-1 tool **must not**:
 - **They do affect what was kept.** Once the `LogBuffer` is full, its retention filter evicts the
   lines that *don't* match the user's active filter first. So with a narrow filter active, older
   lines the agent asks for may already be gone. `query_logs` reports `oldestRetainedId` and
-  `retentionFilterActive` so the agent can tell (open question 7).
+  `retentionFilterActive` so the agent can tell ([open question 7](../plan/MCP_SERVER.md#8-open-questions)).
 - The buffer holds 100,000 lines by default (`PreferencesService.defaultLogLinesLimit`).
 - **Cursors are `LogEntry.id`**, which is monotonic within one Eagly run
   (`LogEntryIdGenerator`), and resets when Eagly restarts. A response includes a
@@ -318,7 +327,7 @@ thread.
 | Tool | Parameters | Returns | Backed by |
 |---|---|---|---|
 | `list_devices` | — | `id`, `platform`, display name, model, `connectionState`, and per-device capabilities: `canMirror`, `canReadCrashReports`, `canInspectNetwork` | `DeviceSessionManager.devices` / `sessions`, `DeviceSessionController.can*` |
-| `get_device_info` | `device` | Identity, software, display, battery, storage, connectivity, developer state | `DeviceHomeController.deviceInfo` (`service.fetchDeviceInfo()`) |
+| `get_device_info` (not built yet, §0) | `device` | Identity, software, display, battery, storage, connectivity, developer state | `DeviceHomeController.deviceInfo` (`service.fetchDeviceInfo()`) |
 | `list_apps` | `device`, `includeSystem` (default false), `query` | Package or bundle id, name, `versionName`, `versionCode`, `isSystemApp` | `AppsController.ensureLoaded()` and its app list |
 | `query_logs` | `device`, `filter`, `level` (default `w`), `sinceId`, `beforeId`, `limit` (default 200, max 2,000), `includeSpecial` | Entries (`id`, `timestamp`, `level`, `tag`, `pid`, `tid`, `package`, `message`), `nextCursor`, `oldestRetainedId`, `retentionFilterActive`, `capture` | `LogSessionManager.tabs.first`, `LogController.logs`, `LogFilters.parse`, `matchesLogFilters` |
 | `wait_for_log` | `device`, `filter`, `sinceId` (default: now), `timeoutSeconds` (default 30, max 120) | The first matching entry and the few before it, or `timedOut: true` with the current cursor | The new `LogController` appended stream (§4.3); progress notifications while waiting |
@@ -334,79 +343,12 @@ Notes on individual tools:
 - **`take_screenshot` on iOS** takes 0.6–1.5 s and returns a PNG of about 7 MB at full size
   (IOS_SCREEN_MIRROR.md), hence the downscaling. It needs the same CoreDevice services the mirror
   pane uses (*unverified* whether that works on a phone that has never had the mirror opened).
-- **Android crashes** are in logcat, not in files. Until open question 4 is settled, the
+- **Android crashes** are in logcat, not in files. Until
+  [open question 4](../plan/MCP_SERVER.md#8-open-questions) is settled, the
   description of `list_crash_reports` points the agent to `query_logs` with
   `tag:AndroidRuntime level:e`.
 - **HAR export** is left out. The agent can build what it needs from `get_network_request`, and
-  a 5,000-entry HAR breaks any response cap (open question 9).
-
-## 6. Phase 2 (for scope only)
-
-These are actions, so each needs its own design and the read-only guarantee goes away:
-- launch, force-stop, clear data and install (`AppsController`);
-- tap, swipe and type (`MirrorController` over the scrcpy control socket and iOS HID);
-- the UI tree (`uiautomator dump`);
-- Inspektor overrides for mocking (NETWORK_INSPECTOR.md phase 3);
-- emulators (`EmulatorManagerController`);
-- the utilities catalog.
-
-What phase 1 should leave room for:
-- **A second switch, "Allow agents to control devices"**, off even when the server is on. Tools
-  that write are registered only while it's on, and declare `destructiveHint` honestly.
-- **Asking the user in the app** before a destructive action (uninstall, clear data, deleting
-  files). MCP's elicitation now goes through `InputRequiredResult` in 2026-07-28. Whether clients
-  show it well is *unverified*, so Eagly's own dialog is the safer default.
-
-## 7. Work list
-
-1. Spike `mcp_dart` (§2.2).
-2. `lib/features/mcp/`: the server, Host, Origin and token checks, the tool registry, the
-   budgets, and a redaction helper.
-3. `LogController`: an appended-entries stream.
-4. `NetworkController`: `holdWatching()` and a changed-keys stream.
-5. The eleven tools.
-6. Settings section, header chip, and preference keys for enabled, port, token and redaction.
-7. Tests:
-   - each tool against a fake session (`DeviceSessionManager` already takes a
-     `serviceFactory`);
-   - HTTP tests that a bad Host, a foreign Origin, a missing or wrong token and an `OPTIONS`
-     request are all refused;
-   - budget and truncation tests;
-   - one device test that connects a real MCP client (Claude Code) to a running app.
-8. A paragraph in AGENTS.md under *Domain notes*, pointing here.
-
-## 8. Open questions
-
-1. **The library.** `mcp_dart` or a hand-written handler, depending on the spike. Do we also need
-   to accept 2025-03-26 clients that send no `MCP-Protocol-Version` header?
-2. **Port and address.** Which fixed default port? Should we also listen on `::1`? Some clients
-   resolve `localhost` to IPv6 first.
-3. **A stdio bridge.** Is any client we care about stdio-only? If so, should it be a bundled
-   Dart executable, or should we document a generic HTTP-to-stdio proxy?
-4. **Android crashes.** Should `list_crash_reports` cover Android by reading `adb logcat -b crash
-   -d` (cheap, and buffered on the device) or by scanning the log buffer for `FATAL EXCEPTION`?
-   The first also covers crashes from before Eagly was opened.
-5. **Resources and subscriptions.** Would exposing the live log as a resource with
-   `subscriptions/listen` help agents, or would the `wait_*` tools cover the real need? Few
-   clients surface resource subscriptions well today.
-6. **The redaction default.** Redacting by default protects tokens, but breaks "why is this
-   request unauthorised?". Should redaction keep a hash or a prefix of the value so two requests
-   can be compared?
-7. **Retention.** Should the MCP server keep its own small ring buffer of recent warnings and
-   errors, unaffected by the user's filter? That makes `query_logs` predictable at the cost of
-   memory.
-8. **How many tools.** Should the waits be separate tools or a `wait` parameter on the list
-   tools? Fewer tools are easier for an agent to choose between. Separate tools are easier to
-   describe.
-9. **HAR export.** Should it write a HAR file to the capture folder and return the path? That's
-   useful when the agent runs on the same machine, but it writes a file the user didn't ask for.
-10. **Imported logs and HAR files.** Should the tools also see the device-less "Imported Logs"
-    workspace, and HAR files opened in the Network pane? It's cheap, and makes "analyse this log
-    file" work.
-11. **Several clients at once.** Two agents connected at the same time share the same holds and
-    cursors. Is a per-client hold count enough, or do they need more separation?
-12. **Record mode.** `--record-mode` replaces serials and UDIDs with stand-ins. Should the server
-    refuse to start in record mode, or report the stand-ins?
+  a 5,000-entry HAR breaks any response cap ([open question 9](../plan/MCP_SERVER.md#8-open-questions)).
 
 ## References
 

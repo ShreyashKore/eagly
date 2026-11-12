@@ -1,6 +1,7 @@
+import 'package:eagly/features/logs/data/models/log_framework.dart';
 import 'package:eagly/features/logs/data/models/log_level.dart';
 
-enum FilterKey { message, packageName, pidTid, tag, level, age }
+enum FilterKey { message, packageName, pidTid, tag, level, age, framework }
 
 /// How a [FilterTerm]'s value is compared against a candidate string. Typed
 /// syntax (`[-]key[=|~]:value`) selects [exact] (`=`) or [regex] (`~`); a
@@ -75,6 +76,13 @@ class const LogFilters({
   /// When set, only entries whose timestamp is no older than this duration
   /// (relative to now) match. Parsed from the typed `age:` key (e.g. `1h`).
   final Duration? maxAge,
+
+  /// When non-empty, only lines of one of these frameworks match (typed
+  /// `framework:flutter`).
+  final Set<LogFramework> frameworks = const {},
+
+  /// Lines of any of these frameworks never match (typed `-framework:flutter`).
+  final Set<LogFramework> excludedFrameworks = const {},
 }) {
   /// An empty filter that only constrains by [level].
   factory LogFilters.empty(LogLevel level) => LogFilters(
@@ -102,6 +110,8 @@ class const LogFilters({
     List<FilterTerm> pidTidTerms = const [],
     List<FilterTerm> tagTerms = const [],
     Duration? maxAge,
+    Set<LogFramework> frameworks = const {},
+    Set<LogFramework> excludedFrameworks = const {},
   }) => LogFilters(
     messageText: _plainValues([...rawTerms, ...messageTerms]),
     packageText: _plainValues(packageTerms),
@@ -114,6 +124,8 @@ class const LogFilters({
     tagTerms: List.unmodifiable(tagTerms),
     level: level,
     maxAge: maxAge,
+    frameworks: Set.unmodifiable(frameworks),
+    excludedFrameworks: Set.unmodifiable(excludedFrameworks),
   );
 
   /// Builds a filter from at most one plain (contains) value per field — the
@@ -126,6 +138,8 @@ class const LogFilters({
     String pidTid = '',
     String tag = '',
     Duration? maxAge,
+    Set<LogFramework> frameworks = const {},
+    Set<LogFramework> excludedFrameworks = const {},
   }) {
     List<FilterTerm> single(String value) {
       final trimmed = value.trim();
@@ -139,10 +153,16 @@ class const LogFilters({
       pidTidTerms: single(pidTid),
       tagTerms: single(tag),
       maxAge: maxAge,
+      frameworks: frameworks,
+      excludedFrameworks: excludedFrameworks,
     );
   }
 
-  LogFilters copyWith({LogLevel? level}) => LogFilters(
+  LogFilters copyWith({
+    LogLevel? level,
+    Set<LogFramework>? frameworks,
+    Set<LogFramework>? excludedFrameworks,
+  }) => LogFilters(
     messageText: messageText,
     packageText: packageText,
     pidTidText: pidTidText,
@@ -154,6 +174,12 @@ class const LogFilters({
     tagTerms: tagTerms,
     level: level ?? this.level,
     maxAge: maxAge,
+    frameworks: frameworks == null
+        ? this.frameworks
+        : Set.unmodifiable(frameworks),
+    excludedFrameworks: excludedFrameworks == null
+        ? this.excludedFrameworks
+        : Set.unmodifiable(excludedFrameworks),
   );
 
   static LogFilters parse(
@@ -182,6 +208,16 @@ class const LogFilters({
     final maxAge = state.maxAge;
     if (maxAge != null) {
       tokens.add('age:${formatMaxAge(maxAge)}');
+    }
+    for (final framework in LogFramework.values) {
+      if (state.frameworks.contains(framework)) {
+        tokens.add('framework:${framework.token}');
+      }
+    }
+    for (final framework in LogFramework.values) {
+      if (state.excludedFrameworks.contains(framework)) {
+        tokens.add('-framework:${framework.token}');
+      }
     }
     for (final term in state.packageTerms) {
       tokens.add(term.toToken('package'));
@@ -292,6 +328,8 @@ LogFilters _parseFilters(
   final tagTerms = <FilterTerm>[];
   var parsedLevel = fallbackLevel;
   Duration? parsedMaxAge;
+  final frameworks = <LogFramework>{};
+  final excludedFrameworks = <LogFramework>{};
 
   for (final token in tokenizeFilterText(rawText)) {
     final trimmedToken = token.trim();
@@ -327,6 +365,17 @@ LogFilters _parseFilters(
       case FilterKey.age:
         final parsedAge = parseMaxAge(parsed.value);
         if (parsedAge != null) parsedMaxAge = parsedAge;
+      case FilterKey.framework:
+        // An unknown framework filters nothing rather than becoming a term.
+        final framework = LogFramework.fromToken(parsed.value);
+        if (framework == null) break;
+        if (parsed.negate) {
+          frameworks.remove(framework);
+          excludedFrameworks.add(framework);
+        } else {
+          excludedFrameworks.remove(framework);
+          frameworks.add(framework);
+        }
     }
   }
 
@@ -338,6 +387,8 @@ LogFilters _parseFilters(
     pidTidTerms: pidTidTerms,
     tagTerms: tagTerms,
     maxAge: parsedMaxAge,
+    frameworks: frameworks,
+    excludedFrameworks: excludedFrameworks,
   );
 }
 
@@ -396,6 +447,7 @@ FilterKey? _canonicalFilterKey(String rawKey) {
     'tag' || 'category' => FilterKey.tag,
     'level' || 'lvl' || 'priority' => FilterKey.level,
     'age' || 'maxage' || 'since' => FilterKey.age,
+    'framework' || 'fw' => FilterKey.framework,
     _ => null,
   };
 }

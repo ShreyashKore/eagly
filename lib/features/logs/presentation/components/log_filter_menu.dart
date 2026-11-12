@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../data/models/filter_condition.dart';
 import '../../data/models/log_filters.dart';
+import '../../data/models/log_framework.dart';
 import '../../data/models/log_level.dart';
 import 'log_filter_controller.dart';
 import 'log_filter_parts.dart';
@@ -17,13 +18,14 @@ const List<FilterConditionField> _menuFieldOrder = [
   FilterConditionField.anyField,
 ];
 
-/// The pill field a typed `key:` fills in; level and age have no pill field.
+/// The pill field a typed `key:` fills in; level, age and framework have no
+/// pill field.
 FilterConditionField? _fieldForKey(FilterKey key) => switch (key) {
   FilterKey.message => FilterConditionField.message,
   FilterKey.packageName => FilterConditionField.packageName,
   FilterKey.pidTid => FilterConditionField.pidTid,
   FilterKey.tag => FilterConditionField.tag,
-  FilterKey.level || FilterKey.age => null,
+  FilterKey.level || FilterKey.age || FilterKey.framework => null,
 };
 
 /// One selectable row in the menu: it either runs [onSelected] (adding or
@@ -158,6 +160,34 @@ List<(String, List<FilterMenuOption>)> filterMenuSections(
               ],
             ),
           ];
+        case FilterKey.framework:
+          final q = value.toLowerCase();
+          final mode = token.negate
+              ? FrameworkFilterMode.hide
+              : FrameworkFilterMode.only;
+          return [
+            (
+              'Framework',
+              [
+                for (final framework in LogFramework.values)
+                  if (q.isEmpty ||
+                      framework.token.startsWith(q) ||
+                      framework.label.toLowerCase().startsWith(q) ||
+                      LogFramework.fromToken(q) == framework)
+                    FilterMenuOption(
+                      icon: Icons.layers_outlined,
+                      label: phrase(
+                        'Framework',
+                        token.negate ? 'hide' : 'only',
+                        framework.label,
+                        token.negate,
+                      ),
+                      onSelected: () =>
+                          controller.setFrameworkMode(framework, mode),
+                    ),
+              ],
+            ),
+          ];
         case FilterKey.message:
         case FilterKey.packageName:
         case FilterKey.pidTid:
@@ -265,6 +295,7 @@ List<(String, List<FilterMenuOption>)> filterMenuSections(
             ('pid', 'PID / TID'),
             ('level', 'Level'),
             ('age', 'Age'),
+            ('framework', 'Framework'),
           ])
             if (key.startsWith(keyPrefix) && key != keyPrefix)
               FilterMenuOption(
@@ -424,6 +455,7 @@ class const _SyntaxHint({required final bool isIos}) extends StatelessWidget {
           item('$tag~:', 'regex'),
           item('level:e', 'level'),
           item('age:5m', 'age'),
+          item('framework:flutter', 'framework'),
         ],
       ),
     );

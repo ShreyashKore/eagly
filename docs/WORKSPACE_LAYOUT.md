@@ -206,11 +206,6 @@ the session, since moves and divider drags never reach the session.
   *connected* device with real processes; use a disconnected device (Utilities and Terminal
   still work) or the test ends with pending timers.
 
-## Not done yet
+## Future work
 
-- **Maximise** a pane (fl_panel has no verb for it; a double-click on the header is the
-  natural trigger).
-- **Floating / detached windows** (fl_panel's file format reserves the slot; multi-window
-  needs a second engine).
-- **Reopening last session's panes automatically.** Which panes a device opens with comes
-  only from a layout the user saved explicitly (see *The saved layout*).
+What the workspace doesn't do yet is in [plan/WORKSPACE_LAYOUT.md](../plan/WORKSPACE_LAYOUT.md).

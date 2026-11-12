@@ -14,6 +14,7 @@ import '../../services/app_breadcrumbs.dart';
 import 'data/models/log_column.dart';
 import 'data/models/log_entry.dart';
 import 'data/models/log_filters.dart';
+import 'data/models/log_framework.dart';
 import 'data/models/log_level.dart';
 import 'data/models/log_tab_settings.dart';
 import 'services/filter_utils.dart';
@@ -205,6 +206,15 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   int _smCacheFilteredLen = -1;
 
   List<LogEntry> get logs => _logsBuffer.getLogs();
+
+  /// Frameworks whose lines have shown up since the buffer was last cleared,
+  /// which is what puts their chips on the filter row.
+  final Set<LogFramework> _detectedFrameworks = {};
+
+  /// Frameworks detected in the captured (or imported) logs since the last
+  /// clear; see [LogFramework.matches].
+  Set<LogFramework> get detectedFrameworks =>
+      Set.unmodifiable(_detectedFrameworks);
 
   /// The entries each flush appends to [logs], oldest first — what the MCP
   /// server's `wait_for_log` watches instead of polling the buffer. Special
@@ -1134,6 +1144,8 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     }
     nextBuffer.trimToCapacity();
     _logsBuffer = nextBuffer;
+    _detectedFrameworks.clear();
+    _detectFrameworks(entries, force: true);
     _logsMemoryBytes = estimateLogsBytes(_logsBuffer.getLogs());
     _invalidateFilteredLogs();
   }
@@ -1142,7 +1154,30 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     _logsBuffer.clear();
     _pidPackages.clear();
     _logsMemoryBytes = 0;
+    _detectedFrameworks.clear();
+    filter.updateDetectedFrameworks(const {});
     _invalidateFilteredLogs();
+  }
+
+  /// Adds the frameworks [entries] show to [_detectedFrameworks], stopping as
+  /// soon as every framework is known, and tells the filter bar when the set
+  /// grew (or, with [force], regardless).
+  void _detectFrameworks(Iterable<LogEntry> entries, {bool force = false}) {
+    final total = LogFramework.values.length;
+    var grew = false;
+    if (_detectedFrameworks.length < total) {
+      for (final entry in entries) {
+        for (final framework in LogFramework.values) {
+          if (_detectedFrameworks.contains(framework)) continue;
+          if (framework.matches(entry)) {
+            _detectedFrameworks.add(framework);
+            grew = true;
+          }
+        }
+        if (_detectedFrameworks.length == total) break;
+      }
+    }
+    if (grew || force) filter.updateDetectedFrameworks(_detectedFrameworks);
   }
 
   String _loggingSubjectLabel() {
@@ -1297,6 +1332,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
     _syncLogBufferFilterIfDirty();
+    _detectFrameworks(pendingLogs);
 
     var evictedMemoryBytes = 0;
     var didEvictStoredLogs = false;
@@ -1736,12 +1772,19 @@ extension on LogFilters {
     'p:${_termSignatures(packageTerms)}',
     'pt:${_termSignatures(pidTidTerms)}',
     't:${_termSignatures(tagTerms)}',
+    'f:${_frameworkSignature(frameworks)}',
+    'xf:${_frameworkSignature(excludedFrameworks)}',
   ].join('\u0000');
 
   String get packageSignature => _termSignatures(packageTerms);
 
   static String _termSignatures(List<FilterTerm> terms) =>
       terms.map((term) => term.signature).join('\u0001');
+
+  static String _frameworkSignature(Set<LogFramework> frameworks) => [
+    for (final framework in LogFramework.values)
+      if (frameworks.contains(framework)) framework.name,
+  ].join('\u0001');
 
   bool hasActiveRetentionFilter(bool isIosLogContext) {
     final defaultLevel = LogLevel.defaultSelectionForPlatform(
@@ -1753,6 +1796,8 @@ extension on LogFilters {
         packageTerms.isNotEmpty ||
         pidTidTerms.isNotEmpty ||
         tagTerms.isNotEmpty ||
-        maxAge != null;
+        maxAge != null ||
+        frameworks.isNotEmpty ||
+        excludedFrameworks.isNotEmpty;
   }
 }

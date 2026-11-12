@@ -17,6 +17,17 @@ bool matchesLogFilters(
     return false;
   }
 
+  final frameworks = appliedFilters.frameworks;
+  if (frameworks.isNotEmpty &&
+      !frameworks.any((framework) => framework.matches(log))) {
+    return false;
+  }
+  if (appliedFilters.excludedFrameworks.any(
+    (framework) => framework.matches(log),
+  )) {
+    return false;
+  }
+
   final maxAge = appliedFilters.maxAge;
   if (maxAge != null && !_matchesMaxAge(log, maxAge, now)) {
     return false;

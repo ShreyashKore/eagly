@@ -17,8 +17,12 @@ const _maxMessageChars = 4000;
 const _filterSyntax =
     'Eagly filter-bar syntax: bare words match any field; key:value terms '
     'for tag: (category: on iOS), message:, package:, pid:, level:, age: '
-    '(e.g. age:5m); key~:regex for a regular expression, key=:value for an '
-    'exact match, a leading - to exclude. Terms are ANDed. Example: '
+    '(e.g. age:5m), framework: (flutter, react-native, unity, unreal, '
+    'godot, dotnet, capacitor, cordova, cocos, gamemaker, defold, '
+    'solar2d or kivy, to keep only '
+    'that framework\'s lines; -framework: hides them); key~:regex for a '
+    'regular expression, key=:value for an exact match, a leading - to '
+    'exclude. Terms are ANDed. Example: '
     '"tag:OkHttp level:w -message~:^heartbeat".';
 
 /// `query_logs` and `wait_for_log`.
@@ -304,7 +308,10 @@ Map<String, Object?> _captureJson(
   'paused': log.isPaused,
   'interrupted': log.liveLoggingInterrupted,
   'recovering': log.isRecovering,
-  if (!log.isConnected) 'note': 'The device is disconnected; these are the lines captured before it dropped.',
+  if (!log.isConnected)
+    'note':
+        'The device is disconnected; these are the lines captured before '
+        'it dropped.',
   if (startedNow)
     'note':
         'Eagly only now started reading this device\'s log. Android replays '

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../features/logs/data/models/log_framework.dart';
 import '../../features/logs/data/models/log_level.dart';
 import 'text_theme.dart';
 
@@ -54,6 +55,10 @@ class const EaglyTheme({
   required final Color statusStoppedColor,
   required final Color cardShadowColor,
 
+  /// Accents for the Logs pane's framework chips, one per [LogFramework],
+  /// readable as text on the filter row; see [frameworkColor].
+  required final Map<LogFramework, Color> frameworkAccentColors,
+
   // ── Text emphasis ──
   // Three tiers, so a row reads in order of importance instead of all at
   // once. Primary is the theme's own text color (`colorScheme.onSurface`,
@@ -77,6 +82,10 @@ class const EaglyTheme({
       _ => verboseColor,
     };
   }
+
+  /// The accent a [LogFramework]'s chip is drawn in.
+  Color frameworkColor(LogFramework framework) =>
+      frameworkAccentColors[framework] ?? infoColor;
 
   @override
   EaglyTheme copyWith({
@@ -104,6 +113,7 @@ class const EaglyTheme({
     Color? statusPausedColor,
     Color? statusStoppedColor,
     Color? cardShadowColor,
+    Map<LogFramework, Color>? frameworkAccentColors,
     Color? secondaryTextColor,
     Color? tertiaryTextColor,
   }) {
@@ -139,6 +149,8 @@ class const EaglyTheme({
       statusPausedColor: statusPausedColor ?? this.statusPausedColor,
       statusStoppedColor: statusStoppedColor ?? this.statusStoppedColor,
       cardShadowColor: cardShadowColor ?? this.cardShadowColor,
+      frameworkAccentColors:
+          frameworkAccentColors ?? this.frameworkAccentColors,
       secondaryTextColor: secondaryTextColor ?? this.secondaryTextColor,
       tertiaryTextColor: tertiaryTextColor ?? this.tertiaryTextColor,
     );
@@ -227,6 +239,14 @@ class const EaglyTheme({
         t,
       )!,
       cardShadowColor: Color.lerp(cardShadowColor, other.cardShadowColor, t)!,
+      frameworkAccentColors: {
+        for (final framework in LogFramework.values)
+          framework: Color.lerp(
+            frameworkColor(framework),
+            other.frameworkColor(framework),
+            t,
+          )!,
+      },
       secondaryTextColor: Color.lerp(
         secondaryTextColor,
         other.secondaryTextColor,
@@ -468,6 +488,43 @@ class AppTheme {
     );
   }
 
+  // Framework chip accents, from each brand's colour where it has one, moved
+  // in lightness until it reads as 12 px text on the filter row (WCAG AA;
+  // test/framework_accent_test.dart). Flutter leans blue and React Native
+  // cyan so the two don't read as one colour; black-or-white brands (Unity,
+  // Unreal, Cordova, GameMaker) take a neutral close to the text colour.
+  static const _lightFrameworkAccents = <LogFramework, Color>{
+    LogFramework.flutter: Color(0xFF0553B1),
+    LogFramework.reactNative: Color(0xFF086A74),
+    LogFramework.unity: Color(0xFF3F3F46),
+    LogFramework.unrealEngine: Color(0xFF2E3566),
+    LogFramework.godot: Color(0xFF285C85),
+    LogFramework.dotnet: Color(0xFF512BD4),
+    LogFramework.capacitor: Color(0xFF0A5BB4),
+    LogFramework.cordova: Color(0xFF475569),
+    LogFramework.cocos: Color(0xFF0A5C73),
+    LogFramework.gameMaker: Color(0xFF52525B),
+    LogFramework.defold: Color(0xFFB03A0C),
+    LogFramework.solar2d: Color(0xFF7A5200),
+    LogFramework.kivy: Color(0xFF1F6F3A),
+  };
+
+  static const _darkFrameworkAccents = <LogFramework, Color>{
+    LogFramework.flutter: Color(0xFF60A5FA),
+    LogFramework.reactNative: Color(0xFF67E8F9),
+    LogFramework.unity: Color(0xFFD4D4D8),
+    LogFramework.unrealEngine: Color(0xFFB4BCE6),
+    LogFramework.godot: Color(0xFF7DB4E0),
+    LogFramework.dotnet: Color(0xFFB9A4F5),
+    LogFramework.capacitor: Color(0xFF5CB8FF),
+    LogFramework.cordova: Color(0xFFCBD5E1),
+    LogFramework.cocos: Color(0xFF55C2E1),
+    LogFramework.gameMaker: Color(0xFFE4E4E7),
+    LogFramework.defold: Color(0xFFFDA77E),
+    LogFramework.solar2d: Color(0xFFFCD34D),
+    LogFramework.kivy: Color(0xFF86EFAC),
+  };
+
   static EaglyTheme _themeTokens(ColorScheme colorScheme) {
     final isDark = colorScheme.brightness == Brightness.dark;
     final mono = GoogleFonts.jetBrainsMono();
@@ -522,6 +579,9 @@ class AppTheme {
           : const Color(0xFFB45309),
       statusStoppedColor: isDark ? const Color(0xFFF87171) : colorScheme.error,
       cardShadowColor: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04),
+      frameworkAccentColors: isDark
+          ? _darkFrameworkAccents
+          : _lightFrameworkAccents,
       secondaryTextColor: secondaryText,
       tertiaryTextColor: tertiaryText,
     );
