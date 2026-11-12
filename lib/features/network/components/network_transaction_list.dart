@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../presentation/components/min_width_box.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../../../utils/utils.dart';
 import '../data/network_filter.dart';
@@ -22,6 +23,10 @@ export 'network_presentation.dart' show formatElapsed, statusColor, statusLabel;
 ///
 /// [compact] keeps only the status, method and name columns, for the narrow
 /// list beside an open exchange.
+///
+/// A narrow pane drops columns so Name keeps at least [_minNameWidth] —
+/// Time, then Size, then Type, then Method; Status never goes. Narrower
+/// still, the table clips its right edge rather than overflowing.
 class const NetworkTransactionList({
   super.key,
   required final NetworkController controller,
@@ -105,6 +110,14 @@ class _NetworkTransactionListState extends State<NetworkTransactionList> {
   @override
   Widget build(BuildContext context) {
     final entries = controller.visibleEntries;
+    final scale = context.scaled(1);
+    return MinWidthBox(
+      minWidth: (_statusWidth + _minNameWidth + _rowChrome) * scale,
+      child: _buildTable(context, entries),
+    );
+  }
+
+  Widget _buildTable(BuildContext context, List<NetworkEntry> entries) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = _columnsFor(
@@ -177,6 +190,23 @@ NetworkTimeRange? _waterfallRange(NetworkController controller) {
 
 enum _ColumnKind { status, method, name, type, size, time, waterfall }
 
+/// Widths before UI scaling.
+const double _statusWidth = 64;
+const double _minNameWidth = 96;
+
+/// Horizontal space a row takes besides its cells: its padding and the
+/// selection bar (the header row's padding adds up to the same).
+const double _rowChrome = 12;
+
+/// The order fixed columns give way in once Name would fall below
+/// [_minNameWidth].
+const _dropOrder = [
+  _ColumnKind.time,
+  _ColumnKind.size,
+  _ColumnKind.type,
+  _ColumnKind.method,
+];
+
 class const _Column(
   final _ColumnKind kind,
   final String title, {
@@ -195,7 +225,7 @@ List<_Column> _columnsFor({
   final status = _Column(
     _ColumnKind.status,
     'Status',
-    width: 64 * scale,
+    width: _statusWidth * scale,
     sort: NetworkSortColumn.status,
     tooltip: 'Response status code',
   );
@@ -212,45 +242,62 @@ List<_Column> _columnsFor({
     sort: NetworkSortColumn.name,
     tooltip: 'Path and query, with the host below',
   );
-  if (compact) return [status, method, name];
+  if (compact) return _fitting([status, method, name], width, scale);
   final showType = width >= 520 * scale;
   final showWaterfall = width >= 760 * scale;
-  return [
-    status,
-    method,
-    name,
-    if (showType)
+  return _fitting(
+    [
+      status,
+      method,
+      name,
+      if (showType)
+        _Column(
+          _ColumnKind.type,
+          'Type',
+          width: 84 * scale,
+          sort: NetworkSortColumn.type,
+          tooltip: 'Response content type',
+        ),
       _Column(
-        _ColumnKind.type,
-        'Type',
-        width: 84 * scale,
-        sort: NetworkSortColumn.type,
-        tooltip: 'Response content type',
+        _ColumnKind.size,
+        'Size',
+        width: 72 * scale,
+        sort: NetworkSortColumn.size,
+        alignEnd: true,
+        tooltip: 'Response body size',
       ),
-    _Column(
-      _ColumnKind.size,
-      'Size',
-      width: 72 * scale,
-      sort: NetworkSortColumn.size,
-      alignEnd: true,
-      tooltip: 'Response body size',
-    ),
-    _Column(
-      _ColumnKind.time,
-      'Time',
-      width: 72 * scale,
-      sort: NetworkSortColumn.time,
-      alignEnd: true,
-      tooltip: 'Time from request to the end of the response',
-    ),
-    if (showWaterfall)
-      const _Column(
-        _ColumnKind.waterfall,
-        'Waterfall',
-        flex: 2,
-        tooltip: 'When each request ran, on the overview\'s scale',
+      _Column(
+        _ColumnKind.time,
+        'Time',
+        width: 72 * scale,
+        sort: NetworkSortColumn.time,
+        alignEnd: true,
+        tooltip: 'Time from request to the end of the response',
       ),
-  ];
+      if (showWaterfall)
+        const _Column(
+          _ColumnKind.waterfall,
+          'Waterfall',
+          flex: 2,
+          tooltip: 'When each request ran, on the overview\'s scale',
+        ),
+    ],
+    width,
+    scale,
+  );
+}
+
+/// [columns] minus those, in [_dropOrder], that leave Name narrower than
+/// [_minNameWidth] in [width].
+List<_Column> _fitting(List<_Column> columns, double width, double scale) {
+  final kept = [...columns];
+  double fixed() => kept.fold(0, (sum, c) => sum + (c.width ?? 0));
+  final room = width - (_rowChrome + _minNameWidth) * scale;
+  for (final kind in _dropOrder) {
+    if (fixed() <= room) break;
+    kept.removeWhere((c) => c.kind == kind);
+  }
+  return kept;
 }
 
 const _cellPadding = EdgeInsets.symmetric(horizontal: 6);
