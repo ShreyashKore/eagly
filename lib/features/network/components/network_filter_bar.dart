@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../presentation/components/feature_view.dart';
 import '../../../presentation/components/app_icon_button.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../data/network_filter.dart';
@@ -72,19 +73,12 @@ class _NetworkFilterBarState extends State<NetworkFilterBar> {
   @override
   Widget build(BuildContext context) {
     _syncText();
-    final theme = Theme.of(context);
     final filter = controller.filter;
     final window = filter.timeWindow;
     final anyToggle =
         filter.statusClasses.isNotEmpty || filter.types.isNotEmpty;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        border: Border(
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-      ),
+    return FeatureSubBar(
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

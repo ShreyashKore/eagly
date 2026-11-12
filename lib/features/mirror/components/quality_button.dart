@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../../presentation/components/feature_view.dart';
 import '../mirror_controller.dart';
 
 /// Compact popup that switches the mirror's encoder quality preset.
@@ -13,7 +14,10 @@ class const QualityButton({
     final theme = Theme.of(context);
     return PopupMenuButton<MirrorQuality>(
       tooltip: 'Video quality (${controller.mirrorQuality.label})',
-      icon: const Icon(Icons.high_quality_outlined, size: 18),
+      icon: const Icon(
+        Icons.high_quality_outlined,
+        size: FeatureViewHeader.iconSize,
+      ),
       initialValue: controller.mirrorQuality,
       onSelected: controller.setQuality,
       itemBuilder: (context) => [

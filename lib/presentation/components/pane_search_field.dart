@@ -4,26 +4,6 @@ import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import 'app_icon_button.dart';
 
-/// The strip under a pane's header that holds its search box (and, in Apps,
-/// the view options): the header's surface with a divider below.
-class const PaneSearchBar({super.key, required final Widget child})
-    extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        border: Border(
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-      ),
-      child: child,
-    );
-  }
-}
-
 /// A pane's search box: a search icon, [hint], and while there is text a
 /// clear button, which Esc also presses. Clearing reports `''` through
 /// [onChanged], the same as deleting the text by hand.

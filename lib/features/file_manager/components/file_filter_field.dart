@@ -100,8 +100,9 @@ class _FileFilterFieldState extends State<FileFilterField> {
           decoration: InputDecoration(
             isDense: true,
             hintText: 'Filter',
-            filled: noMatches,
-            fillColor: context.eaglyTheme.searchNoResultsFillColor,
+            fillColor: noMatches
+                ? context.eaglyTheme.searchNoResultsFillColor
+                : null,
             prefixIcon: const Icon(Icons.filter_list, size: 16),
             prefixIconConstraints: BoxConstraints(minWidth: context.scaled(28)),
             suffixIcon: hasText

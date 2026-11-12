@@ -75,7 +75,7 @@ class _MirrorFeatureViewState extends FeatureViewState<MirrorFeatureView> {
         title: 'Screen mirror',
         closeTooltip: 'Close mirror pane',
         onClose: widget.onClose,
-        actions: [
+        primary: [
           ToolbarAction(
             icon: controller.isScreenMirrorRunning
                 ? Icons.stop_circle_outlined

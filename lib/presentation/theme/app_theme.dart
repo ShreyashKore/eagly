@@ -41,6 +41,12 @@ class const EaglyTheme({
   required final Color searchHighlightForeground,
   required final Color searchNoResultsFillColor,
   required final Color searchNoResultsTextColor,
+
+  /// Fill of a text field or field-like button sitting on pane chrome (a
+  /// `FeatureSubBar`, a find bar): a step off the chrome's
+  /// `surfaceContainerHighest` — lighter in the light theme, darker in the
+  /// dark one — so the field reads as a field, not as more bar.
+  required final Color chromeFieldColor,
   required final Color inlineNoticeBackground,
   required final Color inlineNoticeForeground,
   required final Color statusLiveColor,
@@ -91,6 +97,7 @@ class const EaglyTheme({
     Color? searchHighlightForeground,
     Color? searchNoResultsFillColor,
     Color? searchNoResultsTextColor,
+    Color? chromeFieldColor,
     Color? inlineNoticeBackground,
     Color? inlineNoticeForeground,
     Color? statusLiveColor,
@@ -123,6 +130,7 @@ class const EaglyTheme({
           searchNoResultsFillColor ?? this.searchNoResultsFillColor,
       searchNoResultsTextColor:
           searchNoResultsTextColor ?? this.searchNoResultsTextColor,
+      chromeFieldColor: chromeFieldColor ?? this.chromeFieldColor,
       inlineNoticeBackground:
           inlineNoticeBackground ?? this.inlineNoticeBackground,
       inlineNoticeForeground:
@@ -190,6 +198,11 @@ class const EaglyTheme({
       searchNoResultsTextColor: Color.lerp(
         searchNoResultsTextColor,
         other.searchNoResultsTextColor,
+        t,
+      )!,
+      chromeFieldColor: Color.lerp(
+        chromeFieldColor,
+        other.chromeFieldColor,
         t,
       )!,
       inlineNoticeBackground: Color.lerp(
@@ -498,6 +511,7 @@ class AppTheme {
       searchHighlightForeground: const Color(0xFF111827),
       searchNoResultsFillColor: colorScheme.errorContainer,
       searchNoResultsTextColor: colorScheme.onErrorContainer,
+      chromeFieldColor: colorScheme.surface,
       inlineNoticeBackground: colorScheme.secondaryContainer,
       inlineNoticeForeground: colorScheme.onSecondaryContainer,
       statusLiveColor: isDark

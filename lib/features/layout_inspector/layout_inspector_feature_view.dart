@@ -40,7 +40,7 @@ class _LayoutInspectorFeatureViewState
         title: 'Layout',
         closeTooltip: 'Close layout inspector',
         onClose: widget.onClose,
-        actions: [
+        primary: [
           ToolbarAction(
             icon: Icons.refresh,
             label: 'Capture',
@@ -61,6 +61,8 @@ class _LayoutInspectorFeatureViewState
                 ? controller.toggleLive
                 : null,
           ),
+        ],
+        actions: [
           ToolbarAction(
             icon: Icons.border_all,
             label: 'All bounds',
