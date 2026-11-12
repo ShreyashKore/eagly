@@ -408,7 +408,8 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     10 s) until something appears. Right for a one-shot; fatal inside a poll loop. The scan
     loop passes `retry: false` and paces itself with
     `WirelessConnectionController.scanInterval`.
-  - **Gotcha — `isWirelessBusy` must stay narrow:** it means *pairing or connecting* only.
+  - **Gotcha — `isWirelessBusy` must stay narrow:** it means *pairing, connecting or
+    restarting adb* only.
     Folding the passive scan back into it re-creates the original starvation (a discovery
     in flight refusing QR generation for ~10 s). The scan loop instead *skips a pass* while
     busy, so two adb invocations never contend.
@@ -427,7 +428,23 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     distinguishes `paired` from `autoConnected`.
   - Device-side realities worth telling the user (the `HintNote`s do): the device's pairing
     screen must stay open or it stops advertising, and client-isolating networks (guest or
-    public Wi-Fi) block mDNS entirely — Manual entry is the escape hatch.
+    public Wi-Fi) block mDNS entirely — Manual entry is the escape hatch. Some phones
+    (seen on a Samsung SM-E236B) never advertise `_adb-tls-*` at all, even on a healthy
+    network, and the connect port changes every time Wireless debugging is turned on.
+  - **Failures are explained, not echoed** (`data/wireless_adb_failure.dart`): a failed pair
+    or connect runs adb's output through `diagnoseWirelessAdbFailure`, and the banner shows
+    the explanation, the raw adb line, and "Restart adb and retry" / "Open Local Network
+    settings" where they apply. For ambiguous errors ("No route to host", time-outs, adb
+    pair's "Unable to start pairing client") Eagly first opens a TCP socket to the address
+    itself (`probeWirelessAddress`): if *Eagly* gets through where adb did not, the adb
+    server is the problem.
+  - **Gotcha — macOS Local Network permission belongs to whoever started the adb
+    server.** A server another tool launched (and macOS doesn't allow on the local network)
+    keeps working over USB but fails every Wi-Fi connect with "No route to host" — for days,
+    since the server outlives the app that started it. `AdbTool.restartServer()` kills it
+    and starts one from Eagly, which inherits Eagly's permission
+    (`NSLocalNetworkUsageDescription` in `macos/Runner/Info.plist`). It drops every adb
+    connection, so the dialog confirms first.
 - **Emulator manager:** `EmulatorManagerController` (feature `emulator_manager/`) lists the
   located SDK's AVDs, launches them, stops them over the adb console, and can create or delete
   one. The dialog is reachable from four places (header action, header context menu, landing

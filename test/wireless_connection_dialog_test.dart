@@ -1,5 +1,6 @@
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/wireless_connection/components/wireless_discovery_card.dart';
+import 'package:eagly/features/wireless_connection/components/wireless_feedback_banner.dart';
 import 'package:eagly/features/wireless_connection/components/wireless_qr_panel.dart';
 import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
 import 'package:eagly/features/wireless_connection/wireless_connection_controller.dart';
@@ -191,5 +192,61 @@ void main() {
     expect(find.text('Still waiting?'), findsOneWidget);
 
     await closeDialog(tester);
+  });
+
+  testWidgets('the empty-list hint leads to Manual entry with connect open', (
+    tester,
+  ) async {
+    await pumpDialog(tester);
+    await tester.pump(const Duration(seconds: 15));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.textContaining('port changes every time'), findsOneWidget);
+    await tester.ensureVisible(find.text('Use Manual entry'));
+    await tester.pump();
+    await tester.tap(find.text('Use Manual entry'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Connect address'), findsOneWidget);
+    expect(find.text('Pairing address'), findsOneWidget);
+
+    await closeDialog(tester);
+  });
+
+  testWidgets('an explained error shows its detail, adb output and actions', (
+    tester,
+  ) async {
+    var pressed = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: Scaffold(
+          body: WirelessFeedbackBanner(
+            error: 'The adb server can\'t reach your network.',
+            detail: 'Restart adb so Eagly starts it instead.',
+            rawOutput: 'No route to host',
+            actions: [
+              TextButton(
+                onPressed: () => pressed = true,
+                child: const Text('Restart adb and retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.text('The adb server can\'t reach your network.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Restart adb so Eagly starts it instead.'),
+      findsOneWidget,
+    );
+    expect(find.text('adb: No route to host'), findsOneWidget);
+    await tester.tap(find.text('Restart adb and retry'));
+    expect(pressed, isTrue);
   });
 }

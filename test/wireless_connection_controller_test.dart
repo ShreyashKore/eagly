@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:eagly/features/wireless_connection/services/wireless_connection_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eagly/data/device.dart';
+import 'package:eagly/features/wireless_connection/data/wireless_adb_failure.dart';
 import 'package:eagly/features/wireless_connection/data/wireless_debug_models.dart';
 import 'package:eagly/data/ios_device_info.dart';
 import 'package:eagly/services/devices_repository.dart';
@@ -283,6 +284,74 @@ void main() {
       expect(result.message, contains('Live logs are ready in this tab'));
     },
   );
+
+  test(
+    'a connect adb cannot route but Eagly can reach blames the adb server',
+    () async {
+      const address = '192.168.1.37:41909';
+      adbTool.connectResults[address] = DeviceCommandResult.failure(
+        error: "failed to connect to '$address': No route to host",
+      );
+      controller = _buildController(
+        repository: repository,
+        sessionService: sessionService,
+        reachability: WirelessReachability.reachable,
+      );
+
+      final result = await controller!.connectWirelessDevice(address: address);
+
+      expect(result.isSuccess, isFalse);
+      expect(
+        controller!.wirelessFailure?.kind,
+        WirelessAdbFailureKind.adbServerBlocked,
+      );
+      expect(controller!.wirelessFailure?.suggestsAdbRestart, isTrue);
+      expect(result.error, contains('adb server'));
+      expect(controller!.wirelessError, contains('No route to host'));
+    },
+  );
+
+  test('restartAdbServer restarts adb and clears the old failure', () async {
+    const address = '192.168.1.37:41909';
+    adbTool.connectResults[address] = DeviceCommandResult.failure(
+      error: "failed to connect to '$address': No route to host",
+    );
+    controller = _buildController(
+      repository: repository,
+      sessionService: sessionService,
+      reachability: WirelessReachability.reachable,
+    );
+    await controller!.connectWirelessDevice(address: address);
+    expect(controller!.wirelessFailure, isNotNull);
+
+    final restarted = await controller!.restartAdbServer();
+
+    expect(restarted, isTrue);
+    expect(adbTool.restartCount, 1);
+    expect(controller!.wirelessFailure, isNull);
+    expect(controller!.wirelessError, isNull);
+    expect(controller!.wirelessMessage, 'Restarted the adb server.');
+    expect(controller!.isWirelessBusy, isFalse);
+  });
+
+  test('a later error replaces the explanation of an earlier one', () async {
+    const address = '192.168.1.37:41909';
+    adbTool.connectResults[address] = DeviceCommandResult.failure(
+      error: "failed to connect to '$address': No route to host",
+    );
+    controller = _buildController(
+      repository: repository,
+      sessionService: sessionService,
+      reachability: WirelessReachability.reachable,
+    );
+    await controller!.connectWirelessDevice(address: address);
+    expect(controller!.wirelessFailure, isNotNull);
+
+    await controller!.connectWirelessDevice(address: '');
+
+    expect(controller!.wirelessError, contains('Enter a connect address'));
+    expect(controller!.wirelessFailure, isNull);
+  });
 }
 
 WirelessConnectionController _buildController({
@@ -292,8 +361,10 @@ WirelessConnectionController _buildController({
   String? Function()? selectedDeviceIdProvider,
   bool Function()? isRunningProvider,
   void Function(WirelessPairResult result)? onQrPairingCompleted,
+  WirelessReachability reachability = WirelessReachability.unknown,
 }) {
   return WirelessConnectionController(
+    probeAddress: (_) async => reachability,
     devicesRepository: repository,
     onDevicesApplied: (_) async {},
     onActivateDevice: onActivateDevice ?? (_) async {},
@@ -358,7 +429,9 @@ class _FakeWirelessAdbTool() extends AdbTool {
       StreamController<List<Device>>.broadcast();
   final List<(String, String)> pairRequests = [];
   final List<String> connectRequests = [];
+  final Map<String, DeviceCommandResult> connectResults = {};
   void Function(String address)? onConnect;
+  var restartCount = 0;
 
   @override
   Future<DeviceCommandResult> pairDevice({
@@ -369,6 +442,12 @@ class _FakeWirelessAdbTool() extends AdbTool {
     return DeviceCommandResult.success(
       message: 'Successfully paired with $address.',
     );
+  }
+
+  @override
+  Future<bool> restartServer() async {
+    restartCount++;
+    return true;
   }
 
   @override
@@ -389,7 +468,8 @@ class _FakeWirelessAdbTool() extends AdbTool {
   Future<DeviceCommandResult> connectDevice(String address) async {
     connectRequests.add(address);
     onConnect?.call(address);
-    return DeviceCommandResult.success(message: 'Connected to $address.');
+    return connectResults[address] ??
+        DeviceCommandResult.success(message: 'Connected to $address.');
   }
 
   Future<void> dispose() async {

@@ -35,10 +35,41 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
   /// no-op when a server is already running.
   Future<void> ensureServerRunning() => _serverStartup ??= _startServer();
 
+  int get _serverPort =>
+      int.tryParse(Platform.environment['ANDROID_ADB_SERVER_PORT'] ?? '') ??
+      _defaultServerPort;
+
+  /// Stops the running adb server and starts a fresh one from Eagly.
+  ///
+  /// macOS gives local-network access to the app that *started* a process.
+  /// If another tool started the server and isn't allowed on the local
+  /// network, every Wi-Fi `adb connect` fails with "No route to host" while
+  /// USB keeps working. A server Eagly starts gets Eagly's permission. This
+  /// drops every adb connection, so running logcat streams and mirrors stop
+  /// until they reconnect.
+  Future<bool> restartServer() async {
+    final port = _serverPort;
+    try {
+      await runText(['kill-server']);
+    } catch (error) {
+      logWarning('adb kill-server failed', error);
+    }
+
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (await _serverIsListening(port) &&
+        DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+
+    _serverStartup = null;
+    await ensureServerRunning();
+    final running = await _serverIsListening(port);
+    if (running) logSuccess('Restarted the adb server');
+    return running;
+  }
+
   Future<void> _startServer() async {
-    final port =
-        int.tryParse(Platform.environment['ANDROID_ADB_SERVER_PORT'] ?? '') ??
-        _defaultServerPort;
+    final port = _serverPort;
 
     if (await _serverIsListening(port)) return;
 

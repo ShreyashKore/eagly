@@ -219,6 +219,14 @@ class DevicesRepository._({
   Future<DeviceCommandResult> connectWirelessAndroidDevice(String address) =>
       _adbTool.connectDevice(address);
 
+  /// Restarts the adb server from Eagly and reloads the device list. See
+  /// [AdbTool.restartServer] for why and what it interrupts.
+  Future<bool> restartAdbServer() async {
+    final restarted = await _adbTool.restartServer();
+    await refreshDevices(force: true);
+    return restarted;
+  }
+
   Future<void> _reloadDevices() async {
     final androidDevices = await _adbTool.getDevices();
     final describedAndroidDevices = await Future.wait(

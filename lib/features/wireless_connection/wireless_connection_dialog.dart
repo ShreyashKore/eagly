@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../../data/device.dart';
+import 'data/wireless_adb_failure.dart';
 import 'data/wireless_debug_models.dart';
 import '../../session/device_session_manager.dart';
+import '../../presentation/components/confirm_dialog.dart';
 import '../../presentation/components/delayed_reveal.dart';
 import '../../presentation/components/eagly_dialog.dart';
 import '../../presentation/components/hint_note.dart';
@@ -21,6 +24,7 @@ import 'components/wireless_selected_device_panel.dart';
 import 'ios_wireless_pairing_controller.dart';
 import 'wireless_connection_controller.dart';
 import '../../presentation/theme/app_theme.dart';
+import '../../utils/url_launcher.dart';
 
 /// Wireless pairing dialog: Android (ADB QR/Manual) and iPhone (remote pairing).
 ///
@@ -68,6 +72,10 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   String? _selectedDiscoveryHost;
   String? _fallbackConnectHost;
   var _showManualConnectSection = false;
+
+  /// The explicit action that ran last, so "Restart adb and retry" knows
+  /// what to retry. Null when the last attempt came from a scanned QR code.
+  _WirelessAttempt? _lastAttempt;
 
   DeviceSessionManager get manager => widget.manager;
 
@@ -152,6 +160,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   }
 
   Future<void> _handlePair() async {
+    _lastAttempt = _WirelessAttempt.pair;
     final selectedTarget = _selectedDiscoveryTarget;
     final result = await wirelessController.pairWirelessDevice(
       address: _pairAddressController.text,
@@ -201,6 +210,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   /// in the dialog the same way an explicit pair would.
   void _handleQrPairingCompleted(WirelessPairResult result) {
     if (!mounted) return;
+    _lastAttempt = null;
 
     if (_reportPairResult(result)) return;
 
@@ -255,6 +265,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
   }
 
   Future<void> _handleConnect() async {
+    _lastAttempt = _WirelessAttempt.connect;
     final selectedTarget = _selectedDiscoveryTarget;
     final result = await wirelessController.connectWirelessDevice(
       address: _connectAddressController.text,
@@ -270,6 +281,61 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
     if (result.isSuccess) {
       Navigator.of(context).pop();
     }
+  }
+
+  /// Restarts the adb server from Eagly, then repeats the attempt that failed.
+  Future<void> _restartAdbAndRetry() async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Restart adb?',
+      message:
+          'This restarts the adb server from Eagly. Every adb connection drops '
+          'for a moment, so running logs and screen mirrors stop until they '
+          'reconnect.',
+      confirmLabel: 'Restart adb',
+      icon: Icons.restart_alt,
+    );
+    if (!confirmed || !mounted) return;
+
+    final attempt = _lastAttempt;
+    final restarted = await wirelessController.restartAdbServer();
+    if (!mounted || !restarted) return;
+
+    switch (attempt) {
+      case _WirelessAttempt.connect:
+        await _handleConnect();
+      case _WirelessAttempt.pair:
+        await _handlePair();
+      case null:
+        // A QR pairing failed: its code is spent and a new one is on screen.
+        widget.onShowSnackBar('Restarted adb. Scan the new QR code to pair.');
+    }
+  }
+
+  /// Error banner actions for an explained failure.
+  List<Widget> _failureActions(WirelessAdbFailure failure) {
+    final busy = wirelessController.isWirelessBusy;
+    return [
+      if (failure.suggestsAdbRestart)
+        FilledButton.tonalIcon(
+          onPressed: busy ? null : _restartAdbAndRetry,
+          icon: wirelessController.isRestartingAdb
+              ? const SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.restart_alt, size: 18),
+          label: Text(
+            _lastAttempt == null ? 'Restart adb' : 'Restart adb and retry',
+          ),
+        ),
+      if (failure.suggestsLocalNetworkSettings && Platform.isMacOS)
+        TextButton.icon(
+          onPressed: () => unawaited(openExternalUrl(localNetworkSettingsUrl)),
+          icon: const Icon(Icons.settings_outlined, size: 18),
+          label: const Text('Open Local Network settings'),
+        ),
+    ];
   }
 
   List<String> get _manualConnectAddresses {
@@ -416,13 +482,24 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
         if (targets.isEmpty)
           DelayedReveal(
             delay: const Duration(seconds: 10),
-            child: const HintNote(
+            child: HintNote(
               title: 'Nothing found yet',
               text:
                   'Turn on Settings → Developer options → Wireless debugging '
-                  'on the device and keep that screen open. Some networks '
-                  'hide devices from each other; in that case use Manual '
-                  'entry with the address the device shows.',
+                  'on the device and keep that screen open. Some phones '
+                  '(many Samsung models) and some networks never announce '
+                  'the device, so it won\'t show up here. Use Manual entry '
+                  'instead: pair with the code from "Pair device with '
+                  'pairing code", then connect to the "IP address & port" '
+                  'on the Wireless debugging screen. That port changes every '
+                  'time Wireless debugging is turned on.',
+              action: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: TextButton(
+                  onPressed: _openManualEntry,
+                  child: const Text('Use Manual entry'),
+                ),
+              ),
             ),
           )
         else ...[
@@ -565,7 +642,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
                 : 'Connect and start logcat',
             description: connectedDevice != null
                 ? 'This wireless device is already connected. Reuse the existing connection instead of reconnecting.'
-                : 'Use this only when automatic connection could not finish or the device was paired previously.',
+                : 'For a device that is already paired. Enter the "IP address & port" from the device\'s Wireless debugging screen — the port changes every time Wireless debugging is turned on.',
             child: Column(
               children: [
                 TextField(
@@ -689,10 +766,7 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
           },
         ),
         const Gap(14),
-        WirelessFeedbackBanner(
-          message: wirelessController.wirelessMessage,
-          error: wirelessController.wirelessError,
-        ),
+        _buildFeedbackBanner(),
         if (wirelessController.wirelessMessage != null ||
             wirelessController.wirelessError != null)
           const Gap(14),
@@ -705,6 +779,22 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildFeedbackBanner() {
+    final failure = wirelessController.wirelessFailure;
+    if (failure == null) {
+      return WirelessFeedbackBanner(
+        message: wirelessController.wirelessMessage,
+        error: wirelessController.wirelessError,
+      );
+    }
+    return WirelessFeedbackBanner(
+      error: failure.title,
+      detail: failure.explanation,
+      rawOutput: failure.rawError,
+      actions: _failureActions(failure),
     );
   }
 
@@ -727,6 +817,8 @@ class _WirelessConnectionDialogState extends State<WirelessConnectionDialog> {
 }
 
 enum _WirelessDialogSection { pair, manual }
+
+enum _WirelessAttempt { pair, connect }
 
 enum _WirelessPlatform { android, ios }
 

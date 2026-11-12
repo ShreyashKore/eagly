@@ -5,6 +5,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../data/device.dart';
+import 'data/wireless_adb_failure.dart';
 import 'data/wireless_debug_models.dart';
 import '../../services/devices_repository.dart';
 
@@ -80,13 +81,20 @@ class WirelessConnectionController({
   /// Called when a QR code was scanned and the resulting pair (plus automatic
   /// connect) attempt finished — the scan loop, not the UI, drives that flow.
   final void Function(WirelessPairResult result)? _onQrPairingCompleted,
+
+  /// Eagly's own reachability check for an address, compared with adb's answer
+  /// to explain a failure. Swapped out in tests.
+  final Future<WirelessReachability> Function(String address) _probeAddress =
+      probeWirelessAddress,
 }) extends ChangeNotifier {
   var _pairingWireless = false;
   var _connectingWireless = false;
   var _hasAttemptedWirelessDiscovery = false;
   var _wirelessServices = <WirelessDebugService>[];
   String? _wirelessMessage;
-  String? _wirelessError;
+  String? _error;
+  WirelessAdbFailure? _wirelessFailure;
+  var _restartingAdb = false;
   var _disposed = false;
   WirelessQrPairingSession? _qrSession;
   var _scanning = false;
@@ -111,7 +119,9 @@ class WirelessConnectionController({
   /// Deliberately *excludes* the background scan: the scan is passive and must
   /// never block QR generation, pairing or connecting. Widening this to cover
   /// scanning is exactly the starvation bug this design removed.
-  bool get isWirelessBusy => _pairingWireless || _connectingWireless;
+  bool get isWirelessBusy =>
+      _pairingWireless || _connectingWireless || _restartingAdb;
+  bool get isRestartingAdb => _restartingAdb;
   bool get hasAttemptedWirelessDiscovery => _hasAttemptedWirelessDiscovery;
   List<WirelessDebugService> get wirelessServices =>
       List.unmodifiable(_wirelessServices);
@@ -122,7 +132,19 @@ class WirelessConnectionController({
       .where((service) => service.type == WirelessDebugServiceType.connect)
       .toList(growable: false);
   String? get wirelessMessage => _wirelessMessage;
-  String? get wirelessError => _wirelessError;
+  String? get wirelessError => _error;
+
+  /// [wirelessError] explained for the user, when adb's output was one we
+  /// recognise. Cleared whenever the error changes.
+  WirelessAdbFailure? get wirelessFailure => _wirelessFailure;
+
+  // Every error update goes through here so a stale explanation never sits
+  // next to a newer error.
+  set _wirelessError(String? value) {
+    _error = value;
+    _wirelessFailure = null;
+  }
+
   String? get suggestedWirelessPairingAddress =>
       wirelessPairingServices.firstOrNull?.address;
   String? get suggestedWirelessConnectAddress =>
@@ -185,9 +207,16 @@ class WirelessConnectionController({
 
       if (!result.isSuccess) {
         final error = result.error ?? 'Failed to pair with $normalizedAddress.';
+        final failure = await _explainFailure(
+          error: error,
+          address: normalizedAddress,
+          action: WirelessAdbAction.pair,
+        );
+        if (_disposed) return WirelessPairResult.failure(error: error);
         _wirelessMessage = null;
         _wirelessError = error;
-        return WirelessPairResult.failure(error: error);
+        _wirelessFailure = failure;
+        return WirelessPairResult.failure(error: failure?.summary ?? error);
       }
 
       _pairingWireless = false;
@@ -576,11 +605,18 @@ class WirelessConnectionController({
       }
 
       final error = _describeWirelessConnectFailures(addresses, failures);
+      final failure = await _explainFailure(
+        error: failures.lastOrNull ?? error,
+        address: addresses.last,
+        action: WirelessAdbAction.connect,
+      );
+      if (_disposed) return DeviceCommandResult.failure(error: error);
       if (!suppressFailureState) {
         _wirelessMessage = null;
         _wirelessError = error;
+        _wirelessFailure = failure;
       }
-      return DeviceCommandResult.failure(error: error);
+      return DeviceCommandResult.failure(error: failure?.summary ?? error);
     } finally {
       _connectingWireless = false;
       _notify();
@@ -725,6 +761,53 @@ class WirelessConnectionController({
         ? '${prefixMessage ?? 'Connected to ${matchedDevice.id}.'} Live logs are ready in this tab.'
         : 'Connected to ${matchedDevice.id} and started live logs in this tab.';
     return DeviceCommandResult.success(message: message);
+  }
+
+  /// Explains a failed pair/connect. For errors that could mean either "the
+  /// adb server is blocked" or "the device is out of reach", Eagly first tries
+  /// [address] itself: if it gets through where adb did not, adb is the
+  /// problem.
+  Future<WirelessAdbFailure?> _explainFailure({
+    required String error,
+    required String address,
+    required WirelessAdbAction action,
+  }) async {
+    final reachability = wirelessAdbErrorNeedsProbe(error)
+        ? await _probeAddress(address)
+        : WirelessReachability.unknown;
+    return diagnoseWirelessAdbFailure(
+      error: error,
+      address: address,
+      action: action,
+      reachability: reachability,
+    );
+  }
+
+  /// Restarts the adb server from Eagly — the fix for
+  /// [WirelessAdbFailureKind.adbServerBlocked]. Every adb connection drops
+  /// while it restarts, so callers confirm with the user first.
+  Future<bool> restartAdbServer() async {
+    if (isWirelessBusy) return false;
+    _restartingAdb = true;
+    _wirelessMessage = null;
+    _wirelessError = null;
+    _notify();
+
+    try {
+      final restarted = await _devicesRepository.restartAdbServer();
+      if (_disposed) return restarted;
+      if (restarted) {
+        _wirelessMessage = 'Restarted the adb server.';
+      } else {
+        _wirelessError =
+            'Couldn\'t restart the adb server. Quit other apps that use adb '
+            '(Android Studio, scrcpy, a terminal running adb) and try again.';
+      }
+      return restarted;
+    } finally {
+      _restartingAdb = false;
+      _notify();
+    }
   }
 
   String _describeWirelessConnectFailures(
