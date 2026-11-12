@@ -14,7 +14,8 @@ import 'snack_bars.dart';
 /// A feature view renders its feature controller(s) and gets the shared pane
 /// plumbing for free: the [onClose] callback, a rebuild whenever
 /// [FeatureViewState.listenable] notifies, a snackbar helper, and the standard
-/// pane chrome ([FeaturePane], [FeatureViewHeader], [FeatureStatusBar]).
+/// pane chrome ([FeaturePane], [FeatureViewHeader], [FeatureSubBar],
+/// [FeatureStatusBar]).
 abstract class const FeatureView({
   super.key,
 
@@ -77,25 +78,48 @@ class const FeaturePane({
   }
 }
 
-/// The standard 48-dip feature-pane header: [title] on the left, then
-/// [actions], then the close button when [onClose] is non-null. Panes are
-/// resizable and arranged freely, so the actions collapse into an overflow
-/// menu once the header runs out of room (see [OverflowToolbar]).
+/// The one header every feature pane uses — see "Pane chrome" in AGENTS.md.
+///
+/// A 48-dip bar on the chrome surface, its slots always in this order:
+///
+/// `grip · leading · title (or tabs) · primary | actions · ⋯ · trailing · ×`
+///
+/// - [leading]: navigation only — back, up — drawn before the title.
+/// - [title]: names the pane, or the item it has drilled into (with a back
+///   button in [leading]). [tabs] replaces it for panes that hold several
+///   sessions (Logs, Terminal); the pane is still named by [title] in the
+///   grip's tooltip and in its workspace tab chip.
+/// - [primary]: the controls that drive the pane — start/stop, pause,
+///   refresh, capture, clear. They open the right-hand group and never
+///   collapse.
+/// - [actions]: everything else, least important last. Panes are resizable
+///   and arranged freely, so these collapse into an overflow menu once the
+///   header runs out of room (see [OverflowToolbar]).
+/// - [trailing]: controls that can't become a menu entry (their own popup).
+///
+/// Every button in the header is drawn by the header itself, from a
+/// [ToolbarAction], so they all share one size and style.
 ///
 /// Hosted in the device workspace, the header is also the pane's title bar:
 /// a [PaneGrip] leads it and the title area drags the pane. While the pane
 /// sits in a tab group its tab chip is the title bar — title, close button,
-/// drag handle — so the header keeps only its actions, and is not drawn at
-/// all when it has none (see [WorkspacePaneScope]).
+/// drag handle — so the header keeps only the rest, and is not drawn at all
+/// when nothing is left (see [WorkspacePaneScope]).
 class const FeatureViewHeader({
   super.key,
   required final String title,
 
-  /// Optional widget before the title (e.g. a back button).
-  final Widget? leading,
+  /// Shown in place of [title] — a pane's own session tabs.
+  final Widget? tabs,
 
-  /// Action buttons shown between the title and the close button. The last
-  /// ones collapse into the overflow menu first.
+  /// Navigation buttons before the title (back, up).
+  final List<ToolbarAction> leading = const [],
+
+  /// The pane's main controls; always visible, at the start of the
+  /// right-hand group.
+  final List<ToolbarAction> primary = const [],
+
+  /// Secondary actions; the last ones collapse into the overflow menu first.
   final List<ToolbarAction> actions = const [],
 
   /// Widgets pinned between the actions and the close button — for controls
@@ -104,20 +128,32 @@ class const FeatureViewHeader({
   final VoidCallback? onClose,
   final String closeTooltip = 'Close pane',
 }) extends StatelessWidget {
+  /// The header's height before UI scaling.
+  static const double height = 48;
+
+  /// Size of every icon in the header.
+  static const double iconSize = 20;
+
+  /// Narrowest the title (or tab strip) gets before actions collapse.
+  static const double _titleMinWidth = 56;
+  static const double _tabsMinWidth = 120;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scope = WorkspacePaneScope.maybeOf(context);
     final movable = scope?.showsGrip ?? false;
     if ((scope?.isTabbed ?? false) &&
-        leading == null &&
+        tabs == null &&
+        leading.isEmpty &&
+        primary.isEmpty &&
         actions.isEmpty &&
         trailing.isEmpty) {
       return const SizedBox.shrink();
     }
 
     return Container(
-      height: context.scaled(48),
+      height: context.scaled(height),
       padding: EdgeInsets.fromLTRB(movable ? 4 : 12, 6, 6, 6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
@@ -126,38 +162,104 @@ class const FeatureViewHeader({
         ),
       ),
       child: OverflowToolbar(
-        spacing: 0,
-        iconSize: 24,
+        spacing: 2,
+        iconSize: iconSize,
         leading: [
-          if (movable) ...[const PaneGrip(), const SizedBox(width: 4)],
-          if (leading != null) leading!,
+          if (movable) const PaneGrip(),
+          for (final action in leading) _button(action),
+          if (leading.isNotEmpty) const SizedBox(width: 4),
         ],
+        // The title slot is the pane's title bar: it drags the pane, tabs
+        // included (a chip only takes clicks), as does the space after them.
         flexible: PaneDragArea(
           slop: paneToolbarDragSlop,
           child: Align(
             alignment: Alignment.centerLeft,
-            child: WorkspacePaneScope.showsOwnTitle(context)
-                ? Text(
-                    title,
-                    style: theme.textTheme.titleSmall,
-                    overflow: TextOverflow.ellipsis,
-                  )
-                : const SizedBox.shrink(),
+            child:
+                tabs ??
+                (WorkspacePaneScope.showsOwnTitle(context)
+                    ? Text(
+                        title,
+                        style: theme.textTheme.titleSmall,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    : const SizedBox.shrink()),
           ),
         ),
-        flexibleMinWidth: 56,
-        actions: actions,
+        flexibleMinWidth: tabs != null ? _tabsMinWidth : _titleMinWidth,
+        pinnedCount: primary.length,
+        actions: [...primary, ...actions],
         trailing: [
           ...trailing,
           if (onClose != null && WorkspacePaneScope.showsOwnClose(context))
             AppIconButton(
               tooltip: closeTooltip,
-              iconSize: 20,
+              iconSize: iconSize,
               onPressed: onClose,
               icon: Icons.close,
             ),
         ],
       ),
+    );
+  }
+
+  static Widget _button(ToolbarAction action) => AppIconButton(
+    tooltip: action.tooltip ?? action.label,
+    iconSize: iconSize,
+    isActive: action.isActive,
+    color: action.color,
+    onPressed: action.onPressed,
+    busy: action.busy,
+    icon: action.icon,
+  );
+}
+
+/// The strip under a [FeatureViewHeader] for a pane's search, filters,
+/// breadcrumbs or find bar: the header's surface with a divider below, so
+/// header and sub-bar read as one block of chrome above the content.
+class const FeatureSubBar({
+  super.key,
+  required final Widget child,
+  final EdgeInsetsGeometry padding = const EdgeInsets.symmetric(
+    horizontal: 12,
+    vertical: 6,
+  ),
+}) extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        border: Border(
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      // Hover ink inside the bar paints on this, above the bar's colour.
+      child: Material(
+        type: MaterialType.transparency,
+        child: fieldTheme(context, child),
+      ),
+    );
+  }
+
+  /// [child] with text fields filled in [EaglyTheme.chromeFieldColor], the
+  /// default for any field on pane chrome — the theme's own fill is the
+  /// chrome's colour, which would lose the field against the bar.
+  static Widget fieldTheme(BuildContext context, Widget child) {
+    final theme = Theme.of(context);
+    // A bare MaterialApp (a widget test) has no Eagly tokens to apply.
+    final tokens = theme.extension<EaglyTheme>();
+    if (tokens == null) return child;
+    return Theme(
+      data: theme.copyWith(
+        inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+          filled: true,
+          fillColor: tokens.chromeFieldColor,
+        ),
+      ),
+      child: child,
     );
   }
 }

@@ -78,7 +78,7 @@ class _UtilitiesFeatureViewState
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          PaneSearchBar(
+          FeatureSubBar(
             child: PaneSearchField(
               controller: _searchController,
               onChanged: controller.setSearchText,

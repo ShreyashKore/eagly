@@ -61,6 +61,10 @@ class const OverflowToolbar({
 
   /// Collapsible actions, in display order. The last ones collapse first.
   required final List<ToolbarAction> actions,
+
+  /// How many of the first [actions] never collapse — a pane's primary
+  /// controls (start, pause, refresh…). A group divider follows them.
+  final int pinnedCount = 0,
   final List<Widget> leading = const [],
 
   /// Child that absorbs the leftover width, placed after [leading].
@@ -93,16 +97,17 @@ class _OverflowToolbarState extends State<OverflowToolbar> {
       leadingCount: widget.leading.length,
       hasFlexible: widget.flexible != null,
       actionCount: widget.actions.length,
+      pinnedCount: widget.pinnedCount,
       flexibleMinWidth: widget.flexibleMinWidth,
       spacing: widget.spacing,
       status: _status,
       children: [
         ...widget.leading,
         if (widget.flexible != null) widget.flexible!,
-        for (final action in widget.actions)
+        for (final (i, action) in widget.actions.indexed)
           _wrapWithDivider(
             context,
-            action,
+            action.dividerBefore || (i > 0 && i == widget.pinnedCount),
             (action.barBuilder ?? buildAction)(context, action),
           ),
         _buildOverflowButton(context),
@@ -111,12 +116,8 @@ class _OverflowToolbarState extends State<OverflowToolbar> {
     );
   }
 
-  Widget _wrapWithDivider(
-    BuildContext context,
-    ToolbarAction action,
-    Widget button,
-  ) {
-    if (!action.dividerBefore) return button;
+  Widget _wrapWithDivider(BuildContext context, bool divider, Widget button) {
+    if (!divider) return button;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -215,6 +216,7 @@ class const _ToolbarLayout({
   required final int leadingCount,
   required final bool hasFlexible,
   required final int actionCount,
+  required final int pinnedCount,
   required final double flexibleMinWidth,
   required final double spacing,
   required final _OverflowStatus status,
@@ -226,6 +228,7 @@ class const _ToolbarLayout({
       leadingCount: leadingCount,
       hasFlexible: hasFlexible,
       actionCount: actionCount,
+      pinnedCount: pinnedCount,
       flexibleMinWidth: flexibleMinWidth,
       spacing: spacing,
       status: status,
@@ -241,6 +244,7 @@ class const _ToolbarLayout({
       ..leadingCount = leadingCount
       ..hasFlexible = hasFlexible
       ..actionCount = actionCount
+      ..pinnedCount = pinnedCount
       ..flexibleMinWidth = flexibleMinWidth
       ..spacing = spacing
       ..status = status;
@@ -256,6 +260,7 @@ class _RenderToolbarLayout({
   required var int _leadingCount,
   required var bool _hasFlexible,
   required var int _actionCount,
+  required var int _pinnedCount,
   required var double _flexibleMinWidth,
   required var double _spacing,
   required var _OverflowStatus _status,
@@ -278,6 +283,12 @@ class _RenderToolbarLayout({
   set actionCount(int value) {
     if (_actionCount == value) return;
     _actionCount = value;
+    markNeedsLayout();
+  }
+
+  set pinnedCount(int value) {
+    if (_pinnedCount == value) return;
+    _pinnedCount = value;
     markNeedsLayout();
   }
 
@@ -365,13 +376,15 @@ class _RenderToolbarLayout({
     final available = constraints.maxWidth;
     var visibleActions = _actionCount;
     var showOverflow = false;
-    // With no actions there is nothing to collapse — the toolbar just gets
-    // squeezed rather than growing an empty menu.
-    if (_actionCount > 0 &&
+    final pinned = math.min(_pinnedCount, _actionCount);
+    // With nothing collapsible the toolbar just gets squeezed rather than
+    // growing an empty menu; pinned actions stay in the bar.
+    if (_actionCount > pinned &&
         available.isFinite &&
         widthFor(_actionCount, false) > available) {
       showOverflow = true;
-      while (visibleActions > 0 && widthFor(visibleActions, true) > available) {
+      while (visibleActions > pinned &&
+          widthFor(visibleActions, true) > available) {
         visibleActions--;
       }
     }

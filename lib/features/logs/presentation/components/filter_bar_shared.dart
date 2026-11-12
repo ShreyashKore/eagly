@@ -102,14 +102,21 @@ class FilterControlStyle.of(BuildContext context) {
 
   ColorScheme get _colors => _theme.colorScheme;
 
-  Color fill({bool hovered = false}) =>
-      hovered ? _colors.surfaceContainerHighest : _colors.surfaceContainerHigh;
+  /// The row sits on pane chrome, so the controls take the chrome-field
+  /// fill, tinted a little toward the text colour on hover.
+  Color fill({bool hovered = false}) {
+    final base =
+        _theme.extension<EaglyTheme>()?.chromeFieldColor ?? _colors.surface;
+    return hovered
+        ? Color.alphaBlend(_colors.onSurface.withValues(alpha: 0.04), base)
+        : base;
+  }
 
   Color border({bool focused = false, bool active = false}) => focused
       ? _colors.primary
       : active
       ? _colors.primary.withValues(alpha: 0.45)
-      : _colors.outlineVariant.withValues(alpha: 0.55);
+      : _colors.outlineVariant;
 
   TextStyle? get label => _theme.textTheme.labelLarge?.copyWith(
     fontSize: 13,

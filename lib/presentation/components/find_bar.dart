@@ -49,7 +49,7 @@ class const FindBar({
       height: height,
       padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
       decoration: BoxDecoration(
-        color: cs.surfaceContainerHigh,
+        color: cs.surfaceContainerHighest,
         border: Border(bottom: BorderSide(color: cs.outlineVariant)),
       ),
       child: Row(
@@ -71,11 +71,12 @@ class const FindBar({
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: hint,
-                  border: InputBorder.none,
-                  filled: noMatches || invalid,
+                  filled: true,
                   fillColor: invalid
                       ? cs.errorContainer.withValues(alpha: 0.5)
-                      : tokens.searchNoResultsFillColor,
+                      : noMatches
+                      ? tokens.searchNoResultsFillColor
+                      : tokens.chromeFieldColor,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 4,
                     vertical: 8,

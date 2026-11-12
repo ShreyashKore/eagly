@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../presentation/components/pane_search_field.dart';
+import '../../../presentation/components/feature_view.dart';
 import '../crash_report_controller.dart';
 
 /// Filters the crash report list by process name, file name and body. Esc
@@ -30,7 +31,7 @@ class _CrashReportSearchFieldState extends State<CrashReportSearchField> {
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
-    return PaneSearchBar(
+    return FeatureSubBar(
       child: PaneSearchField(
         controller: _text,
         onChanged: controller.setSearchText,

@@ -13,8 +13,8 @@ import 'terminal_find.dart';
 import 'terminal_session_manager.dart';
 import '../../presentation/components/snack_bars.dart';
 
-/// The Terminal pane: a tab strip, the selected tab's scrollback, and the
-/// prompt.
+/// The Terminal pane: its tabs in the header, the selected tab's scrollback,
+/// and the prompt.
 ///
 /// The pane itself holds no terminal knowledge — every tab is a
 /// [TerminalController] that knows which device its commands go to and adds the
@@ -56,7 +56,6 @@ class _TerminalFeatureViewState extends FeatureViewState<TerminalFeatureView> {
       find.isOpen ? find.close() : find.open();
 
   Widget _buildContent(BuildContext context, TerminalController controller) {
-    final theme = Theme.of(context);
     final find = controller.find;
 
     return CallbackShortcuts(
@@ -68,8 +67,17 @@ class _TerminalFeatureViewState extends FeatureViewState<TerminalFeatureView> {
       child: FeaturePane(
         header: FeatureViewHeader(
           title: 'Terminal',
+          tabs: TerminalTabStrip(manager: manager),
           onClose: widget.onClose,
           closeTooltip: 'Close terminal pane',
+          primary: [
+            ToolbarAction(
+              icon: Icons.clear_all,
+              label: 'Clear scrollback',
+              tooltip: 'Clear scrollback (Ctrl+L)',
+              onPressed: controller.lines.isEmpty ? null : controller.clear,
+            ),
+          ],
           actions: [
             ToolbarAction(
               icon: Icons.search,
@@ -87,27 +95,11 @@ class _TerminalFeatureViewState extends FeatureViewState<TerminalFeatureView> {
                   ? null
                   : () => _copyScrollback(controller),
             ),
-            ToolbarAction(
-              icon: Icons.clear_all,
-              label: 'Clear scrollback',
-              tooltip: 'Clear scrollback (Ctrl+L)',
-              onPressed: controller.lines.isEmpty ? null : controller.clear,
-            ),
           ],
         ),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                border: Border(
-                  bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-                ),
-              ),
-              child: TerminalTabStrip(manager: manager),
-            ),
             if (find.isOpen)
               FindBar(
                 query: find.query,

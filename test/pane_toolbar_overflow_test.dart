@@ -1,6 +1,7 @@
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/apps/apps_feature_view.dart';
 import 'package:eagly/features/file_manager/components/file_manager_toolbar.dart';
+import 'package:eagly/presentation/components/feature_view.dart';
 import 'package:eagly/presentation/components/overflow_toolbar.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_controller.dart';
@@ -99,7 +100,16 @@ void main() {
       expect(tester.getSize(searchField).width, greaterThanOrEqualTo(140));
       expect(find.byType(Switch).hitTestable(), findsNothing);
 
-      await tester.tap(find.byIcon(Icons.more_horiz).hitTestable());
+      // The header collapses its own actions too; the toggle is in the
+      // search row's menu.
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(FeatureSubBar),
+              matching: find.byIcon(Icons.more_horiz),
+            )
+            .hitTestable(),
+      );
       // Not pumpAndSettle: the apps list keeps a spinner running.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));

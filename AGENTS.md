@@ -563,11 +563,35 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   Icons follow the app zoom, and `IconButton`'s theme-clamped box pushed a zoomed glyph
   right and down; `AppIconButton` scales its box with the zoom and centres the icon, and
   has the tooltip, focus ring, Enter/Space activation, `busy` and `isActive` built in.
-- A feature pane's header is its title bar in the device workspace: use
-  `FeatureViewHeader`, or put `const PaneGrip()` first in a custom toolbar, wrap an empty
-  stretch in `PaneDragArea`, and show the close button only if
-  `WorkspacePaneScope.showsOwnClose(context)` (a tab chip has it otherwise). Outside a
-  workspace these draw nothing. See docs/WORKSPACE_LAYOUT.md.
+- **Pane chrome is one design, not one per pane.** Every feature pane is a `FeaturePane`
+  (`presentation/components/feature_view.dart`): a `FeatureViewHeader`, an optional
+  `FeatureSubBar` under it, the body, an optional `FeatureStatusBar`. Don't draw a header
+  of your own — `test/pane_chrome_test.dart` fails on a `*_feature_view.dart` without a
+  `FeaturePane`, and on `PaneGrip` / `PaneDragArea` / `WorkspacePaneScope.showsOwn*` used
+  anywhere in `lib/features/` outside `home_screen/`. The header's slots run
+  `grip · leading · title (or tabs) · primary | actions · ⋯ · trailing · ×`, and what goes
+  where is the rule that keeps panes alike:
+  - `leading` — navigation only (back, up), before the title.
+  - `title` — the pane's name, or the item drilled into (with a back button in `leading`,
+    as Crash reports and Network do). Logs and Terminal pass their session tabs as `tabs`,
+    which take the title's place; the title still names the pane in its tab chip.
+  - `primary` — what drives the pane: start/stop, pause, refresh, capture, clear. Pinned at
+    the start of the right-hand group; never collapses.
+  - `actions` — everything else, view toggles included, least important last; they fold
+    into the overflow menu as the pane narrows.
+  - `trailing` — only for a control that can't become a menu entry (its own popup).
+  - Buttons are `ToolbarAction`s, so the header draws them all at
+    `FeatureViewHeader.iconSize`; a `trailing` widget uses that size too.
+  The `FeatureSubBar` holds search, filters, breadcrumbs, a find bar, and filters on the
+  list (Apps' system-apps switch, Files' sort menu) — on the header's surface, so the two
+  read as one block of chrome. A field on that chrome is filled with
+  `EaglyTheme.chromeFieldColor`, a step off the bar (`FeatureSubBar` makes it the default
+  for `TextField`s inside it; the Logs filter controls take it from `FilterControlStyle`,
+  the find bar sets it itself) — the theme's own field fill is the bar's colour, and a
+  field filled with it disappears into the bar. In the device workspace the header is the pane's title bar:
+  the grip leads it, the title slot (tabs included) drags the pane, and in a tab group the
+  chip takes over the title and close. Device home, a dashboard that is never hosted as a
+  workspace pane, is the one view without this chrome. See docs/WORKSPACE_LAYOUT.md.
 - Read-only text worth searching — a body, a crash report — goes in `CodeView`
   (`presentation/components/code_view.dart`): `re_editor` with `re_highlight` grammars, line
   numbers, folding, wrap, a ⌘F find bar and copy, under a toolbar that takes a `leading`
@@ -576,8 +600,7 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
 - Reach for the shared pieces before writing another copy. In `presentation/components/`:
   `showConfirmDialog` (Cancel + confirm, `destructive:` for the red button),
   `showMessageSnackBar` / `copyWithToast` (`snack_bars.dart`), `MenuRow` + `menuPositionAt`
-  for context menus (`context_menu.dart`), `PaneSearchBar` / `PaneSearchField` (clear button,
-  Esc), `BusyOverlay`, `PaneTabStrip` / `PaneTabChip` (Logs and Terminal tabs), `RetryButton`
+  for context menus (`context_menu.dart`), `PaneSearchField` (clear button, Esc), `BusyOverlay`, `PaneTabStrip` / `PaneTabChip` (Logs and Terminal tabs), `RetryButton`
   under a `CenteredStateMessage`, `ToolbarAction.busy` for a spinner in a toolbar, and
   `HoverBuilder` for a widget whose only state is whether it is hovered. In
   `utils/`: `pluralize`, `shellQuote`, `firstNonBlank`, `parseColonSeparated` (`utils.dart`),

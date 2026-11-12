@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../file_manager_controller.dart';
 import '../services/device_file_system.dart';
+import '../../../presentation/components/feature_view.dart';
 import '../../../presentation/theme/app_theme.dart';
 
 /// Clickable path breadcrumb (`/ › sdcard › DCIM`). The leading crumb is the
@@ -16,7 +17,6 @@ class const FileBreadcrumbBar({
 }) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final segments = posixSegments(controller.currentPath);
 
     final crumbs = <Widget>[
@@ -50,19 +50,12 @@ class const FileBreadcrumbBar({
         );
     }
 
-    return Container(
-      height: context.scaled(36),
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainer,
-        border: Border(
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-      ),
-      // The crumbs' hover ink paints on this, above the bar's colour.
-      child: Material(
-        type: MaterialType.transparency,
+    // Crumbs carry 6 dips of their own padding, so the first one's icon
+    // lines up with the header's title.
+    return FeatureSubBar(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      child: SizedBox(
+        height: context.scaled(30),
         child: Row(
           children: [
             Expanded(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../presentation/components/feature_view.dart';
 import '../../../../presentation/components/min_width_box.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../log_controller.dart';
@@ -38,8 +39,7 @@ class _LogFilterAreaState extends State<LogFilterArea> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+    return FeatureSubBar(
       child: MinWidthBox(
         minWidth: context.scaled(LogFilterArea.minWidth),
         child: LayoutBuilder(

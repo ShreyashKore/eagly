@@ -143,17 +143,15 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      color: theme.colorScheme.surfaceContainer,
-      child: ListenableBuilder(
-        listenable: controller,
-        builder: (context, _) {
-          return Column(
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        return FeaturePane(
+          header: _Header(controller: controller, onClose: widget.onClose!),
+          body: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Header(controller: controller, onClose: widget.onClose!),
-              _Toolbar(
+              _SearchBar(
                 controller: controller,
                 searchController: _searchController,
               ),
@@ -167,9 +165,9 @@ class _AppsFeatureViewState extends State<AppsFeatureView> {
                 ),
               ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -374,7 +372,7 @@ class const _Header({
       title: title,
       onClose: onClose,
       closeTooltip: 'Close apps pane',
-      actions: [
+      primary: [
         ToolbarAction(
           icon: Icons.refresh,
           label: 'Refresh',
@@ -382,21 +380,62 @@ class const _Header({
           busy: controller.isLoading,
         ),
       ],
+      actions: [_viewModeAction(), _iconSizeAction()],
+    );
+  }
+
+  ToolbarAction _viewModeAction() {
+    final isList = controller.viewMode == AppsViewMode.list;
+    return ToolbarAction(
+      icon: isList ? Icons.grid_view : Icons.view_list,
+      label: isList ? 'Grid view' : 'List view',
+      tooltip: isList ? 'Show as grid' : 'Show as list with details',
+      onPressed: () => controller.setViewMode(
+        isList ? AppsViewMode.grid : AppsViewMode.list,
+      ),
+    );
+  }
+
+  /// A size picker in the bar; in the overflow menu, where an action can't
+  /// open a submenu, the entry cycles to the next size instead.
+  ToolbarAction _iconSizeAction() {
+    final current = controller.iconSize;
+    final next =
+        AppIconSize.values[(current.index + 1) % AppIconSize.values.length];
+    return ToolbarAction(
+      icon: Icons.photo_size_select_large,
+      label: 'Icon size: ${current.label}',
+      onPressed: () => controller.setIconSize(next),
+      barBuilder: (context, action) => PopupMenuButton<AppIconSize>(
+        tooltip: 'Icon size',
+        iconSize: FeatureViewHeader.iconSize,
+        icon: Icon(action.icon),
+        initialValue: current,
+        onSelected: controller.setIconSize,
+        itemBuilder: (context) => [
+          for (final size in AppIconSize.values)
+            CheckedPopupMenuItem(
+              value: size,
+              checked: size == current,
+              child: Text(size.label),
+            ),
+        ],
+      ),
     );
   }
 }
 
-class const _Toolbar({
+/// The search row under the header. The system-apps switch is a filter on
+/// the list, so it sits beside the search and collapses into an overflow
+/// menu, as a checked entry, before the field is squeezed below its minimum.
+class const _SearchBar({
   required final AppsController controller,
   required final TextEditingController searchController,
 }) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return PaneSearchBar(
-      // The layout options and the system-apps toggle collapse into the
-      // overflow menu before the search field is squeezed below its minimum
-      // (the system-apps switch first, as a checked entry).
+    return FeatureSubBar(
       child: OverflowToolbar(
         spacing: 0,
         flexibleMinWidth: 140,
@@ -406,8 +445,6 @@ class const _Toolbar({
           hint: 'Search apps…',
         ),
         actions: [
-          _viewModeAction(),
-          _iconSizeAction(context),
           if (controller.canShowSystemApps)
             ToolbarAction(
               icon: Icons.settings_applications_outlined,
@@ -426,46 +463,6 @@ class const _Toolbar({
                   ),
                 ],
               ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  ToolbarAction _viewModeAction() {
-    final isList = controller.viewMode == AppsViewMode.list;
-    return ToolbarAction(
-      icon: isList ? Icons.grid_view : Icons.view_list,
-      label: isList ? 'Grid view' : 'List view',
-      tooltip: isList ? 'Show as grid' : 'Show as list with details',
-      onPressed: () => controller.setViewMode(
-        isList ? AppsViewMode.grid : AppsViewMode.list,
-      ),
-    );
-  }
-
-  /// A size picker in the bar; in the overflow menu, where an action can't
-  /// open a submenu, the entry cycles to the next size instead.
-  ToolbarAction _iconSizeAction(BuildContext context) {
-    final current = controller.iconSize;
-    final next =
-        AppIconSize.values[(current.index + 1) % AppIconSize.values.length];
-    return ToolbarAction(
-      icon: Icons.photo_size_select_large,
-      label: 'Icon size: ${current.label}',
-      onPressed: () => controller.setIconSize(next),
-      barBuilder: (context, action) => PopupMenuButton<AppIconSize>(
-        tooltip: 'Icon size',
-        iconSize: 20,
-        icon: Icon(action.icon),
-        initialValue: current,
-        onSelected: controller.setIconSize,
-        itemBuilder: (context) => [
-          for (final size in AppIconSize.values)
-            CheckedPopupMenuItem(
-              value: size,
-              checked: size == current,
-              child: Text(size.label),
             ),
         ],
       ),

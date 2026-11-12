@@ -104,9 +104,11 @@ header zero-height and the pane's own header does the job:
 
 - The workspace wraps each pane in a `WorkspacePaneScope` carrying `isTabbed`, `canMove` and
   a `PaneControls` object (one per pane, stable for the life of the view).
-- A header puts `const PaneGrip()` first and, optionally, wraps its title area in
-  `PaneDragArea`. Both read the scope and draw nothing / do nothing without one — outside a
-  workspace (tests, the imported-logs screen) a header looks exactly as it always did.
+- `FeatureViewHeader` — the one pane header — puts `const PaneGrip()` first and wraps its
+  title slot (a pane's session tabs included) in `PaneDragArea`. Both read the scope and
+  draw nothing / do nothing without one — outside a workspace (tests, the imported-logs
+  screen) a header looks exactly as it always did. Features never use the two directly
+  (`test/pane_chrome_test.dart`).
 - `WorkspacePaneScope.showsOwnTitle` / `showsOwnClose` are false while the pane is tabbed
   (the chip has them); `showsGrip` is false then too (the chip is the handle).
 - The drag a header starts can't use fl_panel's internal callbacks (they are only handed to
@@ -172,10 +174,9 @@ the session, since moves and divider drags never reach the session.
    `DeviceSessionController._startPane`, and whether a device can host it at all in
    `supportsPane` (the saved layout is cut down to those). Add `open…`/`close…`/`toggle…` wrappers if callers
    want them, and a rail button / command-palette entry like the others.
-5. Its header must be a title bar: use `FeatureViewHeader` (done), or put `const PaneGrip()`
-   first in a custom toolbar, wrap an empty stretch in `PaneDragArea`, and hide its close
-   button unless `WorkspacePaneScope.showsOwnClose(context)`. The *pane headers* group in
-   `test/workspace_view_test.dart` shows how to test that.
+5. Its header is a `FeatureViewHeader` inside a `FeaturePane` — the title bar comes with it.
+   Put its controls in the header's slots as "Pane chrome" in AGENTS.md lays out; no pane
+   draws a header of its own (`test/pane_chrome_test.dart`).
 
 ## Guarantees and the tests that hold them
 
@@ -188,7 +189,7 @@ the session, since moves and divider drags never reach the session.
 | 5 | A reopened pane comes back where it was, at its old share — also after its neighbours moved, after a restart, and on another device. | `workspace_layout_test` "a closed pane reopens…", "…even when they moved", "…shared by every workspace…", "…survives a restart…" |
 | 6 | An unreadable stored layout never stops a pane opening. | `workspace_layout_test` "an unreadable stored placement is ignored" |
 | 7 | The session hears about open/close only, once per change; closing the last pane from a tab falls back to Home; a hidden tab's rail click reveals it. | `workspace_layout_test` "listeners hear…", "DeviceSessionController panes" group |
-| 8 | Every pane header (shared header, Logs toolbar, Files toolbar) has the grip and defers to the tab chip; real panes drag by their title. | `workspace_view_test` "pane headers" group |
+| 8 | Every pane header (`FeatureViewHeader`, which Logs and Files use too) has the grip and defers to the tab chip; real panes drag by their title slot. | `workspace_view_test` "pane headers" group |
 | 9 | A device opens with the saved layout, minus panes it can't host; with none saved, or only unsupported panes, it opens on Home; it survives a restart and an unreadable value; devices already open are untouched. The header button hides while the open panes match it, and returns after an open, close, move or resize, not a tab switch. | `saved_layout_test` "opening a device", "matching the saved layout", "storage" groups |
 
 ## Gotchas

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../presentation/components/app_icon_button.dart';
 import '../../presentation/components/feature_view.dart';
 import '../../presentation/components/overflow_toolbar.dart';
 import '../../presentation/theme/app_theme.dart';
@@ -123,13 +122,22 @@ class _NetworkFeatureViewState extends FeatureViewState<NetworkFeatureView> {
       title: shownAlone == null ? 'Network' : shortName(shownAlone.transaction),
       closeTooltip: 'Close network pane',
       onClose: widget.onClose,
-      leading: shownAlone == null
-          ? null
-          : AppIconButton(
-              tooltip: 'Back to list',
-              onPressed: () => controller.select(null),
-              icon: Icons.arrow_back,
-            ),
+      leading: [
+        if (shownAlone != null)
+          ToolbarAction(
+            icon: Icons.arrow_back,
+            label: 'Back to list',
+            onPressed: () => controller.select(null),
+          ),
+      ],
+      primary: [
+        ToolbarAction(
+          icon: Icons.block,
+          label: 'Clear',
+          tooltip: 'Clear the list. Nothing is deleted on the device.',
+          onPressed: controller.isEmpty ? null : controller.clear,
+        ),
+      ],
       actions: [
         ToolbarAction(
           icon: Icons.view_timeline_outlined,
@@ -151,12 +159,6 @@ class _NetworkFeatureViewState extends FeatureViewState<NetworkFeatureView> {
           label: 'Export as HAR',
           onPressed: controller.isEmpty || _exporting ? null : _exportHar,
           busy: _exporting,
-        ),
-        ToolbarAction(
-          icon: Icons.block,
-          label: 'Clear',
-          tooltip: 'Clear the list. Nothing is deleted on the device.',
-          onPressed: controller.isEmpty ? null : controller.clear,
         ),
       ],
     );

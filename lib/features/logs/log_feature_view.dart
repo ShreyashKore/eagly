@@ -110,15 +110,18 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
   }
 
   Widget _buildContent(BuildContext context, LogController controller) {
-    return Column(
-      children: [
-        _buildToolbar(context, controller),
-        if (controller.liveLoggingInterrupted)
-          _buildInterruptionBanner(context, controller),
-        _buildFilterArea(context, controller),
-        Expanded(child: _buildViewerArea(context, controller)),
-        _buildStatusBar(context, controller),
-      ],
+    return FeaturePane(
+      header: _buildToolbar(context, controller),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildFilterArea(context, controller),
+          if (controller.liveLoggingInterrupted)
+            _buildInterruptionBanner(context, controller),
+          Expanded(child: _buildViewerArea(context, controller)),
+        ],
+      ),
+      statusBar: _buildStatusBar(context, controller),
     );
   }
 
