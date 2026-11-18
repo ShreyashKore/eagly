@@ -5,6 +5,7 @@ import 'package:gap/gap.dart';
 
 import '../../../data/device.dart';
 import '../../../presentation/components/install_conflict_dialog.dart';
+import '../../../presentation/components/ios_device_trust_actions.dart';
 import '../../../session/device_session_controller.dart';
 import '../data/device_info.dart';
 import '../device_home_controller.dart';
@@ -87,7 +88,9 @@ class const DeviceHeroCard({
                         label: osLabel,
                         icon: isIos ? Icons.apple : Icons.android,
                       ),
-                      if (!isIos)
+                      // An iPhone's transport is only known for Wi-Fi (the
+                      // CLI backend cannot tell), so it never claims USB.
+                      if (!isIos || wireless)
                         StatusPill(
                           label: wireless ? 'Wi-Fi' : 'USB',
                           icon: wireless ? Icons.wifi : Icons.usb,
@@ -116,6 +119,22 @@ class const DeviceHeroCard({
               session: session,
               onInstall: () => _install(context),
             ),
+            if (offersIosTrustActions(device)) ...[
+              const Gap(4),
+              PopupMenuButton<IosTrustAction>(
+                tooltip: 'Connection options',
+                icon: const Icon(Icons.more_vert, size: 20),
+                itemBuilder: (context) => iosTrustMenuItems(
+                  (action) => action,
+                  colors: theme.colorScheme,
+                ),
+                onSelected: (action) => confirmIosTrustAction(
+                  context,
+                  device: device,
+                  action: action,
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ios.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `advertise_pairable_host`, `afc_client`, `basename`, `claim_syslog_session`, `connect_usbmuxd`, `connect`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_pairing_session`, `forget_syslog_session`, `format_os_trace_log`, `installation_proxy`, `ios_app_bundle_path`, `is_crash_report`, `is_hidden_app`, `is_network`, `is_network`, `is_skippable_record_error`, `join_afc_path`, `load_or_create_host_identity`, `lockdown`, `message`, `pair_event`, `pair_one_device`, `persist_host_identity`, `provider_for`, `read_afc_file`, `register_pairing_session`, `route_for`, `status`, `string_value`, `upload_recursive`, `usbmuxd_device`
+// These functions are ignored because they are not marked as `pub`: `advertise_pairable_host`, `afc_client`, `basename`, `claim_syslog_session`, `connect_usbmuxd`, `connect`, `describe`, `domain`, `download_recursive`, `flatten`, `forget_pairing_session`, `forget_syslog_session`, `forget_wireless_pairing`, `format_os_trace_log`, `host_identity`, `installation_proxy`, `ios_app_bundle_path`, `is_crash_report`, `is_hidden_app`, `is_network`, `is_network`, `is_skippable_record_error`, `join_afc_path`, `load_or_create_host_identity`, `lockdown`, `mdns_hostname`, `message`, `pair_event`, `pair_one_device`, `persist_host_identity`, `provider_for`, `read_afc_file`, `read_host_identity_file`, `register_pairing_session`, `route_for`, `status`, `string_value`, `upload_recursive`, `usbmuxd_device`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Advertised`, `HostIdentity`, `Route`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
@@ -35,6 +35,37 @@ Future<void> startIosWirelessDiscovery({required String storageDir}) => RustLib
     .instance
     .api
     .crateApiIosStartIosWirelessDiscovery(storageDir: storageDir);
+
+/// Stops `udid` connecting to this computer over Wi-Fi, keeping its USB
+/// trust: the device's Wi-Fi switches go off (for every computer it is paired
+/// with, since they live on the device), and an Eagly wireless pairing with
+/// it (`storage_dir`'s records, its tunnel) is dropped.
+///
+/// The switches need the device reachable, over USB or Wi-Fi. A device
+/// reached only through an Eagly tunnel has nothing else to switch off.
+Future<void> stopIosWifiConnections({
+  required String udid,
+  required String storageDir,
+}) => RustLib.instance.api.crateApiIosStopIosWifiConnections(
+  udid: udid,
+  storageDir: storageDir,
+);
+
+/// Removes `udid`'s trust in this computer so it never connects again until
+/// someone plugs it in and taps "Trust": an Eagly wireless pairing with it is
+/// dropped, the device is told to forget this computer when it can be
+/// reached, and usbmuxd's pairing record for it is deleted.
+///
+/// The pairing record is usbmuxd's, shared with Xcode and Finder, so they lose
+/// the device too. Deleting it is what stops the reconnecting, and it works
+/// with the device out of reach; telling the device is best effort.
+Future<void> forgetIosDevice({
+  required String udid,
+  required String storageDir,
+}) => RustLib.instance.api.crateApiIosForgetIosDevice(
+  udid: udid,
+  storageDir: storageDir,
+);
 
 /// Describes one device, opening a lockdown session to do it.
 ///

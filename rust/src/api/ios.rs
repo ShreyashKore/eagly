@@ -188,6 +188,105 @@ pub async fn start_ios_wireless_discovery(storage_dir: String) -> Result<(), Ios
     crate::ios_wireless::start(storage_dir).map_err(IosError::Other)
 }
 
+/// lockdownd domain holding a device's Wi-Fi connection switches.
+const WIRELESS_LOCKDOWN_DOMAIN: &str = "com.apple.mobile.wireless_lockdown";
+
+/// The switches that make a device offer itself to its paired computers over
+/// Wi-Fi: Xcode's "Connect via network" sets the first, Finder's "Show this
+/// iPhone when on Wi-Fi" the second. Either one is enough for usbmuxd to
+/// reach the device on the network with the pairing record from a past USB
+/// "Trust".
+const WIFI_CONNECTION_KEYS: [&str; 2] = ["EnableWifiDebugging", "EnableWifiConnections"];
+
+/// Stops `udid` connecting to this computer over Wi-Fi, keeping its USB
+/// trust: the device's Wi-Fi switches go off (for every computer it is paired
+/// with, since they live on the device), and an Eagly wireless pairing with
+/// it (`storage_dir`'s records, its tunnel) is dropped.
+///
+/// The switches need the device reachable, over USB or Wi-Fi. A device
+/// reached only through an Eagly tunnel has nothing else to switch off.
+pub async fn stop_ios_wifi_connections(udid: String, storage_dir: String) -> Result<(), IosError> {
+    let forgot_wireless = forget_wireless_pairing(&udid, storage_dir).await;
+    let device = match usbmuxd_device(&udid).await {
+        Ok(device) => device,
+        Err(_) if forgot_wireless => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
+    let route = Route::Usb {
+        is_network: is_network(&device),
+        provider: device.to_provider(address, CLIENT_LABEL),
+    };
+    let mut lockdown = route.lockdown().await?;
+    for key in WIFI_CONNECTION_KEYS {
+        lockdown
+            .set_value(key, Value::Boolean(false), Some(WIRELESS_LOCKDOWN_DOMAIN))
+            .await?;
+    }
+    // The crate does not read SetValue's reply for an error, so ask back.
+    for key in WIFI_CONNECTION_KEYS {
+        let value = lockdown
+            .get_value(Some(key), Some(WIRELESS_LOCKDOWN_DOMAIN))
+            .await;
+        if let Ok(Value::Boolean(true)) = value {
+            return Err(IosError::Other(format!(
+                "The device kept {key} switched on."
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Removes `udid`'s trust in this computer so it never connects again until
+/// someone plugs it in and taps "Trust": an Eagly wireless pairing with it is
+/// dropped, the device is told to forget this computer when it can be
+/// reached, and usbmuxd's pairing record for it is deleted.
+///
+/// The pairing record is usbmuxd's, shared with Xcode and Finder, so they lose
+/// the device too. Deleting it is what stops the reconnecting, and it works
+/// with the device out of reach; telling the device is best effort.
+pub async fn forget_ios_device(udid: String, storage_dir: String) -> Result<(), IosError> {
+    let forgot_wireless = forget_wireless_pairing(&udid, storage_dir).await;
+    let mut usbmuxd = match connect_usbmuxd().await {
+        Ok(usbmuxd) => usbmuxd,
+        Err(_) if forgot_wireless => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    let record = match usbmuxd.get_pair_record(&udid).await {
+        Ok(record) => record,
+        Err(_) if forgot_wireless => return Ok(()),
+        Err(_) => {
+            return Err(IosError::NotPaired(format!(
+                "This computer has no pairing record for {udid}."
+            )))
+        }
+    };
+
+    // Before the record goes, while it still names this computer.
+    if let Ok(device) = usbmuxd_device(&udid).await {
+        let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
+        let provider = device.to_provider(address, CLIENT_LABEL);
+        let unpaired = match LockdownClient::connect(&provider).await {
+            Ok(mut lockdown) => lockdown.unpair(record.host_id.clone()).await,
+            Err(error) => Err(error),
+        };
+        if let Err(error) = unpaired {
+            eprintln!("[ios] {udid} did not take the unpair request: {error}");
+        }
+    }
+
+    connect_usbmuxd().await?.delete_pair_record(&udid).await?;
+    Ok(())
+}
+
+/// Drops any Eagly wireless pairing with `udid`; whether there was one.
+async fn forget_wireless_pairing(udid: &str, storage_dir: String) -> bool {
+    let udid = udid.to_string();
+    tokio::task::spawn_blocking(move || crate::ios_wireless::forget(Path::new(&storage_dir), &udid))
+        .await
+        .unwrap_or(false)
+}
+
 /// Describes one device, opening a lockdown session to do it.
 ///
 /// A device that refuses lockdownd is not an error: it comes back with the

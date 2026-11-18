@@ -145,6 +145,51 @@ pub(crate) fn route(udid: &str) -> Option<TunnelRoute> {
     state.tunnels.get(udid).map(|tunnel| tunnel.route.clone())
 }
 
+/// Forgets every Eagly pairing with `udid`: deletes its records under
+/// `storage_dir` and closes its tunnel, so it is not reconnected. Returns
+/// whether there was anything to forget.
+///
+/// `udid` may be the device's own `UniqueDeviceID` (what the device list
+/// shows, and what tunnels are keyed by) or a record's UDID, which pair-setup
+/// was told and which can differ.
+pub(crate) fn forget(storage_dir: &Path, udid: &str) -> bool {
+    let mut record_udids: HashSet<String> = HashSet::from([udid.to_string()]);
+    let mut forgot = false;
+    {
+        let mut state = state();
+        state.tunnels.retain(|key, tunnel| {
+            let matches = key == udid || tunnel.record_udid == udid;
+            if matches {
+                trace(format!("forgetting {key}: closing its tunnel"));
+                record_udids.insert(tunnel.record_udid.clone());
+                tunnel.dead.cancel();
+                forgot = true;
+            }
+            !matches
+        });
+        for record_udid in &record_udids {
+            state.backoff.remove(record_udid);
+        }
+    }
+
+    for record in load_records(storage_dir) {
+        if !record_udids.contains(&record.udid) {
+            continue;
+        }
+        match std::fs::remove_file(&record.path) {
+            Ok(()) => {
+                trace(format!("forgot {}: deleted its pairing", record.udid));
+                forgot = true;
+            }
+            Err(error) => trace(format!(
+                "could not delete {}: {error}",
+                record.path.display()
+            )),
+        }
+    }
+    forgot
+}
+
 /// Drops dead tunnels. One that lasted [`STABLE_TUNNEL`] clears its record's
 /// backoff, so a phone that comes back to the network reconnects at once; one
 /// that died sooner backs off as a failed attempt does, or a device that
@@ -321,6 +366,13 @@ async fn attempt(record: DeviceRecord, advert: Advertisement) {
     let mut state = state();
     state.connecting.remove(&record.udid);
     match result {
+        // Forgotten while the attempt was in flight.
+        Ok((udid, tunnel)) if !record.path.exists() => {
+            trace(format!(
+                "dropping tunnel to {udid}: its pairing was forgotten"
+            ));
+            tunnel.dead.cancel();
+        }
         Ok((udid, tunnel)) => {
             // The backoff stays until the tunnel proves stable; see `prune`.
             trace(format!("tunnel up to {udid}"));
@@ -519,6 +571,8 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for Watched<S> {
 #[derive(Clone)]
 struct DeviceRecord {
     udid: String,
+    /// The file it was read from, which [`forget`] deletes.
+    path: PathBuf,
     alt_irk: Vec<u8>,
     /// Our keys and identifier, plus the device's altIRK.
     pairing_file: RpPairingFile,
@@ -682,6 +736,7 @@ fn load_records(storage_dir: &Path) -> Vec<DeviceRecord> {
                 })?,
                 alt_irk,
                 pairing_file,
+                path,
             })
         })
         .collect()
@@ -774,6 +829,26 @@ mod tests {
             .collect();
         udids.sort();
         assert_eq!(udids, ["first", "second"]);
+
+        let _ = std::fs::remove_dir_all(&storage);
+    }
+
+    #[test]
+    fn forget_deletes_only_that_devices_record() {
+        let storage = temp_storage("forget");
+        let dir = storage.to_str().unwrap();
+        persist_device_record(dir, &peer("first", [1; 16]), &paired_file([1; 16])).unwrap();
+        persist_device_record(dir, &peer("second", [2; 16]), &paired_file([2; 16])).unwrap();
+
+        assert!(forget(&storage, "first"));
+        let udids: Vec<String> = load_records(&storage)
+            .into_iter()
+            .map(|record| record.udid)
+            .collect();
+        assert_eq!(udids, ["second"]);
+
+        // Nothing left to forget for it.
+        assert!(!forget(&storage, "first"));
 
         let _ = std::fs::remove_dir_all(&storage);
     }

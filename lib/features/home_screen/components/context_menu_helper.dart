@@ -4,6 +4,7 @@ import '../../../data/device.dart';
 import '../../../session/device_session_controller.dart';
 import '../../../session/device_session_manager.dart';
 import '../../../presentation/components/context_menu.dart';
+import '../../../presentation/components/ios_device_trust_actions.dart';
 import '../../../presentation/components/snack_bars.dart';
 
 void showHeaderMenu(
@@ -85,6 +86,16 @@ void showTabContextMenu(
           child: MenuRow(Icons.tag, 'Copy $idName'),
         ),
         const PopupMenuDivider(),
+        if (offersIosTrustActions(device)) ...[
+          ...iosTrustMenuItems(
+            (action) => switch (action) {
+              IosTrustAction.stopWifi => _TabMenuAction.stopWifi,
+              IosTrustAction.forget => _TabMenuAction.forget,
+            },
+            colors: Theme.of(context).colorScheme,
+          ),
+          const PopupMenuDivider(),
+        ],
       ],
       PopupMenuItem(
         value: _TabMenuAction.close,
@@ -104,6 +115,20 @@ void showTabContextMenu(
     case _TabMenuAction.copyId:
       if (!context.mounted) return;
       await copyWithToast(context, device.id, 'Copied $idName.');
+    case _TabMenuAction.stopWifi:
+      if (!context.mounted) return;
+      await confirmIosTrustAction(
+        context,
+        device: device,
+        action: IosTrustAction.stopWifi,
+      );
+    case _TabMenuAction.forget:
+      if (!context.mounted) return;
+      await confirmIosTrustAction(
+        context,
+        device: device,
+        action: IosTrustAction.forget,
+      );
     case _TabMenuAction.close:
       onClose?.call();
   }
@@ -111,4 +136,4 @@ void showTabContextMenu(
 
 enum _HeaderMenuAction { wireless, emulators, refresh, settings }
 
-enum _TabMenuAction { reload, copyName, copyId, close }
+enum _TabMenuAction { reload, copyName, copyId, stopWifi, forget, close }

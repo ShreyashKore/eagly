@@ -89,6 +89,7 @@ EAGLY_IOS_BACKEND=cli fvm flutter run -d macos   # fall back to libimobiledevice
 | Screen mirror: probe, screenshots, touch / keys / buttons, pasteboard, rotation | — | `probe_ios_mirror`, `capture_ios_screenshot`, `start_ios_screenshot_stream`, `start_ios_input` and the `send_ios_*` calls (`api/ios_mirror.rs`) | Rust only (`IosMirrorService`). Probe, screenshots, the screenshot stream, touch and Home verified on an iPhone 16e (iOS 26.6) with `test/device/ios_mirror_device_test.dart`; keys, the pasteboard and rotation are not covered by it. The picture on macOS comes from QuickTime's route instead. See **docs/IOS_SCREEN_MIRROR.md** |
 | Utilities / Terminal | `DeviceToolRunner` | — | **blocked on a product decision — see below** |
 | Wireless pairing + connection (iOS 27+) | — | `start_ios_wireless_pairing`, `start_ios_wireless_discovery` | **Rust only, unverified on hardware** — see below |
+| Stop Wi-Fi connections / forget a device | — | `stop_ios_wifi_connections`, `forget_ios_device` | **Rust only, unverified on hardware** — see below |
 
 ### Wireless iOS: pair once, then tunnel
 
@@ -121,6 +122,29 @@ A dead tunnel is noticed when the TCP stack drops its stream (a `DropGuard` insi
 tunnel's token); TCP keepalive on both sockets makes a phone that leaves Wi-Fi without a FIN show
 up in ~20 s. Unverified: whether a paired iPhone advertises `_remotepairing._tcp` while locked,
 and whether `remotepairing_udid` always equals the lockdown UDID (the tunnel key does not rely on it).
+
+### Cutting a device off: stop Wi-Fi, forget
+
+An iPhone someone plugged in once and tapped **Trust** on keeps reconnecting by itself, and
+not through anything of ours: usbmuxd holds the pairing record (`/var/db/lockdown` on macOS),
+and with either Wi-Fi switch on the phone — `EnableWifiDebugging` (Xcode's "Connect via
+network") or `EnableWifiConnections` (Finder's "Show this iPhone when on Wi-Fi"), both in
+lockdown's `com.apple.mobile.wireless_lockdown` domain — the phone advertises
+`_apple-mobdev2._tcp` and usbmuxd connects whenever it is on the same network. `list_ios_devices`
+lists it as `is_network`. An Eagly wireless pairing (above) reconnects the same way.
+
+Both actions are in a device tab's right-click menu and the device home card's ⋮ menu
+(`presentation/components/ios_device_trust_actions.dart`, `IosDeviceTrustService`):
+
+- **Stop Wi-Fi connections** (`stop_ios_wifi_connections`) sets both switches false over a
+  lockdown session and reads them back (the crate ignores SetValue's reply). They live on the
+  phone, so Xcode loses it over Wi-Fi too; USB keeps working. Needs the phone reachable.
+- **Forget** (`forget_ios_device`) sends lockdown `Unpair` when the phone is reachable (best
+  effort), then usbmuxd `DeletePairRecord`, which works with the phone away. Xcode and Finder
+  share the record, so they lose the phone too; it needs **Trust** over USB again.
+
+Both also drop an Eagly wireless pairing with the device (`ios_wireless::forget`: deletes its
+record, closes its tunnel; an attempt in flight discards its tunnel when the record is gone).
 
 ### Syslog: what hardware showed
 

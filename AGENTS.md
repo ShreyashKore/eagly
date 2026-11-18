@@ -150,6 +150,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   that tunnel when usbmuxd does not know the UDID. Unlike Android a UDID says nothing about the
   transport, so `IosDeviceService.networkDeviceIds` carries it into `IosDevice.isWireless`. Read
   the wireless section of **docs/IOS_RUST_MIGRATION.md** before touching either half.
+- **iPhones that reconnect by themselves:** a past USB "Trust" leaves usbmuxd a pairing record,
+  and the phone's Wi-Fi switches (Xcode's "Connect via network") let usbmuxd reach it over
+  Wi-Fi from then on — nothing of Eagly's is involved. *Stop Wi-Fi connections* and *Forget*
+  (device tab menu, device home ⋮) undo that through `IosDeviceTrustService`; see "Cutting a
+  device off" in **docs/IOS_RUST_MIGRATION.md**.
 - **iOS on Windows without Apple's software:** usbmuxd ships with Apple Mobile Device
   Support (the Apple Devices app or iTunes), not with Eagly, yet File Explorer shows an
   iPhone without it. While usbmuxd is unreachable, `WindowsAppleUsbProbe`
