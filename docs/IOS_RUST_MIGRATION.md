@@ -223,6 +223,15 @@ Swift Package Manager plugin behind it. The Rust version and targets come from
 that isn't listed there. It always builds `--release`, and it builds into `.dart_tool/`, not
 `rust/target/`.
 
+The app opens that bundled library itself (`openBundledRustLibrary` in
+`services/ios/rust_ios_runtime.dart`). Left alone, flutter_rust_bridge tries
+`<cwd>/rust/target/release/` first, so a dev run from the repo root would load whatever the last
+manual `cargo build --release` left there and fail the content-hash check. The bridge's own
+search remains the fallback when nothing is bundled, and its
+`FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR` override still wins. The device tests
+(`test/device/`) call `RustLib.init()` directly and do load `rust/target/release/`, which is why
+they ask for a `cargo build --release` first.
+
 `rust/src/frb_generated.rs` and `lib/src/rust/**` are generated — never edit them. A new file
 under `rust/src/api/` is invisible to codegen until it is declared in `rust/src/api/mod.rs`.
 
