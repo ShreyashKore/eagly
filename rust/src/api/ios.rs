@@ -28,6 +28,7 @@ use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
 use crate::frb_generated::StreamSink;
+use crate::ios_wifi_switches::{switch_off, SwitchOff};
 
 /// Label lockdownd records against our session. Shows up in the device's
 /// pairing records, so it should name the app rather than the library.
@@ -188,29 +189,38 @@ pub async fn start_ios_wireless_discovery(storage_dir: String) -> Result<(), Ios
     crate::ios_wireless::start(storage_dir).map_err(IosError::Other)
 }
 
-/// lockdownd domain holding a device's Wi-Fi connection switches.
-const WIRELESS_LOCKDOWN_DOMAIN: &str = "com.apple.mobile.wireless_lockdown";
-
-/// The switches that make a device offer itself to its paired computers over
-/// Wi-Fi: Xcode's "Connect via network" sets the first, Finder's "Show this
-/// iPhone when on Wi-Fi" the second. Either one is enough for usbmuxd to
-/// reach the device on the network with the pairing record from a past USB
-/// "Trust".
-const WIFI_CONNECTION_KEYS: [&str; 2] = ["EnableWifiDebugging", "EnableWifiConnections"];
+/// What [`stop_ios_wifi_connections`] achieved.
+pub enum IosWifiStop {
+    /// The device reports its Wi-Fi connections off.
+    Off,
+    /// The change was sent, but the device went away before it could be
+    /// asked whether it took. The change itself can cause that.
+    Unconfirmed,
+    /// Only an Eagly wireless pairing was dropped. The device is not
+    /// reachable through usbmuxd, so its own switches are as they were.
+    PairingOnly,
+}
 
 /// Stops `udid` connecting to this computer over Wi-Fi, keeping its USB
 /// trust: the device's Wi-Fi switches go off (for every computer it is paired
 /// with, since they live on the device), and an Eagly wireless pairing with
 /// it (`storage_dir`'s records, its tunnel) is dropped.
 ///
-/// The switches need the device reachable, over USB or Wi-Fi. A device
-/// reached only through an Eagly tunnel has nothing else to switch off.
-pub async fn stop_ios_wifi_connections(udid: String, storage_dir: String) -> Result<(), IosError> {
-    let forgot_wireless = forget_wireless_pairing(&udid, storage_dir).await;
+/// The switches need the device reachable through usbmuxd, over USB or Wi-Fi.
+/// When changing them fails the pairing is kept.
+pub async fn stop_ios_wifi_connections(
+    udid: String,
+    storage_dir: String,
+) -> Result<IosWifiStop, IosError> {
     let device = match usbmuxd_device(&udid).await {
         Ok(device) => device,
-        Err(_) if forgot_wireless => return Ok(()),
-        Err(error) => return Err(error),
+        Err(error) => {
+            return if forget_wireless_pairing(&udid, storage_dir).await? {
+                Ok(IosWifiStop::PairingOnly)
+            } else {
+                Err(error)
+            };
+        }
     };
     let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
     let route = Route::Usb {
@@ -218,23 +228,17 @@ pub async fn stop_ios_wifi_connections(udid: String, storage_dir: String) -> Res
         provider: device.to_provider(address, CLIENT_LABEL),
     };
     let mut lockdown = route.lockdown().await?;
-    for key in WIFI_CONNECTION_KEYS {
-        lockdown
-            .set_value(key, Value::Boolean(false), Some(WIRELESS_LOCKDOWN_DOMAIN))
-            .await?;
-    }
-    // The crate does not read SetValue's reply for an error, so ask back.
-    for key in WIFI_CONNECTION_KEYS {
-        let value = lockdown
-            .get_value(Some(key), Some(WIRELESS_LOCKDOWN_DOMAIN))
-            .await;
-        if let Ok(Value::Boolean(true)) = value {
+    let outcome = match switch_off(&mut lockdown).await? {
+        SwitchOff::Confirmed => IosWifiStop::Off,
+        SwitchOff::Unconfirmed => IosWifiStop::Unconfirmed,
+        SwitchOff::Refused(key) => {
             return Err(IosError::Other(format!(
                 "The device kept {key} switched on."
             )));
         }
-    }
-    Ok(())
+    };
+    forget_wireless_pairing(&udid, storage_dir).await?;
+    Ok(outcome)
 }
 
 /// Removes `udid`'s trust in this computer so it never connects again until
@@ -246,7 +250,7 @@ pub async fn stop_ios_wifi_connections(udid: String, storage_dir: String) -> Res
 /// the device too. Deleting it is what stops the reconnecting, and it works
 /// with the device out of reach; telling the device is best effort.
 pub async fn forget_ios_device(udid: String, storage_dir: String) -> Result<(), IosError> {
-    let forgot_wireless = forget_wireless_pairing(&udid, storage_dir).await;
+    let forgot_wireless = forget_wireless_pairing(&udid, storage_dir).await?;
     let mut usbmuxd = match connect_usbmuxd().await {
         Ok(usbmuxd) => usbmuxd,
         Err(_) if forgot_wireless => return Ok(()),
@@ -279,12 +283,14 @@ pub async fn forget_ios_device(udid: String, storage_dir: String) -> Result<(), 
     Ok(())
 }
 
-/// Drops any Eagly wireless pairing with `udid`; whether there was one.
-async fn forget_wireless_pairing(udid: &str, storage_dir: String) -> bool {
+/// Drops any Eagly wireless pairing with `udid`; whether there was one. An
+/// error means it is still there and would reconnect.
+async fn forget_wireless_pairing(udid: &str, storage_dir: String) -> Result<bool, IosError> {
     let udid = udid.to_string();
     tokio::task::spawn_blocking(move || crate::ios_wireless::forget(Path::new(&storage_dir), &udid))
         .await
-        .unwrap_or(false)
+        .map_err(|error| IosError::Other(error.to_string()))?
+        .map_err(IosError::Other)
 }
 
 /// Describes one device, opening a lockdown session to do it.

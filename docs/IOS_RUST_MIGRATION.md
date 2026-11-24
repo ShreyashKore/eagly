@@ -136,9 +136,13 @@ lists it as `is_network`. An Eagly wireless pairing (above) reconnects the same 
 Both actions are in a device tab's right-click menu and the device home card's ⋮ menu
 (`presentation/components/ios_device_trust_actions.dart`, `IosDeviceTrustService`):
 
-- **Stop Wi-Fi connections** (`stop_ios_wifi_connections`) sets both switches false over a
-  lockdown session and reads them back (the crate ignores SetValue's reply). They live on the
-  phone, so Xcode loses it over Wi-Fi too; USB keeps working. Needs the phone reachable.
+- **Stop Wi-Fi connections** (`stop_ios_wifi_connections`) reads both switches over a lockdown
+  session, sets the ones that are on to false, and reads them back (`rust/src/ios_wifi_switches.rs`).
+  They live on the phone, so Xcode loses it over Wi-Fi too; USB keeps working. Needs the phone
+  reachable through usbmuxd. The change can cut the connection it is made over, so it returns an
+  `IosWifiStop`: *off* only when the phone said so, *unconfirmed* when it went away first, and
+  *pairing only* when usbmuxd could not reach it and just an Eagly pairing was dropped. A failed
+  change keeps that pairing.
 - **Forget** (`forget_ios_device`) sends lockdown `Unpair` when the phone is reachable (best
   effort), then usbmuxd `DeletePairRecord`, which works with the phone away. Xcode and Finder
   share the record, so they lose the phone too; it needs **Trust** over USB again.

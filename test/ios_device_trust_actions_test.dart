@@ -68,6 +68,32 @@ void main() {
     );
   });
 
+  for (final (outcome, message) in [
+    (IosWifiStopOutcome.off, 'QA iPhone no longer connects over Wi-Fi.'),
+    (
+      IosWifiStopOutcome.unconfirmed,
+      'Told QA iPhone to stop connecting over Wi-Fi, but lost it before it '
+          'could confirm. If it comes back over Wi-Fi, try again.',
+    ),
+    (
+      IosWifiStopOutcome.pairingOnly,
+      'Removed Eagly’s Wi-Fi pairing with QA iPhone. Its own Wi-Fi settings '
+          'are unchanged; plug it in and try again to switch them off.',
+    ),
+  ]) {
+    testWidgets('stop Wi-Fi says what happened: ${outcome.name}', (
+      tester,
+    ) async {
+      service.outcome = outcome;
+      await run(tester, IosTrustAction.stopWifi);
+      await tester.tap(find.widgetWithText(FilledButton, 'Stop Wi-Fi'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(message), findsOneWidget);
+      expect(refreshes, 1);
+    });
+  }
+
   testWidgets('stop Wi-Fi reports a failure in the snackbar', (tester) async {
     service.error = const IosDeviceTrustException('Unlock the iPhone.');
     await run(tester, IosTrustAction.stopWifi);
@@ -86,11 +112,13 @@ void main() {
 class _FakeTrustService implements IosDeviceTrustService {
   final calls = <String>[];
   IosDeviceTrustException? error;
+  var outcome = IosWifiStopOutcome.off;
 
   @override
-  Future<void> stopWifiConnections(String udid) async {
+  Future<IosWifiStopOutcome> stopWifiConnections(String udid) async {
     calls.add('stopWifi $udid');
     if (error case final error?) throw error;
+    return outcome;
   }
 
   @override

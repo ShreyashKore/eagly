@@ -16,6 +16,20 @@ class IosDeviceTrustException implements Exception {
   String toString() => message;
 }
 
+/// What [IosDeviceTrustService.stopWifiConnections] achieved.
+enum IosWifiStopOutcome {
+  /// The iPhone reports its Wi-Fi connections off.
+  off,
+
+  /// The change was sent, but the iPhone went away before it could be asked
+  /// whether it took. The change itself can cause that.
+  unconfirmed,
+
+  /// Only an Eagly wireless pairing was dropped; the iPhone was out of reach,
+  /// so its own Wi-Fi settings are as they were.
+  pairingOnly,
+}
+
 /// Undoes the trust that lets an iPhone reconnect to this computer on its own.
 ///
 /// An iPhone someone plugged in once and tapped "Trust" on keeps a pairing
@@ -28,7 +42,7 @@ abstract interface class IosDeviceTrustService {
   /// Stops [udid] connecting over Wi-Fi while keeping its USB trust. Switches
   /// the device's Wi-Fi connections off — for every computer, since the
   /// switch lives on the device — and drops an Eagly wireless pairing.
-  Future<void> stopWifiConnections(String udid);
+  Future<IosWifiStopOutcome> stopWifiConnections(String udid);
 
   /// Removes [udid]'s pairing with this computer. It connects again only
   /// after someone plugs it in and taps "Trust". Xcode and Finder share the
@@ -55,11 +69,15 @@ class RustIosDeviceTrustService implements IosDeviceTrustService {
       (await getApplicationSupportDirectory()).path;
 
   @override
-  Future<void> stopWifiConnections(String udid) => _guard(
-    () async => rust.stopIosWifiConnections(
+  Future<IosWifiStopOutcome> stopWifiConnections(String udid) => _guard(
+    () async => switch (await rust.stopIosWifiConnections(
       udid: udid,
       storageDir: await _resolveStorageDir(),
-    ),
+    )) {
+      rust.IosWifiStop.off => IosWifiStopOutcome.off,
+      rust.IosWifiStop.unconfirmed => IosWifiStopOutcome.unconfirmed,
+      rust.IosWifiStop.pairingOnly => IosWifiStopOutcome.pairingOnly,
+    },
   );
 
   @override
@@ -70,9 +88,9 @@ class RustIosDeviceTrustService implements IosDeviceTrustService {
     ),
   );
 
-  static Future<void> _guard(Future<void> Function() call) async {
+  static Future<T> _guard<T>(Future<T> Function() call) async {
     try {
-      await call();
+      return await call();
     } on IosDeviceTrustException {
       rethrow;
     } catch (error) {

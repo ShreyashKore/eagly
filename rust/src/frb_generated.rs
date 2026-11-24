@@ -1992,6 +1992,19 @@ impl SseDecode for crate::api::ios_mirror::IosTouchPhase {
     }
 }
 
+impl SseDecode for crate::api::ios::IosWifiStop {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::ios::IosWifiStop::Off,
+            1 => crate::api::ios::IosWifiStop::Unconfirmed,
+            2 => crate::api::ios::IosWifiStop::PairingOnly,
+            _ => unreachable!("Invalid variant for IosWifiStop: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::ios::IosWirelessPairEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2580,6 +2593,25 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::ios_mirror::IosTouchPhase>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::ios::IosWifiStop {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Off => 0.into_dart(),
+            Self::Unconfirmed => 1.into_dart(),
+            Self::PairingOnly => 2.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::ios::IosWifiStop {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::ios::IosWifiStop>
+    for crate::api::ios::IosWifiStop
+{
+    fn into_into_dart(self) -> crate::api::ios::IosWifiStop {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::ios::IosWirelessPairEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -2834,6 +2866,23 @@ impl SseEncode for crate::api::ios_mirror::IosTouchPhase {
                 crate::api::ios_mirror::IosTouchPhase::Down => 0,
                 crate::api::ios_mirror::IosTouchPhase::Move => 1,
                 crate::api::ios_mirror::IosTouchPhase::Up => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::ios::IosWifiStop {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::ios::IosWifiStop::Off => 0,
+                crate::api::ios::IosWifiStop::Unconfirmed => 1,
+                crate::api::ios::IosWifiStop::PairingOnly => 2,
                 _ => {
                     unimplemented!("");
                 }

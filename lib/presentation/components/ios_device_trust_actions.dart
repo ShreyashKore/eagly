@@ -68,8 +68,16 @@ Future<void> confirmIosTrustAction(
   try {
     switch (action) {
       case IosTrustAction.stopWifi:
-        await trust.stopWifiConnections(device.id);
-        show('$name no longer connects over Wi-Fi.');
+        final outcome = await trust.stopWifiConnections(device.id);
+        show(switch (outcome) {
+          IosWifiStopOutcome.off => '$name no longer connects over Wi-Fi.',
+          IosWifiStopOutcome.unconfirmed =>
+            'Told $name to stop connecting over Wi-Fi, but lost it before it '
+                'could confirm. If it comes back over Wi-Fi, try again.',
+          IosWifiStopOutcome.pairingOnly =>
+            'Removed Eagly’s Wi-Fi pairing with $name. Its own Wi-Fi settings '
+                'are unchanged; plug it in and try again to switch them off.',
+        });
       case IosTrustAction.forget:
         await trust.forget(device.id);
         show('Forgot $name. It needs Trust over USB to connect again.');

@@ -97,6 +97,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IosTouchPhase dco_decode_ios_touch_phase(dynamic raw);
 
   @protected
+  IosWifiStop dco_decode_ios_wifi_stop(dynamic raw);
+
+  @protected
   IosWirelessPairEvent dco_decode_ios_wireless_pair_event(dynamic raw);
 
   @protected
@@ -226,6 +229,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   IosTouchPhase sse_decode_ios_touch_phase(SseDeserializer deserializer);
+
+  @protected
+  IosWifiStop sse_decode_ios_wifi_stop(SseDeserializer deserializer);
 
   @protected
   IosWirelessPairEvent sse_decode_ios_wireless_pair_event(
@@ -394,6 +400,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ios_touch_phase(IosTouchPhase self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ios_wifi_stop(IosWifiStop self, SseSerializer serializer);
 
   @protected
   void sse_encode_ios_wireless_pair_event(

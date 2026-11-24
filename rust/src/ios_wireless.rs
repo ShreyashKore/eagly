@@ -147,12 +147,13 @@ pub(crate) fn route(udid: &str) -> Option<TunnelRoute> {
 
 /// Forgets every Eagly pairing with `udid`: deletes its records under
 /// `storage_dir` and closes its tunnel, so it is not reconnected. Returns
-/// whether there was anything to forget.
+/// whether there was anything to forget; an error means a record is still
+/// there, and with it the reconnecting.
 ///
 /// `udid` may be the device's own `UniqueDeviceID` (what the device list
 /// shows, and what tunnels are keyed by) or a record's UDID, which pair-setup
 /// was told and which can differ.
-pub(crate) fn forget(storage_dir: &Path, udid: &str) -> bool {
+pub(crate) fn forget(storage_dir: &Path, udid: &str) -> Result<bool, String> {
     let mut record_udids: HashSet<String> = HashSet::from([udid.to_string()]);
     let mut forgot = false;
     {
@@ -172,6 +173,7 @@ pub(crate) fn forget(storage_dir: &Path, udid: &str) -> bool {
         }
     }
 
+    let mut failed = None;
     for record in load_records(storage_dir) {
         if !record_udids.contains(&record.udid) {
             continue;
@@ -181,13 +183,14 @@ pub(crate) fn forget(storage_dir: &Path, udid: &str) -> bool {
                 trace(format!("forgot {}: deleted its pairing", record.udid));
                 forgot = true;
             }
-            Err(error) => trace(format!(
-                "could not delete {}: {error}",
-                record.path.display()
-            )),
+            Err(error) => {
+                let problem = format!("could not delete {}: {error}", record.path.display());
+                trace(problem.clone());
+                failed = Some(problem);
+            }
         }
     }
-    forgot
+    failed.map_or(Ok(forgot), Err)
 }
 
 /// Drops dead tunnels. One that lasted [`STABLE_TUNNEL`] clears its record's
@@ -840,7 +843,7 @@ mod tests {
         persist_device_record(dir, &peer("first", [1; 16]), &paired_file([1; 16])).unwrap();
         persist_device_record(dir, &peer("second", [2; 16]), &paired_file([2; 16])).unwrap();
 
-        assert!(forget(&storage, "first"));
+        assert!(forget(&storage, "first").unwrap());
         let udids: Vec<String> = load_records(&storage)
             .into_iter()
             .map(|record| record.udid)
@@ -848,7 +851,7 @@ mod tests {
         assert_eq!(udids, ["second"]);
 
         // Nothing left to forget for it.
-        assert!(!forget(&storage, "first"));
+        assert!(!forget(&storage, "first").unwrap());
 
         let _ = std::fs::remove_dir_all(&storage);
     }

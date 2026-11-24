@@ -41,9 +41,9 @@ Future<void> startIosWirelessDiscovery({required String storageDir}) => RustLib
 /// with, since they live on the device), and an Eagly wireless pairing with
 /// it (`storage_dir`'s records, its tunnel) is dropped.
 ///
-/// The switches need the device reachable, over USB or Wi-Fi. A device
-/// reached only through an Eagly tunnel has nothing else to switch off.
-Future<void> stopIosWifiConnections({
+/// The switches need the device reachable through usbmuxd, over USB or Wi-Fi.
+/// When changing them fails the pairing is kept.
+Future<IosWifiStop> stopIosWifiConnections({
   required String udid,
   required String storageDir,
 }) => RustLib.instance.api.crateApiIosStopIosWifiConnections(
@@ -526,6 +526,20 @@ class IosFileEntry {
           sizeBytes == other.sizeBytes &&
           modifiedMs == other.modifiedMs &&
           linkTarget == other.linkTarget;
+}
+
+/// What [`stop_ios_wifi_connections`] achieved.
+enum IosWifiStop {
+  /// The device reports its Wi-Fi connections off.
+  off,
+
+  /// The change was sent, but the device went away before it could be
+  /// asked whether it took. The change itself can cause that.
+  unconfirmed,
+
+  /// Only an Eagly wireless pairing was dropped. The device is not
+  /// reachable through usbmuxd, so its own switches are as they were.
+  pairingOnly,
 }
 
 /// One progress event from an in-flight iOS wireless pairing.

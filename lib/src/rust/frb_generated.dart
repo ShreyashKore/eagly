@@ -260,7 +260,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiIosStopIosSyslog({required String sessionId});
 
-  Future<void> crateApiIosStopIosWifiConnections({
+  Future<IosWifiStop> crateApiIosStopIosWifiConnections({
     required String udid,
     required String storageDir,
   });
@@ -1598,7 +1598,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  Future<void> crateApiIosStopIosWifiConnections({
+  Future<IosWifiStop> crateApiIosStopIosWifiConnections({
     required String udid,
     required String storageDir,
   }) {
@@ -1616,7 +1616,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
+          decodeSuccessData: sse_decode_ios_wifi_stop,
           decodeErrorData: sse_decode_ios_error,
         ),
         constMeta: kCrateApiIosStopIosWifiConnectionsConstMeta,
@@ -1947,6 +1947,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   IosTouchPhase dco_decode_ios_touch_phase(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return IosTouchPhase.values[raw as int];
+  }
+
+  @protected
+  IosWifiStop dco_decode_ios_wifi_stop(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return IosWifiStop.values[raw as int];
   }
 
   @protected
@@ -2314,6 +2320,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_32(deserializer);
     return IosTouchPhase.values[inner];
+  }
+
+  @protected
+  IosWifiStop sse_decode_ios_wifi_stop(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return IosWifiStop.values[inner];
   }
 
   @protected
@@ -2739,6 +2752,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     IosTouchPhase self,
     SseSerializer serializer,
   ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_ios_wifi_stop(IosWifiStop self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
   }
