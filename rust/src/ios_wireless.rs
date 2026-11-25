@@ -152,37 +152,51 @@ pub(crate) fn route(udid: &str) -> Option<TunnelRoute> {
 ///
 /// `udid` may be the device's own `UniqueDeviceID` (what the device list
 /// shows, and what tunnels are keyed by) or a record's UDID, which pair-setup
-/// was told and which can differ.
+/// was told and which can differ. The difference is remembered from the first
+/// tunnel on ([`remember_device_udid`]), so it is known with no tunnel up.
 pub(crate) fn forget(storage_dir: &Path, udid: &str) -> Result<bool, String> {
+    // Read before taking the lock; see `run`.
+    let records = load_records(storage_dir);
     let mut record_udids: HashSet<String> = HashSet::from([udid.to_string()]);
+    record_udids.extend(
+        records
+            .iter()
+            .filter(|record| record.device_udid.as_deref() == Some(udid))
+            .map(|record| record.udid.clone()),
+    );
     let mut forgot = false;
-    {
-        let mut state = state();
-        state.tunnels.retain(|key, tunnel| {
-            let matches = key == udid || tunnel.record_udid == udid;
-            if matches {
-                trace(format!("forgetting {key}: closing its tunnel"));
-                record_udids.insert(tunnel.record_udid.clone());
-                tunnel.dead.cancel();
-                forgot = true;
-            }
-            !matches
-        });
-        for record_udid in &record_udids {
-            state.backoff.remove(record_udid);
+
+    // Held until the records are gone, so that an attempt in flight either
+    // put its tunnel up already and has it closed here, or finds its record
+    // missing and drops the tunnel (see `attempt`).
+    let mut state = state();
+    state.tunnels.retain(|key, tunnel| {
+        let matches = key == udid || record_udids.contains(&tunnel.record_udid);
+        if matches {
+            trace(format!("forgetting {key}: closing its tunnel"));
+            record_udids.insert(tunnel.record_udid.clone());
+            tunnel.dead.cancel();
+            forgot = true;
         }
+        !matches
+    });
+    for record_udid in &record_udids {
+        state.backoff.remove(record_udid);
     }
 
     let mut failed = None;
-    for record in load_records(storage_dir) {
+    for record in &records {
         if !record_udids.contains(&record.udid) {
             continue;
         }
         match std::fs::remove_file(&record.path) {
             Ok(()) => {
                 trace(format!("forgot {}: deleted its pairing", record.udid));
+                let _ = std::fs::remove_file(device_udid_path(&record.path));
                 forgot = true;
             }
+            // Another call got to it since it was read.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => {
                 let problem = format!("could not delete {}: {error}", record.path.display());
                 trace(problem.clone());
@@ -379,6 +393,7 @@ async fn attempt(record: DeviceRecord, advert: Advertisement) {
         Ok((udid, tunnel)) => {
             // The backoff stays until the tunnel proves stable; see `prune`.
             trace(format!("tunnel up to {udid}"));
+            remember_device_udid(&record, &udid);
             state.tunnels.insert(udid, tunnel);
         }
         Err(error) => {
@@ -574,6 +589,9 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for Watched<S> {
 #[derive(Clone)]
 struct DeviceRecord {
     udid: String,
+    /// The device's own `UniqueDeviceID`, once a tunnel has shown it to differ
+    /// from `udid`.
+    device_udid: Option<String>,
     /// The file it was read from, which [`forget`] deletes.
     path: PathBuf,
     alt_irk: Vec<u8>,
@@ -700,6 +718,28 @@ fn make_private(path: &Path) {
 #[cfg(not(unix))]
 fn make_private(_path: &Path) {}
 
+/// Where a record's `device_udid` is kept. Its own file, not a key in the
+/// record: rewriting the record could undo a re-pairing that just replaced it.
+fn device_udid_path(record: &Path) -> PathBuf {
+    record.with_extension("device-udid")
+}
+
+/// Saves that `record`'s device calls itself `udid`, so [`forget`] finds the
+/// record by it when no tunnel is up. Best effort, and a no-op once saved.
+/// Call it with the state lock held and the record known to exist, so it
+/// cannot outlive a record being forgotten.
+fn remember_device_udid(record: &DeviceRecord, udid: &str) {
+    if record.udid == udid || record.device_udid.as_deref() == Some(udid) {
+        return;
+    }
+    if let Err(error) = write_private(&device_udid_path(&record.path), udid.as_bytes()) {
+        trace(format!(
+            "could not save that {} is {udid}: {error}",
+            record.udid
+        ));
+    }
+}
+
 fn file_stem(udid: &str) -> String {
     udid.chars()
         .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
@@ -737,6 +777,7 @@ fn load_records(storage_dir: &Path) -> Vec<DeviceRecord> {
                         .and_then(|stem| stem.to_str())
                         .map(str::to_string)
                 })?,
+                device_udid: std::fs::read_to_string(device_udid_path(&path)).ok(),
                 alt_irk,
                 pairing_file,
                 path,
@@ -852,6 +893,48 @@ mod tests {
 
         // Nothing left to forget for it.
         assert!(!forget(&storage, "first").unwrap());
+
+        let _ = std::fs::remove_dir_all(&storage);
+    }
+
+    #[test]
+    fn forget_finds_a_record_by_its_devices_own_udid_without_a_tunnel() {
+        let storage = temp_storage("forget-device-udid");
+        let dir = storage.to_str().unwrap();
+        persist_device_record(dir, &peer("record", [1; 16]), &paired_file([1; 16])).unwrap();
+        persist_device_record(dir, &peer("other", [2; 16]), &paired_file([2; 16])).unwrap();
+        let record = load_records(&storage)
+            .into_iter()
+            .find(|record| record.udid == "record")
+            .unwrap();
+
+        // Nothing has tied the two together yet.
+        assert!(!forget(&storage, "own-udid").unwrap());
+
+        remember_device_udid(&record, "own-udid");
+        // Pairing again replaces the record and keeps the mapping.
+        persist_device_record(dir, &peer("record", [3; 16]), &paired_file([3; 16])).unwrap();
+
+        assert!(forget(&storage, "own-udid").unwrap());
+        let udids: Vec<String> = load_records(&storage)
+            .into_iter()
+            .map(|record| record.udid)
+            .collect();
+        assert_eq!(udids, ["other"]);
+        assert!(!device_udid_path(&record.path).exists());
+
+        let _ = std::fs::remove_dir_all(&storage);
+    }
+
+    #[test]
+    fn a_device_that_goes_by_its_records_udid_needs_no_mapping() {
+        let storage = temp_storage("same-udid");
+        let dir = storage.to_str().unwrap();
+        persist_device_record(dir, &peer("first", [1; 16]), &paired_file([1; 16])).unwrap();
+        let record = load_records(&storage).remove(0);
+
+        remember_device_udid(&record, "first");
+        assert!(!device_udid_path(&record.path).exists());
 
         let _ = std::fs::remove_dir_all(&storage);
     }

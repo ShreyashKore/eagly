@@ -1918,6 +1918,18 @@ impl SseDecode for crate::api::ios::IosFileEntry {
     }
 }
 
+impl SseDecode for crate::api::ios::IosForget {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::ios::IosForget::Forgotten,
+            1 => crate::api::ios::IosForget::PairingOnly,
+            _ => unreachable!("Invalid variant for IosForget: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::ios_mirror::IosInterfaceOrientation {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2479,6 +2491,22 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::ios::IosFileEntry>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::ios::IosForget {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Forgotten => 0.into_dart(),
+            Self::PairingOnly => 1.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::ios::IosForget {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::ios::IosForget> for crate::api::ios::IosForget {
+    fn into_into_dart(self) -> crate::api::ios::IosForget {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::ios_mirror::IosInterfaceOrientation {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -2799,6 +2827,22 @@ impl SseEncode for crate::api::ios::IosFileEntry {
         <u64>::sse_encode(self.size_bytes, serializer);
         <Option<i64>>::sse_encode(self.modified_ms, serializer);
         <Option<String>>::sse_encode(self.link_target, serializer);
+    }
+}
+
+impl SseEncode for crate::api::ios::IosForget {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::ios::IosForget::Forgotten => 0,
+                crate::api::ios::IosForget::PairingOnly => 1,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
     }
 }
 

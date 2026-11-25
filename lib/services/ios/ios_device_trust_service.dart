@@ -30,6 +30,16 @@ enum IosWifiStopOutcome {
   pairingOnly,
 }
 
+/// What [IosDeviceTrustService.forget] achieved.
+enum IosForgetOutcome {
+  /// Everything on this computer that let the iPhone connect is gone.
+  forgotten,
+
+  /// An Eagly wireless pairing was dropped, but usbmuxd could not be reached,
+  /// so a pairing it may hold is as it was.
+  pairingOnly,
+}
+
 /// Undoes the trust that lets an iPhone reconnect to this computer on its own.
 ///
 /// An iPhone someone plugged in once and tapped "Trust" on keeps a pairing
@@ -47,7 +57,7 @@ abstract interface class IosDeviceTrustService {
   /// Removes [udid]'s pairing with this computer. It connects again only
   /// after someone plugs it in and taps "Trust". Xcode and Finder share the
   /// pairing, so they lose the device too.
-  Future<void> forget(String udid);
+  Future<IosForgetOutcome> forget(String udid);
 }
 
 IosDeviceTrustService createIosDeviceTrustService() =>
@@ -81,11 +91,14 @@ class RustIosDeviceTrustService implements IosDeviceTrustService {
   );
 
   @override
-  Future<void> forget(String udid) => _guard(
-    () async => rust.forgetIosDevice(
+  Future<IosForgetOutcome> forget(String udid) => _guard(
+    () async => switch (await rust.forgetIosDevice(
       udid: udid,
       storageDir: await _resolveStorageDir(),
-    ),
+    )) {
+      rust.IosForget.forgotten => IosForgetOutcome.forgotten,
+      rust.IosForget.pairingOnly => IosForgetOutcome.pairingOnly,
+    },
   );
 
   static Future<T> _guard<T>(Future<T> Function() call) async {

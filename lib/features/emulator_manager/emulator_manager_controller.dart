@@ -327,8 +327,8 @@ class EmulatorManagerController({
   }
 
   /// Cold-boots [name] with this machine's current DNS servers — the fix for
-  /// an emulator whose network is up but resolves nothing (VPNs, split DNS,
-  /// local resolvers).
+  /// an emulator whose network is up but resolves nothing (VPNs, local
+  /// resolvers).
   ///
   /// Only possible from stopped: the guest ignores DNS changes once booted,
   /// so a running emulator has to be stopped first. The servers are read now

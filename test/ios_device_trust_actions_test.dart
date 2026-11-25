@@ -68,6 +68,22 @@ void main() {
     );
   });
 
+  testWidgets('forget says when a usbmuxd pairing may remain', (tester) async {
+    service.forgetOutcome = IosForgetOutcome.pairingOnly;
+    await run(tester, IosTrustAction.forget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Forget'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Removed Eagly’s Wi-Fi pairing with QA iPhone. usbmuxd is not '
+        'reachable, so a USB pairing may remain; try again once it is.',
+      ),
+      findsOneWidget,
+    );
+    expect(refreshes, 1);
+  });
+
   for (final (outcome, message) in [
     (IosWifiStopOutcome.off, 'QA iPhone no longer connects over Wi-Fi.'),
     (
@@ -113,6 +129,7 @@ class _FakeTrustService implements IosDeviceTrustService {
   final calls = <String>[];
   IosDeviceTrustException? error;
   var outcome = IosWifiStopOutcome.off;
+  var forgetOutcome = IosForgetOutcome.forgotten;
 
   @override
   Future<IosWifiStopOutcome> stopWifiConnections(String udid) async {
@@ -122,8 +139,9 @@ class _FakeTrustService implements IosDeviceTrustService {
   }
 
   @override
-  Future<void> forget(String udid) async {
+  Future<IosForgetOutcome> forget(String udid) async {
     calls.add('forget $udid');
     if (error case final error?) throw error;
+    return forgetOutcome;
   }
 }

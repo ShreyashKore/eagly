@@ -145,10 +145,14 @@ Both actions are in a device tab's right-click menu and the device home card's â
   change keeps that pairing.
 - **Forget** (`forget_ios_device`) sends lockdown `Unpair` when the phone is reachable (best
   effort), then usbmuxd `DeletePairRecord`, which works with the phone away. Xcode and Finder
-  share the record, so they lose the phone too; it needs **Trust** over USB again.
+  share the record, so they lose the phone too; it needs **Trust** over USB again. It returns an
+  `IosForget`: *pairing only* when an Eagly pairing was dropped but usbmuxd could not be reached.
+  A usbmuxd error other than "no such record" is reported, not taken for success.
 
 Both also drop an Eagly wireless pairing with the device (`ios_wireless::forget`: deletes its
-record, closes its tunnel; an attempt in flight discards its tunnel when the record is gone).
+record, closes its tunnel; an attempt in flight discards its tunnel when the record is gone). A
+record whose device goes by another UDID is still found once no tunnel is up: the first tunnel
+saves the device's own UDID beside the record (`<record>.device-udid`).
 
 ### Syslog: what hardware showed
 

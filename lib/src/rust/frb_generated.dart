@@ -117,7 +117,7 @@ abstract class RustLibApi extends BaseApi {
     required String bundleId,
   });
 
-  Future<void> crateApiIosForgetIosDevice({
+  Future<IosForget> crateApiIosForgetIosDevice({
     required String udid,
     required String storageDir,
   });
@@ -525,7 +525,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  Future<void> crateApiIosForgetIosDevice({
+  Future<IosForget> crateApiIosForgetIosDevice({
     required String udid,
     required String storageDir,
   }) {
@@ -543,7 +543,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
+          decodeSuccessData: sse_decode_ios_forget,
           decodeErrorData: sse_decode_ios_error,
         ),
         constMeta: kCrateApiIosForgetIosDeviceConstMeta,
@@ -1903,6 +1903,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  IosForget dco_decode_ios_forget(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return IosForget.values[raw as int];
+  }
+
+  @protected
   IosInterfaceOrientation dco_decode_ios_interface_orientation(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return IosInterfaceOrientation.values[raw as int];
@@ -2265,6 +2271,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       modifiedMs: var_modifiedMs,
       linkTarget: var_linkTarget,
     );
+  }
+
+  @protected
+  IosForget sse_decode_ios_forget(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return IosForget.values[inner];
   }
 
   @protected
@@ -2705,6 +2718,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_64(self.sizeBytes, serializer);
     sse_encode_opt_box_autoadd_i_64(self.modifiedMs, serializer);
     sse_encode_opt_String(self.linkTarget, serializer);
+  }
+
+  @protected
+  void sse_encode_ios_forget(IosForget self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected

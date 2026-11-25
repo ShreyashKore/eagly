@@ -12,8 +12,8 @@ class const EmulatorLaunchOptions({
   final bool wipeData = false,
 
   /// DNS servers handed to `-dns-server`, in order. Empty means the
-  /// emulator's own default, which on some hosts (VPNs, split DNS, local
-  /// resolvers) leaves the guest with no working name resolution.
+  /// emulator's own default, which on some hosts (VPNs, local resolvers)
+  /// leaves the guest with no working name resolution.
   ///
   /// Only takes effect at boot: modern images ignore `setprop net.dns1`, so a
   /// running emulator cannot be repointed. A loopback address works, because

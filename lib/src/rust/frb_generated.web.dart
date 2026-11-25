@@ -82,6 +82,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IosFileEntry dco_decode_ios_file_entry(dynamic raw);
 
   @protected
+  IosForget dco_decode_ios_forget(dynamic raw);
+
+  @protected
   IosInterfaceOrientation dco_decode_ios_interface_orientation(dynamic raw);
 
   @protected
@@ -212,6 +215,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   IosFileEntry sse_decode_ios_file_entry(SseDeserializer deserializer);
+
+  @protected
+  IosForget sse_decode_ios_forget(SseDeserializer deserializer);
 
   @protected
   IosInterfaceOrientation sse_decode_ios_interface_orientation(
@@ -376,6 +382,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ios_file_entry(IosFileEntry self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ios_forget(IosForget self, SseSerializer serializer);
 
   @protected
   void sse_encode_ios_interface_orientation(

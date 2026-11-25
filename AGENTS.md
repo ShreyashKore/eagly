@@ -492,10 +492,12 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
     the failure message survives the reload that follows it.
   - **Start with host DNS** (tile menu, stopped only) cold-boots with `-dns-server` set to the
     host's current resolvers (`HostDnsReader`: `scutil --dns` / `/etc/resolv.conf` /
-    `Get-DnsClientServerAddress`, IPv4 only, read at launch so a Wi-Fi/VPN switch is picked up).
+    `Get-DnsClientServerAddress` on connected interfaces, IPv4 only, read at launch so a Wi-Fi/VPN switch is picked up).
     It is the fix for an emulator that is online but resolves nothing behind a VPN or local
     resolver. Boot-time only: modern images ignore `setprop net.dns1`, so a running emulator must
     be stopped first. Loopback servers work because the emulator forwards lookups via the host.
+    Split DNS is not carried over: domain-scoped `scutil` resolvers are left out, since the
+    guest treats its servers as interchangeable.
   - Not covered, deliberately: iOS simulators (`xcrun simctl`), system-image downloads
     (`sdkmanager`, licence prompts, multi-GB fetches) and hardware-profile editing.
 - **Device workspace (pane layout):** the open feature panes are an fl_panel docking tree

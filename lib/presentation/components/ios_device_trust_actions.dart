@@ -79,8 +79,14 @@ Future<void> confirmIosTrustAction(
                 'are unchanged; plug it in and try again to switch them off.',
         });
       case IosTrustAction.forget:
-        await trust.forget(device.id);
-        show('Forgot $name. It needs Trust over USB to connect again.');
+        final outcome = await trust.forget(device.id);
+        show(switch (outcome) {
+          IosForgetOutcome.forgotten =>
+            'Forgot $name. It needs Trust over USB to connect again.',
+          IosForgetOutcome.pairingOnly =>
+            'Removed Eagly’s Wi-Fi pairing with $name. usbmuxd is not '
+                'reachable, so a USB pairing may remain; try again once it is.',
+        });
     }
   } on IosDeviceTrustException catch (error) {
     show(switch (action) {
