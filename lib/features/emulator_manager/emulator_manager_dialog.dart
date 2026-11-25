@@ -110,6 +110,11 @@ class _EmulatorManagerDialogState extends State<EmulatorManagerDialog> {
       return;
     }
 
+    if (action == EmulatorTileAction.hostDns) {
+      await controller.launchWithHostDns(entry.name);
+      return;
+    }
+
     if (action == EmulatorTileAction.wipeData &&
         !await _confirmWipe(entry.label)) {
       return;

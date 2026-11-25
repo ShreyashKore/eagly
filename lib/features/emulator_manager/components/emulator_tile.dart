@@ -15,6 +15,10 @@ enum EmulatorTileAction {
   /// Factory reset, then boot. Destructive, so it is confirmed first.
   wipeData,
 
+  /// Cold boot with the host's DNS servers — for an emulator with no working
+  /// internet.
+  hostDns,
+
   /// Delete the AVD outright. Also confirmed, and only offered when the SDK
   /// has the cmdline-tools that can do it.
   delete,
@@ -156,6 +160,14 @@ class const EmulatorTile({
                     Icons.restart_alt,
                     'Cold boot',
                     'Ignore the saved snapshot',
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: EmulatorTileAction.hostDns,
+                  child: _MenuRow(
+                    Icons.dns_outlined,
+                    'Start with host DNS',
+                    'Fixes an emulator with no internet',
                   ),
                 ),
                 const PopupMenuItem(

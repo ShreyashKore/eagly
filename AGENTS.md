@@ -150,6 +150,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   that tunnel when usbmuxd does not know the UDID. Unlike Android a UDID says nothing about the
   transport, so `IosDeviceService.networkDeviceIds` carries it into `IosDevice.isWireless`. Read
   the wireless section of **docs/IOS_RUST_MIGRATION.md** before touching either half.
+- **iPhones that reconnect by themselves:** a past USB "Trust" leaves usbmuxd a pairing record,
+  and the phone's Wi-Fi switches (Xcode's "Connect via network") let usbmuxd reach it over
+  Wi-Fi from then on — nothing of Eagly's is involved. *Stop Wi-Fi connections* and *Forget*
+  (device tab menu, device home ⋮) undo that through `IosDeviceTrustService`; see "Cutting a
+  device off" in **docs/IOS_RUST_MIGRATION.md**.
 - **iOS on Windows without Apple's software:** usbmuxd ships with Apple Mobile Device
   Support (the Apple Devices app or iTunes), not with Eagly, yet File Explorer shows an
   iPhone without it. While usbmuxd is unreachable, `WindowsAppleUsbProbe`
@@ -485,6 +490,14 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   - Creating is gated on `canManageAvds` (the SDK must actually ship `avdmanager`), deleting is
     refused while the AVD is running, and both finish with `refresh(clearFeedback: false)` so
     the failure message survives the reload that follows it.
+  - **Start with host DNS** (tile menu, stopped only) cold-boots with `-dns-server` set to the
+    host's current resolvers (`HostDnsReader`: `scutil --dns` / `/etc/resolv.conf` /
+    `Get-DnsClientServerAddress` on connected interfaces, IPv4 only, read at launch so a Wi-Fi/VPN switch is picked up).
+    It is the fix for an emulator that is online but resolves nothing behind a VPN or local
+    resolver. Boot-time only: modern images ignore `setprop net.dns1`, so a running emulator must
+    be stopped first. Loopback servers work because the emulator forwards lookups via the host.
+    Split DNS is not carried over: domain-scoped `scutil` resolvers are left out, since the
+    guest treats its servers as interchangeable.
   - Not covered, deliberately: iOS simulators (`xcrun simctl`), system-image downloads
     (`sdkmanager`, licence prompts, multi-GB fetches) and hardware-profile editing.
 - **Device workspace (pane layout):** the open feature panes are an fl_panel docking tree

@@ -28,6 +28,7 @@ use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
 use crate::frb_generated::StreamSink;
+use crate::ios_wifi_switches::{switch_off, SwitchOff};
 
 /// Label lockdownd records against our session. Shows up in the device's
 /// pairing records, so it should name the app rather than the library.
@@ -186,6 +187,130 @@ pub async fn start_ios_wireless_discovery(storage_dir: String) -> Result<(), Ios
     let tighten = move || crate::ios_wireless::tighten_pairing_files(&dir, &host_files);
     let _ = tokio::task::spawn_blocking(tighten).await;
     crate::ios_wireless::start(storage_dir).map_err(IosError::Other)
+}
+
+/// What [`stop_ios_wifi_connections`] achieved.
+pub enum IosWifiStop {
+    /// The device reports its Wi-Fi connections off.
+    Off,
+    /// The change was sent, but the device went away before it could be
+    /// asked whether it took. The change itself can cause that.
+    Unconfirmed,
+    /// Only an Eagly wireless pairing was dropped. The device is not
+    /// reachable through usbmuxd, so its own switches are as they were.
+    PairingOnly,
+}
+
+/// Stops `udid` connecting to this computer over Wi-Fi, keeping its USB
+/// trust: the device's Wi-Fi switches go off (for every computer it is paired
+/// with, since they live on the device), and an Eagly wireless pairing with
+/// it (`storage_dir`'s records, its tunnel) is dropped.
+///
+/// The switches need the device reachable through usbmuxd, over USB or Wi-Fi.
+/// When changing them fails the pairing is kept.
+pub async fn stop_ios_wifi_connections(
+    udid: String,
+    storage_dir: String,
+) -> Result<IosWifiStop, IosError> {
+    let device = match usbmuxd_device(&udid).await {
+        Ok(device) => device,
+        Err(error) => {
+            return if forget_wireless_pairing(&udid, storage_dir).await? {
+                Ok(IosWifiStop::PairingOnly)
+            } else {
+                Err(error)
+            };
+        }
+    };
+    let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
+    let route = Route::Usb {
+        is_network: is_network(&device),
+        provider: device.to_provider(address, CLIENT_LABEL),
+    };
+    let mut lockdown = route.lockdown().await?;
+    let outcome = match switch_off(&mut lockdown).await? {
+        SwitchOff::Confirmed => IosWifiStop::Off,
+        SwitchOff::Unconfirmed => IosWifiStop::Unconfirmed,
+        SwitchOff::Refused(key) => {
+            return Err(IosError::Other(format!(
+                "The device kept {key} switched on."
+            )));
+        }
+    };
+    forget_wireless_pairing(&udid, storage_dir).await?;
+    Ok(outcome)
+}
+
+/// What [`forget_ios_device`] achieved.
+pub enum IosForget {
+    /// Everything on this computer that let the device connect is gone.
+    Forgotten,
+    /// An Eagly wireless pairing was dropped, but usbmuxd could not be
+    /// reached, so a pairing record it may hold is as it was.
+    PairingOnly,
+}
+
+/// Removes `udid`'s trust in this computer so it never connects again until
+/// someone plugs it in and taps "Trust": an Eagly wireless pairing with it is
+/// dropped, the device is told to forget this computer when it can be
+/// reached, and usbmuxd's pairing record for it is deleted.
+///
+/// The pairing record is usbmuxd's, shared with Xcode and Finder, so they lose
+/// the device too. Deleting it is what stops the reconnecting, and it works
+/// with the device out of reach; telling the device is best effort.
+///
+/// An error from usbmuxd leaves an Eagly pairing dropped; trying again picks
+/// up from there.
+pub async fn forget_ios_device(udid: String, storage_dir: String) -> Result<IosForget, IosError> {
+    let forgot_wireless = forget_wireless_pairing(&udid, storage_dir).await?;
+    let mut usbmuxd = match connect_usbmuxd().await {
+        Ok(usbmuxd) => usbmuxd,
+        Err(_) if forgot_wireless => return Ok(IosForget::PairingOnly),
+        Err(error) => return Err(error),
+    };
+    let record = match usbmuxd.get_pair_record(&udid).await {
+        Ok(record) => record,
+        Err(error) if !is_missing_pair_record(&error) => return Err(error.into()),
+        Err(_) if forgot_wireless => return Ok(IosForget::Forgotten),
+        Err(_) => {
+            return Err(IosError::NotPaired(format!(
+                "This computer has no pairing record for {udid}."
+            )))
+        }
+    };
+
+    // Before the record goes, while it still names this computer.
+    if let Ok(device) = usbmuxd_device(&udid).await {
+        let address = UsbmuxdAddr::from_env_var().unwrap_or_default();
+        let provider = device.to_provider(address, CLIENT_LABEL);
+        let unpaired = match LockdownClient::connect(&provider).await {
+            Ok(mut lockdown) => lockdown.unpair(record.host_id.clone()).await,
+            Err(error) => Err(error),
+        };
+        if let Err(error) = unpaired {
+            eprintln!("[ios] {udid} did not take the unpair request: {error}");
+        }
+    }
+
+    connect_usbmuxd().await?.delete_pair_record(&udid).await?;
+    Ok(IosForget::Forgotten)
+}
+
+/// Whether usbmuxd answered that it has no such pairing record, as opposed to
+/// not answering or sending one that cannot be read. The crate drops the
+/// result code and reports an answer without a record this way.
+fn is_missing_pair_record(error: &IdeviceError) -> bool {
+    matches!(error, IdeviceError::UnexpectedResponse(_))
+}
+
+/// Drops any Eagly wireless pairing with `udid`; whether there was one. An
+/// error means it is still there and would reconnect.
+async fn forget_wireless_pairing(udid: &str, storage_dir: String) -> Result<bool, IosError> {
+    let udid = udid.to_string();
+    tokio::task::spawn_blocking(move || crate::ios_wireless::forget(Path::new(&storage_dir), &udid))
+        .await
+        .map_err(|error| IosError::Other(error.to_string()))?
+        .map_err(IosError::Other)
 }
 
 /// Describes one device, opening a lockdown session to do it.
@@ -1465,6 +1590,17 @@ mod tests {
         assert_eq!(mdns_hostname("ab"), "eagly-ab.local.");
         assert_eq!(mdns_hostname("ééééé-12"), "eagly-12.local.");
         assert_eq!(mdns_hostname(""), "eagly-host.local.");
+    }
+
+    #[test]
+    fn only_an_answer_without_a_record_means_there_is_none() {
+        assert!(is_missing_pair_record(&IdeviceError::UnexpectedResponse(
+            "missing PairRecordData in pair record response".into()
+        )));
+        assert!(!is_missing_pair_record(&IdeviceError::Socket(
+            std::io::ErrorKind::UnexpectedEof.into()
+        )));
+        assert!(!is_missing_pair_record(&IdeviceError::DeviceNotFound));
     }
 
     /// A record as idevice 0.1.68 builds it: `from_timestamp(seconds,

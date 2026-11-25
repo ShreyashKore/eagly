@@ -102,6 +102,25 @@ void main() {
       );
     });
 
+    test('DNS servers are passed as one comma-separated -dns-server', () {
+      expect(
+        tool.buildLaunchArguments(
+          'Pixel_7a',
+          const EmulatorLaunchOptions(
+            coldBoot: true,
+            dnsServers: ['8.8.4.4', '127.0.0.1'],
+          ),
+        ),
+        [
+          '-avd',
+          'Pixel_7a',
+          '-no-snapshot-load',
+          '-dns-server',
+          '8.8.4.4,127.0.0.1',
+        ],
+      );
+    });
+
     test('wipe data is passed and is flagged destructive', () {
       const options = EmulatorLaunchOptions(wipeData: true);
 

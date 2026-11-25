@@ -4,6 +4,19 @@ Bugs found and deliberately left for a later branch. Each entry gives the cause 
 suggested fix. Delete an entry in the commit that fixes it. iOS Rust backend issues are
 tracked separately, in docs/IOS_RUST_MIGRATION.md → *Open issues*.
 
+## From the `release/v1.8.4` review (2026-11-25)
+
+### "Start with host DNS" does not carry split DNS
+
+The emulator takes a flat list of at most four servers (`-dns-server`) that the guest treats as
+interchangeable, so `HostDnsReader` leaves out `scutil` resolvers scoped to a domain. On a host
+with split DNS (a corporate VPN that resolves only its own domain, say), those names resolve on
+the host and not in the guest. Windows NRPT rules and systemd-resolved's per-link domains are not
+read either; on Linux a `127.0.0.53` stub still applies them.
+
+**Fix:** run a small DNS forwarder on the host's loopback that resolves through the system
+resolver, and pass only its address.
+
 ## From the idevice 0.1.68 bump (`feat/idevice-0.1.68`, 2026-10-25)
 
 ### An orphaned `idevicesyslog` silences an iPhone's logs for everyone

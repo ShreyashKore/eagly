@@ -16,6 +16,7 @@ import 'data/emulator_entry.dart';
 import 'data/emulator_launch_options.dart';
 import 'data/system_image.dart';
 import 'services/avd_metadata_reader.dart';
+import 'services/host_dns_reader.dart';
 import 'services/system_image_scanner.dart';
 
 /// Drives the emulator manager: the AVD list read off disk, the runtime state
@@ -42,6 +43,7 @@ class EmulatorManagerController({
   EmulatorTool Function(String executablePath)? createEmulatorTool,
   AvdManagerTool Function(String executablePath)? createAvdManagerTool,
   SystemImageScanner? systemImageScanner,
+  HostDnsReader? hostDnsReader,
 
   /// Called once a launched AVD has booted far enough for adb to call it
   /// `device`. Opening its tab is the caller's job — the controller knows
@@ -55,7 +57,8 @@ class EmulatorManagerController({
       _locateSdk = locateSdk ?? AndroidSdkPath.locate,
       _createEmulatorTool = createEmulatorTool ?? _defaultEmulatorTool,
       _createAvdManagerTool = createAvdManagerTool ?? _defaultAvdManagerTool,
-      _systemImageScanner = systemImageScanner ?? const SystemImageScanner();
+      _systemImageScanner = systemImageScanner ?? const SystemImageScanner(),
+      _hostDnsReader = hostDnsReader ?? const HostDnsReader();
 
   static EmulatorTool _defaultEmulatorTool(String executablePath) =>
       EmulatorTool(executablePath: executablePath);
@@ -70,6 +73,7 @@ class EmulatorManagerController({
   final EmulatorTool Function(String executablePath) _createEmulatorTool;
   final AvdManagerTool Function(String executablePath) _createAvdManagerTool;
   final SystemImageScanner _systemImageScanner;
+  final HostDnsReader _hostDnsReader;
   final AppLogger _logger = AppLogger(source: 'EmulatorManagerController');
 
   /// How often the runtime state is re-read while the dialog is open.
@@ -320,6 +324,29 @@ class EmulatorManagerController({
       _busy = false;
       _notify();
     }
+  }
+
+  /// Cold-boots [name] with this machine's current DNS servers — the fix for
+  /// an emulator whose network is up but resolves nothing (VPNs, local
+  /// resolvers).
+  ///
+  /// Only possible from stopped: the guest ignores DNS changes once booted,
+  /// so a running emulator has to be stopped first. The servers are read now
+  /// rather than remembered, so this stays right after a network switch.
+  Future<bool> launchWithHostDns(String name) async {
+    if (_busy) {
+      return _fail('Finish the current emulator action before starting one.');
+    }
+    final servers = await _hostDnsReader.read();
+    if (_disposed) return false;
+    if (servers.isEmpty) {
+      return _fail('Could not read this computer’s DNS servers.');
+    }
+    _logger.info('Launching $name with host DNS ${servers.join(', ')}');
+    return launch(
+      name,
+      options: EmulatorLaunchOptions(coldBoot: true, dnsServers: servers),
+    );
   }
 
   /// Asks a running AVD to shut down.

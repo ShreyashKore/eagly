@@ -20,6 +20,7 @@ void main() {
   late FakeAvdMetadataReader metadataReader;
   late FakeAvdManagerTool avdManager;
   late FakeSystemImageScanner imageScanner;
+  late FakeHostDnsReader hostDnsReader;
   late DevicesRepository repository;
   EmulatorManagerController? controller;
 
@@ -36,6 +37,7 @@ void main() {
       createEmulatorTool: (_) => emulatorTool,
       createAvdManagerTool: (_) => avdManager,
       systemImageScanner: imageScanner,
+      hostDnsReader: hostDnsReader,
       onEmulatorReady: (device) async => readyDevices.add(device),
     );
   }
@@ -47,6 +49,7 @@ void main() {
     metadataReader = FakeAvdMetadataReader();
     avdManager = FakeAvdManagerTool();
     imageScanner = FakeSystemImageScanner();
+    hostDnsReader = FakeHostDnsReader();
     readyDevices.clear();
     sdk = fakeReadySdk;
     repository = DevicesRepository.forTesting(
@@ -230,6 +233,34 @@ void main() {
   );
 
   // ── Launching ────────────────────────────────────────────────────────────
+
+  test('launchWithHostDns cold-boots with the host DNS servers', () async {
+    emulatorTool.avdNames = ['Small_Phone'];
+    hostDnsReader.servers = ['27.109.1.2', '8.8.4.4', '127.0.0.1'];
+
+    final controller = buildController();
+    await controller.refresh();
+
+    expect(await controller.launchWithHostDns('Small_Phone'), isTrue);
+    expect(
+      emulatorTool.launchOptions.single,
+      const EmulatorLaunchOptions(
+        coldBoot: true,
+        dnsServers: ['27.109.1.2', '8.8.4.4', '127.0.0.1'],
+      ),
+    );
+  });
+
+  test('launchWithHostDns refuses when no DNS servers are found', () async {
+    emulatorTool.avdNames = ['Small_Phone'];
+
+    final controller = buildController();
+    await controller.refresh();
+
+    expect(await controller.launchWithHostDns('Small_Phone'), isFalse);
+    expect(emulatorTool.launchRequests, isEmpty);
+    expect(controller.error, contains('DNS'));
+  });
 
   test(
     'launch spawns the emulator and shows it starting, without a tab',

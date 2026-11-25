@@ -10,6 +10,15 @@ class const EmulatorLaunchOptions({
   /// Erase the AVD's user data first — a factory reset. Destructive, and it
   /// forces a cold boot regardless of [coldBoot].
   final bool wipeData = false,
+
+  /// DNS servers handed to `-dns-server`, in order. Empty means the
+  /// emulator's own default, which on some hosts (VPNs, local resolvers)
+  /// leaves the guest with no working name resolution.
+  ///
+  /// Only takes effect at boot: modern images ignore `setprop net.dns1`, so a
+  /// running emulator cannot be repointed. A loopback address works, because
+  /// the emulator forwards lookups through the host.
+  final List<String> dnsServers = const [],
 }) {
   /// The plain "just start it" launch: resume the saved snapshot if there is
   /// one, keep user data.
@@ -23,20 +32,24 @@ class const EmulatorLaunchOptions({
   List<String> toArguments() => [
     if (coldBoot) '-no-snapshot-load',
     if (wipeData) '-wipe-data',
+    if (dnsServers.isNotEmpty) ...['-dns-server', dnsServers.join(',')],
   ];
 
   @override
   bool operator ==(Object other) =>
       other is EmulatorLaunchOptions &&
       other.coldBoot == coldBoot &&
-      other.wipeData == wipeData;
+      other.wipeData == wipeData &&
+      listEquals(other.dnsServers, dnsServers);
 
   @override
-  int get hashCode => Object.hash(coldBoot, wipeData);
+  int get hashCode =>
+      Object.hash(coldBoot, wipeData, Object.hashAll(dnsServers));
 
   @override
   String toString() =>
-      'EmulatorLaunchOptions(coldBoot: $coldBoot, wipeData: $wipeData)';
+      'EmulatorLaunchOptions(coldBoot: $coldBoot, wipeData: $wipeData, '
+      'dnsServers: $dnsServers)';
 }
 
 /// What came of asking the emulator binary to start.

@@ -3,6 +3,7 @@ import 'package:eagly/features/emulator_manager/data/android_emulator.dart';
 import 'package:eagly/features/emulator_manager/data/emulator_launch_options.dart';
 import 'package:eagly/features/emulator_manager/data/device_profile.dart';
 import 'package:eagly/features/emulator_manager/data/system_image.dart';
+import 'package:eagly/features/emulator_manager/services/host_dns_reader.dart';
 import 'package:eagly/features/emulator_manager/services/avd_metadata_reader.dart';
 import 'package:eagly/features/emulator_manager/services/system_image_scanner.dart';
 import 'package:eagly/services/tools/avd_manager_tool.dart';
@@ -67,6 +68,7 @@ class FakeEmulatorTool() extends EmulatorTool {
 
   /// (name, coldBoot, wipeData) per launch.
   final List<(String, bool, bool)> launchRequests = [];
+  final List<EmulatorLaunchOptions> launchOptions = [];
   EmulatorLaunchOutcome launchOutcome = const EmulatorLaunchOutcome.success(
     4242,
   );
@@ -83,8 +85,18 @@ class FakeEmulatorTool() extends EmulatorTool {
     EmulatorLaunchOptions options = EmulatorLaunchOptions.normal,
   }) async {
     launchRequests.add((avdName, options.coldBoot, options.wipeData));
+    launchOptions.add(options);
     return launchOutcome;
   }
+}
+
+class FakeHostDnsReader extends HostDnsReader {
+  FakeHostDnsReader([this.servers = const []]);
+
+  List<String> servers;
+
+  @override
+  Future<List<String>> read() async => List.of(servers);
 }
 
 class FakeAvdMetadataReader() extends AvdMetadataReader {

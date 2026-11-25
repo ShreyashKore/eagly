@@ -8,6 +8,8 @@ This folder holds plans, explorations and future work for things Eagly does not 
 - [COMPANION_APP.md](COMPANION_APP.md): what an Eagly app on the phone could do and how much
   desktop code it could reuse. An exploration; nothing is decided.
 - [IOS_SCREEN_MIRROR.md](IOS_SCREEN_MIRROR.md): what the iPhone mirror doesn't do yet.
+- [IOS_SIMULATOR_SUPPORT.md](IOS_SIMULATOR_SUPPORT.md): what it would take to list and drive iOS
+  simulators. Scoped, not built.
 - [LAYOUT_INSPECTOR.md](LAYOUT_INSPECTOR.md): Flutter and iOS layout inspection, an Inspektor
   `layout` module, and the open points left when work paused after phase 2.
 - [MCP_SERVER.md](MCP_SERVER.md): phase 2 of the MCP server (actions), what is left of phase 1,
