@@ -177,18 +177,14 @@ anything with the search box beside it.
 
 | Filtering | Regex search |
 |---|---|
-| <video src="https://github.com/user-attachments/assets/a93d115b-8899-4c03-895c-3aa0f33dec17" width="400"></video> | <video src="https://github.com/user-attachments/assets/10971f7b-a0a0-418b-a0b7-c70c43b9b77b" width="400"></video> |
+| <img src="docs/screenshots/filtering.webp" width="400" alt="Filtering iOS logs by level and process"> | <img src="docs/screenshots/regex-search.webp" width="400" alt="Searching logs with a regular expression"> |
 
 ### 📲 Screen mirroring & control — *Android*
 Mirror the device screen right next to your logs and control it with your mouse and keyboard.
 
-![Screen mirroring](docs/screenshots/screen-mirroring.webp)
-
 ### 📦 Apps
 Every installed app with its real name and icon, recently installed ones up top. Right-click
 an app to open, force-stop, clear its data or uninstall it.
-
-![Apps pane](docs/screenshots/apps.webp)
 
 ### 🧰 Utilities
 Common device commands, grouped and searchable. Each one says whether it runs at once, asks
@@ -199,8 +195,6 @@ for options, or asks you to confirm first.
 ### 💻 Terminal
 Run `adb` and `libimobiledevice` commands with the device already selected, in as many tabs
 as you need.
-
-![Terminal pane](docs/screenshots/terminal.webp)
 
 ### ⌨️ Command palette
 Press **⌘⇧P** / **Ctrl+Shift+P** and type a few letters to find any action or utility.
