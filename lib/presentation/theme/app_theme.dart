@@ -280,7 +280,22 @@ extension AppThemeContext on BuildContext {
 }
 
 class AppTheme {
+  /// The logo's ground, a blue-black.
   static const Color seedColor = Color(0xFF060c16);
+
+  // ── Accent ──
+  // The one accent is the logo's beak, sampled from the app icon. It marks
+  // what is active or chosen (primary buttons, selection, toggles, the live
+  // dot) and nothing else, so it keeps meaning something. Warnings, amber
+  // until now, moved to orange so the two never read as one colour
+  // (test/accent_colors_test.dart).
+
+  /// The beak, as the dark theme's accent: 10:1 on the dark surfaces.
+  static const Color beakAmber = Color(0xFFFEBE16);
+
+  /// The beak darkened for the light theme until it holds AA as text on
+  /// the chrome and under white text on a filled button.
+  static const Color beakAmberDeep = Color(0xFF855700);
 
   static final ThemeData lightTheme = _buildTheme(
     _lightColorScheme,
@@ -299,6 +314,10 @@ class AppTheme {
       surfaceContainerLowest: Colors.grey.shade200,
       onSurface: Color(0xFF181818),
       onSurfaceVariant: Color(0xFF262626),
+      primary: beakAmberDeep,
+      onPrimary: Colors.white,
+      primaryContainer: const Color(0xFFFFE2A8),
+      onPrimaryContainer: const Color(0xFF2A1A00),
       secondary: const Color(0xFF064E3B),
       secondaryContainer: const Color.fromARGB(255, 197, 230, 216),
       onSecondary: const Color(0xFF6EE7B7),
@@ -311,10 +330,27 @@ class AppTheme {
     final seeded = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: Brightness.dark,
-      surface: Colors.grey.shade900,
-      surfaceContainerLowest: Color(0xFF0E0E0E),
+      // Near-black ink, from the logo's ground with its blue taken out: the
+      // pane body (surfaceContainer) is the canvas, its chrome
+      // (surfaceContainerHighest) one step up, cards and menus (surface)
+      // between, and the gaps between panes (surfaceContainerLowest) below —
+      // dark enough to double as the fill of a field on the chrome.
+      surfaceContainerLowest: const Color(0xFF050607),
+      surfaceContainerLow: const Color(0xFF0C0D0F),
+      surfaceContainer: const Color(0xFF0E0F11),
+      surface: const Color(0xFF111215),
+      surfaceDim: const Color(0xFF0E0F11),
+      surfaceContainerHigh: const Color(0xFF131518),
+      surfaceContainerHighest: const Color(0xFF181A1D),
+      surfaceBright: const Color(0xFF1E2024),
+      outlineVariant: const Color(0xFF24272B),
+      outline: const Color(0xFF8B8E94),
       onSurface: Color(0xFFF1F1F1),
       onSurfaceVariant: Color(0xFF969696),
+      primary: beakAmber,
+      onPrimary: const Color(0xFF1F1500),
+      primaryContainer: const Color(0xFF4D3800),
+      onPrimaryContainer: const Color(0xFFFFDF9E),
       secondary: const Color(0xFF6EE7B7),
       secondaryContainer: const Color(0xFF064E3B),
       onSecondary: const Color(0xFF064E3B),
@@ -562,9 +598,11 @@ class AppTheme {
       verboseColor: isDark
           ? colorScheme.onSurfaceVariant
           : const Color(0xFF5A5E66),
-      debugColor: colorScheme.primary,
+      // Its own blue now that primary is the accent: debug lines are many,
+      // and the accent should stay rare.
+      debugColor: isDark ? const Color(0xFFA7C8FF) : const Color(0xFF3E5F90),
       infoColor: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF0B6B63),
-      warningColor: isDark ? const Color(0xFFFBBF24) : const Color(0xFF9A4507),
+      warningColor: isDark ? const Color(0xFFFB923C) : const Color(0xFF9C3D06),
       errorColor: isDark ? const Color(0xFFFCA5A5) : colorScheme.error,
       searchMatchColor: isDark
           ? const Color(0xFFFDE68A)
@@ -578,15 +616,21 @@ class AppTheme {
       searchHighlightForeground: const Color(0xFF111827),
       searchNoResultsFillColor: colorScheme.errorContainer,
       searchNoResultsTextColor: colorScheme.onErrorContainer,
-      chromeFieldColor: colorScheme.surface,
+      // The dark theme's surface sits too close to its chrome to read as a
+      // field on it (test/pane_chrome_test.dart); the pane gaps' near-black
+      // does.
+      chromeFieldColor: isDark
+          ? colorScheme.surfaceContainerLowest
+          : colorScheme.surface,
       inlineNoticeBackground: colorScheme.secondaryContainer,
       inlineNoticeForeground: colorScheme.onSecondaryContainer,
       statusLiveColor: isDark
           ? const Color(0xFF4ADE80)
           : const Color(0xFF15803D),
+      // Paused is a caution, like a warning — and was the accent's amber.
       statusPausedColor: isDark
-          ? const Color(0xFFFBBF24)
-          : const Color(0xFFB45309),
+          ? const Color(0xFFFB923C)
+          : const Color(0xFF9C3D06),
       statusStoppedColor: isDark ? const Color(0xFFF87171) : colorScheme.error,
       cardShadowColor: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04),
       frameworkAccentColors: isDark

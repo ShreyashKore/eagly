@@ -94,9 +94,10 @@ class const LogStatusBar({
             builder: (context) {
               final (label, color) = _liveStatusLabel(theme, controller);
               if (_isStreaming(controller)) {
+                // The live dot is one of the few places the accent goes.
                 return LiveRateIndicator(
                   readCount: () => controller.receivedLineCount,
-                  color: color,
+                  color: Theme.of(context).colorScheme.primary,
                 );
               }
               return Text(

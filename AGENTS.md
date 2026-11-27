@@ -618,6 +618,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   dividers, private helpers prefixed `_`, `unawaited(...)` for fire-and-forget futures.
 - Theme tokens come from the `EaglyTheme` extension: `context.eaglyTheme.<token>` (status
   colors, `warningColor`, `inlineNotice*`). Don't hardcode colors.
+- **One accent, from the logo.** `colorScheme.primary` is the beak's amber (`AppTheme.beakAmber`
+  in dark, the darker `beakAmberDeep` in light) on near-black ink surfaces in the dark theme.
+  Use it for what is active or chosen — primary buttons, selection, toggles, the live dot — not
+  as decoration; debug log lines have their own blue for that reason. Warnings and the paused
+  state are orange so they never read as the accent (`test/accent_colors_test.dart`).
 - **Text emphasis has three tiers**, so a row reads in order of importance: primary
   (`onSurface`, the default) for names and values, `eaglyTheme.secondaryTextColor` for
   supporting text (descriptions, a package under an app name), `tertiaryTextColor` for
