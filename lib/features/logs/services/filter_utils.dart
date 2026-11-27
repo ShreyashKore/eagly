@@ -12,8 +12,14 @@ bool matchesLogFilters(
   DateTime? now,
   PackageForPid? packageForPid,
 }) {
+  // An app-restart marker stands for a process, not a line: only what picks
+  // processes (package, pid, age, framework) decides whether it shows, so a
+  // level or text filter never hides the seam between two runs of an app the
+  // filter does show.
+  final isRestartMarker = log.type == LogEntryType.restarted;
   final selectedLevel = effectiveSelectedLogLevel;
-  if (LogLevel.fromStored(log.level).hierarchy > selectedLevel.hierarchy) {
+  if (!isRestartMarker &&
+      LogLevel.fromStored(log.level).hierarchy > selectedLevel.hierarchy) {
     return false;
   }
 
@@ -46,7 +52,8 @@ bool matchesLogFilters(
   // raw-term filter to test against — building it for every entry regardless
   // (even with no raw filter active) doubled per-entry text memory for no
   // reason.
-  if (appliedFilters.rawTerms.isNotEmpty &&
+  if (!isRestartMarker &&
+      appliedFilters.rawTerms.isNotEmpty &&
       !_matchesAllTerms(log.lowercaseSearchable, appliedFilters.rawTerms)) {
     return false;
   }
@@ -59,6 +66,8 @@ bool matchesLogFilters(
       return false;
     }
   }
+
+  if (isRestartMarker) return true;
 
   if (!_matchesAllTerms(log.tag, appliedFilters.tagTerms)) {
     return false;

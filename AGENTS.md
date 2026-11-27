@@ -148,8 +148,19 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   per-tab toggle seeded from `PreferencesService.collapseRepeats` (Settings → Defaults for
   new tabs).
 - **`LogEntry`:** `type == LogEntryType.log` is a real device line; all other types
-  (`started`/`paused`/`stopped`/`resumed`/`notice`/`error`) are *special* status entries
-  rendered inline and skipped by copy/selection. Build them via `LogEntryUtils`.
+  (`started`/`paused`/`stopped`/`resumed`/`notice`/`error`/`restarted`) are *special*
+  entries rendered inline as dividers and skipped by copy/selection. Build them via
+  `LogEntryUtils`; a new type needs a case in every switch on `LogEntryType` (accent and
+  icon in `LogRow`, default messages in `LogEntryUtils` and `LogController`).
+- **App restart markers (Android):** `AppRestartDetector` (`features/logs/services/`) reads
+  ActivityManager's `Start proc <pid>:<process>/…` (and `… has died` / `Killing …` deaths)
+  and queues a `restarted` divider — "com.example.notes restarted · pid 4121 → 4188" —
+  right before the new pid's first line, only for a process whose earlier pid logged in
+  this capture. Filters treat a marker as its process: package, pid, age and framework
+  terms apply; level, tag, message and raw terms don't. Markers are left out of exports
+  (`entriesForExport`) and derived again on import; they aren't counted in
+  `receivedLineCount` or sent on `appendedLogs`. iOS has no reliable launch signal and is
+  skipped.
 - **Stall recovery (LogController):** the live stream can die silently (logcat EOF) or
   wedge (no EOF, device still listed). Detection = `onDone`/`onError` + an Android-only
   watchdog that actively probes (`service.pingDevice()`). Recovery is **tiered**: gentle

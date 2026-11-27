@@ -1361,4 +1361,105 @@ void main() {
       expect(log.displayRows.repeatAt(1)?.count, 4);
     });
   });
+
+  group('restart markers', () {
+    const start =
+        'Start proc 4188:com.example.notes/u0a190 for top-activity '
+        '{com.example.notes/com.example.notes.MainActivity}';
+    LogEntry am(String message) => testLogEntry(
+      message: message,
+      pid: '1500',
+      tag: 'ActivityManager',
+      packageName: 'system_server',
+    );
+    LogEntry notes(String pid, String message, {String level = 'D'}) =>
+        testLogEntry(
+          message: message,
+          pid: pid,
+          level: level,
+          tag: 'Notes',
+          packageName: pid == '4121' ? 'com.example.notes' : null,
+        );
+
+    Future<LogController> streamed() async {
+      final log = createLog();
+      await log.startLogcat();
+      for (final entry in [
+        notes('4121', 'old run'),
+        am('Process com.example.notes (pid 4121) has died: fg  TOP'),
+        am(start),
+        testLogEntry(message: 'between', pid: '2200', packageName: 'gms'),
+        notes('4188', 'new run'),
+      ]) {
+        service.emit(entry);
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      return log;
+    }
+
+    List<String> shown(LogController log) => [
+      for (final entry in log.filteredLogs)
+        if (entry.type != LogEntryType.started)
+          entry.type == LogEntryType.restarted ? '<restart>' : entry.message,
+    ];
+
+    test('go right before the new process\'s first line', () async {
+      final log = await streamed();
+      expect(shown(log), [
+        'old run',
+        'Process com.example.notes (pid 4121) has died: fg  TOP',
+        start,
+        'between',
+        '<restart>',
+        'new run',
+      ]);
+      final marker = log.logs.firstWhere(
+        (entry) => entry.type == LogEntryType.restarted,
+      );
+      expect(marker.message, 'com.example.notes restarted · pid 4121 → 4188');
+      expect(log.receivedLineCount, 5, reason: 'a marker is not a line');
+    });
+
+    test('follow a package filter, not a level or text one', () async {
+      final log = await streamed();
+
+      applyTypedFilter(log, 'package:com.example.notes');
+      expect(shown(log), contains('<restart>'));
+      applyTypedFilter(log, 'package:gms');
+      expect(shown(log), isNot(contains('<restart>')));
+
+      log.applyFilters(
+        LogFilters.fromFields(level: LogLevel.warning, message: 'nothing'),
+      );
+      expect(shown(log), ['<restart>']);
+    });
+
+    test('stay out of exports and come back on import', () async {
+      final log = await streamed();
+      for (final scope in LogExportScope.values) {
+        log.setSelectedRows({
+          for (var i = 0; i < log.filteredLogs.length; i++) i,
+        });
+        expect(
+          log.entriesForExport(scope).map((e) => e.type),
+          isNot(contains(LogEntryType.restarted)),
+          reason: scope.name,
+        );
+      }
+
+      final imported = LogController.imported(
+        session!,
+        initialSettings: testSettings(),
+      );
+      addTearDown(imported.dispose);
+      imported.loadImportedEntries(
+        log.entriesForExport(LogExportScope.all),
+        'notes.json',
+      );
+      expect(
+        imported.logs.where((e) => e.type == LogEntryType.restarted),
+        hasLength(1),
+      );
+    });
+  });
 }

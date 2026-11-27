@@ -8,7 +8,11 @@ enum LogEntryType(final String label) {
   paused('Paused'),
   stopped('Stopped'),
   error('Error occurred'),
-  notice('Notice');
+  notice('Notice'),
+
+  /// An Android app's process died and came back; synthetic, inserted by
+  /// `AppRestartDetector` before the new process's first line.
+  restarted('Restarted');
 
   bool get isSpecial => this != LogEntryType.log;
 }

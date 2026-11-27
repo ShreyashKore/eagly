@@ -54,7 +54,7 @@ class const LogRow({
       LogEntryType.stopped => theme.statusStoppedColor,
       LogEntryType.error => theme.errorColor,
       LogEntryType.notice => theme.inlineNoticeForeground,
-      LogEntryType.log => theme.infoColor,
+      LogEntryType.restarted || LogEntryType.log => theme.infoColor,
     };
   }
 
@@ -66,8 +66,23 @@ class const LogRow({
       LogEntryType.stopped => Icons.stop_circle_outlined,
       LogEntryType.error => Icons.error_outline_rounded,
       LogEntryType.notice => Icons.info_outline_rounded,
+      LogEntryType.restarted => Icons.refresh_rounded,
       LogEntryType.log => Icons.article_outlined,
     };
+  }
+
+  /// What a divider says in its accent, and the rest after it. A restart
+  /// leads with the app it is about — "com.example.notes" · "restarted · pid
+  /// 4121 → 4188" — rather than its type, which the message already says.
+  (String, String) _specialLabelAndMessage() {
+    final message = log.message.trim();
+    final package = log.packageName?.trim() ?? '';
+    if (log.type == LogEntryType.restarted &&
+        package.isNotEmpty &&
+        message.startsWith('$package ')) {
+      return (package, message.substring(package.length + 1));
+    }
+    return (log.typeLabel, message);
   }
 
   /// `HH:mm:ss` of a special entry; the date and milliseconds say nothing a
@@ -382,6 +397,7 @@ class const LogRow({
     );
     final messageStyle = monoStyle.copyWith(color: theme.secondaryTextColor);
     final timeText = _specialTimeText();
+    final (labelText, messageText) = _specialLabelAndMessage();
 
     Widget line() => Expanded(child: Container(height: 1, color: lineColor));
 
@@ -398,7 +414,7 @@ class const LogRow({
             constraints: BoxConstraints(maxWidth: maxWidth / 3),
             child: _buildSelectableText(
               context,
-              log.typeLabel,
+              labelText,
               monoStyle.copyWith(
                 color: accentColor,
                 fontWeight: FontWeight.w600,
@@ -407,12 +423,12 @@ class const LogRow({
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (log.message.trim().isNotEmpty) ...[
+          if (messageText.isNotEmpty) ...[
             const SizedBox(width: 8),
             Flexible(
               child: _buildSelectableText(
                 context,
-                log.message,
+                messageText,
                 messageStyle,
                 highlightColor: highlightColor,
                 overflow: TextOverflow.ellipsis,

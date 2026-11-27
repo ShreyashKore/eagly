@@ -17,6 +17,7 @@ import 'data/models/log_filters.dart';
 import 'data/models/log_framework.dart';
 import 'data/models/log_level.dart';
 import 'data/models/log_tab_settings.dart';
+import 'services/app_restart_detector.dart';
 import 'services/filter_utils.dart';
 import 'services/log_display_list.dart';
 import 'services/pid_package_index.dart';
@@ -121,6 +122,12 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   /// a package filter still matches the entries whose mapping was missing.
   late final PidPackageIndex _pidPackages = PidPackageIndex(
     fallback: service.getProcessNameFromPid,
+  );
+
+  /// Marks an Android app's process coming back under a new pid; see
+  /// [AppRestartDetector]. iOS lines pass through it untouched.
+  late final AppRestartDetector _restarts = AppRestartDetector(
+    packageForPid: _pidPackages.packageForPid,
   );
 
   /// Bumped only when a newly learned pid→package mapping could change what the
@@ -379,7 +386,9 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   void loadImportedEntries(List<LogEntry> entries, String fileName) {
     assert(_isImported);
     _importedFileName = fileName;
-    _replaceStoredLogs(entries);
+    // Exports leave restart markers out (see [entriesForExport]), so an
+    // imported Android log gets them back from its own ActivityManager lines.
+    _replaceStoredLogs(AppRestartDetector().annotate(entries));
     _notify();
   }
 
@@ -437,12 +446,19 @@ class LogController(super.session, {required LogTabSettings initialSettings})
 
   /// A snapshot of the entries an export of [scope] writes: the whole buffer,
   /// what the filters show, or the selected rows in display order.
+  ///
+  /// Restart markers are left out: they are Eagly's reading of the
+  /// ActivityManager lines around them, which are exported, and the file
+  /// formats have no way to say a line is synthetic, so a marker would come
+  /// back as a device line. An import derives them again. Session markers
+  /// (Started, Paused, …) are written as before.
   List<LogEntry> entriesForExport(LogExportScope scope) {
+    final List<LogEntry> entries;
     switch (scope) {
       case LogExportScope.all:
-        return List.of(logs);
+        entries = logs;
       case LogExportScope.filtered:
-        return List.of(filteredLogs);
+        entries = filteredLogs;
       case LogExportScope.selected:
         final filtered = filteredLogs;
         final indices =
@@ -450,8 +466,12 @@ class LogController(super.session, {required LogTabSettings initialSettings})
                 .where((i) => i >= 0 && i < filtered.length)
                 .toList()
               ..sort();
-        return [for (final i in indices) filtered[i]];
+        entries = [for (final i in indices) filtered[i]];
     }
+    return [
+      for (final entry in entries)
+        if (entry.type != LogEntryType.restarted) entry,
+    ];
   }
 
   /// Glides to the newest row, as the scroll-to-end command.
@@ -1226,6 +1246,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
       LogEntryType.stopped => message ?? 'Stopped capturing logs for $subject.',
       LogEntryType.error => message ?? 'A logging error occurred for $subject.',
       LogEntryType.notice => message ?? 'Logging state updated for $subject.',
+      LogEntryType.restarted => message ?? 'An app restarted on $subject.',
       LogEntryType.log => message ?? '',
     };
 
@@ -1435,6 +1456,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
 
     clearSelectedRows(notify: false);
     _clearStoredLogs();
+    _restarts.reset();
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
     logcatState = LogcatState.running;
@@ -1468,13 +1490,23 @@ class LogController(super.session, {required LogTabSettings initialSettings})
           _appendImmediateLogEntry(logEntry);
           return;
         }
-        if (logcatState == LogcatState.paused) return;
+        if (logcatState == LogcatState.paused) {
+          _restarts.observeSignalsOnly(logEntry);
+          return;
+        }
         _requestPackageForUnknownPid(logEntry);
         if (_pendingLogs.length >= maxPendingLogs) {
           // High-volume streams can fill this queue before the periodic
           // flush. Flush the whole queue once, rather than falling back to an
           // immediate append (and a widget rebuild) for every subsequent log.
           _flushPendingLogs();
+        }
+        // Queued, not appended at once: it belongs right before this line,
+        // behind the lines still waiting for the flush.
+        final restart = _restarts.observe(logEntry);
+        if (restart != null) {
+          _pendingLogs.add(restart);
+          _pendingLogsMemoryBytes += estimateLogEntryBytes(restart);
         }
         _pendingLogs.add(logEntry);
         _pendingLogsMemoryBytes += estimateLogEntryBytes(logEntry);
@@ -1503,7 +1535,12 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     if (_disposed || _pendingLogs.isEmpty) return;
 
     final pendingLogs = List<LogEntry>.of(_pendingLogs);
-    _receivedLineCount = receivedLineCount + pendingLogs.length;
+    // Restart markers ride the queue but aren't device lines.
+    final deviceLines = [
+      for (final entry in pendingLogs)
+        if (entry.isActualLog) entry,
+    ];
+    _receivedLineCount = receivedLineCount + deviceLines.length;
     final pendingLogsMemoryBytes = _pendingLogsMemoryBytes;
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
@@ -1531,7 +1568,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
 
     _invalidateSearchMatches();
     _notify();
-    if (_appended.hasListener) _appended.add(pendingLogs);
+    if (_appended.hasListener) _appended.add(deviceLines);
 
     _followTail();
   }

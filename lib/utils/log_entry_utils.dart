@@ -74,6 +74,7 @@ final class LogEntryUtils {
       LogEntryType.stopped => 'Stopped capturing logs.',
       LogEntryType.error => 'A logging error occurred.',
       LogEntryType.notice => 'Logging state updated.',
+      LogEntryType.restarted => 'An app restarted.',
     };
   }
 }
