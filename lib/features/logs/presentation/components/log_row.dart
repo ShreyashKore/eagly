@@ -136,23 +136,23 @@ class const LogRow({
     bool appendCellSeparator = false,
     bool appendRowTerminator = false,
   }) {
+    // A soft tint with the letter in the level colour: a solid block on
+    // every row made the column the loudest thing on screen.
     return SizedBox(
       width: widthOf(LogColumn.level),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         child: Container(
+          key: const ValueKey('log-level-badge'),
           decoration: BoxDecoration(
-            color: levelColor,
-            borderRadius: BorderRadius.circular(2),
+            color: context.eaglyTheme.logBadgeFill(levelColor),
+            borderRadius: BorderRadius.circular(3),
           ),
           alignment: Alignment.center,
           child: _buildSelectableText(
             context,
             level,
-            monoStyle.copyWith(
-              color: context.eaglyTheme.logBadgeForeground,
-              fontWeight: FontWeight.bold,
-            ),
+            monoStyle.copyWith(color: levelColor, fontWeight: FontWeight.w700),
             appendCellSeparator: appendCellSeparator,
             appendRowTerminator: appendRowTerminator,
           ),

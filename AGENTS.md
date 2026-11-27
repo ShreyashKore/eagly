@@ -626,8 +626,9 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   Device home's Quick access, Logs, Files, Terminal, Emulators, Wireless pairing, Settings so far).
   `ListTile` subtitles default to `onSurfaceVariant` too; Settings overrides them with a
   `ListTileTheme.merge`. Keep color for meaning (destructive, status), not for every row's
-  icon — a log row carries its level color on the badge and the message only; package/tag are
-  secondary, timestamp and PID/TID tertiary (`LogRow._cellStyle`).
+  icon — a log row carries its level color on the badge (a 12% tint behind the letter,
+  `EaglyTheme.logBadgeFill`; `test/log_level_badge_test.dart` holds each letter to AA) and the
+  message only; package/tag are secondary, timestamp and PID/TID tertiary (`LogRow._cellStyle`).
 - Icon-only buttons are `AppIconButton` (`presentation/components/app_icon_button.dart`),
   never Material's `IconButton` — `test/app_icon_button_test.dart` fails on one in `lib/`.
   Icons follow the app zoom, and `IconButton`'s theme-clamped box pushed a zoomed glyph

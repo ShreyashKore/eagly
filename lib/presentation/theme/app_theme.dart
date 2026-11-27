@@ -35,7 +35,6 @@ class const EaglyTheme({
   required final Color infoColor,
   required final Color warningColor,
   required final Color errorColor,
-  required final Color logBadgeForeground,
   required final Color searchMatchColor,
   required final Color searchCurrentMatchColor,
   required final Color searchCurrentRowColor,
@@ -73,6 +72,16 @@ class const EaglyTheme({
   /// on every surface it sits on — see `test/text_emphasis_test.dart`.
   required final Color tertiaryTextColor,
 }) extends ThemeExtension<EaglyTheme> {
+  /// Opacity of a log row's level badge fill. Any stronger and the dark
+  /// theme's verbose grey drops below AA on it (see
+  /// `test/log_level_badge_test.dart`).
+  static const double logBadgeTintAlpha = 0.12;
+
+  /// The fill behind a log row's level badge: [logLevelColor] as a soft
+  /// tint, so the badge marks the level without outweighing the message.
+  Color logBadgeFill(Color levelColor) =>
+      levelColor.withValues(alpha: logBadgeTintAlpha);
+
   Color logLevelColor(String level) {
     return switch (LogLevel.fromStored(level).code) {
       'fault' || 'error' => errorColor,
@@ -99,7 +108,6 @@ class const EaglyTheme({
     Color? infoColor,
     Color? warningColor,
     Color? errorColor,
-    Color? logBadgeForeground,
     Color? searchMatchColor,
     Color? searchCurrentMatchColor,
     Color? searchCurrentRowColor,
@@ -128,7 +136,6 @@ class const EaglyTheme({
       infoColor: infoColor ?? this.infoColor,
       warningColor: warningColor ?? this.warningColor,
       errorColor: errorColor ?? this.errorColor,
-      logBadgeForeground: logBadgeForeground ?? this.logBadgeForeground,
       searchMatchColor: searchMatchColor ?? this.searchMatchColor,
       searchCurrentMatchColor:
           searchCurrentMatchColor ?? this.searchCurrentMatchColor,
@@ -177,11 +184,6 @@ class const EaglyTheme({
       infoColor: Color.lerp(infoColor, other.infoColor, t)!,
       warningColor: Color.lerp(warningColor, other.warningColor, t)!,
       errorColor: Color.lerp(errorColor, other.errorColor, t)!,
-      logBadgeForeground: Color.lerp(
-        logBadgeForeground,
-        other.logBadgeForeground,
-        t,
-      )!,
       searchMatchColor: Color.lerp(
         searchMatchColor,
         other.searchMatchColor,
@@ -548,14 +550,16 @@ class AppTheme {
       logCompactStyle: mono.copyWith(fontSize: 11, height: 1.2),
       logHeaderStyle: mono.copyWith(fontSize: 12, fontWeight: FontWeight.w700),
       statusBarStyle: TextStyle(fontSize: 12, height: 1, color: tertiaryText),
-      verboseColor: isDark ? colorScheme.onSurfaceVariant : colorScheme.outline,
+      // The light theme's level colours are a step darker than their dark
+      // twins need to be: each is the letter on its own badge tint, and
+      // `outline`, the old verbose grey, missed AA even on the bare row.
+      verboseColor: isDark
+          ? colorScheme.onSurfaceVariant
+          : const Color(0xFF5A5E66),
       debugColor: colorScheme.primary,
-      infoColor: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF0F766E),
-      warningColor: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
+      infoColor: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF0B6B63),
+      warningColor: isDark ? const Color(0xFFFBBF24) : const Color(0xFF9A4507),
       errorColor: isDark ? const Color(0xFFFCA5A5) : colorScheme.error,
-      logBadgeForeground: isDark
-          ? const Color(0xFF1E1F21)
-          : const Color(0xFFDCE2F3),
       searchMatchColor: isDark
           ? const Color(0xFFFDE68A)
           : const Color(0xFFFDE68A),
