@@ -1233,4 +1233,132 @@ void main() {
       expect(messagesAfterStart(log), ['before stop', '<stopped>']);
     });
   });
+
+  group('repeat collapsing', () {
+    /// a, b×4, c — the run's lines differ only in their thread, so copies
+    /// can tell them apart.
+    List<LogEntry> withRun() => [
+      testLogEntry(message: 'a'),
+      for (var i = 0; i < 4; i++) testLogEntry(message: 'b', tid: 't$i'),
+      testLogEntry(message: 'c'),
+    ];
+
+    test('folds the drawn rows but leaves counts on the lines', () {
+      final log = createLog();
+      log.logs = withRun();
+
+      expect(log.displayRows.length, 3);
+      expect(log.displayRows.repeatAt(1)?.count, 4);
+      expect(log.logCount, 6);
+      expect(log.filteredLogs, hasLength(6));
+    });
+
+    test('a folded row copies, selects and exports all of its lines', () async {
+      final log = createLog();
+      log.logs = withRun();
+
+      final copied = await log.copyDisplayRowsForContextMenu(
+        clickedRow: 1,
+        format: LogCopyFormat.fullLine,
+      );
+      expect(copied, 4);
+      expect(RegExp(r' t\d ').allMatches(clipboardText!), hasLength(4));
+
+      expect(log.beginDisplayRowSelection(1), isTrue);
+      expect(log.selectedRowIndices, {1, 2, 3, 4});
+      expect(log.selectedDisplayRows, {1});
+      expect(log.entriesForExport(LogExportScope.selected).map((e) => e.tid), [
+        't0',
+        't1',
+        't2',
+        't3',
+      ]);
+      expect(log.entriesForExport(LogExportScope.all), hasLength(6));
+      expect(log.entriesForExport(LogExportScope.filtered), hasLength(6));
+
+      expect(log.beginDisplayRowSelection(1), isFalse);
+      expect(log.selectedRowIndices, isEmpty);
+
+      log.setSelectedDisplayRows({0, 1});
+      expect(log.selectedRowIndices, {0, 1, 2, 3, 4});
+      log.setDisplayRowSelected(1, false);
+      expect(log.selectedRowIndices, {0});
+    });
+
+    test('copy all writes every line', () async {
+      final log = createLog();
+      log.logs = withRun();
+
+      expect(await log.copyAllLogs(), 6);
+      expect(clipboardText!.split('\n'), hasLength(6));
+    });
+
+    test('a shift-click reaches the far end of a folded run', () {
+      final log = createLog();
+      log.logs = withRun();
+
+      log.beginDisplayRowSelection(0);
+      log.beginDisplayRowSelection(1, shiftPressed: true);
+      expect(log.selectedRowIndices, {0, 1, 2, 3, 4});
+    });
+
+    test('a run whose lines match is one search stop, on its row', () {
+      final log = createLog();
+      log.logs = withRun();
+      log.openSearchBar(query: 'b');
+
+      expect(log.searchMatchIndices, [1, 2, 3, 4]);
+      expect(log.searchMatchRows, [1]);
+      log.onSearchNext();
+      expect(log.searchCurrentMatch, 0);
+    });
+
+    test('unfolding keeps the current match on its line', () {
+      final log = createLog();
+      log.logs = [...withRun(), testLogEntry(message: 'b again')];
+      log.openSearchBar(query: 'b');
+      expect(log.searchMatchRows, [1, 3]);
+      log.onSearchNext();
+      expect(log.currentSearchMatchLogIndex(log.searchMatchRows), 3);
+
+      log.toggleRepeat(1);
+      expect(log.displayRows.length, 7);
+      expect(log.searchMatchRows, [1, 2, 3, 4, 6]);
+      expect(log.currentSearchMatchLogIndex(log.searchMatchRows), 6);
+
+      log.toggleCollapseRepeats();
+      expect(log.collapseRepeats, isFalse);
+      expect(log.currentSearchMatchLogIndex(log.searchMatchRows), 6);
+    });
+
+    test('can be turned off per tab', () {
+      final log = createLog();
+      log.logs = withRun();
+      log.toggleCollapseRepeats();
+
+      expect(log.displayRows.length, 6);
+      expect(log.displayRows.repeatAt(1), isNull);
+      log.toggleCollapseRepeats();
+      expect(log.displayRows.length, 3);
+    });
+
+    test('streamed repeats fold as they arrive', () async {
+      final log = createLog();
+      await log.startLogcat();
+
+      for (var i = 0; i < 3; i++) {
+        service.emit(testLogEntry(message: 'tick'));
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      // Started marker, then the run.
+      expect(log.displayRows.length, 2);
+      expect(log.displayRows.repeatAt(1)?.count, 3);
+
+      service.emit(testLogEntry(message: 'tick'));
+      service.emit(testLogEntry(message: 'tock'));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(log.displayRows.length, 3);
+      expect(log.displayRows.repeatAt(1)?.count, 4);
+    });
+  });
 }

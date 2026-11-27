@@ -18,6 +18,7 @@ import 'data/models/log_framework.dart';
 import 'data/models/log_level.dart';
 import 'data/models/log_tab_settings.dart';
 import 'services/filter_utils.dart';
+import 'services/log_display_list.dart';
 import 'services/pid_package_index.dart';
 import 'services/log_file_service.dart';
 import '../../session/device_session_controller.dart';
@@ -78,6 +79,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
       isIos: isIosLogContext,
     );
     _syncLogBufferFilter();
+    _displayRows.collapse = initialSettings.collapseRepeats;
     _pidPackageUpdatesSub = service.pidToPackageUpdates.listen(
       _learnRefreshedPidPackages,
     );
@@ -193,6 +195,12 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   LogTabSettings _settings;
 
   List<LogEntry>? _cachedFilteredLogs;
+
+  /// [filteredLogs] as the list draws it, repeats folded; see [displayRows].
+  final LogDisplayList _displayRows = LogDisplayList();
+  List<int>? _cachedSearchMatchRows;
+  List<int>? _smRowsSource;
+  int _smRowsRevision = -1;
   String _lastAppliedFilterSignature = '';
   LogLevel _lastLogLevel = LogLevel.verbose;
 
@@ -321,6 +329,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
 
   bool get wrapText => _settings.wrapText;
   bool get autoScroll => _settings.autoScroll;
+  bool get collapseRepeats => _settings.collapseRepeats;
   LogLevel get selectedLogLevel => _settings.selectedLogLevel;
   int get logLinesLimit => _settings.logLinesLimit;
   Set<String> get hiddenColumns => _settings.hiddenColumns;
@@ -780,6 +789,16 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     _updateSettings(_settings.copyWith(autoScroll: !autoScroll));
   }
 
+  /// Turns folding of repeated lines on or off for this tab. The current
+  /// search match stays on the same line.
+  void toggleCollapseRepeats() {
+    _keepingCurrentMatch(() {
+      _displayRows.collapse = !collapseRepeats;
+      _settings = _settings.copyWith(collapseRepeats: !collapseRepeats);
+    });
+    _notify();
+  }
+
   void setSelectedSearchText(String? value) {
     final normalized = value?.trim();
     final nextValue = normalized == null || normalized.isEmpty
@@ -896,7 +915,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   }
 
   void onSearchNext() {
-    final matches = searchMatchIndices;
+    final matches = searchMatchRows;
     if (matches.isEmpty) return;
     disableAutoScroll();
     _searchCurrentMatchIndex = (_searchCurrentMatchIndex + 1) % matches.length;
@@ -904,7 +923,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   }
 
   void onSearchPrev() {
-    final matches = searchMatchIndices;
+    final matches = searchMatchRows;
     if (matches.isEmpty) return;
     disableAutoScroll();
     _searchCurrentMatchIndex =
@@ -980,6 +999,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
 
   void _invalidateFilteredLogs() {
     _cachedFilteredLogs = null;
+    _displayRows.invalidate();
     _invalidateSearchMatches();
   }
 
@@ -1164,6 +1184,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     _logsMemoryBytes = 0;
     _detectedFrameworks.clear();
     filter.updateDetectedFrameworks(const {});
+    _displayRows.forgetExpanded();
     _invalidateFilteredLogs();
   }
 
@@ -1252,6 +1273,152 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   }) {
     _appendImmediateLogEntry(
       _buildSessionStateEntry(type, message: message, tag: tag),
+    );
+  }
+
+  // ── Display rows ───────────────────────────────────────────────────────────
+  //
+  // The list draws [displayRows], where a run of identical lines is one row,
+  // so the viewer's indices — selection, the current match, the ruler,
+  // scrolling — are row indices. The methods below take and give rows and
+  // translate through [displayRows]; everything that reads entries (copy,
+  // export, search, filters, counts) stays on [filteredLogs]. A selected run
+  // selects all of its lines, so copying or exporting it writes every one.
+
+  /// [filteredLogs] as the list draws it, brought up to date with it.
+  LogDisplayList get displayRows {
+    _displayRows.sync(filteredLogs);
+    return _displayRows;
+  }
+
+  /// Unfolds the run [row] heads, or folds it back.
+  void toggleRepeat(int row) {
+    final rows = displayRows;
+    var toggled = false;
+    _keepingCurrentMatch(() => toggled = rows.toggleRepeat(row));
+    if (toggled) _notify();
+  }
+
+  /// Runs [change] to the rows, then points the current search match at the
+  /// row that now shows the line it was on.
+  void _keepingCurrentMatch(void Function() change) {
+    final before = searchMatchRows;
+    final line = before.isEmpty
+        ? null
+        : displayRows.startOf(currentSearchMatchLogIndex(before));
+    change();
+    if (line == null) return;
+    final after = searchMatchRows;
+    final row = displayRows.rowOf(line);
+    final index = after.indexOf(row);
+    if (index >= 0) _searchCurrentMatchIndex = index;
+  }
+
+  /// The rows the search's matching lines are on, each once: a run whose
+  /// lines match is one stop for next / previous, landing on its row.
+  List<int> get searchMatchRows {
+    final matches = searchMatchIndices;
+    final rows = displayRows;
+    if (!rows.collapse) return matches;
+    if (_cachedSearchMatchRows != null &&
+        identical(_smRowsSource, matches) &&
+        _smRowsRevision == rows.revision) {
+      return _cachedSearchMatchRows!;
+    }
+    final result = <int>[];
+    for (final index in matches) {
+      final row = rows.rowOf(index);
+      if (result.isEmpty || result.last != row) result.add(row);
+    }
+    _smRowsSource = matches;
+    _smRowsRevision = rows.revision;
+    return _cachedSearchMatchRows = result;
+  }
+
+  /// The rows holding a selected line.
+  Set<int> get selectedDisplayRows {
+    final rows = displayRows;
+    if (!rows.collapse) return selectedRowIndices;
+    final count = filteredLogs.length;
+    return {
+      for (final index in _selectedRowIndices)
+        if (index < count) rows.rowOf(index),
+    };
+  }
+
+  /// The filtered indices [row] covers.
+  Iterable<int> _linesOf(LogDisplayList rows, int row) {
+    final start = rows.startOf(row);
+    return Iterable.generate(rows.lengthOf(row), (i) => start + i);
+  }
+
+  /// [beginRowSelectionGesture] for a row: toggles every line it covers, and
+  /// a shift-click extends to the far end of it.
+  bool? beginDisplayRowSelection(int row, {bool shiftPressed = false}) {
+    final rows = displayRows;
+    if (row < 0 || row >= rows.length) return null;
+    final start = rows.startOf(row);
+    final end = start + rows.lengthOf(row) - 1;
+    if (end == start || !_isSelectableFilteredIndex(start)) {
+      return beginRowSelectionGesture(start, shiftPressed: shiftPressed);
+    }
+    if (shiftPressed) {
+      final anchor = _rowSelectionAnchorIndex;
+      selectRowRangeTo(anchor != null && anchor > end ? start : end);
+      return null;
+    }
+    _enableRowSelectionMode();
+    final shouldSelect = !_selectedRowIndices.contains(start);
+    _rowSelectionAnchorIndex = start;
+    if (shouldSelect) {
+      _selectedRowIndices.addAll(_linesOf(rows, row));
+    } else {
+      _selectedRowIndices.removeAll(_linesOf(rows, row));
+      if (_selectedRowIndices.isEmpty) _setRowSelectionModeInternal(false);
+    }
+    _notify();
+    return shouldSelect;
+  }
+
+  /// [setRowSelected] for every line [row] covers.
+  void setDisplayRowSelected(int row, bool selected) {
+    final rows = displayRows;
+    if (row < 0 || row >= rows.length) return;
+    final next = Set.of(_selectedRowIndices);
+    if (selected) {
+      next.addAll(_linesOf(rows, row));
+    } else {
+      next.removeAll(_linesOf(rows, row));
+    }
+    setSelectedRows(next);
+  }
+
+  /// [setSelectedRows] from rows: the lines of every row in [selected].
+  void setSelectedDisplayRows(Set<int> selected) {
+    final rows = displayRows;
+    setSelectedRows({
+      for (final row in selected)
+        if (row >= 0 && row < rows.length) ..._linesOf(rows, row),
+    });
+  }
+
+  /// [copyRowsForContextMenu] for a clicked row: a folded run copies all of
+  /// its lines.
+  Future<int> copyDisplayRowsForContextMenu({
+    required int? clickedRow,
+    required LogCopyFormat format,
+  }) {
+    final rows = displayRows;
+    final clicked =
+        clickedRow != null && clickedRow >= 0 && clickedRow < rows.length
+        ? clickedRow
+        : null;
+    return copyFilteredRows(
+      _selectionTargetIndicesForCopy(
+        clicked == null ? null : rows.startOf(clicked),
+        clickedCount: clicked == null ? 1 : rows.lengthOf(clicked),
+      ),
+      format: format,
     );
   }
 
@@ -1666,7 +1833,10 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   List<LogEntry> get _currentLogsSnapshot =>
       List<LogEntry>.unmodifiable([..._logsBuffer.getLogs(), ..._pendingLogs]);
 
-  List<int> _selectionTargetIndicesForCopy(int? clickedFilteredIndex) {
+  List<int> _selectionTargetIndicesForCopy(
+    int? clickedFilteredIndex, {
+    int clickedCount = 1,
+  }) {
     final filteredSnapshot = filteredLogs;
     final selectedIndices =
         _selectedRowIndices
@@ -1692,7 +1862,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
         selectedIndices.contains(clickedFilteredIndex)) {
       return selectedIndices;
     }
-    return [clickedFilteredIndex];
+    return [for (var i = 0; i < clickedCount; i++) clickedFilteredIndex + i];
   }
 
   Future<int> _copyLogsToClipboard(

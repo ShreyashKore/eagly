@@ -43,6 +43,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late ThemeMode _themePreference;
   late bool _wrapText;
   late bool _autoScroll;
+  late bool _collapseRepeats;
   late LogLevel _selectedLogLevel;
   late double _logFontSize;
   late double _zoomLevel;
@@ -59,6 +60,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _themePreference = PreferencesService.themeMode;
     _wrapText = PreferencesService.wrapText;
     _autoScroll = PreferencesService.autoScroll;
+    _collapseRepeats = PreferencesService.collapseRepeats;
     _selectedLogLevel = PreferencesService.selectedLogLevel;
     _logFontSize = PreferencesService.logFontSize;
     _zoomLevel = PreferencesService.zoomLevel;
@@ -380,6 +382,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (value) {
                     setState(() => _autoScroll = value);
                     PreferencesService.autoScroll = value;
+                  },
+                ),
+                SwitchListTile(
+                  dense: true,
+                  value: _collapseRepeats,
+                  title: const Text('Collapse repeats'),
+                  subtitle: const Text(
+                    'Fold identical consecutive lines into one row',
+                  ),
+                  onChanged: (value) {
+                    setState(() => _collapseRepeats = value);
+                    PreferencesService.collapseRepeats = value;
                   },
                 ),
                 ListTile(

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../data/models/log_column.dart';
 import '../../data/models/log_entry.dart';
+import '../../services/log_display_list.dart';
+import '../../../../presentation/components/hover_builder.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../../../utils/log_entry_utils.dart';
 import '../../../../utils/log_timestamp.dart';
@@ -36,6 +38,13 @@ class const LogRow({
   /// label is on screen however wide the scrollable content is. Null fills
   /// whatever width the row is given.
   final double? specialRowWidth,
+
+  /// The run of repeats this row heads, which puts a count chip at the end
+  /// of its message; null for a single line.
+  final LogRepeat? repeat,
+
+  /// Unfolds or folds [repeat], from its chip.
+  final VoidCallback? onToggleRepeat,
 }) extends StatelessWidget {
   Color _specialAccentColor(BuildContext context) {
     final theme = context.eaglyTheme;
@@ -102,6 +111,7 @@ class const LogRow({
     bool softWrap = false,
     bool appendCellSeparator = false,
     bool appendRowTerminator = false,
+    InlineSpan? trailing,
   }) {
     final children = <InlineSpan>[];
     final pattern = TextSearchPattern.fromConfig(search);
@@ -147,6 +157,7 @@ class const LogRow({
     }
     // An empty text is still one span.
     if (children.isEmpty) children.add(TextSpan(text: '', style: style));
+    if (trailing != null) children.add(trailing);
     if (appendCellSeparator) {
       children.add(_cellSeparatorSpan());
     }
@@ -466,6 +477,13 @@ class const LogRow({
     );
   }
 
+  /// The chip's text for [repeat] — "×248 over 2.1 s" — for measuring the
+  /// message column; see [_RepeatChip].
+  static String repeatChipText(LogRepeat repeat) {
+    final span = formatRepeatSpan(repeat.span);
+    return span == null ? '×${repeat.count}' : '×${repeat.count} over $span';
+  }
+
   static const double _specialRowLineStub = 12;
   static const double _specialRowLabelGap = 8;
   static const double _specialRowLabelMinWidth = 40;
@@ -554,6 +572,20 @@ class const LogRow({
               highlightColor: highlightColor,
               softWrap: wrapText,
               appendRowTerminator: lastVisibleColumn == LogColumn.message,
+              trailing: repeat == null
+                  ? null
+                  : WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: _RepeatChip(
+                          repeat: repeat!,
+                          levelColor: levelColor,
+                          monoStyle: monoStyle,
+                          onPressed: onToggleRepeat,
+                        ),
+                      ),
+                    ),
             ),
           ),
         ),
@@ -600,6 +632,109 @@ class const LogRow({
               ? null
               : (details) => onRowContextMenuRequested!(details.globalPosition),
           child: rowContent,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Repeat chip ──
+
+/// How long a run of repeats lasted, as its chip says it: "340 ms", "2.1 s",
+/// "4 min 12 s", "1 h 5 min". Null for no span or none at all, where "over"
+/// would say nothing.
+@visibleForTesting
+String? formatRepeatSpan(Duration? span) {
+  if (span == null || span <= Duration.zero) return null;
+  final ms = span.inMilliseconds;
+  if (ms < 1000) return '$ms ms';
+  if (ms < 60000) return '${(ms / 1000).toStringAsFixed(1)} s';
+  if (span.inMinutes < 60) {
+    final seconds = span.inSeconds % 60;
+    return seconds == 0
+        ? '${span.inMinutes} min'
+        : '${span.inMinutes} min $seconds s';
+  }
+  final minutes = span.inMinutes % 60;
+  return minutes == 0 ? '${span.inHours} h' : '${span.inHours} h $minutes min';
+}
+
+/// The count at the end of a folded run's message: "×248", and how long the
+/// run lasted at the tertiary tier, tinted with the row's level colour like
+/// its badge. A click unfolds the run in place; on an unfolded run's first
+/// row it folds it back.
+class const _RepeatChip({
+  required final LogRepeat repeat,
+  required final Color levelColor,
+  required final TextStyle monoStyle,
+  required final VoidCallback? onPressed,
+}) extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.eaglyTheme;
+    final fontSize = (monoStyle.fontSize ?? 12) - 1;
+    final span = formatRepeatSpan(repeat.span);
+    final tooltip = repeat.expanded
+        ? 'Fold these ${repeat.count} lines into one row'
+        : 'Show all ${repeat.count} lines';
+    return SelectionContainer.disabled(
+      child: Tooltip(
+        message: tooltip,
+        child: HoverBuilder(
+          cursor: onPressed == null
+              ? MouseCursor.defer
+              : SystemMouseCursors.click,
+          builder: (context, hovered) => GestureDetector(
+            key: const ValueKey('log-repeat-chip'),
+            behavior: HitTestBehavior.opaque,
+            onTap: onPressed,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              decoration: BoxDecoration(
+                color: theme.logBadgeFill(levelColor),
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(
+                  color: hovered
+                      ? levelColor.withValues(alpha: 0.5)
+                      : Colors.transparent,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '×${repeat.count}',
+                          style: TextStyle(
+                            color: levelColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (span != null)
+                          TextSpan(
+                            text: ' over $span',
+                            style: TextStyle(color: theme.tertiaryTextColor),
+                          ),
+                      ],
+                    ),
+                    style: monoStyle.copyWith(fontSize: fontSize, height: 1.3),
+                    maxLines: 1,
+                    softWrap: false,
+                  ),
+                  if (repeat.expanded) ...[
+                    const SizedBox(width: 3),
+                    Icon(
+                      Icons.unfold_less_rounded,
+                      size: fontSize + 2,
+                      color: levelColor,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

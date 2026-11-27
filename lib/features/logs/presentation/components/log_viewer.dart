@@ -10,6 +10,7 @@ import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../../data/models/log_column.dart';
 import '../../data/models/log_entry.dart';
+import '../../services/log_display_list.dart';
 import '../../../../services/preferences_service.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../../../utils/log_entry_utils.dart';
@@ -127,6 +128,14 @@ class const LogViewer({
   /// the active tab state.
   final ValueChanged<Map<String, double>>? onColumnWidthsChanged,
   final bool isIos = false,
+
+  /// The run of repeats the row at an index heads, if any. [logs] is then a
+  /// list of rows rather than of lines — [LogDisplayList.entries] — and every
+  /// index here is a row index.
+  final LogRepeat? Function(int index)? repeatAt,
+
+  /// Unfolds or folds the run the row at an index heads.
+  final ValueChanged<int>? onToggleRepeat,
 }) extends StatefulWidget {
   static const double columnSpacing = 8;
   static const double defaultUnwrappedMessageWidth = 1000;
@@ -589,9 +598,23 @@ class _LogViewerState extends State<LogViewer> {
     });
   }
 
-  void _recordBuiltMessageWidth(String message) {
+  void _recordBuiltMessageWidth(String message, [LogRepeat? repeat]) {
     if (widget.wrapText || !_isVisible(LogColumn.message)) return;
-    final measuredWidth = _measureMessageWidth(message);
+    var measuredWidth = _measureMessageWidth(message);
+    if (repeat != null) {
+      // The chip trails the message's last line; room for its text, its
+      // padding and the gap before it.
+      final lastLine = message.substring(message.lastIndexOf('\n') + 1);
+      measuredWidth = math.max(
+        measuredWidth,
+        _measureTextWidth(
+              '$lastLine ${LogRow.repeatChipText(repeat)}',
+              _monoStyle,
+            ) +
+            kMessageHorizontalPadding +
+            32,
+      );
+    }
     if (measuredWidth <= _largestBuiltMessageWidth) return;
     _largestBuiltMessageWidth = measuredWidth;
     _scheduleMessageWidthRefresh();
@@ -1245,8 +1268,14 @@ class _LogViewerState extends State<LogViewer> {
     int index,
     double messageWidth,
     double viewportWidth,
+    LogRepeat? repeat,
   ) {
+    final onToggleRepeat = widget.onToggleRepeat;
     return LogRow(
+      repeat: repeat,
+      onToggleRepeat: repeat == null || onToggleRepeat == null
+          ? null
+          : () => onToggleRepeat(index),
       key: widget.currentMatchLogIndex == index ? _currentMatchKey : null,
       log: log,
       index: index,
@@ -1325,13 +1354,14 @@ class _LogViewerState extends State<LogViewer> {
       itemCount: widget.logs.length,
       itemBuilder: (_, i) {
         final log = widget.logs[i];
-        _recordBuiltMessageWidth(log.message);
+        final repeat = widget.repeatAt?.call(i);
+        _recordBuiltMessageWidth(log.message, repeat);
         return _RowBoundsReporter(
           index: i,
           key: ValueKey(log.id),
           onMounted: _registerRowContext,
           onUnmounted: _unregisterRowContext,
-          child: _buildLogRow(log, i, messageWidth, viewportWidth),
+          child: _buildLogRow(log, i, messageWidth, viewportWidth, repeat),
         );
       },
     );

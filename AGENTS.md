@@ -134,6 +134,19 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   list after a burst and bounced back on macOS (`test/log_auto_scroll_test.dart`). The
   overview ruler beside the scrollbar (`LogOverviewRuler`) places its error / warning /
   search-match marks by line index for the same reason, recomputing at most every 250 ms.
+- **Repeat collapsing:** the list draws `LogController.displayRows` (`LogDisplayList`,
+  `features/logs/services/log_display_list.dart`), where a run of 3+ identical consecutive
+  lines (same level, tag, pid and message; never a special entry) is one row with a "×N over
+  2.1 s" chip that unfolds it in place. Every index the viewer handles — selection, the
+  current search match, the overview ruler, scrolling — is a *row* index; copy, export,
+  search, filters and the status bar counts stay on `filteredLogs`. Translate only through
+  the display list (`startOf` / `lengthOf` / `rowOf`) and the controller's `*DisplayRow*`
+  methods, never with index arithmetic of your own. A selected run selects all of its lines,
+  so copy and export write every one; a run whose lines match a search is one stop for
+  next/previous (`searchMatchRows`), landing on its row. Runs grow incrementally on append
+  and rebuild only when the filtered list is replaced or loses lines. "Collapse repeats" is a
+  per-tab toggle seeded from `PreferencesService.collapseRepeats` (Settings → Defaults for
+  new tabs).
 - **`LogEntry`:** `type == LogEntryType.log` is a real device line; all other types
   (`started`/`paused`/`stopped`/`resumed`/`notice`/`error`) are *special* status entries
   rendered inline and skipped by copy/selection. Build them via `LogEntryUtils`.

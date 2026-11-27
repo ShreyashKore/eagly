@@ -68,7 +68,7 @@ class const Toolbar({
             onPressed: c.clearSelectedRows,
           ),
 
-        // ── Wrap / auto-scroll (search lives in the filter row) ───────
+        // ── Wrap / auto-scroll / repeats (search lives in the filter row) ─
         ToolbarAction(
           icon: c.wrapText ? Icons.wrap_text : Icons.notes,
           label: 'Wrap long lines',
@@ -82,6 +82,15 @@ class const Toolbar({
           tooltip: c.autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF',
           isActive: c.autoScroll,
           onPressed: c.toggleAutoScroll,
+        ),
+        ToolbarAction(
+          icon: c.collapseRepeats ? Icons.unfold_less : Icons.unfold_more,
+          label: 'Collapse repeats',
+          tooltip: c.collapseRepeats
+              ? 'Collapse repeats ON'
+              : 'Collapse repeats OFF',
+          isActive: c.collapseRepeats,
+          onPressed: c.toggleCollapseRepeats,
         ),
 
         // ── Menu only: copy everything, export, import ────────────────

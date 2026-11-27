@@ -7,6 +7,9 @@ class const LogTabSettings({
   required final int logLinesLimit,
   required final Set<String> hiddenColumns,
   required final Map<String, double> columnWidths,
+
+  /// Whether identical consecutive lines fold into one row with a count.
+  final bool collapseRepeats = true,
 }) {
   LogTabSettings copyWith({
     bool? wrapText,
@@ -15,6 +18,7 @@ class const LogTabSettings({
     int? logLinesLimit,
     Set<String>? hiddenColumns,
     Map<String, double>? columnWidths,
+    bool? collapseRepeats,
   }) {
     return LogTabSettings(
       wrapText: wrapText ?? this.wrapText,
@@ -27,6 +31,7 @@ class const LogTabSettings({
       columnWidths: columnWidths != null
           ? Map.of(columnWidths)
           : Map.of(this.columnWidths),
+      collapseRepeats: collapseRepeats ?? this.collapseRepeats,
     );
   }
 }
