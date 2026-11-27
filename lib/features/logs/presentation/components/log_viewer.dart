@@ -16,6 +16,7 @@ import '../../../../utils/log_entry_utils.dart';
 import '../../../../utils/text_search_pattern.dart';
 import '../../../../utils/utils.dart';
 import 'column_visibility_menu.dart';
+import 'built_row_registry.dart';
 import 'log_row.dart';
 import 'log_viewer_header.dart';
 import '../log_viewer_constants.dart';
@@ -164,6 +165,14 @@ class _LogViewerState extends State<LogViewer> {
   final Map<int, BuildContext> _rowContexts = <int, BuildContext>{};
   final SplayTreeMap<int, Rect> _rowBoundsByIndex = SplayTreeMap<int, Rect>();
 
+  /// The text selection over the rows; cleared before a rebuild drops rows
+  /// it may be anchored in (see [BuiltRowRegistry]).
+  final GlobalKey<SelectionAreaState> _selectionAreaKey =
+      GlobalKey<SelectionAreaState>();
+
+  /// Ids ([LogEntry.id]) of the rows built right now, kept-alive ones too.
+  final BuiltRowRegistry _builtRows = BuiltRowRegistry();
+
   TextStyle get _monoStyle => _applyFont(context.eaglyTheme.logBodyStyle);
 
   TextStyle _applyFont(TextStyle base) =>
@@ -198,6 +207,13 @@ class _LogViewerState extends State<LogViewer> {
   @override
   void didUpdateWidget(LogViewer old) {
     super.didUpdateWidget(old);
+    // Before the rows rebuild: a fresh capture, a clear, a filter or the
+    // buffer cap dropping its head can take away a row the selection is
+    // anchored in. The list is often the same object mutated in place, so
+    // the old one says nothing; the built rows' ids do.
+    if (_builtRows.anyRemoved((id) => _indexOfLogId(id) != null)) {
+      _selectionAreaKey.currentState?.selectableRegion.clearSelection();
+    }
     final didSearchTargetChange =
         widget.currentMatchLogIndex != old.currentMatchLogIndex ||
         widget.search != old.search;
@@ -1034,19 +1050,22 @@ class _LogViewerState extends State<LogViewer> {
                               ),
                             )
                           : Theme.of(context),
-                      child: SelectionArea(
+                      child: KeyedSubtree(
                         key: const ValueKey('log-viewer-selection-area'),
-                        onSelectionChanged: (selectedContent) {
-                          widget.onSelectedTextChanged?.call(
-                            selectedContent?.plainText,
-                          );
-                        },
-                        contextMenuBuilder: (ctx, selectableRegionState) =>
-                            _buildSelectionContextMenu(
-                              ctx,
-                              selectableRegionState,
-                            ),
-                        child: logViewport,
+                        child: SelectionArea(
+                          key: _selectionAreaKey,
+                          onSelectionChanged: (selectedContent) {
+                            widget.onSelectedTextChanged?.call(
+                              selectedContent?.plainText,
+                            );
+                          },
+                          contextMenuBuilder: (ctx, selectableRegionState) =>
+                              _buildSelectionContextMenu(
+                                ctx,
+                                selectableRegionState,
+                              ),
+                          child: logViewport,
+                        ),
                       ),
                     ),
                   ),
@@ -1206,9 +1225,26 @@ class _LogViewerState extends State<LogViewer> {
 
   Widget _buildLogList(double messageWidth) {
     final monoStyle = _monoStyle;
-    return SuperListView.builder(
+    // A CustomScrollView rather than SuperListView, which can't pass
+    // layoutKeptAliveChildren. A row holding part of the text selection (a
+    // click leaves a collapsed one) is kept alive when it leaves the cache
+    // area. Unless the list keeps laying it out it has no paint transform, so
+    // the selection loses that edge's point and ⇧-arrows or ⌘A throw
+    // (FLUTTER-A3, -4A); and text rebuilt inside it is never laid out, which
+    // the next selectable update sorts by size (FLUTTER-B).
+    return CustomScrollView(
       controller: widget.scrollController,
+      semanticChildCount: widget.logs.length,
+      slivers: [_buildLogSliver(messageWidth, monoStyle)],
+    );
+  }
+
+  Widget _buildLogSliver(double messageWidth, TextStyle monoStyle) {
+    return SuperSliverList.builder(
       listController: _listController,
+      layoutKeptAliveChildren: true,
+      // SuperListView's default; the sliver's own is to delay.
+      delayPopulatingCacheArea: false,
       // The package's default guess is 100 px a row, five times a real log
       // line, which inflated the scroll extent of every unmeasured row.
       extentEstimation: (index, _) {
@@ -1224,19 +1260,57 @@ class _LogViewerState extends State<LogViewer> {
         );
       },
       itemCount: widget.logs.length,
+      // A row that only moved — the head was evicted, a filter kept it —
+      // keeps its element, so the text selection in it survives and its
+      // selectables aren't torn down and re-registered every flush.
+      findChildIndexCallback: (key) =>
+          key is ValueKey<int> ? _indexOfLogId(key.value) : null,
       itemBuilder: (_, i) {
         final log = widget.logs[i];
         _recordBuiltMessageWidth(log.message);
         return _RowBoundsReporter(
           index: i,
-          key: ValueKey(log.id),
+          key: ValueKey<int>(log.id),
           onMounted: _registerRowContext,
           onUnmounted: _unregisterRowContext,
-          child: _buildLogRow(log, i, messageWidth),
+          child: BuiltRowMarker(
+            id: log.id,
+            registry: _builtRows,
+            child: _buildLogRow(log, i, messageWidth),
+          ),
         );
       },
     );
   }
+
+  /// Index of the entry with [id] in [LogViewer.logs], or null.
+  ///
+  /// Ids come from one increasing counter and lists keep buffer order, so
+  /// this is a binary search. An entry appended a little out of creation
+  /// order (a parser holding a multi-line entry while a status line goes
+  /// in) is still found by the scan around where the search ends.
+  int? _indexOfLogId(int id) {
+    final logs = widget.logs;
+    var low = 0;
+    var high = logs.length - 1;
+    while (low <= high) {
+      final mid = (low + high) >> 1;
+      final midId = logs[mid].id;
+      if (midId == id) return mid;
+      if (midId < id) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    final end = math.min(logs.length, low + _idScanWindow);
+    for (var i = math.max(0, low - _idScanWindow); i < end; i++) {
+      if (logs[i].id == id) return i;
+    }
+    return null;
+  }
+
+  static const int _idScanWindow = 64;
 }
 
 class const _HorizontalRevealTarget({
