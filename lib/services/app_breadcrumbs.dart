@@ -1,11 +1,19 @@
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import 'sentry_breadcrumb_filter.dart';
+
 /// Central place for turning app-internal events into Sentry breadcrumbs, so
 /// a crash/error report can be replayed as a user journey: which device was
 /// selected, which pane was open, what tool command ran, what failed.
 ///
-/// Kept dependency-free of [AppLogger] (only depends on `sentry_flutter`) so
-/// `app_logger.dart` can import this without a cycle.
+/// Kept dependency-free of [AppLogger] (only depends on `sentry_flutter` and
+/// the breadcrumb filter) so `app_logger.dart` can import this without a
+/// cycle.
+///
+/// Each method tags its breadcrumb with a [BreadcrumbOrigin] hint. These are
+/// safe to call often: [SentryBreadcrumbFilter] collapses
+/// repeats and rate-limits what reaches Sentry (and its native sync, which
+/// runs on the macOS main thread).
 class AppBreadcrumbs._() {
   /// Mirrors an [AppLogger] entry (already used across tools/services) as a
   /// breadcrumb. `level` is the raw `AppLogLevel.name` (debug/info/success/
@@ -27,6 +35,7 @@ class AppBreadcrumbs._() {
           if (detail != null && detail.isNotEmpty) 'detail': detail,
         },
       ),
+      hint: _hint(BreadcrumbOrigin.appLog),
     );
   }
 
@@ -45,6 +54,7 @@ class AppBreadcrumbs._() {
         message: '$from -> $to',
         data: {'from': from, 'to': to, ...?data},
       ),
+      hint: _hint(BreadcrumbOrigin.navigation),
     );
   }
 
@@ -63,8 +73,12 @@ class AppBreadcrumbs._() {
         level: level,
         data: data,
       ),
+      hint: _hint(BreadcrumbOrigin.action),
     );
   }
+
+  static Hint _hint(BreadcrumbOrigin origin) =>
+      Hint.withMap({breadcrumbOriginHintKey: origin.name});
 
   static SentryLevel _levelFromName(String level) {
     switch (level) {

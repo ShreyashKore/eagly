@@ -214,15 +214,20 @@ class _AppLogStore._() extends ChangeNotifier {
       // ignore: avoid_print
       print(entry.toExportString());
     }
-    // Every AppLogger call (tool commands, connect/disconnect, mirror
-    // errors, ...) doubles as a Sentry breadcrumb for free.
-    AppBreadcrumbs.log(
-      level: entry.level.name,
-      source: entry.source,
-      message: entry.message,
-      detail: entry.detail,
-      sessionTag: entry.sessionTag,
-    );
+    // Every info-or-louder AppLogger call (tool commands, connect/disconnect,
+    // mirror errors, ...) doubles as a Sentry breadcrumb. Debug lines stay
+    // local: they are the chattiest and the least useful in a report, and
+    // each breadcrumb costs a main-thread native sync on macOS
+    // (SentryBreadcrumbFilter explains, and bounds the rest).
+    if (entry.level != AppLogLevel.debug) {
+      AppBreadcrumbs.log(
+        level: entry.level.name,
+        source: entry.source,
+        message: entry.message,
+        detail: entry.detail,
+        sessionTag: entry.sessionTag,
+      );
+    }
     notifyListeners();
   }
 
