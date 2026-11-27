@@ -7,6 +7,7 @@ import '../../../../presentation/components/feature_view.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../../../utils/utils.dart';
 import '../../log_controller.dart';
+import 'live_rate_indicator.dart';
 import 'log_lines_limit_editor.dart';
 
 (String, Color) _liveStatusLabel(EaglyTheme theme, LogController controller) {
@@ -20,6 +21,14 @@ import 'log_lines_limit_editor.dart';
   if (controller.isRunning) return ('Live', theme.statusLiveColor);
   return ('Stopped', theme.statusStoppedColor);
 }
+
+/// Whether lines are flowing in: the state that gets [LiveRateIndicator]
+/// rather than a plain label.
+bool _isStreaming(LogController controller) =>
+    controller.isRunning &&
+    !controller.isPaused &&
+    !controller.isRecovering &&
+    !controller.liveLoggingInterrupted;
 
 /// Bottom status bar: log/filtered/selected counts (memory use in the log
 /// count's tooltip), the max-lines editor, and the live/imported status indicator. Scrolls sideways
@@ -84,6 +93,12 @@ class const LogStatusBar({
           Builder(
             builder: (context) {
               final (label, color) = _liveStatusLabel(theme, controller);
+              if (_isStreaming(controller)) {
+                return LiveRateIndicator(
+                  readCount: () => controller.receivedLineCount,
+                  color: color,
+                );
+              }
               return Text(
                 label,
                 style: TextStyle(

@@ -584,6 +584,25 @@ void main() {
     expect(log.filteredLogs.single.packageName, 'com.example.sync');
   });
 
+  test('receivedLineCount keeps counting through trims and clears', () async {
+    final log = createLog(settings: testSettings(logLinesLimit: 3));
+    await log.startLogcat();
+
+    for (var i = 0; i < 5; i++) {
+      service.emit(testLogEntry(message: 'line $i'));
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    // The buffer holds three, but five arrived.
+    expect(log.logCount, lessThan(5));
+    expect(log.receivedLineCount, 5);
+
+    log.clearLogs();
+    service.emit(testLogEntry(message: 'after clear'));
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    expect(log.logCount, 1);
+    expect(log.receivedLineCount, 6);
+  });
+
   test(
     'streamed logs retain filtered matches longer while a filter is active',
     () async {

@@ -266,6 +266,14 @@ class LogController(super.session, {required LogTabSettings initialSettings})
 
   bool get hasLogs => _logsBuffer.size > 0;
   int get logCount => _logsBuffer.size;
+
+  /// Device lines taken into the buffer since this tab was created. Unlike
+  /// [logCount] it only ever grows — clearing and the max-lines trim leave it
+  /// alone — so the difference between two reads is the lines that arrived.
+  int get receivedLineCount => _receivedLineCount ?? 0;
+
+  /// Null until the first flush.
+  int? _receivedLineCount;
   bool get hasAnyCachedLogs => hasLogs || _pendingLogs.isNotEmpty;
   int get totalLogsMemoryBytes => _logsMemoryBytes + _pendingLogsMemoryBytes;
   TextSearchConfig get inlineSearch => _inlineSearch;
@@ -1328,6 +1336,7 @@ class LogController(super.session, {required LogTabSettings initialSettings})
     if (_disposed || _pendingLogs.isEmpty) return;
 
     final pendingLogs = List<LogEntry>.of(_pendingLogs);
+    _receivedLineCount = receivedLineCount + pendingLogs.length;
     final pendingLogsMemoryBytes = _pendingLogsMemoryBytes;
     _pendingLogs.clear();
     _pendingLogsMemoryBytes = 0;
