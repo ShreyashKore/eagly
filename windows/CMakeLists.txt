@@ -32,6 +32,20 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
+# Keep std::mutex's pre-VS-17.10 (non-constexpr) constructor. Since MSVC STL
+# 17.10 (_MSVC_STL_UPDATE 202402) std::mutex is constexpr-constructed and only
+# works with msvcp140.dll 14.40+; loaded against an older one (a Windows 10
+# image whose VC++ Redistributable was never updated) the first lock
+# null-derefs or aborts inside msvcp140!mtx_do_lock — FLUTTER-M2/M7, from the
+# runner's scrcpy plugin/decoder mutexes. The app-local runtime installed below
+# is the real fix; this keeps our own code safe even if an old msvcp140.dll
+# still wins (e.g. one already loaded into the process by injected software).
+# Directory scope, before any add_subdirectory, so the runner, the plugins and
+# the sentry-native/crashpad sources built in-tree all get it.
+# https://github.com/microsoft/STL/issues/4730
+# https://github.com/microsoft/STL/wiki/Changelog (VS 2022 17.10, "constexpr mutex")
+add_compile_definitions(_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
+
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
@@ -137,5 +151,54 @@ if(EXISTS "${MOBILE_TOOLS_DIR}")
       COMPONENT Runtime)
   else()
     message(WARNING "No FFmpeg runtime DLLs (avcodec/avutil/swresample) found in ${MOBILE_TOOLS_DIR}; ${BINARY_NAME}.exe will not start without them. Run scripts/download_platform_tools.sh windows.")
+  endif()
+endif()
+
+# Ship the Visual C++ runtime app-local, next to eagly.exe. The binaries are
+# built with the CI image's newest toolset (VS 2026 on windows-2025-vs2026)
+# and need an msvcp140.dll at least that new; Windows does not provide one and
+# the installer does not run vc_redist, so without these the exe picks up
+# whatever C:\Windows\System32 has — on an un-updated Windows 10 that is a pre-
+# 14.40 copy and the app crashes in msvcp140!mtx_do_lock (FLUTTER-M2/M7). The
+# application directory is searched before System32 (msvcp140/vcruntime140 are
+# not KnownDLLs), so these copies win for eagly.exe and every plugin DLL.
+# The whole Microsoft.VC<nnn>.CRT folder is the unit Microsoft documents for
+# app-local deployment, and the same set the msix tool packs into the .msix:
+# https://learn.microsoft.com/cpp/windows/deployment-in-visual-cpp#local-deployment
+# Taken from the redist of the VS install whose compiler built us (newest
+# version folder), so it is never older than the headers we compiled against.
+# Release/Profile only: Debug links the non-redistributable debug CRT.
+# The UCRT (ucrtbase.dll) is part of Windows 10+ and is not bundled.
+# .github/workflows/release.yml checks the installer and .msix contain them.
+if(MSVC)
+  string(TOLOWER "${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" _vc_arch)
+  if(DEFINED ENV{VCToolsRedistDir})
+    # Set inside a VS developer prompt; points at one Redist/MSVC/<ver> folder.
+    file(TO_CMAKE_PATH "$ENV{VCToolsRedistDir}" _vc_redist_root)
+    string(REGEX REPLACE "/+$" "" _vc_redist_root "${_vc_redist_root}")
+  else()
+    # flutter build runs cmake outside a developer prompt, so derive it from
+    # the compiler: <VS>/VC/Tools/MSVC/<ver>/bin/Host<arch>/<arch>/cl.exe ->
+    # <VS>/VC/Redist/MSVC/<redist ver> (the two versions usually differ).
+    string(REGEX REPLACE "/Tools/MSVC/[^/]+/bin/.*$" "" _vc_dir "${CMAKE_CXX_COMPILER}")
+    set(_vc_redist_root "${_vc_dir}/Redist/MSVC/14.*")
+  endif()
+  file(GLOB _vc_crt_dirs LIST_DIRECTORIES true
+    "${_vc_redist_root}/${_vc_arch}/Microsoft.VC*.CRT")
+  set(VC_RUNTIME_DLLS "")
+  if(_vc_crt_dirs)
+    # Newest redist version first (the version is the first varying component).
+    list(SORT _vc_crt_dirs COMPARE NATURAL ORDER DESCENDING)
+    list(GET _vc_crt_dirs 0 _vc_crt_dir)
+    file(GLOB VC_RUNTIME_DLLS "${_vc_crt_dir}/*.dll")
+  endif()
+  if(VC_RUNTIME_DLLS MATCHES "msvcp140\\.dll" AND VC_RUNTIME_DLLS MATCHES "vcruntime140\\.dll")
+    message(STATUS "Bundling the VC++ runtime app-local from ${_vc_crt_dir}")
+    install(FILES ${VC_RUNTIME_DLLS}
+      DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+      CONFIGURATIONS Profile;Release
+      COMPONENT Runtime)
+  else()
+    message(WARNING "VC++ runtime redist not found (looked in '${_vc_redist_root}/${_vc_arch}'); ${BINARY_NAME}.exe will depend on the system's msvcp140.dll and can crash on PCs with an old VC++ Redistributable. Install the 'MSVC v14x - VS C++ x64/x86 build tools' component, or set VCToolsRedistDir.")
   endif()
 endif()
