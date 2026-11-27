@@ -110,7 +110,10 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   late final LogFilterController filter;
 
   LogBuffer<LogEntry> _logsBuffer;
-  final List<LogEntry> _pendingLogs = [];
+
+  /// Entries waiting for the next flush; never more than [maxPendingLogs].
+  /// A flush takes the list and starts a new one rather than copying it.
+  var _pendingLogs = <LogEntry>[];
   final StreamController<List<LogEntry>> _appended = StreamController.broadcast(
     sync: true,
   );
@@ -267,6 +270,10 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   bool get hasLogs => _logsBuffer.size > 0;
   int get logCount => _logsBuffer.size;
   bool get hasAnyCachedLogs => hasLogs || _pendingLogs.isNotEmpty;
+
+  /// How many entries are queued for the next flush.
+  @visibleForTesting
+  int get pendingLogCount => _pendingLogs.length;
   int get totalLogsMemoryBytes => _logsMemoryBytes + _pendingLogsMemoryBytes;
   TextSearchConfig get inlineSearch => _inlineSearch;
   TextSearchConfig get appliedInlineSearch => _appliedInlineSearch;
@@ -1327,9 +1334,9 @@ class LogController(super.session, {required LogTabSettings initialSettings})
   void _flushPendingLogs() {
     if (_disposed || _pendingLogs.isEmpty) return;
 
-    final pendingLogs = List<LogEntry>.of(_pendingLogs);
+    final pendingLogs = _pendingLogs;
     final pendingLogsMemoryBytes = _pendingLogsMemoryBytes;
-    _pendingLogs.clear();
+    _pendingLogs = <LogEntry>[];
     _pendingLogsMemoryBytes = 0;
     _syncLogBufferFilterIfDirty();
     _detectFrameworks(pendingLogs);

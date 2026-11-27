@@ -62,6 +62,25 @@ const Duration logLineIdleFlushInterval = Duration(milliseconds: 100);
 /// marker can't hide the last entry until the next one arrives.
 const Duration logLineIncompleteEntryFlushDelay = Duration(seconds: 1);
 
+/// How long [parseLogLines] may keep handling lines before it hands the event
+/// loop back, counted from the first line since it last did.
+///
+/// dart:io re-reads a pipe in a microtask for as long as bytes are waiting,
+/// and each entry then takes a few more microtasks to reach the UI. A source
+/// that writes faster than the app parses — `adb logcat` replaying a device's
+/// whole ring buffer when a tab (re)attaches, or several tabs doing it at
+/// once — kept the UI isolate in one microtask loop for seconds to minutes:
+/// no frame and no timer ran (the 300 ms log flush and the device poll
+/// included) while the lines queued between the stream hops grew past a
+/// gigabyte (Sentry FLUTTER-AR). Pausing the source is what stops the
+/// re-reads; resuming it from a timer is what lets the rest of the app run.
+const Duration logLineSliceBudget = Duration(milliseconds: 8);
+
+/// The most lines [parseLogLines] handles before it hands the event loop
+/// back, however fast they parse: the entries they make cost more again
+/// downstream, in microtasks that run before the loop gets control.
+const int logLineSliceMaxLines = 1000;
+
 /// Parses [lines] with [parser], flushing the entry it holds when [lines]
 /// ends or goes quiet (without that, the last entry of a burst would wait for
 /// the next line, which may be a long time coming). How long "quiet" is
@@ -73,6 +92,12 @@ const Duration logLineIncompleteEntryFlushDelay = Duration(seconds: 1);
 /// stopped while the output is paused: the entry's remaining lines may be
 /// sitting in the paused source, so silence proves nothing then.
 ///
+/// Work is cut into slices of at most [sliceMaxLines] lines or [sliceBudget]
+/// (see [logLineSliceBudget]): after each one [lines] is paused and resumed
+/// from a zero-length timer, so a source that never runs dry can't starve the
+/// event loop. Order is kept — the rest of a chunk waits in the paused
+/// subscription — and a yield never counts as silence.
+///
 /// Errors on [lines] are forwarded after the held entry, which came first. A
 /// parser exception is delivered as an error event too, rather than escaping
 /// to the zone, so a consumer's `await for` sees it where it would have seen
@@ -82,12 +107,44 @@ Stream<LogEntry> parseLogLines(
   LogLineParser parser, {
   Duration idleFlushInterval = logLineIdleFlushInterval,
   Duration incompleteEntryFlushDelay = logLineIncompleteEntryFlushDelay,
+  Duration sliceBudget = logLineSliceBudget,
+  int sliceMaxLines = logLineSliceMaxLines,
 }) {
   late final StreamController<LogEntry> controller;
   StreamSubscription<String>? subscription;
   Timer? idleFlushTimer;
   var sawLineSinceTick = false;
   var quietTicks = 0;
+
+  // The current slice: lines handled, and time since its first line.
+  final sliceBudgetMicros = sliceBudget.inMicroseconds;
+  final slice = Stopwatch();
+  var sliceLines = 0;
+
+  /// Pending while [lines] is paused to let the event loop run.
+  Timer? yieldTimer;
+
+  void stopYielding() {
+    yieldTimer?.cancel();
+    yieldTimer = null;
+  }
+
+  /// Ends the slice: pauses [lines] and resumes it on a later turn of the
+  /// event loop. Pauses nest, so a consumer's own pause still holds after
+  /// this resume.
+  void yieldToEventLoop() {
+    final source = subscription;
+    if (source == null || yieldTimer != null) return;
+    slice
+      ..stop()
+      ..reset();
+    sliceLines = 0;
+    source.pause();
+    yieldTimer = Timer(Duration.zero, () {
+      yieldTimer = null;
+      source.resume();
+    });
+  }
 
   void emitPending() {
     final pending = parser.flush();
@@ -103,7 +160,8 @@ Stream<LogEntry> parseLogLines(
   }
 
   void onTick(Timer _) {
-    if (sawLineSinceTick) {
+    // Lines held back by a yield are still to come: that isn't silence.
+    if (sawLineSinceTick || yieldTimer != null) {
       sawLineSinceTick = false;
       quietTicks = 0;
       return;
@@ -138,12 +196,18 @@ Stream<LogEntry> parseLogLines(
         (line) {
           sawLineSinceTick = true;
           guarded(() => parser.addLine(line).forEach(controller.add));
+          if (sliceLines++ == 0) slice.start();
+          if (sliceLines >= sliceMaxLines ||
+              slice.elapsedMicroseconds >= sliceBudgetMicros) {
+            yieldToEventLoop();
+          }
         },
         onError: (Object error, StackTrace stackTrace) {
           guarded(emitPending);
           controller.addError(error, stackTrace);
         },
         onDone: () {
+          stopYielding();
           stopIdleFlushTimer();
           guarded(emitPending);
           controller.close();
@@ -159,6 +223,7 @@ Stream<LogEntry> parseLogLines(
       startIdleFlushTimer();
     },
     onCancel: () {
+      stopYielding();
       stopIdleFlushTimer();
       return subscription?.cancel();
     },

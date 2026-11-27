@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:eagly/data/device.dart';
 import 'package:eagly/features/logs/data/models/log_column.dart';
 import 'package:eagly/features/logs/data/models/filter_condition.dart';
@@ -1212,6 +1214,119 @@ void main() {
       await log.stopLogcat();
 
       expect(messagesAfterStart(log), ['before stop', '<stopped>']);
+    });
+  });
+
+  // FLUTTER-AR: a logcat flood delivered entirely in microtasks, so the
+  // 300 ms flush timer never gets a turn. The queue must stay bounded on its
+  // own, and nothing may be lost, reordered or miscounted.
+  group('a log flood', () {
+    Future<void> deliver() => Future<void>.delayed(Duration.zero);
+
+    /// Emits [count] numbered entries starting at [from] in one go — they are
+    /// all delivered before any timer runs.
+    void flood(int from, int count) {
+      for (var i = from; i < from + count; i++) {
+        service.emit(testLogEntry(message: '$i'));
+      }
+    }
+
+    List<String> deviceMessages(LogController log) => [
+      for (final entry in log.logs)
+        if (entry.type == LogEntryType.log) entry.message,
+    ];
+
+    test('keeps the queue bounded while the flush timer is starved', () async {
+      final log = createLog(settings: testSettings(logLinesLimit: 20000));
+      await log.startLogcat();
+
+      const total = 1000000;
+      const batch = 100000;
+      var maxPending = 0;
+      for (var from = 0; from < total; from += batch) {
+        flood(from, batch);
+        await deliver();
+        maxPending = math.max(maxPending, log.pendingLogCount);
+      }
+
+      expect(maxPending, lessThanOrEqualTo(LogController.maxPendingLogs));
+      // The buffer evicts in batches, so it may run a fifth over its limit.
+      expect(log.logCount, lessThanOrEqualTo(20000 * 6 ~/ 5 + 1));
+
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(log.pendingLogCount, 0);
+      final messages = deviceMessages(log);
+      expect(messages.last, '${total - 1}');
+      // Contiguous and in order: eviction drops only the oldest.
+      final first = int.parse(messages.first);
+      expect(messages, [for (var i = first; i < total; i++) '$i']);
+      expect(log.totalLogsMemoryBytes, estimateLogsBytes(log.logs));
+    });
+
+    test('queues nothing while paused, and markers keep their place', () async {
+      final log = createLog(settings: testSettings(logLinesLimit: 100000));
+      await log.startLogcat();
+
+      flood(0, 5);
+      await deliver();
+      log.togglePauseResume();
+
+      flood(5, 1000000);
+      await deliver();
+      expect(log.pendingLogCount, 0);
+
+      log.togglePauseResume();
+      flood(2000000, 3);
+      await deliver();
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      final sequence = [
+        for (final entry in log.logs.skip(1))
+          entry.type == LogEntryType.log
+              ? entry.message
+              : '<${entry.type.name}>',
+      ];
+      expect(sequence, [
+        '0',
+        '1',
+        '2',
+        '3',
+        '4',
+        '<paused>',
+        '<resumed>',
+        '2000000',
+        '2000001',
+        '2000002',
+      ]);
+      expect(log.totalLogsMemoryBytes, estimateLogsBytes(log.logs));
+    });
+
+    test('a separator mid-flood lands between the entries around it', () async {
+      final log = createLog(settings: testSettings(logLinesLimit: 100000));
+      await log.startLogcat();
+
+      flood(0, 25000);
+      service.emit(
+        LogEntryUtils.buildSpecial(
+          type: LogEntryType.notice,
+          message: 'Beginning of crash',
+        ),
+      );
+      flood(25000, 25000);
+      await deliver();
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      final sequence = [
+        for (final entry in log.logs.skip(1))
+          entry.type == LogEntryType.log
+              ? entry.message
+              : '<${entry.type.name}>',
+      ];
+      expect(sequence, [
+        for (var i = 0; i < 25000; i++) '$i',
+        '<notice>',
+        for (var i = 25000; i < 50000; i++) '$i',
+      ]);
     });
   });
 }
