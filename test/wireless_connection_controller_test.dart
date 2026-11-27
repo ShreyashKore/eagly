@@ -451,7 +451,8 @@ class _FakeWirelessAdbTool() extends AdbTool {
   }
 
   @override
-  Future<List<Device>> getDevices() async => List.of(androidDevices);
+  Future<List<Device>> getDevices({Duration maxAge = Duration.zero}) async =>
+      List.of(androidDevices);
 
   @override
   Stream<List<Device>> watchDeviceChanges() => _watchController.stream;

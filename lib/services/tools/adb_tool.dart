@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import 'package:eagly/features/logs/services/log_parsers/logcat_parser.dart';
 
 import '../../data/app_install_conflict.dart';
@@ -62,6 +64,9 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
     }
 
     _serverStartup = null;
+    // A listing taken from the old server says nothing about the new one.
+    _lastDevices = null;
+    _lastDevicesAt = null;
     await ensureServerRunning();
     final running = await _serverIsListening(port);
     if (running) logSuccess('Restarted the adb server');
@@ -112,7 +117,76 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
     }
   }
 
-  Future<List<Device>> getDevices() async {
+  /// How old a listing may be for a caller of [getDevices] that passes
+  /// `maxAge: recentDeviceListAge`: the periodic refresh, which wants "the
+  /// current list" rather than proof of a change it was just told about.
+  static const Duration recentDeviceListAge = Duration(seconds: 1);
+
+  /// Clock behind the [getDevices] cache. Tests swap it to step time.
+  @visibleForTesting
+  DateTime Function() clock = DateTime.now;
+
+  /// The listing in progress, shared by every caller that arrives while it
+  /// runs (see [getDevices]).
+  Future<List<Device>>? _devicesInFlight;
+
+  /// The last successful listing, and when the read that produced it started.
+  List<Device>? _lastDevices;
+  DateTime? _lastDevicesAt;
+
+  /// What the last "Found N device(s)" line described, so an unchanged list
+  /// does not log again on every poll.
+  String? _lastLoggedDevices;
+
+  /// The Android devices adb reports (`adb devices -l`).
+  ///
+  /// Single-flight: calls that arrive while a listing runs share it, so any
+  /// number of concurrent callers cost one `adb` process. Without [maxAge]
+  /// the result is always a real read, the one in flight or a new one. A
+  /// caller that only needs a recent list passes [maxAge] and is served the
+  /// last listing when the read behind it started no more than [maxAge] ago.
+  ///
+  /// A shared read may have started just before the caller's reason to ask
+  /// (a device that dropped a moment ago). [DevicesRepository] covers that by
+  /// queueing one more refresh behind a refresh in flight.
+  ///
+  /// This used to spawn `adb` on every call, and [watchDeviceChanges] called
+  /// it once per *line* `adb track-devices` printed: one line per device, per
+  /// change. With four phones attached a burst of state changes queued a
+  /// backlog of serial listings, one every ~50 ms for seconds on end.
+  Future<List<Device>> getDevices({Duration maxAge = Duration.zero}) {
+    final cached = _lastDevices;
+    final cachedAt = _lastDevicesAt;
+    if (maxAge > Duration.zero &&
+        cached != null &&
+        cachedAt != null &&
+        clock().difference(cachedAt) <= maxAge) {
+      return Future.value(List.of(cached));
+    }
+    return (_devicesInFlight ?? _startDeviceListing()).then(List.of);
+  }
+
+  Future<List<Device>> _startDeviceListing() {
+    final startedAt = clock();
+    late final Future<List<Device>> listing;
+    listing = () async {
+      try {
+        final devices = await _listDevices();
+        if (devices == null) return const <Device>[];
+        _lastDevices = List.unmodifiable(devices);
+        _lastDevicesAt = startedAt;
+        return devices;
+      } finally {
+        if (identical(_devicesInFlight, listing)) _devicesInFlight = null;
+      }
+    }();
+    _devicesInFlight = listing;
+    return listing;
+  }
+
+  /// Runs `adb devices -l` once. Null when adb failed, so a failure is never
+  /// served from the cache as "no devices".
+  Future<List<Device>?> _listDevices() async {
     try {
       await ensureServerRunning();
       final result = await runText(['devices', '-l']);
@@ -121,41 +195,105 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
           'adb devices -l returned non-zero exit code',
           '${result.exitCode} ${result.combinedOutput}',
         );
-        return const [];
+        return null;
       }
 
-      final deviceList = <Device>[];
-      for (final line in result.stdout.split('\n').skip(1)) {
-        final parsed = _parseDeviceLine(line);
-        if (parsed != null) {
-          deviceList.add(parsed);
-        }
-      }
-
-      logInfo('Found ${deviceList.length} device(s)');
+      final deviceList = _parseDeviceLines(result.stdout.split('\n').skip(1));
+      _logDevicesIfChanged(deviceList);
       return deviceList;
     } on ProcessException catch (error) {
       logError('ProcessException while listing Android devices', error);
-      return const [];
+      return null;
     } catch (error) {
       logError('Unexpected error while listing Android devices', error);
-      return const [];
+      return null;
     }
   }
 
-  Stream<List<Device>> watchDeviceChanges() async* {
-    Process? process;
+  /// Logs a listing only when it differs from the last one logged. The list is
+  /// re-read every few seconds, and every log line becomes a crash-report
+  /// breadcrumb.
+  void _logDevicesIfChanged(List<Device> devices) {
+    final summary = [
+      for (final device in devices) '${device.id} ${device.status}',
+    ].join('\n');
+    if (summary == _lastLoggedDevices) return;
+    _lastLoggedDevices = summary;
+    logInfo('Found ${devices.length} device(s)');
+  }
 
-    try {
-      await ensureServerRunning();
-      process = await startProcess(['track-devices', '-l']);
-      await for (final line in stdoutLines(process)) {
-        if (line.trim().isEmpty) continue;
-        yield await getDevices();
-      }
-    } finally {
-      await stopProcess(process);
+  /// Parses `adb devices -l` lines, without the "List of devices attached"
+  /// header, skipping blanks.
+  List<Device> _parseDeviceLines(Iterable<String> lines) => [
+    for (final line in lines) ?_parseDeviceLine(line),
+  ];
+
+  /// Emits the device list each time adb reports a change.
+  ///
+  /// `adb track-devices` writes one frame per change (see
+  /// [TrackDevicesFrameDecoder]) holding the same lines as `adb devices -l`.
+  /// The list is parsed straight from the frame, so tracking costs no further
+  /// adb calls; the consumer decides whether to re-read.
+  ///
+  /// Cancelling stops the tracker at once. (An `async*` generator parked in
+  /// `await for` only notices a cancel when the next frame arrives, which for
+  /// an idle device list can be never.)
+  Stream<List<Device>> watchDeviceChanges() {
+    Process? process;
+    StreamSubscription<List<int>>? output;
+    var cancelled = false;
+    late final StreamController<List<Device>> controller;
+
+    void emit(List<Device> devices) {
+      if (!cancelled && !controller.isClosed) controller.add(devices);
     }
+
+    controller = StreamController<List<Device>>(
+      onListen: () async {
+        try {
+          await ensureServerRunning();
+          if (cancelled) return;
+          final started = process = await startProcess(['track-devices', '-l']);
+          if (cancelled) {
+            await stopProcess(started);
+            return;
+          }
+          final frames = TrackDevicesFrameDecoder();
+          output = started.stdout.listen(
+            (chunk) {
+              final payloads = frames.add(chunk);
+              if (payloads == null) {
+                logWarning(
+                  'Unreadable adb track-devices output; re-reading devices',
+                );
+                unawaited(getDevices(maxAge: recentDeviceListAge).then(emit));
+                return;
+              }
+              for (final payload in payloads) {
+                emit(_parseDeviceLines(payload.split('\n')));
+              }
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              if (!cancelled) controller.addError(error, stackTrace);
+            },
+            onDone: () {
+              unawaited(stopProcess(started));
+              if (!cancelled) unawaited(controller.close());
+            },
+          );
+        } catch (error, stackTrace) {
+          if (cancelled) return;
+          controller.addError(error, stackTrace);
+          unawaited(controller.close());
+        }
+      },
+      onCancel: () async {
+        cancelled = true;
+        await output?.cancel();
+        await stopProcess(process);
+      },
+    );
+    return controller.stream;
   }
 
   Future<Device> describeDevice(String deviceId) async {
@@ -1484,5 +1622,49 @@ class AdbTool({super.executablePath}) extends ToolProcessRunner {
     flush();
 
     return apps;
+  }
+}
+
+/// Splits `adb track-devices` output into its frames.
+///
+/// Each frame is four hex digits giving the payload length in bytes, then the
+/// payload: the device lines `adb devices -l` prints, without its header, one
+/// per device. An empty list is a bare `0000` with no newline at all, so
+/// reading the output line by line both multiplies one change by the number
+/// of devices and never sees the last device leave.
+class TrackDevicesFrameDecoder {
+  static const int _headerLength = 4;
+  static final RegExp _header = RegExp(r'^[0-9a-fA-F]{4}$');
+
+  final List<int> _buffer = [];
+
+  /// Adds a chunk of output and returns the payloads of every frame it
+  /// completed, in order (none while a frame is still partial). Returns null,
+  /// and drops what it had buffered, when the output is not framed as
+  /// expected.
+  List<String>? add(List<int> chunk) {
+    _buffer.addAll(chunk);
+    final payloads = <String>[];
+    var offset = 0;
+    while (_buffer.length - offset >= _headerLength) {
+      final header = String.fromCharCodes(
+        _buffer.sublist(offset, offset + _headerLength),
+      );
+      if (!_header.hasMatch(header)) {
+        _buffer.clear();
+        return null;
+      }
+      final end = offset + _headerLength + int.parse(header, radix: 16);
+      if (_buffer.length < end) break;
+      payloads.add(
+        utf8.decode(
+          _buffer.sublist(offset + _headerLength, end),
+          allowMalformed: true,
+        ),
+      );
+      offset = end;
+    }
+    _buffer.removeRange(0, offset);
+    return payloads;
   }
 }
