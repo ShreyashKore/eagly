@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../presentation/theme/app_theme.dart';
@@ -17,7 +18,15 @@ class const LogViewerHeader({
   required final ValueChanged<double> onMessageResize,
   required final ValueChanged<Offset> onShowColumnVisibilityMenu,
   final bool isIos = false,
+
+  /// The date of the rows on screen, for the timestamp column's title: the
+  /// rows show only the time of day. Null keeps the plain title.
+  final ValueListenable<String?>? timestampDate,
 }) extends StatelessWidget {
+  /// `Time · Oct 18` once a date is known; the column's name otherwise.
+  static String timestampTitle(String? date) =>
+      date == null ? LogColumn.timestamp.label : 'Time · $date';
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -40,11 +49,21 @@ class const LogViewerHeader({
             ),
             const SizedBox(width: kColumnSpacing),
             for (final column in visibleFixedColumns) ...[
-              _HeaderCell(
-                text: column.labelFor(isIos: isIos),
-                width: widthOf(column),
-                style: headerStyle,
-              ),
+              if (column == LogColumn.timestamp && timestampDate != null)
+                ValueListenableBuilder(
+                  valueListenable: timestampDate!,
+                  builder: (context, date, _) => _HeaderCell(
+                    text: timestampTitle(date),
+                    width: widthOf(column),
+                    style: headerStyle,
+                  ),
+                )
+              else
+                _HeaderCell(
+                  text: column.labelFor(isIos: isIos),
+                  width: widthOf(column),
+                  style: headerStyle,
+                ),
               _ColumnDragHandle(
                 onDrag: (dx) => onFixedColumnResize(column, dx),
               ),

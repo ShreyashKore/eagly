@@ -629,6 +629,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   icon — a log row carries its level color on the badge (a 12% tint behind the letter,
   `EaglyTheme.logBadgeFill`; `test/log_level_badge_test.dart` holds each letter to AA) and the
   message only; package/tag are secondary, timestamp and PID/TID tertiary (`LogRow._cellStyle`).
+  The timestamp cell draws only the time of day (`LogTimestampParts`, `utils/log_timestamp.dart`)
+  and the header names the top visible row's date; the date stays in the cell's text at zero
+  size, like the cell separators, so a selection still copies the timestamp whole. Copy, export,
+  search and filters read `LogEntry.timestamp` and never see the split.
 - Icon-only buttons are `AppIconButton` (`presentation/components/app_icon_button.dart`),
   never Material's `IconButton` — `test/app_icon_button_test.dart` fails on one in `lib/`.
   Icons follow the app zoom, and `IconButton`'s theme-clamped box pushed a zoomed glyph

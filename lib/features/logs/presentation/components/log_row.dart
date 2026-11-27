@@ -68,11 +68,16 @@ class const LogRow({
     return LogTimestampParts.tryParse(timestamp)?.time ?? timestamp;
   }
 
+  /// Text that takes no space and draws nothing, yet is part of what a
+  /// selection copies.
+  static const _hiddenTextStyle = TextStyle(
+    fontSize: 0,
+    height: 0,
+    color: Colors.transparent,
+  );
+
   TextSpan _selectionSeparatorSpan(String text) {
-    return TextSpan(
-      text: text,
-      style: const TextStyle(fontSize: 0, height: 0, color: Colors.transparent),
-    );
+    return TextSpan(text: text, style: _hiddenTextStyle);
   }
 
   TextSpan _cellSeparatorSpan() {
@@ -83,10 +88,15 @@ class const LogRow({
     return _selectionSeparatorSpan('\n ');
   }
 
+  /// [text] as selectable spans, search matches highlighted. [styleRuns]
+  /// styles it in pieces — each `(end, style)` covers the text up to `end`,
+  /// the last ending at `text.length` — and a match spanning two pieces is
+  /// highlighted in both.
   Widget _buildSelectableText(
     BuildContext context,
     String text,
     TextStyle style, {
+    List<(int, TextStyle)>? styleRuns,
     Color? highlightColor,
     TextOverflow? overflow,
     bool softWrap = false,
@@ -99,29 +109,44 @@ class const LogRow({
         !pattern.isActive || highlightColor == null || !pattern.isValid
         ? const <TextSearchMatch>[]
         : pattern.allMatches(text);
+    final runs = styleRuns ?? [(text.length, style)];
 
-    var start = 0;
-    for (final match in matches) {
-      if (match.start > start) {
-        children.add(
-          TextSpan(text: text.substring(start, match.start), style: style),
-        );
+    // Cut wherever a style run or a match starts or ends; each piece takes
+    // its run's style, highlighted when it lies inside a match.
+    final cuts = <int>{
+      0,
+      text.length,
+      for (final (end, _) in runs) end,
+      for (final match in matches) ...[match.start, match.end],
+    }.toList()..sort();
+    var runIndex = 0;
+    var matchIndex = 0;
+    for (var i = 0; i + 1 < cuts.length; i++) {
+      final start = cuts[i];
+      final end = cuts[i + 1];
+      while (runIndex < runs.length - 1 && runs[runIndex].$1 <= start) {
+        runIndex++;
       }
+      while (matchIndex < matches.length && matches[matchIndex].end <= start) {
+        matchIndex++;
+      }
+      final runStyle = runs[runIndex].$2;
+      final inMatch =
+          matchIndex < matches.length && matches[matchIndex].start <= start;
       children.add(
         TextSpan(
-          text: text.substring(match.start, match.end),
-          style: style.copyWith(
-            backgroundColor: highlightColor,
-            color: context.eaglyTheme.searchHighlightForeground,
-          ),
+          text: text.substring(start, end),
+          style: inMatch
+              ? runStyle.copyWith(
+                  backgroundColor: highlightColor,
+                  color: context.eaglyTheme.searchHighlightForeground,
+                )
+              : runStyle,
         ),
       );
-      start = match.end;
     }
-    // An unmatched text is still one span, even when empty.
-    if (start < text.length || matches.isEmpty) {
-      children.add(TextSpan(text: text.substring(start), style: style));
-    }
+    // An empty text is still one span.
+    if (children.isEmpty) children.add(TextSpan(text: '', style: style));
     if (appendCellSeparator) {
       children.add(_cellSeparatorSpan());
     }
@@ -134,6 +159,49 @@ class const LogRow({
       style: style,
       overflow: overflow,
       softWrap: softWrap,
+    );
+  }
+
+  /// The timestamp as its time of day, the milliseconds a step dimmer; the
+  /// date moves to the column header. The date is still in the text — drawn
+  /// at zero size, like the cell separators — so a selection copies the
+  /// timestamp whole. One that doesn't parse is shown as it is.
+  Widget _timestampCell(
+    BuildContext context,
+    String timestamp,
+    TextStyle style, {
+    Color? highlightColor,
+    bool appendCellSeparator = false,
+    bool appendRowTerminator = false,
+  }) {
+    final parts = LogTimestampParts.tryParse(timestamp);
+    final dateEnd = parts?.datePrefix.length ?? 0;
+    final timeEnd = dateEnd + (parts?.time.length ?? 0);
+    return SizedBox(
+      width: widthOf(LogColumn.timestamp),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: _buildSelectableText(
+          context,
+          timestamp,
+          style,
+          styleRuns: parts == null
+              ? null
+              : [
+                  (dateEnd, style.merge(_hiddenTextStyle)),
+                  (timeEnd, style),
+                  (
+                    timestamp.length,
+                    style.copyWith(
+                      color: context.eaglyTheme.timestampFractionColor,
+                    ),
+                  ),
+                ],
+          highlightColor: highlightColor,
+          appendCellSeparator: appendCellSeparator,
+          appendRowTerminator: appendRowTerminator,
+        ),
+      ),
     );
   }
 
@@ -452,6 +520,15 @@ class const LogRow({
             context,
             log.level,
             levelColor,
+            appendCellSeparator: lastVisibleColumn != col,
+            appendRowTerminator: lastVisibleColumn == col,
+          )
+        else if (col == LogColumn.timestamp)
+          _timestampCell(
+            context,
+            contentValueForColumn(col),
+            _cellStyle(logTheme, col, rowStyle),
+            highlightColor: highlightColor,
             appendCellSeparator: lastVisibleColumn != col,
             appendRowTerminator: lastVisibleColumn == col,
           )

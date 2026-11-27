@@ -92,6 +92,12 @@ class const EaglyTheme({
     };
   }
 
+  /// The milliseconds of a log row's timestamp: a step below the tertiary
+  /// time of day they follow, being the part read least. Below AA on
+  /// purpose — the seconds before them are what a reader scans.
+  Color get timestampFractionColor =>
+      tertiaryTextColor.withValues(alpha: tertiaryTextColor.a * 0.72);
+
   /// The accent a [LogFramework]'s chip is drawn in.
   Color frameworkColor(LogFramework framework) =>
       frameworkAccentColors[framework] ?? infoColor;
