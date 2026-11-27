@@ -195,6 +195,21 @@ jobs:
         shell: bash
         run: bash scripts/check_linux_glibc_baseline.sh "$(find dist -name '*.deb' | head -1)"
 
+      # The Windows counterpart: the image's toolset (VS 2026) needs a newer
+      # msvcp140.dll than old Windows 10 installs have, so both packages must
+      # carry the VC++ runtime next to eagly.exe (windows/CMakeLists.txt). The
+      # script installs the setup.exe silently and unpacks the .msix to check
+      # what users actually get — build/ is no proof, because the msix step
+      # deletes the runtime DLLs from it after packing.
+      - name: Verify Windows VC++ runtime is bundled
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $installer = (Get-ChildItem dist -Recurse -Filter *.exe | Select-Object -First 1).FullName
+          $msix = (Get-ChildItem dist -Recurse -Filter *.msix | Select-Object -First 1).FullName
+          if (-not $installer -or -not $msix) { throw "setup.exe or .msix missing under dist/" }
+          ./scripts/check_windows_vc_runtime.ps1 -Installer $installer -Msix $msix
+
       - name: Create stable-named artifacts
         shell: bash
         env:

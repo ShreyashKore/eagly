@@ -36,6 +36,9 @@ class DevicesRepository._({
   /// Fires when the marketing-name list arrives after devices were already
   /// described without it.
   final Listenable? _androidMarketingNamesChanged,
+
+  /// Time source for the refresh throttle. Tests pass a fake one.
+  final DateTime Function() _clock = DateTime.now,
 }) extends ChangeNotifier {
   this
     : _adbTool = adbTool ?? AdbTool(),
@@ -51,6 +54,7 @@ class DevicesRepository._({
     AndroidMarketingNameLookup? androidMarketingName,
     Listenable? androidMarketingNamesChanged,
     AppleUsbProbe? appleUsbProbe,
+    DateTime Function()? clock,
   }) {
     return DevicesRepository._(
       adbTool: adbTool,
@@ -58,6 +62,7 @@ class DevicesRepository._({
       androidMarketingName: androidMarketingName,
       androidMarketingNamesChanged: androidMarketingNamesChanged,
       appleUsbProbe: appleUsbProbe,
+      clock: clock ?? DateTime.now,
     );
   }
 
@@ -143,7 +148,7 @@ class DevicesRepository._({
       return _refreshInFlight!;
     }
 
-    final now = DateTime.now();
+    final now = _clock();
     if (!force &&
         _lastRefreshAt != null &&
         now.difference(_lastRefreshAt!) < _minimumRefreshInterval) {
@@ -155,7 +160,7 @@ class DevicesRepository._({
       _notify();
     }
 
-    final refresh = _reloadDevicesWith(retry: showLoading);
+    final refresh = _reloadDevicesWith(retry: showLoading, fresh: force);
     _refreshInFlight = refresh;
 
     try {
@@ -174,8 +179,13 @@ class DevicesRepository._({
     }
   }
 
-  Future<void> _reloadDevicesWith({required bool retry}) async {
-    await _reloadDevices();
+  /// A [fresh] reload always reads `adb devices` anew; otherwise a listing
+  /// from the last [AdbTool.recentDeviceListAge] will do.
+  Future<void> _reloadDevicesWith({
+    required bool retry,
+    required bool fresh,
+  }) async {
+    await _reloadDevices(fresh: fresh);
 
     if (retry) {
       for (int attempt = 0; attempt < _manualRetryCountMax; attempt++) {
@@ -183,7 +193,7 @@ class DevicesRepository._({
         if (_devices.isNotEmpty) return;
         await Future.delayed(_manualRetryInterval);
         if (_disposed) return;
-        await _reloadDevices();
+        await _reloadDevices(fresh: true);
       }
     }
   }
@@ -227,8 +237,10 @@ class DevicesRepository._({
     return restarted;
   }
 
-  Future<void> _reloadDevices() async {
-    final androidDevices = await _adbTool.getDevices();
+  Future<void> _reloadDevices({required bool fresh}) async {
+    final androidDevices = await _adbTool.getDevices(
+      maxAge: fresh ? Duration.zero : AdbTool.recentDeviceListAge,
+    );
     final describedAndroidDevices = await Future.wait(
       androidDevices.map(_resolveAndroidDevice),
     );
@@ -251,12 +263,6 @@ class DevicesRepository._({
     ];
     final nextDevices = _mergeDevices([...deduplicatedAndroid, ...iosDevices]);
 
-    _logger.info(
-      'Device list refreshed: '
-      '${describedAndroidDevices.length} Android, '
-      '${iosDevices.length} iOS',
-    );
-
     nextDevices.sort((left, right) {
       final platformOrder = left.platform.index.compareTo(right.platform.index);
       if (platformOrder != 0) return platformOrder;
@@ -269,7 +275,7 @@ class DevicesRepository._({
       return left.id.compareTo(right.id);
     });
 
-    _lastRefreshAt = DateTime.now();
+    _lastRefreshAt = _clock();
     final devicesChanged = !listEquals(_devices, nextDevices);
     final iosSupportChanged =
         _iosSupportUnavailable != iosSupportUnavailable ||
@@ -277,6 +283,14 @@ class DevicesRepository._({
     if (!devicesChanged && !iosSupportChanged) {
       return;
     }
+
+    // Only when something changed: the list is re-read every few seconds, and
+    // each log line becomes a crash-report breadcrumb.
+    _logger.info(
+      'Device list refreshed: '
+      '${describedAndroidDevices.length} Android, '
+      '${iosDevices.length} iOS',
+    );
 
     if (devicesChanged) {
       _breadcrumbConnectionDiff(previous: _devices, next: nextDevices);

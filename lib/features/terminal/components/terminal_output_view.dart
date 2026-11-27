@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../../../presentation/components/search_highlight.dart';
+import '../../logs/presentation/components/built_row_registry.dart';
 import '../../../presentation/theme/app_theme.dart';
 import '../../../utils/text_search_pattern.dart';
 import '../data/terminal_line.dart';
@@ -34,6 +37,20 @@ class _TerminalOutputViewState extends State<TerminalOutputView> {
   bool _stickToBottom = true;
   late int _revealedMoves = widget.find.moves;
 
+  /// The text selection over the scrollback; cleared before a rebuild drops
+  /// lines it may be anchored in (see [BuiltRowRegistry]).
+  final GlobalKey<SelectionAreaState> _selectionAreaKey =
+      GlobalKey<SelectionAreaState>();
+
+  /// Line numbers of the lines built right now, kept-alive ones too.
+  final BuiltRowRegistry _builtLines = BuiltRowRegistry();
+
+  /// The line number of `widget.lines[0]`: how many lines have scrolled off
+  /// the front (or been cleared) since this view was built. A line's number
+  /// stays put while the scrollback drops its head, so it keys the line's
+  /// row and the row keeps its element — and the selection in it.
+  int _firstLineNumber = 0;
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +60,13 @@ class _TerminalOutputViewState extends State<TerminalOutputView> {
   @override
   void didUpdateWidget(TerminalOutputView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _firstLineNumber += _linesDropped(oldWidget.lines, widget.lines);
+    // Before the rows rebuild: the scrollback cap or `clear` can take away a
+    // line the selection is anchored in.
+    final end = _firstLineNumber + widget.lines.length;
+    if (_builtLines.anyRemoved((n) => n >= _firstLineNumber && n < end)) {
+      _selectionAreaKey.currentState?.selectableRegion.clearSelection();
+    }
     if (widget.find.moves != _revealedMoves) {
       _revealedMoves = widget.find.moves;
       _revealCurrentMatch();
@@ -56,6 +80,28 @@ class _TerminalOutputViewState extends State<TerminalOutputView> {
     _scroll.dispose();
     _list.dispose();
     super.dispose();
+  }
+
+  /// How many of [old]'s lines are gone from the front of [next]. The
+  /// scrollback only appends and drops its head (or empties), so that is
+  /// where [next]'s first lines sit in [old]; all of them when they aren't
+  /// there. A run is compared, not one line, because some lines are `const`
+  /// and so the same object each time they are printed ("Stopped.").
+  static int _linesDropped(List<TerminalLine> old, List<TerminalLine> next) {
+    if (identical(old, next) || old.isEmpty) return 0;
+    if (next.isEmpty) return old.length;
+    bool startsAt(int k) {
+      final run = math.min(8, math.min(old.length - k, next.length));
+      for (var j = 0; j < run; j++) {
+        if (!identical(old[k + j], next[j])) return false;
+      }
+      return true;
+    }
+
+    for (var k = 0; k < old.length; k++) {
+      if (startsAt(k)) return k;
+    }
+    return old.length;
   }
 
   void _onScroll() {
@@ -111,25 +157,53 @@ class _TerminalOutputViewState extends State<TerminalOutputView> {
       children: [
         Positioned.fill(
           child: SelectionArea(
-            child: SuperListView.builder(
+            key: _selectionAreaKey,
+            // A CustomScrollView rather than SuperListView, which can't pass
+            // layoutKeptAliveChildren: a line holding part of the selection
+            // is kept alive offscreen, and must keep being laid out or the
+            // selection loses that edge (see LogViewer's list).
+            child: CustomScrollView(
               controller: _scroll,
-              listController: _list,
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-              itemCount: widget.lines.length,
-              itemBuilder: (context, index) {
-                final line = widget.lines[index];
-                final matches = find.matchesIn(line);
-                return _TerminalLineView(
-                  line: line,
-                  fontSize: widget.fontSize,
-                  matches: matches,
-                  currentMatch: current != null && identical(current.line, line)
-                      ? matches.indexWhere(
-                          (m) => m.start == current.range.start,
-                        )
-                      : null,
-                );
-              },
+              semanticChildCount: widget.lines.length,
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                  sliver: SuperSliverList.builder(
+                    listController: _list,
+                    layoutKeptAliveChildren: true,
+                    delayPopulatingCacheArea: false,
+                    itemCount: widget.lines.length,
+                    findChildIndexCallback: (key) {
+                      if (key is! ValueKey<int>) return null;
+                      final index = key.value - _firstLineNumber;
+                      return index >= 0 && index < widget.lines.length
+                          ? index
+                          : null;
+                    },
+                    itemBuilder: (context, index) {
+                      final line = widget.lines[index];
+                      final matches = find.matchesIn(line);
+                      final number = _firstLineNumber + index;
+                      return BuiltRowMarker(
+                        key: ValueKey<int>(number),
+                        id: number,
+                        registry: _builtLines,
+                        child: _TerminalLineView(
+                          line: line,
+                          fontSize: widget.fontSize,
+                          matches: matches,
+                          currentMatch:
+                              current != null && identical(current.line, line)
+                              ? matches.indexWhere(
+                                  (m) => m.start == current.range.start,
+                                )
+                              : null,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ),

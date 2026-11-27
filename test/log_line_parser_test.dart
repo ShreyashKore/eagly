@@ -50,6 +50,65 @@ class _ThrowingParser({
   PendingEntryStatus get pendingEntryStatus => _inner.pendingEntryStatus;
 }
 
+/// Counts the pauses and resumes asked of its one subscription. A paused
+/// subscription with lines still buffered doesn't pass a resume on to its
+/// source, so the source's own callbacks can't count slices.
+class _PauseCountingStream(final Stream<String> _inner) extends Stream<String> {
+  var pauses = 0;
+  var resumes = 0;
+
+  @override
+  StreamSubscription<String> listen(
+    void Function(String)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) => _PauseCountingSubscription(
+    this,
+    _inner.listen(
+      onData,
+      onError: onError,
+      onDone: onDone,
+      cancelOnError: cancelOnError,
+    ),
+  );
+}
+
+class _PauseCountingSubscription(
+  final _PauseCountingStream _counts,
+  final StreamSubscription<String> _inner,
+) implements StreamSubscription<String> {
+  @override
+  void pause([Future<void>? resumeSignal]) {
+    _counts.pauses++;
+    _inner.pause(resumeSignal);
+  }
+
+  @override
+  void resume() {
+    _counts.resumes++;
+    _inner.resume();
+  }
+
+  @override
+  Future<void> cancel() => _inner.cancel();
+
+  @override
+  bool get isPaused => _inner.isPaused;
+
+  @override
+  void onData(void Function(String)? handleData) => _inner.onData(handleData);
+
+  @override
+  void onError(Function? handleError) => _inner.onError(handleError);
+
+  @override
+  void onDone(void Function()? handleDone) => _inner.onDone(handleDone);
+
+  @override
+  Future<E> asFuture<E>([E? futureValue]) => _inner.asFuture(futureValue);
+}
+
 /// Drives [parseLogLines] over a hand-fed line stream inside [FakeAsync].
 class _Harness(final FakeAsync async, {LogLineParser? parser}) {
   this : parser = parser ?? LogcatParser() {
@@ -315,6 +374,145 @@ void main() {
 
         expect(sourceCancelled, isTrue);
         expect(parser.flushes, 0);
+      });
+    });
+  });
+
+  // FLUTTER-AR: dart:io re-reads a pipe in a microtask while bytes are
+  // waiting, so a source faster than the parser kept the UI isolate in one
+  // microtask loop — no frame, no timer — until it ran dry.
+  group('parseLogLines under a flood', () {
+    /// Three lines per entry, as `logcat -v long` writes them.
+    List<String> entryLines(int i) => [_header, 'message $i', ''];
+
+    test('hands the event loop back while the source never runs dry', () async {
+      const total = 300000;
+      var produced = 0;
+      var producing = false;
+      late final StreamController<String> source;
+
+      // Like the socket's read loop: keeps adding in microtasks for as long
+      // as nobody pauses it.
+      void produce() {
+        producing = false;
+        if (source.isPaused || produced >= total) {
+          if (produced >= total && !source.isClosed) source.close();
+          return;
+        }
+        for (var i = 0; i < 100 && produced < total; i++) {
+          entryLines(produced++).forEach(source.add);
+        }
+        producing = true;
+        scheduleMicrotask(produce);
+      }
+
+      void startProducing() {
+        if (!producing) scheduleMicrotask(produce);
+        producing = true;
+      }
+
+      source = StreamController<String>(
+        sync: true,
+        onListen: startProducing,
+        onResume: startProducing,
+      );
+
+      int? producedWhenTimerRan;
+      Timer.run(() => producedWhenTimerRan = produced);
+
+      final messages = await parseLogLines(
+        source.stream,
+        LogcatParser(),
+      ).map((entry) => entry.message).toList();
+
+      // Without yielding, the timer only ran once all 300k entries were in.
+      expect(producedWhenTimerRan, lessThan(total ~/ 10));
+      expect(messages, [for (var i = 0; i < total; i++) 'message $i']);
+    });
+
+    test('pauses after each slice and resumes on a later turn, in order', () {
+      fakeAsync((async) {
+        final lines = StreamController<String>();
+        final source = _PauseCountingStream(lines.stream);
+        final messages = <String>[];
+        parseLogLines(
+          source,
+          LogcatParser(),
+          idleFlushInterval: _interval,
+          sliceMaxLines: 30,
+          sliceBudget: const Duration(days: 1),
+        ).listen((entry) => messages.add(entry.message));
+
+        for (var i = 0; i < 100; i++) {
+          entryLines(i).forEach(lines.add);
+        }
+        async.flushMicrotasks();
+        // 30 lines handled: ten entries, the tenth still held.
+        expect(messages, [for (var i = 0; i < 9; i++) 'message $i']);
+        expect(lines.isPaused, isTrue);
+        expect(source.pauses, 1);
+
+        // fake_async runs the zero-length timers each slice schedules in one
+        // elapse, so the slices show up as pauses rather than turns.
+        lines.close();
+        async.elapse(Duration.zero);
+        expect(source.pauses, 10);
+        expect(source.resumes, 10);
+        expect(messages, [for (var i = 0; i < 100; i++) 'message $i']);
+        expect(async.pendingTimers, isEmpty);
+      });
+    });
+
+    test('a consumer pause still holds after a yield resumes', () {
+      fakeAsync((async) {
+        final lines = StreamController<String>();
+        final messages = <String>[];
+        final subscription = parseLogLines(
+          lines.stream,
+          LogcatParser(),
+          idleFlushInterval: _interval,
+          sliceMaxLines: 30,
+          sliceBudget: const Duration(days: 1),
+        ).listen((entry) => messages.add(entry.message));
+
+        for (var i = 0; i < 100; i++) {
+          entryLines(i).forEach(lines.add);
+        }
+        async.flushMicrotasks();
+        expect(messages.length, 9);
+
+        subscription.pause();
+        async.elapse(_interval * 20);
+        expect(lines.isPaused, isTrue);
+        expect(messages.length, 9);
+
+        subscription.resume();
+        lines.close();
+        for (var i = 0; i < 10; i++) {
+          async.elapse(Duration.zero);
+        }
+        expect(messages, [for (var i = 0; i < 100; i++) 'message $i']);
+      });
+    });
+
+    test('cancelling mid-yield leaves no timer behind', () {
+      fakeAsync((async) {
+        final lines = StreamController<String>();
+        final subscription = parseLogLines(
+          lines.stream,
+          LogcatParser(),
+          idleFlushInterval: _interval,
+          sliceMaxLines: 3,
+          sliceBudget: const Duration(days: 1),
+        ).listen((_) {});
+
+        entryLines(0).forEach(lines.add);
+        async.flushMicrotasks();
+        expect(lines.isPaused, isTrue);
+
+        subscription.cancel();
+        async.flushMicrotasks();
+        expect(async.pendingTimers, isEmpty);
       });
     });
   });

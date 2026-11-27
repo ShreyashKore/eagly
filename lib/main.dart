@@ -11,6 +11,7 @@ import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/presentation/theme/app_zoom.dart';
 import 'package:eagly/presentation/theme/bundled_fonts.dart';
 import 'package:eagly/features/home_screen/home_page.dart';
+import 'package:eagly/services/sentry_breadcrumb_filter.dart';
 import 'package:eagly/services/sentry_event_filter.dart';
 import 'package:eagly/utils/record_mode.dart';
 import 'package:flutter/foundation.dart';
@@ -51,6 +52,19 @@ void main(List<String> args) async {
       // Filter non-critical or noisy Flutter errors (e.g. RenderFlex overflow)
       // to preserve Sentry dashboard hygiene and event quota.
       options.beforeSend = SentryEventFilter.beforeSend;
+      // Breadcrumbs. On macOS each one is synced to the native SDK on the
+      // main thread, and storms of them hung the app (FLUTTER-M3/M4/M5).
+      // The sync stays on — native hang and crash reports get their trail
+      // and user only through it — and SentryBreadcrumbFilter bounds what
+      // feeds it: repeats collapsed, every category rate-limited.
+      options.beforeBreadcrumb = SentryBreadcrumbFilter.beforeBreadcrumb;
+      // print/debugPrint breadcrumbs: the app's own prints are debug-only,
+      // the rest is package chatter and Flutter echoing errors that are
+      // already events. Off, so they aren't even built.
+      options.enablePrintBreadcrumbs = false;
+      // Left at the default 100: the cost is per breadcrumb added, not per
+      // slot, and with repeats collapsed 100 covers minutes, not seconds.
+      options.maxBreadcrumbs = 100;
     },
     appRunner: () async {
       // With sendDefaultPii off nothing else names the user, so Windows and

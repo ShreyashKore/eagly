@@ -196,6 +196,11 @@ device — not written from documentation.
 - **A source error flushes the held entry first**, then forwards the error — the entry came
   first, and an `await for` consumer stops at the error.
 - End of stream flushes whatever is held, then closes.
+- **Work is sliced** (≤1000 lines or 8 ms): the source is then paused and resumed from a
+  zero-length timer. dart:io re-reads a pipe in a microtask while bytes are waiting, so
+  without this a source faster than the parser kept the isolate in one microtask loop: no
+  frames, no timers, unbounded queued lines (FLUTTER-AR). A slice resume never counts as idle
+  silence.
 
 `parseLogRecords(records, parser)` is for sources that frame whole entries (the Rust relay):
 split each record on `\n` (dropping one trailing empty piece), feed the lines, flush. A parser
@@ -229,6 +234,8 @@ Each of these has been a real bug, or is the obvious "simplification" that bring
   the zone instead of reaching the user as a tool-error row.
 - **Don't append special entries to the buffer without flushing `_pendingLogs`.**
 - **Don't make `addLine` lazy again.**
+- **Don't remove the slice yield in `parseLogLines`** or replace it with an await downstream:
+  only pausing the source stops the pipe re-reads.
 
 ## Verifying a change
 

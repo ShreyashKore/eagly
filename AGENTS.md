@@ -85,6 +85,8 @@ tools (process wrappers)         services/tools/*  — AdbTool, IdeviceSyslogToo
 iOS backends                     services/ios/* — IosDeviceService, one interface over the bundled
                                  libimobiledevice CLIs and the `idevice` Rust crate (docs/IOS_RUST_MIGRATION.md)
 discovery                        services/devices_repository.dart (DevicesRepository) — adb/idevice polling + track-devices
+                                 (`adb track-devices` output is length-framed: read it with `TrackDevicesFrameDecoder`,
+                                 never line by line; `AdbTool.getDevices` is single-flight, `maxAge` serves a recent list)
 app coordinator                  session/device_session_manager.dart — one DeviceSessionController per device, tab order, selection
 per-device session               session/device_session_controller.dart — owns the live Device + feature controllers (lazy)
 pane layout                      session/workspace_layout.dart — which feature panes are open and how they are arranged (fl_panel tree)
@@ -117,7 +119,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   delete an entry in the commit that fixes it.
 - **Log streaming:** `DeviceSessionRepository.startLogStream()` is an `async*` that yields
   `LogEntry`s; the underlying tool's `StreamController` closing ⇒ stream EOF. `LogController`
-  buffers into a `LogBuffer` (ring), flushing pending logs on a 300 ms timer. **Read
+  buffers into a `LogBuffer` (ring), flushing pending logs on a 300 ms timer.
+  `parseLogLines` pauses its source every slice (≤1000 lines or 8 ms) and resumes it from a
+  zero-length timer, so a log flood can't hold the UI isolate in one microtask loop
+  (FLUTTER-AR). **Read
   docs/LOG_STREAMING.md before touching parsing or flushing** — it lists the guarantees (no
   lost, split or reordered lines) and the tests that enforce them. The rules most easily
   broken: Android uses `adb logcat -v long` (never `threadtime`, which splits multi-line
@@ -126,8 +131,12 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `parseLogRecords`; and special entries must flush `LogController`'s queue before they are
   appended. Run `test/device/log_stream_integrity_test.dart` against real devices before
   changing the pipeline.
-- **Log list scrolling:** the list is a `SuperListView` that measures rows lazily and
-  estimates the rest (`LogRow.estimateHeight`), so `maxScrollExtent` is partly a guess.
+- **Log list scrolling:** the list is a `SuperSliverList` in a `CustomScrollView` (for
+  `layoutKeptAliveChildren`: rows holding part of the text selection are kept alive offscreen
+  and must stay laid out, or Flutter's selection throws — FLUTTER-B/4A/A3). Rows are keyed by
+  `LogEntry.id` with `findChildIndexCallback`, and `LogViewer.didUpdateWidget` clears the
+  selection before a rebuild drops a built row (`BuiltRowRegistry`; FLUTTER-E). It measures
+  rows lazily and estimates the rest (`LogRow.estimateHeight`), so `maxScrollExtent` is partly a guess.
   Auto-scroll glides to the tail frame by frame, re-reading `maxScrollExtent` each frame
   and never passing it, then lands with `LogController.listController.jumpToItem` — never
   `animateTo(maxScrollExtent)`, whose fixed target overshot into the blank pane behind the
@@ -155,6 +164,21 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   Wi-Fi from then on — nothing of Eagly's is involved. *Stop Wi-Fi connections* and *Forget*
   (device tab menu, device home ⋮) undo that through `IosDeviceTrustService`; see "Cutting a
   device off" in **docs/IOS_RUST_MIGRATION.md**.
+- **Windows VC++ runtime:** release builds use `windows-latest` (VS 2026), so `eagly.exe`
+  needs `msvcp140.dll` 14.40+; an older System32 copy crashes in `mtx_do_lock`
+  (FLUTTER-M2/M7, microsoft/STL#4730). `windows/CMakeLists.txt` ships the `Microsoft.VC*.CRT`
+  DLLs next to the exe and defines `_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR` for every Windows
+  C++ target; the release job checks the installed setup.exe and the .msix with
+  `scripts/check_windows_vc_runtime.ps1`. Keep fastforge's targets in `exe,msix` order — the
+  msix step deletes the runtime DLLs from `build/`.
+- **Sentry breadcrumbs:** on macOS each Dart breadcrumb is synced to sentry-cocoa on the main
+  thread, and storms of them hung the app (FLUTTER-M3/M4/M5). `SentryBreadcrumbFilter`
+  (`options.beforeBreadcrumb`) collapses identical ones to one per 30 s (`repeated: n`),
+  rate-limits each category (`rate_limited: n`), drops console and debug ones, and passes
+  untouched the native copies `LoadContextsIntegration` replays through it. Native scope sync
+  stays on: native hang and crash reports get the trail and user only through it.
+  `AppBreadcrumbs.action`/`navigation` and `ui.*` taps are never collapsed. Add new producers
+  through `AppBreadcrumbs`, not `Sentry.addBreadcrumb` directly.
 - **iOS on Windows without Apple's software:** usbmuxd ships with Apple Mobile Device
   Support (the Apple Devices app or iTunes), not with Eagly, yet File Explorer shows an
   iPhone without it. While usbmuxd is unreachable, `WindowsAppleUsbProbe`
@@ -395,8 +419,10 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   `TerminalFind`) and draws the shared `FindBar` that `CodeView` uses too. It is not a
   `CodeView`: that re-sets and re-highlights its whole text on every change and has no
   per-line colours. Matches are collected again on each flush, and the current one is held
-  by its line, so streaming output doesn't move it; the scrollback is a `SuperListView` so
-  a match's line can be scrolled to by index.
+  by its line, so streaming output doesn't move it; the scrollback is a `SuperSliverList` in a
+  `CustomScrollView` so a match's line can be scrolled to by index, with the same selection
+  safeguards as the log list (`layoutKeptAliveChildren`, rows keyed by line number,
+  `BuiltRowRegistry`).
 - **Wireless pairing:** one dialog (`features/wireless_connection/`) with two panes — **Pair a
   device** (QR card pinned on top, discovered devices scrolling under it) and **Manual
   entry**. The whole pane is driven by *one* background mDNS scan
