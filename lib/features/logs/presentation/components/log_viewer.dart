@@ -983,7 +983,7 @@ class _LogViewerState extends State<LogViewer> {
         final viewportWidth = constraints.maxWidth;
         final messageWidth = _messageColumnWidth(viewportWidth);
         final contentWidth = _contentWidth(viewportWidth);
-        final logViewport = _buildLogViewport(messageWidth);
+        final logViewport = _buildLogViewport(messageWidth, viewportWidth);
 
         final innerColumn = Column(
           children: [
@@ -1147,7 +1147,12 @@ class _LogViewerState extends State<LogViewer> {
     );
   }
 
-  Widget _buildLogRow(LogEntry log, int index, double messageWidth) {
+  Widget _buildLogRow(
+    LogEntry log,
+    int index,
+    double messageWidth,
+    double viewportWidth,
+  ) {
     return LogRow(
       key: widget.currentMatchLogIndex == index ? _currentMatchKey : null,
       log: log,
@@ -1172,16 +1177,17 @@ class _LogViewerState extends State<LogViewer> {
       },
       contentValueForColumn: (col) =>
           log.valueForColumn(col, isIos: widget.isIos),
+      specialRowWidth: viewportWidth,
     );
   }
 
-  Widget _buildLogViewport(double messageWidth) {
+  Widget _buildLogViewport(double messageWidth, double viewportWidth) {
     final selectionRect = _dragSelectionRect;
     return Stack(
       key: _rowViewportKey,
       fit: StackFit.expand,
       children: [
-        _buildLogList(messageWidth),
+        _buildLogList(messageWidth, viewportWidth),
         if (selectionRect != null)
           Positioned.fromRect(
             rect: selectionRect,
@@ -1204,7 +1210,7 @@ class _LogViewerState extends State<LogViewer> {
     );
   }
 
-  Widget _buildLogList(double messageWidth) {
+  Widget _buildLogList(double messageWidth, double viewportWidth) {
     final monoStyle = _monoStyle;
     return SuperListView.builder(
       controller: widget.scrollController,
@@ -1232,7 +1238,7 @@ class _LogViewerState extends State<LogViewer> {
           key: ValueKey(log.id),
           onMounted: _registerRowContext,
           onUnmounted: _unregisterRowContext,
-          child: _buildLogRow(log, i, messageWidth),
+          child: _buildLogRow(log, i, messageWidth, viewportWidth),
         );
       },
     );

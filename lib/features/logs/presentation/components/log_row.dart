@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../data/models/log_column.dart';
 import '../../data/models/log_entry.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../../../utils/log_entry_utils.dart';
+import '../../../../utils/log_timestamp.dart';
 import '../../../../utils/text_search_pattern.dart';
 import '../log_viewer_constants.dart';
 import 'log_viewer.dart';
@@ -28,6 +31,11 @@ class const LogRow({
   final ValueChanged<PointerMoveEvent>? onSelectionPointerMove,
   final ValueChanged<Offset>? onRowContextMenuRequested,
   required final String Function(LogColumn) contentValueForColumn,
+
+  /// How wide a special entry's divider runs: the viewport, so its centred
+  /// label is on screen however wide the scrollable content is. Null fills
+  /// whatever width the row is given.
+  final double? specialRowWidth,
 }) extends StatelessWidget {
   Color _specialAccentColor(BuildContext context) {
     final theme = context.eaglyTheme;
@@ -53,11 +61,11 @@ class const LogRow({
     };
   }
 
-  String _specialMetaText() {
-    return [
-      if (log.timestamp.trim().isNotEmpty) log.timestamp.trim(),
-      if (log.processName?.trim().isNotEmpty ?? false) log.processName!.trim(),
-    ].join(' • ');
+  /// `HH:mm:ss` of a special entry; the date and milliseconds say nothing a
+  /// divider between runs needs. Shown as it is when it doesn't parse.
+  String _specialTimeText() {
+    final timestamp = log.timestamp.trim();
+    return LogTimestampParts.tryParse(timestamp)?.time ?? timestamp;
   }
 
   TextSpan _selectionSeparatorSpan(String text) {
@@ -278,91 +286,122 @@ class const LogRow({
     return _selectionDetector(detectorIndex);
   }
 
+  /// A session marker ("Started", "Paused", …) as a divider between runs: a
+  /// hairline across the row, broken by the label in the middle. A boxed
+  /// tile read as a log line of its own; a rule reads as a seam.
   Widget _buildSpecialRow(
     BuildContext context, {
     Color? highlightColor,
     required bool isCurrentMatch,
   }) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = context.eaglyTheme;
     final accentColor = _specialAccentColor(context);
-    final tileColor = accentColor.withValues(
-      alpha: Theme.of(context).brightness == Brightness.dark ? 0.07 : 0.045,
-    );
-    final captionStyle = monoStyle.copyWith(
-      color: context.eaglyTheme.tertiaryTextColor,
+    final lineColor = Theme.of(context).colorScheme.outlineVariant;
+    final timeStyle = monoStyle.copyWith(
+      color: theme.tertiaryTextColor,
       fontSize: (monoStyle.fontSize ?? 12) - 1,
     );
-    final messageStyle = monoStyle.copyWith(color: colorScheme.onSurface);
-    final metaText = _specialMetaText();
+    final messageStyle = monoStyle.copyWith(color: theme.secondaryTextColor);
+    final timeText = _specialTimeText();
+
+    Widget line() => Expanded(child: Container(height: 1, color: lineColor));
+
+    // Sized so the row never overflows, however narrow the pane: the type
+    // label takes at most a third, the message the rest, and the time only
+    // shows once there is room for it beside them.
+    Widget label(double maxWidth) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_specialIcon(), size: 13, color: accentColor),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth / 3),
+            child: _buildSelectableText(
+              context,
+              log.typeLabel,
+              monoStyle.copyWith(
+                color: accentColor,
+                fontWeight: FontWeight.w600,
+              ),
+              highlightColor: highlightColor,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (log.message.trim().isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Flexible(
+              child: _buildSelectableText(
+                context,
+                log.message,
+                messageStyle,
+                highlightColor: highlightColor,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+          if (timeText.isNotEmpty && maxWidth >= _specialRowTimeMinWidth) ...[
+            const SizedBox(width: 8),
+            _buildSelectableText(
+              context,
+              timeText,
+              timeStyle,
+              highlightColor: highlightColor,
+            ),
+          ],
+        ],
+      );
+    }
 
     return SelectionContainer.disabled(
       child: Container(
-        color: isCurrentMatch ? context.eaglyTheme.searchCurrentRowColor : null,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        color: isCurrentMatch ? theme.searchCurrentRowColor : null,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         child: Align(
           alignment: Alignment.centerLeft,
-          child: ConstrainedBox(
+          // Across what the pane shows, not the whole scrollable width: with
+          // wrapping off the content can be thousands of pixels wide, and a
+          // label centred in that would start off screen.
+          child: SizedBox(
             key: const ValueKey('special-log-row'),
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: Container(
-              decoration: BoxDecoration(
-                color: tileColor,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: accentColor.withValues(
-                    alpha: isCurrentMatch ? 0.32 : 0.18,
-                  ),
-                  width: 0.8,
-                ),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(_specialIcon(), size: 13, color: accentColor),
-                  const SizedBox(width: 6),
-                  _buildSelectableText(
-                    context,
-                    log.typeLabel,
-                    monoStyle.copyWith(
-                      color: accentColor,
-                      fontWeight: FontWeight.w600,
+            width: specialRowWidth == null
+                ? null
+                : math.max(0, specialRowWidth! - 16),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Each side keeps a stub of line, so even a label cut short
+                // by a narrow pane still reads as a divider.
+                const stub = _specialRowLineStub + _specialRowLabelGap;
+                final labelMaxWidth = constraints.hasBoundedWidth
+                    ? math.max(0.0, constraints.maxWidth - 2 * stub)
+                    : double.infinity;
+                if (labelMaxWidth < _specialRowLabelMinWidth) {
+                  return Container(height: 1, color: lineColor);
+                }
+                return Row(
+                  children: [
+                    line(),
+                    const SizedBox(width: _specialRowLabelGap),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: labelMaxWidth),
+                      child: label(labelMaxWidth),
                     ),
-                    highlightColor: highlightColor,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (log.message.trim().isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildSelectableText(
-                        context,
-                        log.message,
-                        messageStyle,
-                        highlightColor: highlightColor,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
+                    const SizedBox(width: _specialRowLabelGap),
+                    line(),
                   ],
-                  if (metaText.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: _buildSelectableText(
-                        context,
-                        metaText,
-                        captionStyle,
-                        highlightColor: highlightColor,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+                );
+              },
             ),
           ),
         ),
       ),
     );
   }
+
+  static const double _specialRowLineStub = 12;
+  static const double _specialRowLabelGap = 8;
+  static const double _specialRowLabelMinWidth = 40;
+  static const double _specialRowTimeMinWidth = 200;
 
   /// The level's color is carried by the badge and the message; repeating it
   /// on every cell made a row one solid stripe. The other cells step down:
