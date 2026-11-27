@@ -79,7 +79,7 @@ void main() {
     );
 
     expect(
-      find.byTooltip('RZCW1186VXZ  ·  Samsung Galaxy S21'),
+      find.byTooltip('Samsung Galaxy S21  ·  RZCW1186VXZ'),
       findsOneWidget,
     );
   });

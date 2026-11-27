@@ -4,16 +4,18 @@ import 'package:flutter/widgets.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../data/device.dart';
+import '../features/tips/tips_controller.dart';
 
 /// Developer-only launch mode for recording product videos: `--record-mode`
 /// pins the window to a fixed, centred [windowSize] so every take is framed
 /// identically, and keeps real devices anonymous and tidy: believable
 /// stand-ins for serials and UDIDs, and devices named by brand and model
-/// alone — no ids, no owner-given names.
+/// alone — no ids, no owner-given names — and hides the header tip.
 ///
 /// Everything recording-specific lives here; removing the feature means
 /// deleting this file, its call sites in `main.dart`, and the
-/// `Device.presentId` / `Device.shortNames` seams.
+/// `Device.presentId` / `Device.shortNames` /
+/// `TipsController.hiddenForRecording` seams.
 abstract final class RecordMode {
   /// Command-line flag that turns record mode on.
   static const flag = '--record-mode';
@@ -33,6 +35,10 @@ abstract final class RecordMode {
     await windowManager.setSize(windowSize);
     await windowManager.center();
   }
+
+  /// Hides the header tip: it rotates on every launch, so it would differ
+  /// from take to take, and it isn't what a product video is showing.
+  static void hideTips() => TipsController.hiddenForRecording = true;
 
   // ── Anonymous devices ─────────────────────────────────────────────────
 

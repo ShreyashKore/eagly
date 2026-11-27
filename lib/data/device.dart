@@ -254,10 +254,12 @@ final class const AndroidDevice(
       }
       return (primary: hint, secondary: null);
     }
-    return (
-      primary: capSerial ? _subString(shownId, 10) : shownId,
-      secondary: _androidPrimaryLabel ?? _normalizedValue(name),
-    );
+    // The phone people recognise first, its serial second — the way a
+    // wireless device and an iPhone already read.
+    final serial = capSerial ? _subString(shownId, 10) : shownId;
+    final label = _androidPrimaryLabel ?? _normalizedValue(name);
+    if (label == null) return (primary: serial, secondary: null);
+    return (primary: label, secondary: serial);
   }
 
   String _subString(String value, int maxLength) {

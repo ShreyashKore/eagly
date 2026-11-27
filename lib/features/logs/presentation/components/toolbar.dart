@@ -8,9 +8,9 @@ import 'log_tab_strip.dart';
 
 /// Header of the Logs pane — a standard [FeatureViewHeader] whose title
 /// slot holds the log-tab strip. The capture controls (start/restart,
-/// pause, clear) are its primary controls and never collapse; copy and
-/// row selection, the view toggles, export and import collapse into the
-/// overflow menu — last first — as the pane narrows. Imported logs have
+/// pause, clear) are its primary controls and never collapse; the view
+/// toggles collapse into the overflow menu as the pane narrows, and copy
+/// all, export and import live in that menu only. Imported logs have
 /// nothing to capture, so they show no primary controls.
 class const Toolbar({
   super.key,
@@ -60,27 +60,6 @@ class const Toolbar({
         ],
       ],
       actions: [
-        // ── Copy / row-select ─────────────────────────────────────────
-        ToolbarAction(
-          icon: Icons.copy_all_outlined,
-          label: 'Copy all logs',
-          tooltip: c.hasAnyCachedLogs ? 'Copy all logs' : 'No logs to copy',
-          onPressed: c.hasAnyCachedLogs ? onCopyAll : null,
-        ),
-        ToolbarAction(
-          icon: c.rowSelectionMode
-              ? Icons.checklist_rounded
-              : Icons.checklist_outlined,
-          label: 'Row selection mode',
-          tooltip: c.rowSelectionMode
-              ? 'Disable row selection mode'
-              : 'Enable row selection mode',
-          isActive: c.rowSelectionMode,
-          onPressed: c.filteredLogs.isNotEmpty
-              ? c.toggleRowSelectionMode
-              : null,
-        ),
-
         // ── Deselect (only while rows are selected) ───────────────────
         if (c.hasSelectedRows)
           ToolbarAction(
@@ -95,7 +74,6 @@ class const Toolbar({
           label: 'Wrap long lines',
           tooltip: c.wrapText ? 'Disable Wrap' : 'Enable Wrap',
           isActive: c.wrapText,
-          dividerBefore: true,
           onPressed: c.toggleWrapText,
         ),
         ToolbarAction(
@@ -106,17 +84,27 @@ class const Toolbar({
           onPressed: c.toggleAutoScroll,
         ),
 
-        // ── Export / import ───────────────────────────────────────────
+        // ── Menu only: copy everything, export, import ────────────────
+        // Row selection mode is the checklist button on the column header.
+        ToolbarAction(
+          icon: Icons.copy_all_outlined,
+          label: 'Copy all logs',
+          tooltip: c.hasAnyCachedLogs ? 'Copy all logs' : 'No logs to copy',
+          onPressed: c.hasAnyCachedLogs ? onCopyAll : null,
+          dividerBefore: true,
+          menuOnly: true,
+        ),
         ToolbarAction(
           icon: Icons.upload_outlined,
           label: 'Export logs',
-          dividerBefore: true,
           onPressed: onExport,
+          menuOnly: true,
         ),
         ToolbarAction(
           icon: Icons.download_outlined,
           label: 'Import log file',
           onPressed: onImportLog,
+          menuOnly: true,
         ),
       ],
     );

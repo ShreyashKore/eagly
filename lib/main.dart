@@ -27,7 +27,10 @@ void main(List<String> args) async {
   await PreferencesService.init();
   await EaglyInfoService.init();
   final recordMode = RecordMode.isRequested(args);
-  if (recordMode) RecordMode.anonymizeDevices();
+  if (recordMode) {
+    RecordMode.anonymizeDevices();
+    RecordMode.hideTips();
+  }
   await _configureDesktopWindow(recordMode: recordMode);
   // Only release builds report. Debug runs on developer machines filled the
   // dashboard with JIT hangs and debug-only assertions, and spent the quota.
