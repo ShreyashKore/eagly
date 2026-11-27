@@ -131,7 +131,9 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   Auto-scroll glides to the tail frame by frame, re-reading `maxScrollExtent` each frame
   and never passing it, then lands with `LogController.listController.jumpToItem` — never
   `animateTo(maxScrollExtent)`, whose fixed target overshot into the blank pane behind the
-  list after a burst and bounced back on macOS (`test/log_auto_scroll_test.dart`).
+  list after a burst and bounced back on macOS (`test/log_auto_scroll_test.dart`). The
+  overview ruler beside the scrollbar (`LogOverviewRuler`) places its error / warning /
+  search-match marks by line index for the same reason, recomputing at most every 250 ms.
 - **`LogEntry`:** `type == LogEntryType.log` is a real device line; all other types
   (`started`/`paused`/`stopped`/`resumed`/`notice`/`error`) are *special* status entries
   rendered inline and skipped by copy/selection. Build them via `LogEntryUtils`.

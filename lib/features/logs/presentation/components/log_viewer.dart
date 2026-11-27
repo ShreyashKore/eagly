@@ -17,6 +17,7 @@ import '../../../../utils/log_timestamp.dart';
 import '../../../../utils/text_search_pattern.dart';
 import '../../../../utils/utils.dart';
 import 'column_visibility_menu.dart';
+import 'log_overview_ruler.dart';
 import 'log_row.dart';
 import 'log_viewer_header.dart';
 import '../log_viewer_constants.dart';
@@ -106,6 +107,9 @@ class const LogViewer({
   /// Index (into [logs]) of the row that should be highlighted as the
   /// currently focused match. `null` means no focused match.
   final int? currentMatchLogIndex,
+
+  /// Indices (into [logs]) of every search match, for the overview ruler.
+  final List<int> searchMatchIndices = const <int>[],
   final ValueChanged<String?>? onSelectedTextChanged,
   final VoidCallback? onUserScroll,
 
@@ -1033,8 +1037,39 @@ class _LogViewerState extends State<LogViewer> {
     );
   }
 
+  /// Brings the line at [index] to the middle of the list, from the
+  /// overview ruler. A jump is the user scrolling, so it stops the tail.
+  void _jumpToLine(int index) {
+    if (!_listController.isAttached ||
+        index >= _listController.numberOfItems ||
+        !widget.scrollController.hasClients) {
+      return;
+    }
+    widget.onUserScroll?.call();
+    _listController.jumpToItem(
+      index: index,
+      scrollController: widget.scrollController,
+      alignment: 0.5,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: _buildListPane(context)),
+        LogOverviewRuler(
+          logs: widget.logs,
+          searchMatches: widget.searchMatchIndices,
+          onJumpTo: _jumpToLine,
+          headerHeight: context.scaled(28),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildListPane(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewportWidth = constraints.maxWidth;

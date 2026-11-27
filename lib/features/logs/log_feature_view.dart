@@ -215,6 +215,10 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
           controller.searchBarVisible && controller.appliedInlineSearch.isActive
           ? safeIndex
           : null,
+      searchMatchIndices:
+          controller.searchBarVisible && controller.appliedInlineSearch.isActive
+          ? matches
+          : const [],
       onClearRowSelection: controller.clearSelectedRows,
       hiddenColumns: controller.hiddenColumns,
       columnWidths: controller.columnWidths,
