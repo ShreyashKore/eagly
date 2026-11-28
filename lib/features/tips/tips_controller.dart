@@ -27,6 +27,11 @@ class TipsController({final List<Tip> _tips = kTips}) extends ChangeNotifier {
     PreferencesService.tipsEnabledListenable.addListener(_onEnabledChanged);
   }
 
+  /// Keeps the panel off screen however the preference is set — under
+  /// `--record-mode` (`RecordMode.hideTips`), where a tip that rotates every
+  /// launch would make each take differ.
+  static bool hiddenForRecording = false;
+
   late int _index;
   late bool _enabled;
   bool _dismissed = false;
@@ -52,7 +57,8 @@ class TipsController({final List<Tip> _tips = kTips}) extends ChangeNotifier {
 
   /// Whether the panel should render: enabled, not dismissed this session, and
   /// a tip exists to show.
-  bool get visible => _enabled && !_dismissed && currentTip != null;
+  bool get visible =>
+      !hiddenForRecording && _enabled && !_dismissed && currentTip != null;
 
   /// Whether tips are enabled at all (the persisted preference).
   bool get enabled => _enabled;

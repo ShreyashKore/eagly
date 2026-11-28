@@ -584,6 +584,25 @@ void main() {
     expect(log.filteredLogs.single.packageName, 'com.example.sync');
   });
 
+  test('receivedLineCount keeps counting through trims and clears', () async {
+    final log = createLog(settings: testSettings(logLinesLimit: 3));
+    await log.startLogcat();
+
+    for (var i = 0; i < 5; i++) {
+      service.emit(testLogEntry(message: 'line $i'));
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    // The buffer holds three, but five arrived.
+    expect(log.logCount, lessThan(5));
+    expect(log.receivedLineCount, 5);
+
+    log.clearLogs();
+    service.emit(testLogEntry(message: 'after clear'));
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    expect(log.logCount, 1);
+    expect(log.receivedLineCount, 6);
+  });
+
   test(
     'streamed logs retain filtered matches longer while a filter is active',
     () async {
@@ -1212,6 +1231,235 @@ void main() {
       await log.stopLogcat();
 
       expect(messagesAfterStart(log), ['before stop', '<stopped>']);
+    });
+  });
+
+  group('repeat collapsing', () {
+    /// a, b×4, c — the run's lines differ only in their thread, so copies
+    /// can tell them apart.
+    List<LogEntry> withRun() => [
+      testLogEntry(message: 'a'),
+      for (var i = 0; i < 4; i++) testLogEntry(message: 'b', tid: 't$i'),
+      testLogEntry(message: 'c'),
+    ];
+
+    test('folds the drawn rows but leaves counts on the lines', () {
+      final log = createLog();
+      log.logs = withRun();
+
+      expect(log.displayRows.length, 3);
+      expect(log.displayRows.repeatAt(1)?.count, 4);
+      expect(log.logCount, 6);
+      expect(log.filteredLogs, hasLength(6));
+    });
+
+    test('a folded row copies, selects and exports all of its lines', () async {
+      final log = createLog();
+      log.logs = withRun();
+
+      final copied = await log.copyDisplayRowsForContextMenu(
+        clickedRow: 1,
+        format: LogCopyFormat.fullLine,
+      );
+      expect(copied, 4);
+      expect(RegExp(r' t\d ').allMatches(clipboardText!), hasLength(4));
+
+      expect(log.beginDisplayRowSelection(1), isTrue);
+      expect(log.selectedRowIndices, {1, 2, 3, 4});
+      expect(log.selectedDisplayRows, {1});
+      expect(log.entriesForExport(LogExportScope.selected).map((e) => e.tid), [
+        't0',
+        't1',
+        't2',
+        't3',
+      ]);
+      expect(log.entriesForExport(LogExportScope.all), hasLength(6));
+      expect(log.entriesForExport(LogExportScope.filtered), hasLength(6));
+
+      expect(log.beginDisplayRowSelection(1), isFalse);
+      expect(log.selectedRowIndices, isEmpty);
+
+      log.setSelectedDisplayRows({0, 1});
+      expect(log.selectedRowIndices, {0, 1, 2, 3, 4});
+      log.setDisplayRowSelected(1, false);
+      expect(log.selectedRowIndices, {0});
+    });
+
+    test('copy all writes every line', () async {
+      final log = createLog();
+      log.logs = withRun();
+
+      expect(await log.copyAllLogs(), 6);
+      expect(clipboardText!.split('\n'), hasLength(6));
+    });
+
+    test('a shift-click reaches the far end of a folded run', () {
+      final log = createLog();
+      log.logs = withRun();
+
+      log.beginDisplayRowSelection(0);
+      log.beginDisplayRowSelection(1, shiftPressed: true);
+      expect(log.selectedRowIndices, {0, 1, 2, 3, 4});
+    });
+
+    test('a run whose lines match is one search stop, on its row', () {
+      final log = createLog();
+      log.logs = withRun();
+      log.openSearchBar(query: 'b');
+
+      expect(log.searchMatchIndices, [1, 2, 3, 4]);
+      expect(log.searchMatchRows, [1]);
+      log.onSearchNext();
+      expect(log.searchCurrentMatch, 0);
+    });
+
+    test('unfolding keeps the current match on its line', () {
+      final log = createLog();
+      log.logs = [...withRun(), testLogEntry(message: 'b again')];
+      log.openSearchBar(query: 'b');
+      expect(log.searchMatchRows, [1, 3]);
+      log.onSearchNext();
+      expect(log.currentSearchMatchLogIndex(log.searchMatchRows), 3);
+
+      log.toggleRepeat(1);
+      expect(log.displayRows.length, 7);
+      expect(log.searchMatchRows, [1, 2, 3, 4, 6]);
+      expect(log.currentSearchMatchLogIndex(log.searchMatchRows), 6);
+
+      log.toggleCollapseRepeats();
+      expect(log.collapseRepeats, isFalse);
+      expect(log.currentSearchMatchLogIndex(log.searchMatchRows), 6);
+    });
+
+    test('can be turned off per tab', () {
+      final log = createLog();
+      log.logs = withRun();
+      log.toggleCollapseRepeats();
+
+      expect(log.displayRows.length, 6);
+      expect(log.displayRows.repeatAt(1), isNull);
+      log.toggleCollapseRepeats();
+      expect(log.displayRows.length, 3);
+    });
+
+    test('streamed repeats fold as they arrive', () async {
+      final log = createLog();
+      await log.startLogcat();
+
+      for (var i = 0; i < 3; i++) {
+        service.emit(testLogEntry(message: 'tick'));
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      // Started marker, then the run.
+      expect(log.displayRows.length, 2);
+      expect(log.displayRows.repeatAt(1)?.count, 3);
+
+      service.emit(testLogEntry(message: 'tick'));
+      service.emit(testLogEntry(message: 'tock'));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(log.displayRows.length, 3);
+      expect(log.displayRows.repeatAt(1)?.count, 4);
+    });
+  });
+
+  group('restart markers', () {
+    const start =
+        'Start proc 4188:com.example.notes/u0a190 for top-activity '
+        '{com.example.notes/com.example.notes.MainActivity}';
+    LogEntry am(String message) => testLogEntry(
+      message: message,
+      pid: '1500',
+      tag: 'ActivityManager',
+      packageName: 'system_server',
+    );
+    LogEntry notes(String pid, String message, {String level = 'D'}) =>
+        testLogEntry(
+          message: message,
+          pid: pid,
+          level: level,
+          tag: 'Notes',
+          packageName: pid == '4121' ? 'com.example.notes' : null,
+        );
+
+    Future<LogController> streamed() async {
+      final log = createLog();
+      await log.startLogcat();
+      for (final entry in [
+        notes('4121', 'old run'),
+        am('Process com.example.notes (pid 4121) has died: fg  TOP'),
+        am(start),
+        testLogEntry(message: 'between', pid: '2200', packageName: 'gms'),
+        notes('4188', 'new run'),
+      ]) {
+        service.emit(entry);
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      return log;
+    }
+
+    List<String> shown(LogController log) => [
+      for (final entry in log.filteredLogs)
+        if (entry.type != LogEntryType.started)
+          entry.type == LogEntryType.restarted ? '<restart>' : entry.message,
+    ];
+
+    test('go right before the new process\'s first line', () async {
+      final log = await streamed();
+      expect(shown(log), [
+        'old run',
+        'Process com.example.notes (pid 4121) has died: fg  TOP',
+        start,
+        'between',
+        '<restart>',
+        'new run',
+      ]);
+      final marker = log.logs.firstWhere(
+        (entry) => entry.type == LogEntryType.restarted,
+      );
+      expect(marker.message, 'com.example.notes restarted · pid 4121 → 4188');
+      expect(log.receivedLineCount, 5, reason: 'a marker is not a line');
+    });
+
+    test('follow a package filter, not a level or text one', () async {
+      final log = await streamed();
+
+      applyTypedFilter(log, 'package:com.example.notes');
+      expect(shown(log), contains('<restart>'));
+      applyTypedFilter(log, 'package:gms');
+      expect(shown(log), isNot(contains('<restart>')));
+
+      log.applyFilters(
+        LogFilters.fromFields(level: LogLevel.warning, message: 'nothing'),
+      );
+      expect(shown(log), ['<restart>']);
+    });
+
+    test('stay out of exports and come back on import', () async {
+      final log = await streamed();
+      for (final scope in LogExportScope.values) {
+        log.setSelectedRows({
+          for (var i = 0; i < log.filteredLogs.length; i++) i,
+        });
+        expect(
+          log.entriesForExport(scope).map((e) => e.type),
+          isNot(contains(LogEntryType.restarted)),
+          reason: scope.name,
+        );
+      }
+
+      final imported = LogController.imported(
+        session!,
+        initialSettings: testSettings(),
+      );
+      addTearDown(imported.dispose);
+      imported.loadImportedEntries(
+        log.entriesForExport(LogExportScope.all),
+        'notes.json',
+      );
+      expect(
+        imported.logs.where((e) => e.type == LogEntryType.restarted),
+        hasLength(1),
+      );
     });
   });
 }

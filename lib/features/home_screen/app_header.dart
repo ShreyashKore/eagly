@@ -14,6 +14,7 @@ import 'components/github_star_button.dart';
 import 'components/header_action.dart';
 import 'components/save_layout_button.dart';
 import 'window_controls.dart';
+import '../../presentation/theme/platform_look.dart';
 
 /// Top app header: logo + name, the horizontal device-tab strip (auto-created
 /// per detected device), save-layout/wireless/emulator actions, and a
@@ -37,7 +38,9 @@ class const AppHeader({
         return Container(
           height: context.scaled(52),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
+            color: PlatformLook.chromeOverlayColor(
+              theme.colorScheme.surfaceContainerHighest,
+            ),
             border: Border(
               bottom: BorderSide(color: theme.colorScheme.outlineVariant),
             ),

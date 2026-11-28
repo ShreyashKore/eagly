@@ -76,8 +76,8 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
         LogCopyFormat.timestampAndMessage,
     };
 
-    final copiedCount = await controller.copyRowsForContextMenu(
-      clickedFilteredIndex: index,
+    final copiedCount = await controller.copyDisplayRowsForContextMenu(
+      clickedRow: index,
       format: format,
     );
     if (!mounted || copiedCount == 0) return;
@@ -179,32 +179,33 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
 
   Widget _buildViewerArea(BuildContext context, LogController controller) {
     final filtered = controller.filteredLogs;
-    final matches = controller.searchMatchIndices;
+    // The viewer works in rows, where a run of repeats is one row: its
+    // indices — matches, selection, the current match — are row indices.
+    final matches = controller.searchMatchRows;
     return _buildLogViewerStack(context, controller, filtered, matches);
   }
 
-  Widget _buildLogViewer(
-    LogController controller,
-    List<LogEntry> filtered,
-    List<int> matches,
-  ) {
+  Widget _buildLogViewer(LogController controller, List<int> matches) {
+    final rows = controller.displayRows;
     final safeIndex = matches.isEmpty
         ? null
         : controller.currentSearchMatchLogIndex(matches);
 
     return LogViewer(
       key: ValueKey('log-viewer-${controller.logViewerRevision}'),
-      logs: filtered,
+      logs: rows.entries,
+      repeatAt: rows.repeatAt,
+      onToggleRepeat: controller.toggleRepeat,
       scrollController: controller.scrollController,
       listController: controller.listController,
       wrapText: controller.wrapText,
       onLogRowTap: controller.disableAutoScroll,
       onUserScroll: controller.disableAutoScroll,
       rowSelectionMode: controller.rowSelectionMode,
-      selectedRowIndices: controller.selectedRowIndices,
-      onRowSelectionStart: controller.beginRowSelectionGesture,
-      onSelectedRowsChanged: controller.setSelectedRows,
-      onRowSelectionChanged: controller.setRowSelected,
+      selectedRowIndices: controller.selectedDisplayRows,
+      onRowSelectionStart: controller.beginDisplayRowSelection,
+      onSelectedRowsChanged: controller.setSelectedDisplayRows,
+      onRowSelectionChanged: controller.setDisplayRowSelected,
       onRowCopyAction: (index, action) =>
           _handleRowCopyAction(controller, index, action),
       onCopyAll: () => _handleCopyAllLogs(controller),
@@ -215,6 +216,10 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
           controller.searchBarVisible && controller.appliedInlineSearch.isActive
           ? safeIndex
           : null,
+      searchMatchIndices:
+          controller.searchBarVisible && controller.appliedInlineSearch.isActive
+          ? matches
+          : const [],
       onClearRowSelection: controller.clearSelectedRows,
       hiddenColumns: controller.hiddenColumns,
       columnWidths: controller.columnWidths,
@@ -232,7 +237,7 @@ class _LogFeatureViewState extends FeatureViewState<LogFeatureView> {
   ) {
     return Stack(
       children: [
-        _buildLogViewer(controller, filtered, matches),
+        _buildLogViewer(controller, matches),
         if (!controller.hasLogs)
           CenteredStateMessage(
             icon: controller.isImported

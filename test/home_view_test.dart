@@ -4,6 +4,7 @@ import 'package:eagly/services/devices_repository.dart';
 import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/session/device_session_manager.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -82,9 +83,7 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
   }
 
-  testWidgets('the Select device card opens the emulator manager', (
-    tester,
-  ) async {
+  testWidgets('the Start list opens the emulator manager', (tester) async {
     await pumpHome(tester, windowSize: const Size(1280, 900));
 
     expect(find.text('Emulators'), findsOneWidget);
@@ -96,17 +95,48 @@ void main() {
     await closeHome(tester);
   });
 
-  testWidgets('the card actions wrap instead of overflowing when narrow', (
+  testWidgets('a narrow window stacks the columns without overflowing', (
     tester,
   ) async {
-    // Three tonal buttons no longer fit one line here. A Row would paint the
-    // overflow stripes and fail this test; a Wrap folds them onto two.
+    // Too narrow for the Start column beside the devices: they stack, and
+    // nothing paints overflow stripes.
     await pumpHome(tester, windowSize: const Size(560, 900));
 
-    expect(find.text('Load devices'), findsOneWidget);
+    expect(find.text('Load devices'), findsNothing);
+    expect(find.byTooltip('Load devices'), findsOneWidget);
     expect(find.text('Wireless pairing'), findsOneWidget);
     expect(find.text('Emulators'), findsOneWidget);
     expect(tester.takeException(), isNull);
+
+    await closeHome(tester);
+  });
+
+  testWidgets('the Start shortcuts work without clicking first', (
+    tester,
+  ) async {
+    await pumpHome(tester, windowSize: const Size(1280, 900));
+
+    // Tests run as Android, which takes Ctrl rather than ⌘.
+    expect(find.text('Ctrl+E'), findsOneWidget);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+
+    expect(emulatorsOpened, 1);
+
+    await closeHome(tester);
+  });
+
+  testWidgets('the masthead hides the version while it is unknown', (
+    tester,
+  ) async {
+    // Package info isn't loaded in tests, so there is no version to show,
+    // and a "vUnknown" pill would be worse than none.
+    await pumpHome(tester, windowSize: const Size(1280, 900));
+
+    expect(find.text('Eagly'), findsOneWidget);
+    expect(find.textContaining('vUnknown'), findsNothing);
 
     await closeHome(tester);
   });

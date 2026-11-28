@@ -10,12 +10,15 @@ import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../../data/models/log_column.dart';
 import '../../data/models/log_entry.dart';
+import '../../services/log_display_list.dart';
 import '../../../../services/preferences_service.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../../../utils/log_entry_utils.dart';
+import '../../../../utils/log_timestamp.dart';
 import '../../../../utils/text_search_pattern.dart';
 import '../../../../utils/utils.dart';
 import 'column_visibility_menu.dart';
+import 'log_overview_ruler.dart';
 import 'log_row.dart';
 import 'log_viewer_header.dart';
 import '../log_viewer_constants.dart';
@@ -105,6 +108,9 @@ class const LogViewer({
   /// Index (into [logs]) of the row that should be highlighted as the
   /// currently focused match. `null` means no focused match.
   final int? currentMatchLogIndex,
+
+  /// Indices (into [logs]) of every search match, for the overview ruler.
+  final List<int> searchMatchIndices = const <int>[],
   final ValueChanged<String?>? onSelectedTextChanged,
   final VoidCallback? onUserScroll,
 
@@ -122,6 +128,14 @@ class const LogViewer({
   /// the active tab state.
   final ValueChanged<Map<String, double>>? onColumnWidthsChanged,
   final bool isIos = false,
+
+  /// The run of repeats the row at an index heads, if any. [logs] is then a
+  /// list of rows rather than of lines — [LogDisplayList.entries] — and every
+  /// index here is a row index.
+  final LogRepeat? Function(int index)? repeatAt,
+
+  /// Unfolds or folds the run the row at an index heads.
+  final ValueChanged<int>? onToggleRepeat,
 }) extends StatefulWidget {
   static const double columnSpacing = 8;
   static const double defaultUnwrappedMessageWidth = 1000;
@@ -175,11 +189,20 @@ class _LogViewerState extends State<LogViewer> {
   /// Key placed on the currently-focused match row so we can scroll to it.
   final GlobalKey _currentMatchKey = GlobalKey();
 
+  /// The date the timestamp column's header shows ("Oct 18"), since rows
+  /// show only the time of day: the date of the topmost visible row, so a
+  /// capture that runs past midnight says which day is on screen.
+  final ValueNotifier<String?> _timestampHeaderDate = ValueNotifier(null);
+  bool _headerDateRefreshScheduled = false;
+
   @override
   void initState() {
     super.initState();
     _widths = Map.of(widget.columnWidths);
     _hiddenColumns = Set.of(widget.hiddenColumns);
+    // No row is measured yet: start from the oldest line, so the header
+    // doesn't open on its bare title and change a frame later.
+    _timestampHeaderDate.value = _topVisibleDateLabel();
     widget.scrollController.addListener(_handleVerticalScroll);
     // Rebuild when the global log font size preference changes.
     PreferencesService.logFontSizeListenable.addListener(_onFontSizeChanged);
@@ -207,6 +230,7 @@ class _LogViewerState extends State<LogViewer> {
     if (widget.logs.isEmpty && old.logs.isNotEmpty) {
       _largestBuiltMessageWidth = 0;
     }
+    if (!identical(widget.logs, old.logs)) _scheduleHeaderDateRefresh();
     if (!mapEquals(widget.columnWidths, old.columnWidths)) {
       _widths = Map.of(widget.columnWidths);
     }
@@ -234,6 +258,7 @@ class _LogViewerState extends State<LogViewer> {
     _ownListController?.dispose();
     widget.scrollController.removeListener(_handleVerticalScroll);
     PreferencesService.logFontSizeListenable.removeListener(_onFontSizeChanged);
+    _timestampHeaderDate.dispose();
     super.dispose();
   }
 
@@ -319,6 +344,7 @@ class _LogViewerState extends State<LogViewer> {
 
   void _handleVerticalScroll() {
     _refreshVisibleRowBounds();
+    _scheduleHeaderDateRefresh();
     final localPosition = _dragCurrentLocalPosition;
     if (_isDraggingRowSelection && localPosition != null) {
       _applyDragSelectionForLocalPosition(localPosition);
@@ -484,6 +510,10 @@ class _LogViewerState extends State<LogViewer> {
       final value = log.valueForColumn(column);
       final match = pattern.firstMatch(value);
       if (match == null) continue;
+      // The timestamp's date is drawn at zero width (LogRow._timestampCell).
+      final hiddenPrefix = column == LogColumn.timestamp
+          ? LogTimestampParts.tryParse(value)?.datePrefix.length ?? 0
+          : 0;
 
       final columnStart = _columnStart(column);
       if (column == LogColumn.level) {
@@ -494,7 +524,10 @@ class _LogViewerState extends State<LogViewer> {
       }
 
       final padding = 8.0;
-      final linePrefix = _linePrefixUntilMatch(value, match.start);
+      final linePrefix = _linePrefixUntilMatch(
+        value,
+        match.start,
+      ).substring(math.min(hiddenPrefix, match.start));
       final matchedLineText = _matchedLineSegment(
         value,
         match.start,
@@ -565,9 +598,23 @@ class _LogViewerState extends State<LogViewer> {
     });
   }
 
-  void _recordBuiltMessageWidth(String message) {
+  void _recordBuiltMessageWidth(String message, [LogRepeat? repeat]) {
     if (widget.wrapText || !_isVisible(LogColumn.message)) return;
-    final measuredWidth = _measureMessageWidth(message);
+    var measuredWidth = _measureMessageWidth(message);
+    if (repeat != null) {
+      // The chip trails the message's last line; room for its text, its
+      // padding and the gap before it.
+      final lastLine = message.substring(message.lastIndexOf('\n') + 1);
+      measuredWidth = math.max(
+        measuredWidth,
+        _measureTextWidth(
+              '$lastLine ${LogRow.repeatChipText(repeat)}',
+              _monoStyle,
+            ) +
+            kMessageHorizontalPadding +
+            32,
+      );
+    }
     if (measuredWidth <= _largestBuiltMessageWidth) return;
     _largestBuiltMessageWidth = measuredWidth;
     _scheduleMessageWidthRefresh();
@@ -694,7 +741,44 @@ class _LogViewerState extends State<LogViewer> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _rowContexts[index] != context) return;
       _updateRowBoundsForContext(index, context);
+      _scheduleHeaderDateRefresh();
     });
+  }
+
+  /// Re-reads the header's date once the current callbacks are done — every
+  /// row measured in this frame's post-frame pass, say. A microtask rather
+  /// than another post-frame callback: that would wait for a frame nothing
+  /// may schedule. Batched, since a scroll or a burst of rows asks many
+  /// times at once.
+  void _scheduleHeaderDateRefresh() {
+    if (_headerDateRefreshScheduled) return;
+    _headerDateRefreshScheduled = true;
+    scheduleMicrotask(() {
+      _headerDateRefreshScheduled = false;
+      if (!mounted) return;
+      _timestampHeaderDate.value = _topVisibleDateLabel();
+    });
+  }
+
+  /// The date of the first visible row whose timestamp has one, looking a
+  /// few rows down past special entries or odd lines; null when none do.
+  String? _topVisibleDateLabel() {
+    if (!_isVisible(LogColumn.timestamp)) return null;
+    final logs = widget.logs;
+    if (logs.isEmpty) return null;
+    final year = DateTime.now().year;
+    String? labelAt(int index) =>
+        LogTimestampParts.tryParse(logs[index].timestamp.trim())
+            ?.dateLabel(currentYear: year);
+
+    var looked = 0;
+    for (final MapEntry(key: index, value: rect) in _rowBoundsByIndex.entries) {
+      if (rect.bottom <= 0 || index >= logs.length) continue;
+      final label = labelAt(index);
+      if (label != null || ++looked >= 8) return label;
+    }
+    // Rows not measured yet (the first frame): the oldest line.
+    return _rowBoundsByIndex.isEmpty ? labelAt(0) : null;
   }
 
   void _unregisterRowContext(int index, BuildContext context) {
@@ -976,14 +1060,45 @@ class _LogViewerState extends State<LogViewer> {
     );
   }
 
+  /// Brings the line at [index] to the middle of the list, from the
+  /// overview ruler. A jump is the user scrolling, so it stops the tail.
+  void _jumpToLine(int index) {
+    if (!_listController.isAttached ||
+        index >= _listController.numberOfItems ||
+        !widget.scrollController.hasClients) {
+      return;
+    }
+    widget.onUserScroll?.call();
+    _listController.jumpToItem(
+      index: index,
+      scrollController: widget.scrollController,
+      alignment: 0.5,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: _buildListPane(context)),
+        LogOverviewRuler(
+          logs: widget.logs,
+          searchMatches: widget.searchMatchIndices,
+          onJumpTo: _jumpToLine,
+          headerHeight: context.scaled(28),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildListPane(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewportWidth = constraints.maxWidth;
         final messageWidth = _messageColumnWidth(viewportWidth);
         final contentWidth = _contentWidth(viewportWidth);
-        final logViewport = _buildLogViewport(messageWidth);
+        final logViewport = _buildLogViewport(messageWidth, viewportWidth);
 
         final innerColumn = Column(
           children: [
@@ -1144,11 +1259,23 @@ class _LogViewerState extends State<LogViewer> {
       onShowColumnVisibilityMenu: (position) =>
           _showColumnVisibilityMenu(context, position),
       isIos: widget.isIos,
+      timestampDate: _timestampHeaderDate,
     );
   }
 
-  Widget _buildLogRow(LogEntry log, int index, double messageWidth) {
+  Widget _buildLogRow(
+    LogEntry log,
+    int index,
+    double messageWidth,
+    double viewportWidth,
+    LogRepeat? repeat,
+  ) {
+    final onToggleRepeat = widget.onToggleRepeat;
     return LogRow(
+      repeat: repeat,
+      onToggleRepeat: repeat == null || onToggleRepeat == null
+          ? null
+          : () => onToggleRepeat(index),
       key: widget.currentMatchLogIndex == index ? _currentMatchKey : null,
       log: log,
       index: index,
@@ -1172,16 +1299,17 @@ class _LogViewerState extends State<LogViewer> {
       },
       contentValueForColumn: (col) =>
           log.valueForColumn(col, isIos: widget.isIos),
+      specialRowWidth: viewportWidth,
     );
   }
 
-  Widget _buildLogViewport(double messageWidth) {
+  Widget _buildLogViewport(double messageWidth, double viewportWidth) {
     final selectionRect = _dragSelectionRect;
     return Stack(
       key: _rowViewportKey,
       fit: StackFit.expand,
       children: [
-        _buildLogList(messageWidth),
+        _buildLogList(messageWidth, viewportWidth),
         if (selectionRect != null)
           Positioned.fromRect(
             rect: selectionRect,
@@ -1204,7 +1332,7 @@ class _LogViewerState extends State<LogViewer> {
     );
   }
 
-  Widget _buildLogList(double messageWidth) {
+  Widget _buildLogList(double messageWidth, double viewportWidth) {
     final monoStyle = _monoStyle;
     return SuperListView.builder(
       controller: widget.scrollController,
@@ -1226,13 +1354,14 @@ class _LogViewerState extends State<LogViewer> {
       itemCount: widget.logs.length,
       itemBuilder: (_, i) {
         final log = widget.logs[i];
-        _recordBuiltMessageWidth(log.message);
+        final repeat = widget.repeatAt?.call(i);
+        _recordBuiltMessageWidth(log.message, repeat);
         return _RowBoundsReporter(
           index: i,
           key: ValueKey(log.id),
           onMounted: _registerRowContext,
           onUnmounted: _unregisterRowContext,
-          child: _buildLogRow(log, i, messageWidth),
+          child: _buildLogRow(log, i, messageWidth, viewportWidth, repeat),
         );
       },
     );

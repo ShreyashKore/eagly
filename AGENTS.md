@@ -131,10 +131,36 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   Auto-scroll glides to the tail frame by frame, re-reading `maxScrollExtent` each frame
   and never passing it, then lands with `LogController.listController.jumpToItem` — never
   `animateTo(maxScrollExtent)`, whose fixed target overshot into the blank pane behind the
-  list after a burst and bounced back on macOS (`test/log_auto_scroll_test.dart`).
+  list after a burst and bounced back on macOS (`test/log_auto_scroll_test.dart`). The
+  overview ruler beside the scrollbar (`LogOverviewRuler`) places its error / warning /
+  search-match marks by line index for the same reason, recomputing at most every 250 ms.
+- **Repeat collapsing:** the list draws `LogController.displayRows` (`LogDisplayList`,
+  `features/logs/services/log_display_list.dart`), where a run of 3+ identical consecutive
+  lines (same level, tag, pid and message; never a special entry) is one row with a "×N over
+  2.1 s" chip that unfolds it in place. Every index the viewer handles — selection, the
+  current search match, the overview ruler, scrolling — is a *row* index; copy, export,
+  search, filters and the status bar counts stay on `filteredLogs`. Translate only through
+  the display list (`startOf` / `lengthOf` / `rowOf`) and the controller's `*DisplayRow*`
+  methods, never with index arithmetic of your own. A selected run selects all of its lines,
+  so copy and export write every one; a run whose lines match a search is one stop for
+  next/previous (`searchMatchRows`), landing on its row. Runs grow incrementally on append
+  and rebuild only when the filtered list is replaced or loses lines. "Collapse repeats" is a
+  per-tab toggle seeded from `PreferencesService.collapseRepeats` (Settings → Defaults for
+  new tabs).
 - **`LogEntry`:** `type == LogEntryType.log` is a real device line; all other types
-  (`started`/`paused`/`stopped`/`resumed`/`notice`/`error`) are *special* status entries
-  rendered inline and skipped by copy/selection. Build them via `LogEntryUtils`.
+  (`started`/`paused`/`stopped`/`resumed`/`notice`/`error`/`restarted`) are *special*
+  entries rendered inline as dividers and skipped by copy/selection. Build them via
+  `LogEntryUtils`; a new type needs a case in every switch on `LogEntryType` (accent and
+  icon in `LogRow`, default messages in `LogEntryUtils` and `LogController`).
+- **App restart markers (Android):** `AppRestartDetector` (`features/logs/services/`) reads
+  ActivityManager's `Start proc <pid>:<process>/…` (and `… has died` / `Killing …` deaths)
+  and queues a `restarted` divider — "com.example.notes restarted · pid 4121 → 4188" —
+  right before the new pid's first line, only for a process whose earlier pid logged in
+  this capture. Filters treat a marker as its process: package, pid, age and framework
+  terms apply; level, tag, message and raw terms don't. Markers are left out of exports
+  (`entriesForExport`) and derived again on import; they aren't counted in
+  `receivedLineCount` or sent on `appendedLogs`. iOS has no reliable launch signal and is
+  skipped.
 - **Stall recovery (LogController):** the live stream can die silently (logcat EOF) or
   wedge (no EOF, device still listed). Detection = `onDone`/`onError` + an Android-only
   watchdog that actively probes (`service.pingDevice()`). Recovery is **tiered**: gentle
@@ -616,6 +642,11 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   dividers, private helpers prefixed `_`, `unawaited(...)` for fire-and-forget futures.
 - Theme tokens come from the `EaglyTheme` extension: `context.eaglyTheme.<token>` (status
   colors, `warningColor`, `inlineNotice*`). Don't hardcode colors.
+- **One accent, from the logo.** `colorScheme.primary` is the beak's amber (`AppTheme.beakAmber`
+  in dark, the darker `beakAmberDeep` in light) on near-black ink surfaces in the dark theme.
+  Use it for what is active or chosen — primary buttons, selection, toggles, the live dot — not
+  as decoration; debug log lines have their own blue for that reason. Warnings and the paused
+  state are orange so they never read as the accent (`test/accent_colors_test.dart`).
 - **Text emphasis has three tiers**, so a row reads in order of importance: primary
   (`onSurface`, the default) for names and values, `eaglyTheme.secondaryTextColor` for
   supporting text (descriptions, a package under an app name), `tertiaryTextColor` for
@@ -626,8 +657,13 @@ listens and turns connect/disconnect transitions into `onDeviceConnected()` /
   Device home's Quick access, Logs, Files, Terminal, Emulators, Wireless pairing, Settings so far).
   `ListTile` subtitles default to `onSurfaceVariant` too; Settings overrides them with a
   `ListTileTheme.merge`. Keep color for meaning (destructive, status), not for every row's
-  icon — a log row carries its level color on the badge and the message only; package/tag are
-  secondary, timestamp and PID/TID tertiary (`LogRow._cellStyle`).
+  icon — a log row carries its level color on the badge (a 12% tint behind the letter,
+  `EaglyTheme.logBadgeFill`; `test/log_level_badge_test.dart` holds each letter to AA) and the
+  message only; package/tag are secondary, timestamp and PID/TID tertiary (`LogRow._cellStyle`).
+  The timestamp cell draws only the time of day (`LogTimestampParts`, `utils/log_timestamp.dart`)
+  and the header names the top visible row's date; the date stays in the cell's text at zero
+  size, like the cell separators, so a selection still copies the timestamp whole. Copy, export,
+  search and filters read `LogEntry.timestamp` and never see the split.
 - Icon-only buttons are `AppIconButton` (`presentation/components/app_icon_button.dart`),
   never Material's `IconButton` — `test/app_icon_button_test.dart` fails on one in `lib/`.
   Icons follow the app zoom, and `IconButton`'s theme-clamped box pushed a zoomed glyph

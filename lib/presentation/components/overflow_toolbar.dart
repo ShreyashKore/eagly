@@ -33,6 +33,11 @@ class const ToolbarAction({
   /// bar, a [PopupMenuDivider] in the menu.
   final bool dividerBefore = false,
 
+  /// Never in the bar, always in the overflow menu — for actions used too
+  /// rarely to earn a button (import, export, copy everything). Menu-only
+  /// actions go last in a toolbar's list.
+  final bool menuOnly = false,
+
   /// Renders this action in the bar, overriding the toolbar's default button
   /// (e.g. a labelled switch). The menu entry always uses [icon] / [label].
   final ToolbarActionBuilder? barBuilder,
@@ -93,10 +98,18 @@ class _OverflowToolbarState extends State<OverflowToolbar> {
   @override
   Widget build(BuildContext context) {
     final buildAction = widget.actionBuilder ?? _defaultActionButton;
+    final menuOnlyCount = widget.actions.where((a) => a.menuOnly).length;
+    assert(
+      widget.actions
+          .skip(widget.actions.length - menuOnlyCount)
+          .every((a) => a.menuOnly),
+      'Menu-only actions must come last.',
+    );
     return _ToolbarLayout(
       leadingCount: widget.leading.length,
       hasFlexible: widget.flexible != null,
       actionCount: widget.actions.length,
+      menuOnlyCount: menuOnlyCount,
       pinnedCount: widget.pinnedCount,
       flexibleMinWidth: widget.flexibleMinWidth,
       spacing: widget.spacing,
@@ -216,6 +229,7 @@ class const _ToolbarLayout({
   required final int leadingCount,
   required final bool hasFlexible,
   required final int actionCount,
+  required final int menuOnlyCount,
   required final int pinnedCount,
   required final double flexibleMinWidth,
   required final double spacing,
@@ -228,6 +242,7 @@ class const _ToolbarLayout({
       leadingCount: leadingCount,
       hasFlexible: hasFlexible,
       actionCount: actionCount,
+      menuOnlyCount: menuOnlyCount,
       pinnedCount: pinnedCount,
       flexibleMinWidth: flexibleMinWidth,
       spacing: spacing,
@@ -244,6 +259,7 @@ class const _ToolbarLayout({
       ..leadingCount = leadingCount
       ..hasFlexible = hasFlexible
       ..actionCount = actionCount
+      ..menuOnlyCount = menuOnlyCount
       ..pinnedCount = pinnedCount
       ..flexibleMinWidth = flexibleMinWidth
       ..spacing = spacing
@@ -260,6 +276,7 @@ class _RenderToolbarLayout({
   required var int _leadingCount,
   required var bool _hasFlexible,
   required var int _actionCount,
+  required var int _menuOnlyCount,
   required var int _pinnedCount,
   required var double _flexibleMinWidth,
   required var double _spacing,
@@ -283,6 +300,12 @@ class _RenderToolbarLayout({
   set actionCount(int value) {
     if (_actionCount == value) return;
     _actionCount = value;
+    markNeedsLayout();
+  }
+
+  set menuOnlyCount(int value) {
+    if (_menuOnlyCount == value) return;
+    _menuOnlyCount = value;
     markNeedsLayout();
   }
 
@@ -374,14 +397,16 @@ class _RenderToolbarLayout({
     }
 
     final available = constraints.maxWidth;
-    var visibleActions = _actionCount;
-    var showOverflow = false;
-    final pinned = math.min(_pinnedCount, _actionCount);
+    // Menu-only actions sit at the end and are never shown in the bar.
+    final barActions = _actionCount - _menuOnlyCount;
+    var visibleActions = barActions;
+    var showOverflow = _menuOnlyCount > 0;
+    final pinned = math.min(_pinnedCount, barActions);
     // With nothing collapsible the toolbar just gets squeezed rather than
     // growing an empty menu; pinned actions stay in the bar.
-    if (_actionCount > pinned &&
+    if (barActions > pinned &&
         available.isFinite &&
-        widthFor(_actionCount, false) > available) {
+        widthFor(barActions, showOverflow) > available) {
       showOverflow = true;
       while (visibleActions > pinned &&
           widthFor(visibleActions, true) > available) {

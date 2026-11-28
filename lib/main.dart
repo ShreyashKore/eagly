@@ -10,6 +10,7 @@ import 'package:eagly/services/preferences_service.dart';
 import 'package:eagly/presentation/theme/app_theme.dart';
 import 'package:eagly/presentation/theme/app_zoom.dart';
 import 'package:eagly/presentation/theme/bundled_fonts.dart';
+import 'package:eagly/presentation/theme/platform_look.dart';
 import 'package:eagly/features/home_screen/home_page.dart';
 import 'package:eagly/services/sentry_event_filter.dart';
 import 'package:eagly/utils/record_mode.dart';
@@ -27,7 +28,10 @@ void main(List<String> args) async {
   await PreferencesService.init();
   await EaglyInfoService.init();
   final recordMode = RecordMode.isRequested(args);
-  if (recordMode) RecordMode.anonymizeDevices();
+  if (recordMode) {
+    RecordMode.anonymizeDevices();
+    RecordMode.hideTips();
+  }
   await _configureDesktopWindow(recordMode: recordMode);
   // Only release builds report. Debug runs on developer machines filled the
   // dashboard with JIT hangs and debug-only assertions, and spent the quota.
@@ -74,6 +78,10 @@ Future<void> _configureDesktopWindow({required bool recordMode}) async {
   if (!Platform.isMacOS && !Platform.isWindows && !Platform.isLinux) return;
 
   await windowManager.ensureInitialized();
+  // Before the first frame: the theme reads whether the material is on.
+  await PlatformLook.applyWindowMaterial(
+    dark: _isDark(PreferencesService.themeModeListenable.value),
+  );
   const windowOptions = WindowOptions(
     titleBarStyle: TitleBarStyle.hidden,
     windowButtonVisibility: true,
@@ -102,13 +110,16 @@ class const MyApp({super.key}) extends StatelessWidget {
               themeMode: themeMode,
               home: const HomeScreen(),
               debugShowCheckedModeBanner: false,
-              builder: (context, child) => AppZoom(
-                zoomLevel: zoomLevel,
-                child: SnackBarTheme(
-                  data: Theme.of(context).snackBarTheme.copyWith(
-                    width: _snackBarWidth(MediaQuery.sizeOf(context).width),
+              builder: (context, child) => _WindowMaterialSync(
+                dark: Theme.of(context).brightness == Brightness.dark,
+                child: AppZoom(
+                  zoomLevel: zoomLevel,
+                  child: SnackBarTheme(
+                    data: Theme.of(context).snackBarTheme.copyWith(
+                      width: _snackBarWidth(MediaQuery.sizeOf(context).width),
+                    ),
+                    child: child!,
                   ),
-                  child: child!,
                 ),
               ),
             );
@@ -129,4 +140,35 @@ double _snackBarWidth(double availableWidth) {
     math.min(AppConstants.snackBarMinWidth, availableWidth),
     math.min(AppConstants.snackBarMaxWidth, withGutters),
   );
+}
+
+bool _isDark(ThemeMode mode) => switch (mode) {
+  ThemeMode.dark => true,
+  ThemeMode.light => false,
+  ThemeMode.system =>
+    WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+        Brightness.dark,
+};
+
+/// Keeps the window material's light or dark variant matching the theme the
+/// app actually shows, as the user switches it or the system does.
+class const _WindowMaterialSync({
+  required final bool dark,
+  required final Widget child,
+}) extends StatefulWidget {
+  @override
+  State<_WindowMaterialSync> createState() => _WindowMaterialSyncState();
+}
+
+class _WindowMaterialSyncState extends State<_WindowMaterialSync> {
+  @override
+  void didUpdateWidget(_WindowMaterialSync oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.dark != widget.dark) {
+      unawaited(PlatformLook.syncBrightness(dark: widget.dark));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

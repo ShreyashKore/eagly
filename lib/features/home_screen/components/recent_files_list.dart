@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:gap/gap.dart';
 
 import '../../../services/preferences_service.dart';
+import 'home_start_list.dart';
 import 'recent_file_tile.dart';
 
 /// The last opened log files, bound to [PreferencesService.recentLogFilesListenable]
-/// so it rebuilds as files are opened or removed. Empty until the first import.
+/// so it rebuilds as files are opened or removed. Shows a one-line hint
+/// until the first import.
 class const RecentFilesList({
   super.key,
   required final ValueChanged<String> onOpenRecent,
@@ -16,33 +17,28 @@ class const RecentFilesList({
     return ValueListenableBuilder<List<String>>(
       valueListenable: PreferencesService.recentLogFilesListenable,
       builder: (context, recentFiles, _) {
-        if (recentFiles.isEmpty) {
-          return Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Recently opened files will appear here.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          );
-        }
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Recent files', style: theme.textTheme.titleSmall),
-            ),
-            const Gap(8),
-            for (final path in recentFiles)
+            const HomeSectionLabel('Recent'),
+            if (recentFiles.isEmpty)
               Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: RecentFileTile(
-                  path: path,
-                  onOpen: () => onOpenRecent(path),
-                  onRemove: () => PreferencesService.removeRecentLogFile(path),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
                 ),
+                child: Text(
+                  'Log files you open will appear here.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            for (final path in recentFiles)
+              RecentFileTile(
+                path: path,
+                onOpen: () => onOpenRecent(path),
+                onRemove: () => PreferencesService.removeRecentLogFile(path),
               ),
           ],
         );

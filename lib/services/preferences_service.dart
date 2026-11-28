@@ -54,6 +54,7 @@ class PreferencesService {
   // Keys
   static const _keyWrapText = 'wrapText';
   static const _keyAutoScroll = 'autoScroll';
+  static const _keyCollapseRepeats = 'collapseRepeats';
   static const _keySelectedLogLevel = 'selectedLogLevel';
   static const _keySelectedAndroidLogLevel = 'selectedAndroidLogLevel';
   static const _keySelectedIosLogLevel = 'selectedIosLogLevel';
@@ -103,6 +104,11 @@ class PreferencesService {
 
   static bool get autoScroll => _prefs.getBool(_keyAutoScroll) ?? true;
   static set autoScroll(bool v) => _prefs.setBool(_keyAutoScroll, v);
+
+  /// Whether new log tabs fold identical consecutive lines into one row.
+  static bool get collapseRepeats =>
+      _prefs.getBool(_keyCollapseRepeats) ?? true;
+  static set collapseRepeats(bool v) => _prefs.setBool(_keyCollapseRepeats, v);
 
   static LogLevel get selectedLogLevel => LogLevel.fromStored(
     _prefs.getString(_keySelectedLogLevel) ??
@@ -267,6 +273,7 @@ class PreferencesService {
     logLinesLimit: logLinesLimit,
     hiddenColumns: hiddenColumns,
     columnWidths: columnWidths,
+    collapseRepeats: collapseRepeats,
   );
 
   // --- Screen capture (screenshots / recordings) ---

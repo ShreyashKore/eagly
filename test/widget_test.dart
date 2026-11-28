@@ -369,41 +369,37 @@ void main() {
     expect(revealedDx, lessThan(initialDx - 100));
   });
 
-  testWidgets(
-    'special entries render as status tiles without selection cells',
-    (WidgetTester tester) async {
-      await pumpSelectableLogViewer(
-        tester,
-        logs: [
-          LogEntry(
-            timestamp: '04-20 10:00:00.000',
-            pid: '101',
-            tid: '201',
-            level: 'I',
-            tag: 'Tag',
-            message: 'First message',
-          ),
-          LogEntryUtils.buildLoggingState(
-            type: LogEntryType.paused,
-            message: 'Paused live logging for emulator-5554.',
-            processName: 'emulator-5554',
-          ),
-        ],
-      );
+  testWidgets('special entries render as dividers without selection cells', (
+    WidgetTester tester,
+  ) async {
+    await pumpSelectableLogViewer(
+      tester,
+      logs: [
+        LogEntry(
+          timestamp: '04-20 10:00:00.000',
+          pid: '101',
+          tid: '201',
+          level: 'I',
+          tag: 'Tag',
+          message: 'First message',
+        ),
+        LogEntryUtils.buildLoggingState(
+          type: LogEntryType.paused,
+          message: 'Paused live logging for emulator-5554.',
+          processName: 'emulator-5554',
+        ),
+      ],
+    );
 
-      expect(find.text('Paused'), findsOneWidget);
-      expect(
-        find.text('Paused live logging for emulator-5554.'),
-        findsOneWidget,
-      );
-      expect(find.byIcon(Icons.pause_circle_outline_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.check_box_outline_blank), findsOneWidget);
-      expect(
-        tester.getSize(find.byKey(const ValueKey('special-log-row'))).height,
-        lessThan(36),
-      );
-    },
-  );
+    expect(find.text('Paused'), findsOneWidget);
+    expect(find.text('Paused live logging for emulator-5554.'), findsOneWidget);
+    expect(find.byIcon(Icons.pause_circle_outline_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.check_box_outline_blank), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('special-log-row'))).height,
+      lessThan(36),
+    );
+  });
 
   testWidgets('special entries stay compact when wrapText is disabled', (
     WidgetTester tester,
@@ -422,8 +418,51 @@ void main() {
 
     final specialRow = find.byKey(const ValueKey('special-log-row'));
     expect(specialRow, findsOneWidget);
-    expect(tester.getSize(specialRow).width, lessThanOrEqualTo(720));
+    // The divider runs across the viewport (less the row padding),
+    // not the far wider scrollable content.
+    final viewport = tester.getSize(find.byType(LogViewer)).width;
+    expect(tester.getSize(specialRow).width, viewport - 16);
     expect(tester.getSize(specialRow).height, lessThan(36));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a special entry shows its time of day, and fits a narrow pane', (
+    WidgetTester tester,
+  ) async {
+    final logs = [
+      LogEntryUtils.buildLoggingState(
+        type: LogEntryType.started,
+        message: 'Started capturing logs for a device with a long name.',
+        timestamp: '2026-04-20 10:11:12.345',
+      ),
+    ];
+    await pumpLogViewer(tester, wrapText: true, logs: logs);
+    expect(find.text('10:11:12'), findsOneWidget);
+    expect(find.textContaining('2026-04-20'), findsNothing);
+    // The label sits in the middle of the rule.
+    final row = tester.getRect(find.byKey(const ValueKey('special-log-row')));
+    final icon = tester.getRect(find.byIcon(Icons.play_arrow_rounded));
+    expect(icon.left, greaterThan(row.left + 12));
+
+    for (final width in [260.0, 120.0, 30.0]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.darkTheme,
+          home: Scaffold(
+            body: SizedBox(
+              width: width,
+              height: 200,
+              child: LogViewer(
+                logs: logs,
+                scrollController: ScrollController(),
+                wrapText: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull, reason: 'width $width');
+    }
   });
 
   testWidgets('log row selection text keeps spaces between cells', (

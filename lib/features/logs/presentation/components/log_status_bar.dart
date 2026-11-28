@@ -7,6 +7,7 @@ import '../../../../presentation/components/feature_view.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../../../utils/utils.dart';
 import '../../log_controller.dart';
+import 'live_rate_indicator.dart';
 import 'log_lines_limit_editor.dart';
 
 (String, Color) _liveStatusLabel(EaglyTheme theme, LogController controller) {
@@ -21,8 +22,16 @@ import 'log_lines_limit_editor.dart';
   return ('Stopped', theme.statusStoppedColor);
 }
 
-/// Bottom status bar: log/filtered/selected counts, memory usage, the
-/// max-lines editor, and the live/imported status indicator. Scrolls sideways
+/// Whether lines are flowing in: the state that gets [LiveRateIndicator]
+/// rather than a plain label.
+bool _isStreaming(LogController controller) =>
+    controller.isRunning &&
+    !controller.isPaused &&
+    !controller.isRecovering &&
+    !controller.liveLoggingInterrupted;
+
+/// Bottom status bar: log/filtered/selected counts (memory use in the log
+/// count's tooltip), the max-lines editor, and the live/imported status indicator. Scrolls sideways
 /// in a narrow pane rather than dropping readouts (see [FeatureStatusBar]).
 class const LogStatusBar({
   super.key,
@@ -36,7 +45,17 @@ class const LogStatusBar({
 
     return FeatureStatusBar(
       children: [
-        Text('Logs: ${controller.logCount}', style: theme.statusBarStyle),
+        // Memory use is for when something seems off, not for every glance:
+        // it lives in the log count's tooltip rather than the bar.
+        Tooltip(
+          message:
+              'Logs use ${formatBytes(controller.totalLogsMemoryBytes)}\n'
+              'Eagly uses ${formatBytes(appMemoryBytes)}',
+          child: Text(
+            'Logs: ${controller.logCount}',
+            style: theme.statusBarStyle,
+          ),
+        ),
         const Gap(16),
         Text(
           'Filtered: ${controller.filteredLogs.length}',
@@ -50,16 +69,6 @@ class const LogStatusBar({
           ),
         ],
         const Spacer(),
-        Text(
-          'App mem: ${formatBytes(appMemoryBytes)}',
-          style: theme.statusBarStyle,
-        ),
-        const Gap(16),
-        Text(
-          'Logs mem: ${formatBytes(controller.totalLogsMemoryBytes)}',
-          style: theme.statusBarStyle,
-        ),
-        const Gap(8),
         LogLinesLimitEditor(controller: controller),
         const Gap(8),
         SizedBox(
@@ -84,6 +93,13 @@ class const LogStatusBar({
           Builder(
             builder: (context) {
               final (label, color) = _liveStatusLabel(theme, controller);
+              if (_isStreaming(controller)) {
+                // The live dot is one of the few places the accent goes.
+                return LiveRateIndicator(
+                  readCount: () => controller.receivedLineCount,
+                  color: Theme.of(context).colorScheme.primary,
+                );
+              }
               return Text(
                 label,
                 style: TextStyle(

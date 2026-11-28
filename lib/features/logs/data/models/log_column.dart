@@ -3,7 +3,9 @@ enum LogColumn(
   final double defaultWidth,
   final double maxWidth,
 ) {
-  timestamp('Timestamp', 170.0, 250.0),
+  // Wide enough for `HH:mm:ss.SSS` and the header's date: rows show the
+  // time of day only (LogRow._timestampCell).
+  timestamp('Timestamp', 112.0, 250.0),
   pid('Package', 150.0, 200.0),
   tid('PID/TID', 65.0, 100.0),
   level('Level', 65.0, 100.0),

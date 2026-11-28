@@ -240,7 +240,8 @@ class _LogSearchFieldState extends State<LogSearchField> {
   }) {
     final search = _log.inlineSearch;
     final hasQuery = _text.text.isNotEmpty;
-    final matches = hasQuery ? _log.searchMatchIndices.length : 0;
+    // Stops, not lines: a folded run whose lines match is one.
+    final matches = hasQuery ? _log.searchMatchRows.length : 0;
     final eagly = context.eaglyTheme;
     final hasError = _log.inlineSearchHasError;
     return [

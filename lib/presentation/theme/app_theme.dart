@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../features/logs/data/models/log_framework.dart';
 import '../../features/logs/data/models/log_level.dart';
+import 'platform_look.dart';
 import 'text_theme.dart';
 
 extension ThemeModeExt on ThemeMode {
@@ -35,7 +36,6 @@ class const EaglyTheme({
   required final Color infoColor,
   required final Color warningColor,
   required final Color errorColor,
-  required final Color logBadgeForeground,
   required final Color searchMatchColor,
   required final Color searchCurrentMatchColor,
   required final Color searchCurrentRowColor,
@@ -73,6 +73,16 @@ class const EaglyTheme({
   /// on every surface it sits on — see `test/text_emphasis_test.dart`.
   required final Color tertiaryTextColor,
 }) extends ThemeExtension<EaglyTheme> {
+  /// Opacity of a log row's level badge fill. Any stronger and the dark
+  /// theme's verbose grey drops below AA on it (see
+  /// `test/log_level_badge_test.dart`).
+  static const double logBadgeTintAlpha = 0.12;
+
+  /// The fill behind a log row's level badge: [logLevelColor] as a soft
+  /// tint, so the badge marks the level without outweighing the message.
+  Color logBadgeFill(Color levelColor) =>
+      levelColor.withValues(alpha: logBadgeTintAlpha);
+
   Color logLevelColor(String level) {
     return switch (LogLevel.fromStored(level).code) {
       'fault' || 'error' => errorColor,
@@ -82,6 +92,12 @@ class const EaglyTheme({
       _ => verboseColor,
     };
   }
+
+  /// The milliseconds of a log row's timestamp: a step below the tertiary
+  /// time of day they follow, being the part read least. Below AA on
+  /// purpose — the seconds before them are what a reader scans.
+  Color get timestampFractionColor =>
+      tertiaryTextColor.withValues(alpha: tertiaryTextColor.a * 0.72);
 
   /// The accent a [LogFramework]'s chip is drawn in.
   Color frameworkColor(LogFramework framework) =>
@@ -99,7 +115,6 @@ class const EaglyTheme({
     Color? infoColor,
     Color? warningColor,
     Color? errorColor,
-    Color? logBadgeForeground,
     Color? searchMatchColor,
     Color? searchCurrentMatchColor,
     Color? searchCurrentRowColor,
@@ -128,7 +143,6 @@ class const EaglyTheme({
       infoColor: infoColor ?? this.infoColor,
       warningColor: warningColor ?? this.warningColor,
       errorColor: errorColor ?? this.errorColor,
-      logBadgeForeground: logBadgeForeground ?? this.logBadgeForeground,
       searchMatchColor: searchMatchColor ?? this.searchMatchColor,
       searchCurrentMatchColor:
           searchCurrentMatchColor ?? this.searchCurrentMatchColor,
@@ -177,11 +191,6 @@ class const EaglyTheme({
       infoColor: Color.lerp(infoColor, other.infoColor, t)!,
       warningColor: Color.lerp(warningColor, other.warningColor, t)!,
       errorColor: Color.lerp(errorColor, other.errorColor, t)!,
-      logBadgeForeground: Color.lerp(
-        logBadgeForeground,
-        other.logBadgeForeground,
-        t,
-      )!,
       searchMatchColor: Color.lerp(
         searchMatchColor,
         other.searchMatchColor,
@@ -272,7 +281,22 @@ extension AppThemeContext on BuildContext {
 }
 
 class AppTheme {
+  /// The logo's ground, a blue-black.
   static const Color seedColor = Color(0xFF060c16);
+
+  // ── Accent ──
+  // The one accent is the logo's beak, sampled from the app icon. It marks
+  // what is active or chosen (primary buttons, selection, toggles, the live
+  // dot) and nothing else, so it keeps meaning something. Warnings, amber
+  // until now, moved to orange so the two never read as one colour
+  // (test/accent_colors_test.dart).
+
+  /// The beak, as the dark theme's accent: 10:1 on the dark surfaces.
+  static const Color beakAmber = Color(0xFFFEBE16);
+
+  /// The beak darkened for the light theme until it holds AA as text on
+  /// the chrome and under white text on a filled button.
+  static const Color beakAmberDeep = Color(0xFF855700);
 
   static final ThemeData lightTheme = _buildTheme(
     _lightColorScheme,
@@ -291,6 +315,10 @@ class AppTheme {
       surfaceContainerLowest: Colors.grey.shade200,
       onSurface: Color(0xFF181818),
       onSurfaceVariant: Color(0xFF262626),
+      primary: beakAmberDeep,
+      onPrimary: Colors.white,
+      primaryContainer: const Color(0xFFFFE2A8),
+      onPrimaryContainer: const Color(0xFF2A1A00),
       secondary: const Color(0xFF064E3B),
       secondaryContainer: const Color.fromARGB(255, 197, 230, 216),
       onSecondary: const Color(0xFF6EE7B7),
@@ -303,10 +331,27 @@ class AppTheme {
     final seeded = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: Brightness.dark,
-      surface: Colors.grey.shade900,
-      surfaceContainerLowest: Color(0xFF0E0E0E),
+      // Near-black ink, from the logo's ground with its blue taken out: the
+      // pane body (surfaceContainer) is the canvas, its chrome
+      // (surfaceContainerHighest) one step up, cards and menus (surface)
+      // between, and the gaps between panes (surfaceContainerLowest) below —
+      // dark enough to double as the fill of a field on the chrome.
+      surfaceContainerLowest: const Color(0xFF050607),
+      surfaceContainerLow: const Color(0xFF0C0D0F),
+      surfaceContainer: const Color(0xFF0E0F11),
+      surface: const Color(0xFF111215),
+      surfaceDim: const Color(0xFF0E0F11),
+      surfaceContainerHigh: const Color(0xFF131518),
+      surfaceContainerHighest: const Color(0xFF181A1D),
+      surfaceBright: const Color(0xFF1E2024),
+      outlineVariant: const Color(0xFF24272B),
+      outline: const Color(0xFF8B8E94),
       onSurface: Color(0xFFF1F1F1),
       onSurfaceVariant: Color(0xFF969696),
+      primary: beakAmber,
+      onPrimary: const Color(0xFF1F1500),
+      primaryContainer: const Color(0xFF4D3800),
+      onPrimaryContainer: const Color(0xFFFFDF9E),
       secondary: const Color(0xFF6EE7B7),
       secondaryContainer: const Color(0xFF064E3B),
       onSecondary: const Color(0xFF064E3B),
@@ -327,19 +372,31 @@ class AppTheme {
       ),
     );
 
-    final textTheme = GoogleFonts.interTextTheme(baseTheme.textTheme).apply(
-      bodyColor: colorScheme.onSurface,
-      displayColor: colorScheme.onSurface,
-    );
+    // The platform's own UI font where it has a good one (PlatformLook);
+    // the bundled Inter elsewhere.
+    final textTheme =
+        (PlatformLook.usesSystemFont
+                ? baseTheme.textTheme.apply(
+                    fontFamily: PlatformLook.uiFontFamily,
+                    fontFamilyFallback: PlatformLook.uiFontFallback,
+                  )
+                : GoogleFonts.interTextTheme(baseTheme.textTheme))
+            .apply(
+              bodyColor: colorScheme.onSurface,
+              displayColor: colorScheme.onSurface,
+            );
 
     final cursorStyle = WidgetStatePropertyAll(SystemMouseCursors.click);
     final inputBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(PlatformLook.controlRadius),
       borderSide: BorderSide(color: colorScheme.outlineVariant),
     );
 
     return baseTheme.copyWith(
-      scaffoldBackgroundColor: colorScheme.surfaceContainerLowest,
+      // See-through over the window material, where there is one.
+      scaffoldBackgroundColor: PlatformLook.chromeColor(
+        colorScheme.surfaceContainerLowest,
+      ),
       textTheme: textTheme,
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       visualDensity: VisualDensity.compact,
@@ -354,7 +411,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(PlatformLook.surfaceRadius),
           side: BorderSide(color: colorScheme.outlineVariant),
         ),
       ),
@@ -548,14 +605,18 @@ class AppTheme {
       logCompactStyle: mono.copyWith(fontSize: 11, height: 1.2),
       logHeaderStyle: mono.copyWith(fontSize: 12, fontWeight: FontWeight.w700),
       statusBarStyle: TextStyle(fontSize: 12, height: 1, color: tertiaryText),
-      verboseColor: isDark ? colorScheme.onSurfaceVariant : colorScheme.outline,
-      debugColor: colorScheme.primary,
-      infoColor: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF0F766E),
-      warningColor: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
+      // The light theme's level colours are a step darker than their dark
+      // twins need to be: each is the letter on its own badge tint, and
+      // `outline`, the old verbose grey, missed AA even on the bare row.
+      verboseColor: isDark
+          ? colorScheme.onSurfaceVariant
+          : const Color(0xFF5A5E66),
+      // Its own blue now that primary is the accent: debug lines are many,
+      // and the accent should stay rare.
+      debugColor: isDark ? const Color(0xFFA7C8FF) : const Color(0xFF3E5F90),
+      infoColor: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF0B6B63),
+      warningColor: isDark ? const Color(0xFFFB923C) : const Color(0xFF9C3D06),
       errorColor: isDark ? const Color(0xFFFCA5A5) : colorScheme.error,
-      logBadgeForeground: isDark
-          ? const Color(0xFF1E1F21)
-          : const Color(0xFFDCE2F3),
       searchMatchColor: isDark
           ? const Color(0xFFFDE68A)
           : const Color(0xFFFDE68A),
@@ -568,15 +629,21 @@ class AppTheme {
       searchHighlightForeground: const Color(0xFF111827),
       searchNoResultsFillColor: colorScheme.errorContainer,
       searchNoResultsTextColor: colorScheme.onErrorContainer,
-      chromeFieldColor: colorScheme.surface,
+      // The dark theme's surface sits too close to its chrome to read as a
+      // field on it (test/pane_chrome_test.dart); the pane gaps' near-black
+      // does.
+      chromeFieldColor: isDark
+          ? colorScheme.surfaceContainerLowest
+          : colorScheme.surface,
       inlineNoticeBackground: colorScheme.secondaryContainer,
       inlineNoticeForeground: colorScheme.onSecondaryContainer,
       statusLiveColor: isDark
           ? const Color(0xFF4ADE80)
           : const Color(0xFF15803D),
+      // Paused is a caution, like a warning — and was the accent's amber.
       statusPausedColor: isDark
-          ? const Color(0xFFFBBF24)
-          : const Color(0xFFB45309),
+          ? const Color(0xFFFB923C)
+          : const Color(0xFF9C3D06),
       statusStoppedColor: isDark ? const Color(0xFFF87171) : colorScheme.error,
       cardShadowColor: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04),
       frameworkAccentColors: isDark

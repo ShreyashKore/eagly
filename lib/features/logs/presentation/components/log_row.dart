@@ -1,9 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../data/models/log_column.dart';
 import '../../data/models/log_entry.dart';
+import '../../services/log_display_list.dart';
+import '../../../../presentation/components/hover_builder.dart';
 import '../../../../presentation/theme/app_theme.dart';
 import '../../../../utils/log_entry_utils.dart';
+import '../../../../utils/log_timestamp.dart';
 import '../../../../utils/text_search_pattern.dart';
 import '../log_viewer_constants.dart';
 import 'log_viewer.dart';
@@ -28,6 +33,18 @@ class const LogRow({
   final ValueChanged<PointerMoveEvent>? onSelectionPointerMove,
   final ValueChanged<Offset>? onRowContextMenuRequested,
   required final String Function(LogColumn) contentValueForColumn,
+
+  /// How wide a special entry's divider runs: the viewport, so its centred
+  /// label is on screen however wide the scrollable content is. Null fills
+  /// whatever width the row is given.
+  final double? specialRowWidth,
+
+  /// The run of repeats this row heads, which puts a count chip at the end
+  /// of its message; null for a single line.
+  final LogRepeat? repeat,
+
+  /// Unfolds or folds [repeat], from its chip.
+  final VoidCallback? onToggleRepeat,
 }) extends StatelessWidget {
   Color _specialAccentColor(BuildContext context) {
     final theme = context.eaglyTheme;
@@ -37,7 +54,7 @@ class const LogRow({
       LogEntryType.stopped => theme.statusStoppedColor,
       LogEntryType.error => theme.errorColor,
       LogEntryType.notice => theme.inlineNoticeForeground,
-      LogEntryType.log => theme.infoColor,
+      LogEntryType.restarted || LogEntryType.log => theme.infoColor,
     };
   }
 
@@ -49,22 +66,42 @@ class const LogRow({
       LogEntryType.stopped => Icons.stop_circle_outlined,
       LogEntryType.error => Icons.error_outline_rounded,
       LogEntryType.notice => Icons.info_outline_rounded,
+      LogEntryType.restarted => Icons.refresh_rounded,
       LogEntryType.log => Icons.article_outlined,
     };
   }
 
-  String _specialMetaText() {
-    return [
-      if (log.timestamp.trim().isNotEmpty) log.timestamp.trim(),
-      if (log.processName?.trim().isNotEmpty ?? false) log.processName!.trim(),
-    ].join(' • ');
+  /// What a divider says in its accent, and the rest after it. A restart
+  /// leads with the app it is about — "com.example.notes" · "restarted · pid
+  /// 4121 → 4188" — rather than its type, which the message already says.
+  (String, String) _specialLabelAndMessage() {
+    final message = log.message.trim();
+    final package = log.packageName?.trim() ?? '';
+    if (log.type == LogEntryType.restarted &&
+        package.isNotEmpty &&
+        message.startsWith('$package ')) {
+      return (package, message.substring(package.length + 1));
+    }
+    return (log.typeLabel, message);
   }
 
+  /// `HH:mm:ss` of a special entry; the date and milliseconds say nothing a
+  /// divider between runs needs. Shown as it is when it doesn't parse.
+  String _specialTimeText() {
+    final timestamp = log.timestamp.trim();
+    return LogTimestampParts.tryParse(timestamp)?.time ?? timestamp;
+  }
+
+  /// Text that takes no space and draws nothing, yet is part of what a
+  /// selection copies.
+  static const _hiddenTextStyle = TextStyle(
+    fontSize: 0,
+    height: 0,
+    color: Colors.transparent,
+  );
+
   TextSpan _selectionSeparatorSpan(String text) {
-    return TextSpan(
-      text: text,
-      style: const TextStyle(fontSize: 0, height: 0, color: Colors.transparent),
-    );
+    return TextSpan(text: text, style: _hiddenTextStyle);
   }
 
   TextSpan _cellSeparatorSpan() {
@@ -75,15 +112,21 @@ class const LogRow({
     return _selectionSeparatorSpan('\n ');
   }
 
+  /// [text] as selectable spans, search matches highlighted. [styleRuns]
+  /// styles it in pieces — each `(end, style)` covers the text up to `end`,
+  /// the last ending at `text.length` — and a match spanning two pieces is
+  /// highlighted in both.
   Widget _buildSelectableText(
     BuildContext context,
     String text,
     TextStyle style, {
+    List<(int, TextStyle)>? styleRuns,
     Color? highlightColor,
     TextOverflow? overflow,
     bool softWrap = false,
     bool appendCellSeparator = false,
     bool appendRowTerminator = false,
+    InlineSpan? trailing,
   }) {
     final children = <InlineSpan>[];
     final pattern = TextSearchPattern.fromConfig(search);
@@ -91,29 +134,45 @@ class const LogRow({
         !pattern.isActive || highlightColor == null || !pattern.isValid
         ? const <TextSearchMatch>[]
         : pattern.allMatches(text);
+    final runs = styleRuns ?? [(text.length, style)];
 
-    var start = 0;
-    for (final match in matches) {
-      if (match.start > start) {
-        children.add(
-          TextSpan(text: text.substring(start, match.start), style: style),
-        );
+    // Cut wherever a style run or a match starts or ends; each piece takes
+    // its run's style, highlighted when it lies inside a match.
+    final cuts = <int>{
+      0,
+      text.length,
+      for (final (end, _) in runs) end,
+      for (final match in matches) ...[match.start, match.end],
+    }.toList()..sort();
+    var runIndex = 0;
+    var matchIndex = 0;
+    for (var i = 0; i + 1 < cuts.length; i++) {
+      final start = cuts[i];
+      final end = cuts[i + 1];
+      while (runIndex < runs.length - 1 && runs[runIndex].$1 <= start) {
+        runIndex++;
       }
+      while (matchIndex < matches.length && matches[matchIndex].end <= start) {
+        matchIndex++;
+      }
+      final runStyle = runs[runIndex].$2;
+      final inMatch =
+          matchIndex < matches.length && matches[matchIndex].start <= start;
       children.add(
         TextSpan(
-          text: text.substring(match.start, match.end),
-          style: style.copyWith(
-            backgroundColor: highlightColor,
-            color: context.eaglyTheme.searchHighlightForeground,
-          ),
+          text: text.substring(start, end),
+          style: inMatch
+              ? runStyle.copyWith(
+                  backgroundColor: highlightColor,
+                  color: context.eaglyTheme.searchHighlightForeground,
+                )
+              : runStyle,
         ),
       );
-      start = match.end;
     }
-    // An unmatched text is still one span, even when empty.
-    if (start < text.length || matches.isEmpty) {
-      children.add(TextSpan(text: text.substring(start), style: style));
-    }
+    // An empty text is still one span.
+    if (children.isEmpty) children.add(TextSpan(text: '', style: style));
+    if (trailing != null) children.add(trailing);
     if (appendCellSeparator) {
       children.add(_cellSeparatorSpan());
     }
@@ -129,6 +188,49 @@ class const LogRow({
     );
   }
 
+  /// The timestamp as its time of day, the milliseconds a step dimmer; the
+  /// date moves to the column header. The date is still in the text — drawn
+  /// at zero size, like the cell separators — so a selection copies the
+  /// timestamp whole. One that doesn't parse is shown as it is.
+  Widget _timestampCell(
+    BuildContext context,
+    String timestamp,
+    TextStyle style, {
+    Color? highlightColor,
+    bool appendCellSeparator = false,
+    bool appendRowTerminator = false,
+  }) {
+    final parts = LogTimestampParts.tryParse(timestamp);
+    final dateEnd = parts?.datePrefix.length ?? 0;
+    final timeEnd = dateEnd + (parts?.time.length ?? 0);
+    return SizedBox(
+      width: widthOf(LogColumn.timestamp),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: _buildSelectableText(
+          context,
+          timestamp,
+          style,
+          styleRuns: parts == null
+              ? null
+              : [
+                  (dateEnd, style.merge(_hiddenTextStyle)),
+                  (timeEnd, style),
+                  (
+                    timestamp.length,
+                    style.copyWith(
+                      color: context.eaglyTheme.timestampFractionColor,
+                    ),
+                  ),
+                ],
+          highlightColor: highlightColor,
+          appendCellSeparator: appendCellSeparator,
+          appendRowTerminator: appendRowTerminator,
+        ),
+      ),
+    );
+  }
+
   Widget _levelCell(
     BuildContext context,
     String level,
@@ -136,23 +238,23 @@ class const LogRow({
     bool appendCellSeparator = false,
     bool appendRowTerminator = false,
   }) {
+    // A soft tint with the letter in the level colour: a solid block on
+    // every row made the column the loudest thing on screen.
     return SizedBox(
       width: widthOf(LogColumn.level),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         child: Container(
+          key: const ValueKey('log-level-badge'),
           decoration: BoxDecoration(
-            color: levelColor,
-            borderRadius: BorderRadius.circular(2),
+            color: context.eaglyTheme.logBadgeFill(levelColor),
+            borderRadius: BorderRadius.circular(3),
           ),
           alignment: Alignment.center,
           child: _buildSelectableText(
             context,
             level,
-            monoStyle.copyWith(
-              color: context.eaglyTheme.logBadgeForeground,
-              fontWeight: FontWeight.bold,
-            ),
+            monoStyle.copyWith(color: levelColor, fontWeight: FontWeight.w700),
             appendCellSeparator: appendCellSeparator,
             appendRowTerminator: appendRowTerminator,
           ),
@@ -278,91 +380,130 @@ class const LogRow({
     return _selectionDetector(detectorIndex);
   }
 
+  /// A session marker ("Started", "Paused", …) as a divider between runs: a
+  /// hairline across the row, broken by the label in the middle. A boxed
+  /// tile read as a log line of its own; a rule reads as a seam.
   Widget _buildSpecialRow(
     BuildContext context, {
     Color? highlightColor,
     required bool isCurrentMatch,
   }) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = context.eaglyTheme;
     final accentColor = _specialAccentColor(context);
-    final tileColor = accentColor.withValues(
-      alpha: Theme.of(context).brightness == Brightness.dark ? 0.07 : 0.045,
-    );
-    final captionStyle = monoStyle.copyWith(
-      color: context.eaglyTheme.tertiaryTextColor,
+    final lineColor = Theme.of(context).colorScheme.outlineVariant;
+    final timeStyle = monoStyle.copyWith(
+      color: theme.tertiaryTextColor,
       fontSize: (monoStyle.fontSize ?? 12) - 1,
     );
-    final messageStyle = monoStyle.copyWith(color: colorScheme.onSurface);
-    final metaText = _specialMetaText();
+    final messageStyle = monoStyle.copyWith(color: theme.secondaryTextColor);
+    final timeText = _specialTimeText();
+    final (labelText, messageText) = _specialLabelAndMessage();
+
+    Widget line() => Expanded(child: Container(height: 1, color: lineColor));
+
+    // Sized so the row never overflows, however narrow the pane: the type
+    // label takes at most a third, the message the rest, and the time only
+    // shows once there is room for it beside them.
+    Widget label(double maxWidth) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_specialIcon(), size: 13, color: accentColor),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth / 3),
+            child: _buildSelectableText(
+              context,
+              labelText,
+              monoStyle.copyWith(
+                color: accentColor,
+                fontWeight: FontWeight.w600,
+              ),
+              highlightColor: highlightColor,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (messageText.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Flexible(
+              child: _buildSelectableText(
+                context,
+                messageText,
+                messageStyle,
+                highlightColor: highlightColor,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+          if (timeText.isNotEmpty && maxWidth >= _specialRowTimeMinWidth) ...[
+            const SizedBox(width: 8),
+            _buildSelectableText(
+              context,
+              timeText,
+              timeStyle,
+              highlightColor: highlightColor,
+            ),
+          ],
+        ],
+      );
+    }
 
     return SelectionContainer.disabled(
       child: Container(
-        color: isCurrentMatch ? context.eaglyTheme.searchCurrentRowColor : null,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        color: isCurrentMatch ? theme.searchCurrentRowColor : null,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         child: Align(
           alignment: Alignment.centerLeft,
-          child: ConstrainedBox(
+          // Across what the pane shows, not the whole scrollable width: with
+          // wrapping off the content can be thousands of pixels wide, and a
+          // label centred in that would start off screen.
+          child: SizedBox(
             key: const ValueKey('special-log-row'),
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: Container(
-              decoration: BoxDecoration(
-                color: tileColor,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: accentColor.withValues(
-                    alpha: isCurrentMatch ? 0.32 : 0.18,
-                  ),
-                  width: 0.8,
-                ),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(_specialIcon(), size: 13, color: accentColor),
-                  const SizedBox(width: 6),
-                  _buildSelectableText(
-                    context,
-                    log.typeLabel,
-                    monoStyle.copyWith(
-                      color: accentColor,
-                      fontWeight: FontWeight.w600,
+            width: specialRowWidth == null
+                ? null
+                : math.max(0, specialRowWidth! - 16),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Each side keeps a stub of line, so even a label cut short
+                // by a narrow pane still reads as a divider.
+                const stub = _specialRowLineStub + _specialRowLabelGap;
+                final labelMaxWidth = constraints.hasBoundedWidth
+                    ? math.max(0.0, constraints.maxWidth - 2 * stub)
+                    : double.infinity;
+                if (labelMaxWidth < _specialRowLabelMinWidth) {
+                  return Container(height: 1, color: lineColor);
+                }
+                return Row(
+                  children: [
+                    line(),
+                    const SizedBox(width: _specialRowLabelGap),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: labelMaxWidth),
+                      child: label(labelMaxWidth),
                     ),
-                    highlightColor: highlightColor,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (log.message.trim().isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildSelectableText(
-                        context,
-                        log.message,
-                        messageStyle,
-                        highlightColor: highlightColor,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
+                    const SizedBox(width: _specialRowLabelGap),
+                    line(),
                   ],
-                  if (metaText.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: _buildSelectableText(
-                        context,
-                        metaText,
-                        captionStyle,
-                        highlightColor: highlightColor,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+                );
+              },
             ),
           ),
         ),
       ),
     );
   }
+
+  /// The chip's text for [repeat] — "×248 over 2.1 s" — for measuring the
+  /// message column; see [_RepeatChip].
+  static String repeatChipText(LogRepeat repeat) {
+    final span = formatRepeatSpan(repeat.span);
+    return span == null ? '×${repeat.count}' : '×${repeat.count} over $span';
+  }
+
+  static const double _specialRowLineStub = 12;
+  static const double _specialRowLabelGap = 8;
+  static const double _specialRowLabelMinWidth = 40;
+  static const double _specialRowTimeMinWidth = 200;
 
   /// The level's color is carried by the badge and the message; repeating it
   /// on every cell made a row one solid stripe. The other cells step down:
@@ -416,6 +557,15 @@ class const LogRow({
             appendCellSeparator: lastVisibleColumn != col,
             appendRowTerminator: lastVisibleColumn == col,
           )
+        else if (col == LogColumn.timestamp)
+          _timestampCell(
+            context,
+            contentValueForColumn(col),
+            _cellStyle(logTheme, col, rowStyle),
+            highlightColor: highlightColor,
+            appendCellSeparator: lastVisibleColumn != col,
+            appendRowTerminator: lastVisibleColumn == col,
+          )
         else
           _fixedCell(
             context,
@@ -438,6 +588,20 @@ class const LogRow({
               highlightColor: highlightColor,
               softWrap: wrapText,
               appendRowTerminator: lastVisibleColumn == LogColumn.message,
+              trailing: repeat == null
+                  ? null
+                  : WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: _RepeatChip(
+                          repeat: repeat!,
+                          levelColor: levelColor,
+                          monoStyle: monoStyle,
+                          onPressed: onToggleRepeat,
+                        ),
+                      ),
+                    ),
             ),
           ),
         ),
@@ -484,6 +648,109 @@ class const LogRow({
               ? null
               : (details) => onRowContextMenuRequested!(details.globalPosition),
           child: rowContent,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Repeat chip ──
+
+/// How long a run of repeats lasted, as its chip says it: "340 ms", "2.1 s",
+/// "4 min 12 s", "1 h 5 min". Null for no span or none at all, where "over"
+/// would say nothing.
+@visibleForTesting
+String? formatRepeatSpan(Duration? span) {
+  if (span == null || span <= Duration.zero) return null;
+  final ms = span.inMilliseconds;
+  if (ms < 1000) return '$ms ms';
+  if (ms < 60000) return '${(ms / 1000).toStringAsFixed(1)} s';
+  if (span.inMinutes < 60) {
+    final seconds = span.inSeconds % 60;
+    return seconds == 0
+        ? '${span.inMinutes} min'
+        : '${span.inMinutes} min $seconds s';
+  }
+  final minutes = span.inMinutes % 60;
+  return minutes == 0 ? '${span.inHours} h' : '${span.inHours} h $minutes min';
+}
+
+/// The count at the end of a folded run's message: "×248", and how long the
+/// run lasted at the tertiary tier, tinted with the row's level colour like
+/// its badge. A click unfolds the run in place; on an unfolded run's first
+/// row it folds it back.
+class const _RepeatChip({
+  required final LogRepeat repeat,
+  required final Color levelColor,
+  required final TextStyle monoStyle,
+  required final VoidCallback? onPressed,
+}) extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.eaglyTheme;
+    final fontSize = (monoStyle.fontSize ?? 12) - 1;
+    final span = formatRepeatSpan(repeat.span);
+    final tooltip = repeat.expanded
+        ? 'Fold these ${repeat.count} lines into one row'
+        : 'Show all ${repeat.count} lines';
+    return SelectionContainer.disabled(
+      child: Tooltip(
+        message: tooltip,
+        child: HoverBuilder(
+          cursor: onPressed == null
+              ? MouseCursor.defer
+              : SystemMouseCursors.click,
+          builder: (context, hovered) => GestureDetector(
+            key: const ValueKey('log-repeat-chip'),
+            behavior: HitTestBehavior.opaque,
+            onTap: onPressed,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              decoration: BoxDecoration(
+                color: theme.logBadgeFill(levelColor),
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(
+                  color: hovered
+                      ? levelColor.withValues(alpha: 0.5)
+                      : Colors.transparent,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '×${repeat.count}',
+                          style: TextStyle(
+                            color: levelColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (span != null)
+                          TextSpan(
+                            text: ' over $span',
+                            style: TextStyle(color: theme.tertiaryTextColor),
+                          ),
+                      ],
+                    ),
+                    style: monoStyle.copyWith(fontSize: fontSize, height: 1.3),
+                    maxLines: 1,
+                    softWrap: false,
+                  ),
+                  if (repeat.expanded) ...[
+                    const SizedBox(width: 3),
+                    Icon(
+                      Icons.unfold_less_rounded,
+                      size: fontSize + 2,
+                      color: levelColor,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

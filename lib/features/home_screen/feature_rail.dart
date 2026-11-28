@@ -4,6 +4,7 @@ import '../../presentation/theme/app_theme.dart';
 import '../../session/device_session_controller.dart';
 import 'components/rail_button.dart';
 import 'components/rail_footer.dart';
+import '../../presentation/theme/platform_look.dart';
 
 /// Far-left vertical rail listing the features available for a device. The
 /// rail is split into two sections: Home (pinned at the top, its own
@@ -95,7 +96,9 @@ class _FeatureRailState extends State<FeatureRail>
         return Container(
           width: context.scaled(72),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
+            color: PlatformLook.chromeOverlayColor(
+              theme.colorScheme.surfaceContainerHighest,
+            ),
             border: Border(
               right: BorderSide(color: theme.colorScheme.outlineVariant),
             ),

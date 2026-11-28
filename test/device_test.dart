@@ -72,10 +72,11 @@ void main() {
 
       expect(device, isA<AndroidDevice>());
       expect(device.displayName, 'Pixel 8');
-      expect(device.displayLabel.secondary, 'Pixel 8');
+      expect(device.displayLabel.primary, 'Pixel 8');
+      expect(device.displayLabel.secondary, 'emulator-5...');
     });
 
-    test('label primary is the truncated serial ID for wired devices', () {
+    test('label leads with brand/model, then the truncated serial', () {
       final device = Device.android(
         'RZCW1186VXZ',
         'device',
@@ -83,8 +84,8 @@ void main() {
         model: 'Galaxy S21',
       );
 
-      expect(device.displayLabel.primary, 'RZCW1186VX...');
-      expect(device.displayLabel.secondary, 'Samsung Galaxy S21');
+      expect(device.displayLabel.primary, 'Samsung Galaxy S21');
+      expect(device.displayLabel.secondary, 'RZCW1186VX...');
     });
 
     test('the full label keeps the whole serial for tooltips', () {
@@ -95,8 +96,15 @@ void main() {
         model: 'Galaxy S21',
       );
 
-      expect(device.fullDisplayLabel.primary, 'RZCW1186VXZ');
-      expect(device.fullDisplayLabel.secondary, 'Samsung Galaxy S21');
+      expect(device.fullDisplayLabel.primary, 'Samsung Galaxy S21');
+      expect(device.fullDisplayLabel.secondary, 'RZCW1186VXZ');
+    });
+
+    test('an undescribed wired device is labelled by its serial alone', () {
+      final device = Device.android('RZCW1186VXZ', 'device');
+
+      expect(device.displayLabel.primary, 'RZCW1186VX...');
+      expect(device.displayLabel.secondary, isNull);
     });
 
     test(

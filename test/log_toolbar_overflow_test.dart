@@ -56,12 +56,22 @@ void main() {
     return session;
   }
 
-  testWidgets('keeps every action visible in a wide pane', (tester) async {
+  testWidgets('a wide pane shows the view toggles; import, export and copy '
+      'all stay in the menu', (tester) async {
     await pumpToolbar(tester, 1200);
-
-    expect(find.byIcon(Icons.more_horiz).hitTestable(), findsNothing);
-    expect(find.byIcon(Icons.download_outlined).hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
+
+    expect(find.byIcon(Icons.notes).hitTestable(), findsOneWidget);
+    expect(find.byIcon(Icons.download_outlined).hitTestable(), findsNothing);
+    expect(find.byIcon(Icons.copy_all_outlined).hitTestable(), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.more_horiz).hitTestable());
+    await tester.pumpAndSettle();
+    expect(find.text('Copy all logs'), findsOneWidget);
+    expect(find.text('Export logs'), findsOneWidget);
+    expect(find.text('Import log file'), findsOneWidget);
+    // Nothing that fits in the bar is repeated in the menu.
+    expect(find.text('Wrap long lines'), findsNothing);
   });
 
   testWidgets('collapses into the overflow menu in a narrow pane', (
@@ -73,11 +83,12 @@ void main() {
     // Capture controls, the tab strip and close stay put.
     expect(find.byIcon(Icons.close).hitTestable(), findsOneWidget);
     expect(find.byIcon(Icons.play_arrow).hitTestable(), findsOneWidget);
-    // Import — the last action — moved into the menu.
-    expect(find.byIcon(Icons.download_outlined).hitTestable(), findsNothing);
+    // The view toggles collapsed too.
+    expect(find.byIcon(Icons.notes).hitTestable(), findsNothing);
 
     await tester.tap(find.byIcon(Icons.more_horiz).hitTestable());
     await tester.pumpAndSettle();
+    expect(find.text('Wrap long lines'), findsOneWidget);
     expect(find.text('Import log file'), findsOneWidget);
   });
 }
