@@ -26,20 +26,43 @@ abstract final class PlatformLook {
   /// How much of the chrome's own colour is laid over the window material:
   /// enough to keep text on the header and rail legible, little enough for
   /// the material (and the wallpaper behind it) to show.
-  static const chromeOpacity = 0.55;
+  static const chromeOpacity = 0.25;
 
   /// Gives the window its platform material. Call once, before the first
   /// frame, after `windowManager.ensureInitialized()`. Failures leave the
   /// window opaque — the look is a nicety, never a reason not to start.
   static Future<void> applyWindowMaterial({required bool dark}) async {
     if (!Platform.isMacOS && !Platform.isWindows) return;
+    // Mica is Windows 11 only. On Windows 10 the effect call succeeds but
+    // draws nothing, which would leave the see-through chrome over black.
+    if (Platform.isWindows &&
+        !supportsMica(windowsBuild(Platform.operatingSystemVersion))) {
+      return;
+    }
     try {
       await acrylic.Window.initialize();
       _hasWindowMaterial = true;
       await syncBrightness(dark: dark);
-    } catch (_) {
+    } catch (e) {
       _hasWindowMaterial = false;
+      debugPrint('[PlatformLook] window material failed: $e');
     }
+  }
+
+  /// The first Windows 11 build, where Mica arrived.
+  static const firstMicaBuild = 22000;
+
+  /// Whether a Windows [build] can draw Mica; an unknown build cannot.
+  static bool supportsMica(int? build) =>
+      build != null && build >= firstMicaBuild;
+
+  /// The build number in `Platform.operatingSystemVersion` on Windows, such
+  /// as 22631 in `"Windows 10 Pro" 10.0 (Build 22631)` (Windows 11 still
+  /// reports itself as 10.0), or null if there is none.
+  @visibleForTesting
+  static int? windowsBuild(String operatingSystemVersion) {
+    final match = RegExp(r'\(Build (\d+)\)').firstMatch(operatingSystemVersion);
+    return match == null ? null : int.tryParse(match.group(1)!);
   }
 
   /// Keeps the material's light or dark variant in step with the app's own
@@ -51,24 +74,31 @@ abstract final class PlatformLook {
         await acrylic.Window.setEffect(effect: acrylic.WindowEffect.sidebar);
         await acrylic.Window.overrideMacOSBrightness(dark: dark);
       } else if (Platform.isWindows) {
-        // Mica needs Windows 11; on Windows 10 the call does nothing visible
-        // and the translucent chrome falls back to the window's own colour.
+        // Only reached on Windows 11: applyWindowMaterial skips Windows 10.
         await acrylic.Window.setEffect(
           effect: acrylic.WindowEffect.mica,
           dark: dark,
         );
       }
-    } catch (_) {
+    } catch (e) {
       // Leave whatever the window had.
+      debugPrint('[PlatformLook] setting the material failed: $e');
     }
   }
 
-  /// The colour of window chrome — header, rail, the gaps between panes —
-  /// given its opaque colour: see-through over the window material when
-  /// there is one, as is otherwise.
+  /// The colour of the window's base layer (the scaffold, which shows in
+  /// the gaps between panes), given its opaque colour: see-through over the
+  /// window material when there is one, as is otherwise.
   static Color chromeColor(Color opaque) => _hasWindowMaterial
       ? opaque.withValues(alpha: opaque.a * chromeOpacity)
       : opaque;
+
+  /// The colour of chrome drawn on top of that base layer (header, rail):
+  /// clear over the window material, so the one tint below is all that
+  /// covers it (two translucent layers stack to near-opaque), as is
+  /// otherwise.
+  static Color chromeOverlayColor(Color opaque) =>
+      _hasWindowMaterial ? Colors.transparent : opaque;
 
   // ── Type ──────────────────────────────────────────────────────────────
 

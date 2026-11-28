@@ -38,7 +38,7 @@ class const AppHeader({
         return Container(
           height: context.scaled(52),
           decoration: BoxDecoration(
-            color: PlatformLook.chromeColor(
+            color: PlatformLook.chromeOverlayColor(
               theme.colorScheme.surfaceContainerHighest,
             ),
             border: Border(

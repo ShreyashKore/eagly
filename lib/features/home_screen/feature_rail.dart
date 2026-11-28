@@ -96,7 +96,7 @@ class _FeatureRailState extends State<FeatureRail>
         return Container(
           width: context.scaled(72),
           decoration: BoxDecoration(
-            color: PlatformLook.chromeColor(
+            color: PlatformLook.chromeOverlayColor(
               theme.colorScheme.surfaceContainerHighest,
             ),
             border: Border(
