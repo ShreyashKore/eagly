@@ -6,8 +6,8 @@ import '../../../presentation/components/available_device_card.dart';
 import '../../../presentation/components/install_conflict_dialog.dart';
 import '../../../session/device_session_manager.dart';
 
-/// The device section of the landing screen: a "searching / none found"
-/// status box, or one [AvailableDeviceCard] per detected device.
+/// The body of the home page's Devices card: a "searching / none found"
+/// status, or one [AvailableDeviceCard] per detected device.
 class const HomeDeviceList({
   super.key,
   required final DeviceSessionManager manager,
@@ -26,13 +26,7 @@ class const HomeDeviceList({
       return Container(
         key: const ValueKey('status-box'),
         width: double.infinity,
-        margin: const EdgeInsets.only(top: 8),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
         child: AnimatedContent(
           child: manager.isLoadingDevices
               ? Column(
@@ -59,8 +53,8 @@ class const HomeDeviceList({
                     Text('No devices found', style: theme.textTheme.titleSmall),
                     const Gap(6),
                     Text(
-                      'Connect an Android device with ADB enabled, or an iOS device '
-                      'supported by libimobiledevice.',
+                      'Plug in an Android device with USB debugging on, or an '
+                      'iPhone, or pair one over Wi-Fi.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -76,12 +70,6 @@ class const HomeDeviceList({
       key: const ValueKey('devices'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Gap(4),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text('Devices', style: theme.textTheme.titleMedium),
-        ),
-        const Gap(8),
         for (final session in sessions)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
