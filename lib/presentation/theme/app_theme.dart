@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../features/logs/data/models/log_framework.dart';
 import '../../features/logs/data/models/log_level.dart';
+import 'platform_look.dart';
 import 'text_theme.dart';
 
 extension ThemeModeExt on ThemeMode {
@@ -371,19 +372,31 @@ class AppTheme {
       ),
     );
 
-    final textTheme = GoogleFonts.interTextTheme(baseTheme.textTheme).apply(
-      bodyColor: colorScheme.onSurface,
-      displayColor: colorScheme.onSurface,
-    );
+    // The platform's own UI font where it has a good one (PlatformLook);
+    // the bundled Inter elsewhere.
+    final textTheme =
+        (PlatformLook.usesSystemFont
+                ? baseTheme.textTheme.apply(
+                    fontFamily: PlatformLook.uiFontFamily,
+                    fontFamilyFallback: PlatformLook.uiFontFallback,
+                  )
+                : GoogleFonts.interTextTheme(baseTheme.textTheme))
+            .apply(
+              bodyColor: colorScheme.onSurface,
+              displayColor: colorScheme.onSurface,
+            );
 
     final cursorStyle = WidgetStatePropertyAll(SystemMouseCursors.click);
     final inputBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(PlatformLook.controlRadius),
       borderSide: BorderSide(color: colorScheme.outlineVariant),
     );
 
     return baseTheme.copyWith(
-      scaffoldBackgroundColor: colorScheme.surfaceContainerLowest,
+      // See-through over the window material, where there is one.
+      scaffoldBackgroundColor: PlatformLook.chromeColor(
+        colorScheme.surfaceContainerLowest,
+      ),
       textTheme: textTheme,
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       visualDensity: VisualDensity.compact,
@@ -398,7 +411,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(PlatformLook.surfaceRadius),
           side: BorderSide(color: colorScheme.outlineVariant),
         ),
       ),
